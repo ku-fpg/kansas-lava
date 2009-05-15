@@ -1,0 +1,33 @@
+Name:               kansas-lava
+Version:            0.1
+Synopsis:           Kansas Lava is a locally grown version of Lava, in the spirit of Chalmers Lava, and Xilinx Lava. 
+		    .
+		    &#169; 2009 Andy Gill; BSD3 license.
+
+Category:            Language
+License:             BSD3
+License-file:        LICENSE
+Author:              Andy Gill
+Maintainer:          Andy Gill <andygill@ku.edu>
+Copyright:           (c) 2009 Andy Gill
+Homepage:            http://ittc.ku.edu/~andygill/kansas-lava.php
+Stability:	     alpha
+build-type: 	     Simple
+Cabal-Version:       >= 1.6
+
+Library
+  Build-Depends: base, containers, data-reify
+  Exposed-modules:
+       Language.KansasLava
+       Language.KansasLava.Entity
+       Language.KansasLava.Logic
+       Language.KansasLava.Reify
+       Language.KansasLava.Signal
+  Ghc-Options:  -Wall
+
+--Executable data-reify-test1
+--  Build-Depends:  base
+--  Main-Is:        Test1.hs
+--  Hs-Source-Dirs: ., test
+--  buildable: False
+
