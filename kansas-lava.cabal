@@ -1,6 +1,7 @@
 Name:               kansas-lava
 Version:            0.1
-Synopsis:           Kansas Lava is a locally grown version of Lava, in the spirit of Chalmers Lava, and Xilinx Lava. 
+Synopsis:           Kansas Lava is a locally grown version of Lava, 
+		    in the spirit of Chalmers Lava, and Xilinx Lava. 
 		    .
 		    &#169; 2009 Andy Gill; BSD3 license.
 

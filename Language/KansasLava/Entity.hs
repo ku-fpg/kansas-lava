@@ -2,28 +2,37 @@ module Language.KansasLava.Entity where
 
 import qualified Data.Traversable as T
 import qualified Data.Foldable as F
-import Control.Applicative 
+import Control.Applicative
+import Data.Unique
+import Data.Monoid
+  
+data Name = Name String String
+    deriving (Eq)
 
-data Var = Var [String]
-    deriving (Show, Eq)
-    
-var :: String -> Var
-var v = Var [v]
+instance Show Name where
+    show (Name pre nm) = "<" ++ pre ++ ">" ++ nm
+    show (Name "" nm)  = nm
 
-data Entity s = Entity Var [s]      -- an entity
-              | Port Var s          -- projection; get a specific port of an entity
-              | Pad Var
+name :: String -> Name
+name n  = Name "" n
+
+data Entity s = Entity Name [s]      -- an entity
+              | Port Name s          -- projection; get a specific port of an entity
+              | Pad Name
               | Lit Integer
               deriving (Show, Eq)
 
 instance T.Traversable Entity where
   traverse f (Entity v ss) = Entity v <$> T.traverse f ss
-  traverse f (Port v s)    = Port v <$> f s
+  traverse f (Port v s)    = Port v   <$> f s
   traverse _ (Pad v)       = pure $ Pad v
   traverse _ (Lit i)       = pure $ Lit i
   
 instance F.Foldable Entity where
-    -- TODO
+  foldMap f (Entity v ss) = F.foldMap f ss
+  foldMap f (Port v s)    = f s
+  foldMap _ (Pad v)       = mempty
+  foldMap _ (Lit i)       = mempty
     
 instance Functor Entity where
     fmap f (Entity v ss) = Entity v (fmap f ss)
