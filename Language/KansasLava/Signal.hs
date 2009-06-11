@@ -116,7 +116,7 @@ evaluateNumClass entity = case entity of
 -}
 
 evaluateNumClass :: (Num a, Show a) => String -> Maybe ([a] -> a)
-evaluateNumClass op | trace (show op) False = undefined
+-- evaluateNumClass op | trace (show op) False = undefined
 evaluateNumClass "+"      = return $ \ [v1,v2] -> v1 + v2
 evaluateNumClass "-"      = return $ \ [v1,v2] -> v1 - v2
 evaluateNumClass "*"      = return $ \ [v1,v2] -> v1 * v2
@@ -131,16 +131,31 @@ evalNumClass = Eval $ \ entity ->
     case entity of
         (Entity (Name nm' op') _) | nm' == modName -> evaluateNumClass op'
         _ -> Nothing
+        
 
-type Seq a = [a]
+data Seq a = a :~ Seq a
 newtype Eval a = Eval (Entity a -> Maybe ([a] -> a))
+
+repeatSeq :: a -> Seq a
+repeatSeq a = a :~ repeatSeq a
+
+transposeSeq :: [Seq a] -> Seq [a]
+
+transposeSeq ((x :~ xs) : xss) = 
+        (x : [h | (h:~t) <- xss]) :~ 
+        transposeSeq (xs : [t | (h:~t) <- xss])
+                           
+instance Functor Seq where
+   fmap f (a :~ as) = f a :~ fmap f as
 
 -- This is *really* gunky, but works.
 liftEntityEval :: Eval a -> Eval (Seq a)
 liftEntityEval (Eval fn) = Eval $ \ entity ->
    case fn (demote entity) of
       Nothing -> Nothing
-      Just fn' -> Just $ \ vs -> map fn' (transpose vs)
+      Just fn' -> Just $ \ vs -> case vs of
+         [] -> repeatSeq (fn' []) 
+         _  -> fmap fn' (transposeSeq vs)
  where
     demote :: Entity (Seq a) -> Entity a
     demote (Entity nm _) = Entity nm []

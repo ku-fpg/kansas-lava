@@ -17,7 +17,7 @@ build-type: 	     Simple
 Cabal-Version:       >= 1.6
 
 Library
-  Build-Depends: base, containers, data-reify
+  Build-Depends: base >= 4 && < 5, containers, data-reify
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Entity
