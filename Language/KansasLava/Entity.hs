@@ -7,7 +7,7 @@ import Data.Unique
 import Data.Monoid
   
 data Name = Name String String
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Show Name where
     show (Name pre nm) = "<" ++ pre ++ ">" ++ nm
@@ -17,7 +17,7 @@ name :: String -> Name
 name n  = Name "" n
 
 data Entity s = Entity Name [s]      -- an entity
-              | Port Name s          -- projection; get a specific port of an entity
+              | Port Name s        -- projection; get a specific named port of an entity
               | Pad Name
               | Lit Integer
               deriving (Show, Eq)

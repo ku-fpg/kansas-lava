@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, ExistentialQuantification #-}
 
 module Language.KansasLava.Signal where
 
@@ -6,13 +6,49 @@ import Data.Ratio
 import Data.Word
 import Data.Int
 import Data.Bits
+import Data.List
 
 import Data.Reify
 import qualified Data.Traversable as T
 
 import Language.KansasLava.Entity
+import Data.Monoid
+import Debug.Trace
 
 newtype Signal a = Signal Wire 
+--	      | forall b . Fmap (a -> b) (Signal a)
+
+{-
+-}
+{-
+ fmap (a -> b) -> Signal a -> Signal b	-- This is more like a witness.
+ pure :: a -> Signal a			-- 
+ <*> :: Signal (a -> b) -> Signal a -> Signal b
+
+-- These would be constructors, in the EDDSL.
+pair :: (Signal a,Signal b) -> Signal (a,b)
+pair (s1,s2) = fmap (,) <*> s1 <*> s2
+proj :: Signal (a,b) -> (Signal a,Signal b)
+proj s = (fmap fst s,fmap snd s)
+
+arr :: Array b (Signal a) -> Signal (Array b a)
+arr = 
+
+proj :: Signal (Array b a) -> Array b (Signal a)
+
+extract :: Signal a -> a
+extract :: Signa
+
+class Functor f where
+  fmap :: (Dynamic a,Dynamic b) => (a -> b) -> Signal a -> Signal b
+
+
+-}
+
+
+
+
+-- All possible
 
 newtype Wire = Wire (Entity Wire) 
 
@@ -47,6 +83,14 @@ instance OpType Word32 where op _ nm = Name "Word32" nm
 instance OpType Bool where op _  nm = Name "Bool" nm
 instance OpType ()   where op _  nm = Name "()" nm
 
+-- find the name of the type of the entity arguments.
+findEntityTyModName :: (OpType a) => Entity a -> String
+findEntityTyModName e = nm
+  where
+    (Name nm _) = fn e undefined
+    fn :: (OpType a) => c a -> Signal a -> Name
+    fn _ s = s `op` ""
+    
 -------------------------------------------
 
 instance (Num a, OpType a) => Num (Signal a) where
@@ -60,6 +104,57 @@ instance (Num a, OpType a) => Num (Signal a) where
             where s = Signal $ Wire $ Entity (op s "fromInteger")
                                     [ Wire $ Lit $ n
                                     ]
+{-
+evaluateNumClass :: (Num a, OpType a) => Entity a -> Maybe a
+evaluateNumClass entity = case entity of
+        Entity (Name nm "+") [v1,v2] | nm == nm' -> return $ v1 + v2
+        Entity (Name nm "-") [v1,v2] | nm == nm' -> return $ v1 - v2
+        Entity (Name nm "*") [v1,v2] | nm == nm' -> return $ v1 * v2
+        _ -> Nothing
+  where
+          nm' = findEntityTyModName entity
+-}
+
+evaluateNumClass :: (Num a, Show a) => String -> Maybe ([a] -> a)
+evaluateNumClass op | trace (show op) False = undefined
+evaluateNumClass "+"      = return $ \ [v1,v2] -> v1 + v2
+evaluateNumClass "-"      = return $ \ [v1,v2] -> v1 - v2
+evaluateNumClass "*"      = return $ \ [v1,v2] -> v1 * v2
+evaluateNumClass "negate" = return $ \ [v1] -> negate v1 
+evaluateNumClass "abs"    = return $ \ [v1] -> abs v1
+evaluateNumClass "signum" = return $ \ [v1] -> signum v1 
+evaluateNumClass _   = fail "not in evaluateNum"
+
+evalNumClass :: (Num a, OpType a) => Eval a
+evalNumClass = Eval $ \ entity ->
+    let modName = findEntityTyModName entity in
+    case entity of
+        (Entity (Name nm' op') _) | nm' == modName -> evaluateNumClass op'
+        _ -> Nothing
+
+type Seq a = [a]
+newtype Eval a = Eval (Entity a -> Maybe ([a] -> a))
+
+-- This is *really* gunky, but works.
+liftEntityEval :: Eval a -> Eval (Seq a)
+liftEntityEval (Eval fn) = Eval $ \ entity ->
+   case fn (demote entity) of
+      Nothing -> Nothing
+      Just fn' -> Just $ \ vs -> map fn' (transpose vs)
+ where
+    demote :: Entity (Seq a) -> Entity a
+    demote (Entity nm _) = Entity nm []
+    demote (Port nm v)   = Port nm (error "port problem") 
+    demote (Pad pd)      = Pad pd
+    demote (Lit i)       = Lit i
+
+instance Monoid (Eval a) where
+    mempty = Eval $ \ _ -> Nothing
+    mappend (Eval f1) (Eval f2) = Eval $ \ e ->
+        case f1 e of
+          Nothing -> f2 e
+          Just fn -> Just fn
+
 
 instance (Bits a, OpType a) => Bits (Signal a) where
     s@(Signal s1) .&. (Signal s2)   = Signal $ Wire $ Entity (op s ".&.") [s1,s2]
@@ -101,3 +196,4 @@ instance (Floating a, OpType a) => Floating (Signal a) where
     asinh s@(Signal s1)         = Signal $ Wire $ Entity (op s "asinh") [s1]
     atanh s@(Signal s1)         = Signal $ Wire $ Entity (op s "atanh") [s1]
     acosh s@(Signal s1)         = Signal $ Wire $ Entity (op s "acosh") [s1]
+
