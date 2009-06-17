@@ -25,6 +25,10 @@ Library
        Language.KansasLava.Reify
        Language.KansasLava.Signal
        Language.KansasLava.Evaluator
+       Language.KansasLava.Seq
+       Language.KansasLava.Sequential
+
+
   Ghc-Options:  -Wall
 
 --Executable data-reify-test1

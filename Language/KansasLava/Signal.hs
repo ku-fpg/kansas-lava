@@ -12,6 +12,7 @@ import Data.Reify
 import qualified Data.Traversable as T
 
 import Language.KansasLava.Entity
+import Language.KansasLava.Seq
 import Data.Monoid
 import Debug.Trace
 
@@ -104,71 +105,7 @@ instance (Num a, OpType a) => Num (Signal a) where
             where s = Signal $ Wire $ Entity (op s "fromInteger")
                                     [ Wire $ Lit $ n
                                     ]
-{-
-evaluateNumClass :: (Num a, OpType a) => Entity a -> Maybe a
-evaluateNumClass entity = case entity of
-        Entity (Name nm "+") [v1,v2] | nm == nm' -> return $ v1 + v2
-        Entity (Name nm "-") [v1,v2] | nm == nm' -> return $ v1 - v2
-        Entity (Name nm "*") [v1,v2] | nm == nm' -> return $ v1 * v2
-        _ -> Nothing
-  where
-          nm' = findEntityTyModName entity
--}
-
-evaluateNumClass :: (Num a, Show a) => String -> Maybe ([a] -> a)
--- evaluateNumClass op | trace (show op) False = undefined
-evaluateNumClass "+"      = return $ \ [v1,v2] -> v1 + v2
-evaluateNumClass "-"      = return $ \ [v1,v2] -> v1 - v2
-evaluateNumClass "*"      = return $ \ [v1,v2] -> v1 * v2
-evaluateNumClass "negate" = return $ \ [v1] -> negate v1 
-evaluateNumClass "abs"    = return $ \ [v1] -> abs v1
-evaluateNumClass "signum" = return $ \ [v1] -> signum v1 
-evaluateNumClass _   = fail "not in evaluateNum"
-
-evalNumClass :: (Num a, OpType a) => Eval a
-evalNumClass = Eval $ \ entity ->
-    let modName = findEntityTyModName entity in
-    case entity of
-        (Entity (Name nm' op') _) | nm' == modName -> evaluateNumClass op'
-        _ -> Nothing
         
-
-data Seq a = a :~ Seq a
-newtype Eval a = Eval (Entity a -> Maybe ([a] -> a))
-
-repeatSeq :: a -> Seq a
-repeatSeq a = a :~ repeatSeq a
-
-transposeSeq :: [Seq a] -> Seq [a]
-
-transposeSeq ((x :~ xs) : xss) = 
-        (x : [h | (h:~t) <- xss]) :~ 
-        transposeSeq (xs : [t | (h:~t) <- xss])
-                           
-instance Functor Seq where
-   fmap f (a :~ as) = f a :~ fmap f as
-
--- This is *really* gunky, but works.
-liftEntityEval :: Eval a -> Eval (Seq a)
-liftEntityEval (Eval fn) = Eval $ \ entity ->
-   case fn (demote entity) of
-      Nothing -> Nothing
-      Just fn' -> Just $ \ vs -> case vs of
-         [] -> repeatSeq (fn' []) 
-         _  -> fmap fn' (transposeSeq vs)
- where
-    demote :: Entity (Seq a) -> Entity a
-    demote (Entity nm _) = Entity nm []
-    demote (Port nm v)   = Port nm (error "port problem") 
-    demote (Pad pd)      = Pad pd
-    demote (Lit i)       = Lit i
-
-instance Monoid (Eval a) where
-    mempty = Eval $ \ _ -> Nothing
-    mappend (Eval f1) (Eval f2) = Eval $ \ e ->
-        case f1 e of
-          Nothing -> f2 e
-          Just fn -> Just fn
 
 
 instance (Bits a, OpType a) => Bits (Signal a) where
@@ -187,7 +124,8 @@ instance (Fractional a, OpType a) => Fractional (Signal a) where
     s@(Signal s1) / (Signal s2) = Signal $ Wire $ Entity (op s "/")     [s1,s2]
     recip s@(Signal s1)         = Signal $ Wire $ Entity (op s "recip") [s1]
     fromRational r              = s 
-            where s = Signal $ Wire $ Entity (op s "%")
+            where s = Signal $ Wire $ Entity (op s "fromRational")
+                                                -- The :% arguments are tupled here
                                     [ Wire $ Lit $ numerator r
                                     , Wire $ Lit $ denominator r
                                     ]

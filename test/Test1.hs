@@ -41,6 +41,7 @@ entityEval = liftEntityEval $ mconcat
          e1 :: Eval Int32
          e1 = evalNumClass
         
+{-
 liftToRep :: (Value a) => Eval a -> Eval (Rep a)
 liftToRep (Eval fn) = Eval $ \ entity ->
    case fn (demote entity) of
@@ -49,6 +50,7 @@ liftToRep (Eval fn) = Eval $ \ entity ->
  where
     demote :: (Value a) => Entity (Rep a) -> Entity a
     demote = fmap abs
+-}
 
 circuit :: Signal (Int32,Int32) -> Signal (Int32,Int32)
 circuit ab = join (a + b,a - b)
