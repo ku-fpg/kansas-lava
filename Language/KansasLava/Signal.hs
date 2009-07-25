@@ -133,7 +133,7 @@ instance (Fractional a, OpType a) => Fractional (Signal a) where
 
 instance (Floating a, OpType a) => Floating (Signal a) where
     pi 				= s where s = Signal $ Wire $ Pad (op s "pi")
-    exp s@(Signal s1)         = Signal $ Wire $ Entity (op s "recip") [s1]
+    exp s@(Signal s1)         = Signal $ Wire $ Entity (op s "exp") [s1]
     sqrt s@(Signal s1)         = Signal $ Wire $ Entity (op s "sqrt") [s1]
     log s@(Signal s1)         = Signal $ Wire $ Entity (op s "log") [s1]
 
@@ -149,4 +149,5 @@ instance (Floating a, OpType a) => Floating (Signal a) where
     asinh s@(Signal s1)         = Signal $ Wire $ Entity (op s "asinh") [s1]
     atanh s@(Signal s1)         = Signal $ Wire $ Entity (op s "atanh") [s1]
     acosh s@(Signal s1)         = Signal $ Wire $ Entity (op s "acosh") [s1]
+
 

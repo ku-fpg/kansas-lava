@@ -20,7 +20,7 @@ data Entity s = Entity Name [s]      -- an entity
               | Port Name s        -- projection; get a specific named port of an entity
               | Pad Name
               | Lit Integer
-              deriving (Show, Eq)
+              deriving (Show, Eq, Ord)
 
 instance T.Traversable Entity where
   traverse f (Entity v ss) = Entity v <$> T.traverse f ss

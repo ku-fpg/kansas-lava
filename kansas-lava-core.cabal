@@ -24,7 +24,6 @@ Library
        Language.KansasLava.Logic
        Language.KansasLava.Reify
        Language.KansasLava.Signal
-       Language.KansasLava.Evaluator
        Language.KansasLava.Seq
        Language.KansasLava.Sequential
 
