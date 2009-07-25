@@ -1,4 +1,4 @@
-Name:               kansas-lava
+Name:               kansas-lava-core
 Version:            0.1
 Synopsis:           Kansas Lava is a locally grown version of Lava, 
 		    in the spirit of Chalmers Lava, and Xilinx Lava. 
@@ -8,7 +8,7 @@ Synopsis:           Kansas Lava is a locally grown version of Lava,
 Category:            Language
 License:             BSD3
 License-file:        LICENSE
-Author:              Andy Gill, Garrin Kimmel
+Author:              Andy Gill
 Maintainer:          Andy Gill <andygill@ku.edu>
 Copyright:           (c) 2009 The University of Kansas
 Homepage:            http://ittc.ku.edu/~andygill/kansas-lava.php
