@@ -222,21 +222,5 @@ instance COND Bool Int where {}
 --instance (Sig sig) => Show (sig Int) where  {}
 --instance (Sig sig) => Eq (sig Int) where  {}
 
-high :: Signal Bool
-high = Signal (pure True) $ Wire $ Pad $ name "high"
-
-low :: Signal Bool
-low = Signal (pure False) $ Wire $ Pad $ name "high"
-
-mux :: Signal Bool -> (Signal a, Signal a) -> Signal a
-mux ~(Signal vs s) (~(Signal vs1 w1),~(Signal vs2 w2))
-       = Signal (fromList [ if v then v1 else v2
-                          | (v,v1,v2) <- zip3 (toList vs)
-                                              (toList vs1)
-                                              (toList vs2)
-                          ])
-       $ Wire $ Entity (name "mux") [s,w1,w2]
-
-
 view :: Signal a -> [a]
 view (Signal xs _) = toList xs

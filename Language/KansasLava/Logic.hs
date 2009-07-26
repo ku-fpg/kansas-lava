@@ -1,17 +1,29 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 module Language.KansasLava.Logic where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Seq
 import Data.Bits
+import Control.Applicative
 
---
-{-
+-- These should really be in their own package.
 instance Num Bool where
+   True  + True    = False
+   True  + False   = True
+   False + True    = True
+   False + False   = False
+   -- (-) defined in terms of negate and +
+   True  * True    = True
+   True  * False   = False
+   False * True    = False
+   False * False   = False
+   -- To negate 0 is 0, to negate 1 is -1, which is True.
+   negate b     = b
+   abs    b     = b
+   signum b     = b
+   fromInteger = odd
 
--- instance Bits (Signal Bool) where
+instance Bits Bool where
     True .&. True = True
     _    .&. _    = False
     False .|. False = False
@@ -28,25 +40,25 @@ instance Num Bool where
 
     bitSize s                       = 1 
     isSigned s                      = False
--}
-{-
-and2 :: (Signal a, Signal a) -> Signal a
-and2 (Signal w1,Signal w2) = Signal $ Wire $ Entity (name "and2") [w1,w2]
 
-high :: Signal a
-high = Signal $ Wire $ Pad $ name "high"
 
-low :: (BOOL bool) => bool
-low = error "low"
--- low  = Signal $ Wire $ Pad $ name "low"
--}
-{-
--- mux :: (SEQ sig, BOOL bool, sig Bool ~ bool) => sig Bool -> (sig a,sig a) -> sig a
-mux :: (COND bool a) => bool -> (a, a) ->  a
-mux = error "undefined Mux"
--}
---mux :: Signal Bool -> (Signal a, Signal a) -> Signal a
---mux (Signal s) (Signal w1,Signal w2) = Signal $ Wire $ Entity (name "mux") [s,w1,w2]
+high :: Signal Bool
+high = Signal (pure True) $ Wire $ Pad $ name "high"
+
+low :: Signal Bool
+low = Signal (pure False) $ Wire $ Pad $ name "high"
+
+-- entity3??
+mux :: Signal Bool -> (Signal a, Signal a) -> Signal a
+mux ~(Signal vs s) (~(Signal vs1 w1),~(Signal vs2 w2))
+       = Signal (fromList [ if v then v1 else v2
+                          | (v,v1,v2) <- zip3 (toList vs)
+                                              (toList vs1)
+                                              (toList vs2)
+                          ])
+       $ Wire $ Entity (name "mux") [s,w1,w2]
+
+
 
 bitAnd :: Signal Bool -> Signal Bool -> Signal Bool
 bitAnd = entity2 (Name "Bool" "&&") (&&)
