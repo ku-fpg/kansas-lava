@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, ExistentialQuantification #-}
+{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies  #-}
 
 module Language.KansasLava.Signal where
 
@@ -150,4 +150,41 @@ instance (Floating a, OpType a) => Floating (Signal a) where
     atanh s@(Signal s1)         = Signal $ Wire $ Entity (op s "atanh") [s1]
     acosh s@(Signal s1)         = Signal $ Wire $ Entity (op s "acosh") [s1]
 
+{-
+class Sig (sig :: * -> *) where 
+   nothing :: sig a -> sig a
+-}
+ 
+class SEQ (seq :: *) where 
+   delay :: seq -> seq -> seq
+   
+instance SEQ (Signal a) where {}
+
+class BOOL (bool :: *) where 
+   high :: bool
+   low  :: bool
+   inv  :: bool -> bool
+
+instance BOOL (Signal a) where {}
+instance BOOL Bool where {}
+
+-- instance (SEQ seq) => BOOL (seq Bool) where {}
+  
+-- should conditionals imply SEQ, because they only make sense 
+-- if run may times. 
+class BOOL bool => COND bool a {- | a -> bool -} where 
+  iF :: cond -> a -> a -> a
+
+instance COND (Signal Bool) (Signal a) where {}
+instance COND Bool Float where {}
+instance COND Bool Int where {}
+
+  
+   
+-- instance Sig Signal where {}
+
+-- hacks
+-- instance (Sig sig, Show (sig Int), Eq (sig Int)) => Num (sig Int) where  {}
+--instance (Sig sig) => Show (sig Int) where  {}
+--instance (Sig sig) => Eq (sig Int) where  {}
 
