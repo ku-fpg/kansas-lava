@@ -15,8 +15,11 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Seq
 import Data.Monoid
 import Debug.Trace
+import Control.Applicative
 
-newtype Signal a = Signal Wire 
+
+                -- Signal [Maybe a] Wire, I expect
+data Signal a = Signal (Seq a) Wire 
 --	      | forall b . Fmap (a -> b) (Signal a)
 
 {-
@@ -57,14 +60,15 @@ instance MuRef Wire where
   type DeRef Wire = Entity
   mapDeRef f (Wire s) = T.traverse f s 
 
+-- not sure about this, should this use the shallow part?
 instance Eq (Signal a) where
-   (Signal s1) == (Signal s2) = s1 == s2
+   (Signal _ s1) == (Signal _ s2) = s1 == s2
 
 instance Eq Wire where
    (Wire s1) == (Wire s2) = s1 == s2
 
-instance Show (Signal a) where
-    show (Signal s) = show s
+instance (Show a) => Show (Signal a) where
+    show (Signal v _) = show v
 
 instance Show Wire where
     show (Wire s) = show s
@@ -94,32 +98,60 @@ findEntityTyModName e = nm
     
 -------------------------------------------
 
+fun1 nm f s@(~(Signal vs1 w1))
+        = Signal (fromList (map f (toList vs1)))
+        $ Wire 
+        $ Entity (op s nm) [w1]
+fun2 nm f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) 
+        = Signal (fromList (zipWith f (toList vs1) (toList vs2))) 
+        $ Wire 
+        $ Entity (op s nm) [w1,w2]
+entity1 var f s@(~(Signal vs1 w1))
+        = Signal (fromList (map f (toList vs1)))
+        $ Wire 
+        $ Entity var [w1]
+entity2 var f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) 
+        = Signal (fromList (zipWith f (toList vs1) (toList vs2))) 
+        $ Wire 
+        $ Entity var [w1,w2]
+
+
+
 instance (Num a, OpType a) => Num (Signal a) where
-    s@(Signal s1) + (Signal s2) = Signal $ Wire $ Entity (op s "+")      [s1,s2]
-    s@(Signal s1) - (Signal s2) = Signal $ Wire $ Entity (op s "-")      [s1,s2]
-    s@(Signal s1) * (Signal s2) = Signal $ Wire $ Entity (op s "*")      [s1,s2]
-    negate s@(Signal s1)        = Signal $ Wire $ Entity (op s "negate") [s1]
-    abs s@(Signal s1)           = Signal $ Wire $ Entity (op s "abs")    [s1]
-    signum s@(Signal s1)        = Signal $ Wire $ Entity (op s "signum") [s1]
+    s1 + s2 = fun2 "+" (+) s1 s2
+    s1 - s2 = fun2 "-" (-) s1 s2
+    s1 * s2 = fun2 "*" (*) s1 s2
+    negate s = fun1 "negate" (negate) s
+    abs s = fun1 "abs" (abs) s
+    signum s = fun1 "signum" (signum) s
     fromInteger n               = s
-            where s = Signal $ Wire $ Entity (op s "fromInteger")
+            where s = Signal (pure (fromInteger n))
+                    $ Wire $ Entity (op s "fromInteger")
                                     [ Wire $ Lit $ n
                                     ]
-        
-
 
 instance (Bits a, OpType a) => Bits (Signal a) where
-    s@(Signal s1) .&. (Signal s2)   = Signal $ Wire $ Entity (op s ".&.") [s1,s2]
-    s@(Signal s1) .|. (Signal s2)   = Signal $ Wire $ Entity (op s ".|.") [s1,s2]
-    s@(Signal s1) `xor` (Signal s2) = Signal $ Wire $ Entity (op s "xor") [s1,s2]
-    s@(Signal s1) `shift` n         = Signal $ Wire $ Entity (op s "shift") 
-                                        [s1, Wire $ Lit $ fromIntegral n]
-    s@(Signal s1) `rotate` n        = Signal $ Wire $ Entity (op s "rotate") 
-                                        [s1, Wire $ Lit $ fromIntegral n]
-    complement s@(Signal s1)        = Signal $ Wire $ Entity (op s "complement") [s1]
+    s1 .&. s2 = fun2 ".&." (.&.) s1 s2
+    s1 .|. s2 = fun2 ".&." (.|.) s1 s2
+    s1 `xor` s2 = fun2 "xor" (xor) s1 s2
+    s1 `shift` n = fun2 "shift" (shift) s1 (Signal (pure n) (Wire $ Lit $ fromIntegral n))
+    s1 `rotate` n = fun2 "rotate" (rotate) s1 (Signal (pure n) (Wire $ Lit $ fromIntegral n))
+    complement s = fun1 "complement" (complement) s
     bitSize s                       = bitSize (signalOf s)
     isSigned s                      = isSigned (signalOf s)
 
+{-
+instance Bits (Signal Bool) where 
+    s1 .&. s2 = fun2 ".&." (&&) s1 s2
+    s1 .|. s2 = fun2 ".&." (||) s1 s2
+    s1 `xor` s2 = fun2 "xor" (\ a b -> a /= b) s1 s2
+    s1 `shift` n = error "can not shift a Bool"
+    s1 `rotate` n = error "can not rotate a Bool"
+    complement s = fun1 "complement" (not) s
+    bitSize s                       = 1
+    isSigned s                      = False
+-}
+{-
 instance (Fractional a, OpType a) => Fractional (Signal a) where
     s@(Signal s1) / (Signal s2) = Signal $ Wire $ Entity (op s "/")     [s1,s2]
     recip s@(Signal s1)         = Signal $ Wire $ Entity (op s "recip") [s1]
@@ -149,12 +181,12 @@ instance (Floating a, OpType a) => Floating (Signal a) where
     asinh s@(Signal s1)         = Signal $ Wire $ Entity (op s "asinh") [s1]
     atanh s@(Signal s1)         = Signal $ Wire $ Entity (op s "atanh") [s1]
     acosh s@(Signal s1)         = Signal $ Wire $ Entity (op s "acosh") [s1]
-
+-}
 {-
 class Sig (sig :: * -> *) where 
    nothing :: sig a -> sig a
 -}
- 
+ {-
 class SEQ (seq :: *) where 
    delay :: seq -> seq -> seq
    
@@ -178,6 +210,8 @@ class BOOL bool => COND bool a {- | a -> bool -} where
 instance COND (Signal Bool) (Signal a) where {}
 instance COND Bool Float where {}
 instance COND Bool Int where {}
+-}
+
 
   
    
@@ -188,3 +222,21 @@ instance COND Bool Int where {}
 --instance (Sig sig) => Show (sig Int) where  {}
 --instance (Sig sig) => Eq (sig Int) where  {}
 
+high :: Signal Bool
+high = Signal (pure True) $ Wire $ Pad $ name "high"
+
+low :: Signal Bool
+low = Signal (pure False) $ Wire $ Pad $ name "high"
+
+mux :: Signal Bool -> (Signal a, Signal a) -> Signal a
+mux ~(Signal vs s) (~(Signal vs1 w1),~(Signal vs2 w2))
+       = Signal (fromList [ if v then v1 else v2
+                          | (v,v1,v2) <- zip3 (toList vs)
+                                              (toList vs1)
+                                              (toList vs2)
+                          ])
+       $ Wire $ Entity (name "mux") [s,w1,w2]
+
+
+view :: Signal a -> [a]
+view (Signal xs _) = toList xs
