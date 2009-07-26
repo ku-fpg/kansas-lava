@@ -12,47 +12,15 @@ import Data.Reify
 import qualified Data.Traversable as T
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Seq
+import Language.KansasLava.Bool
+import Language.KansasLava.Seq as S
 import Data.Monoid
 import Debug.Trace
 import Control.Applicative
 
+-- AJG: to consider, adding AF and Functor to this type.
 
-                -- Signal [Maybe a] Wire, I expect
 data Signal a = Signal (Seq a) Wire 
---	      | forall b . Fmap (a -> b) (Signal a)
-
-{-
--}
-{-
- fmap (a -> b) -> Signal a -> Signal b	-- This is more like a witness.
- pure :: a -> Signal a			-- 
- <*> :: Signal (a -> b) -> Signal a -> Signal b
-
--- These would be constructors, in the EDDSL.
-pair :: (Signal a,Signal b) -> Signal (a,b)
-pair (s1,s2) = fmap (,) <*> s1 <*> s2
-proj :: Signal (a,b) -> (Signal a,Signal b)
-proj s = (fmap fst s,fmap snd s)
-
-arr :: Array b (Signal a) -> Signal (Array b a)
-arr = 
-
-proj :: Signal (Array b a) -> Array b (Signal a)
-
-extract :: Signal a -> a
-extract :: Signa
-
-class Functor f where
-  fmap :: (Dynamic a,Dynamic b) => (a -> b) -> Signal a -> Signal b
-
-
--}
-
-
-
-
--- All possible
 
 newtype Wire = Wire (Entity Wire) 
 
@@ -98,24 +66,20 @@ findEntityTyModName e = nm
     
 -------------------------------------------
 
-fun1 nm f s@(~(Signal vs1 w1))
-        = Signal (fromList (map f (toList vs1)))
-        $ Wire 
-        $ Entity (op s nm) [w1]
-fun2 nm f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) 
-        = Signal (fromList (zipWith f (toList vs1) (toList vs2))) 
-        $ Wire 
-        $ Entity (op s nm) [w1,w2]
+fun1 nm f s     = entity1 (op s nm) f s
+fun2 nm f s1 s2 = entity2 (op s1 nm) f s1 s2
 entity1 var f s@(~(Signal vs1 w1))
-        = Signal (fromList (map f (toList vs1)))
+        = Signal (pure f <*> vs1)
         $ Wire 
         $ Entity var [w1]
 entity2 var f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) 
-        = Signal (fromList (zipWith f (toList vs1) (toList vs2))) 
+        = Signal (pure f <*> vs1 <*> vs2)
         $ Wire 
         $ Entity var [w1,w2]
-
-
+entity3 var f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3) 
+        = Signal (pure f <*> vs1 <*> vs2 <*> vs3)
+        $ Wire 
+        $ Entity var [w1,w2,w3]
 
 instance (Num a, OpType a) => Num (Signal a) where
     s1 + s2 = fun2 "+" (+) s1 s2
@@ -141,17 +105,8 @@ instance (Bits a, OpType a) => Bits (Signal a) where
     isSigned s                      = isSigned (signalOf s)
 
 {-
-instance Bits (Signal Bool) where 
-    s1 .&. s2 = fun2 ".&." (&&) s1 s2
-    s1 .|. s2 = fun2 ".&." (||) s1 s2
-    s1 `xor` s2 = fun2 "xor" (\ a b -> a /= b) s1 s2
-    s1 `shift` n = error "can not shift a Bool"
-    s1 `rotate` n = error "can not rotate a Bool"
-    complement s = fun1 "complement" (not) s
-    bitSize s                       = 1
-    isSigned s                      = False
--}
-{-
+-- TODO: represent in terms of new fun/entity interface.
+
 instance (Fractional a, OpType a) => Fractional (Signal a) where
     s@(Signal s1) / (Signal s2) = Signal $ Wire $ Entity (op s "/")     [s1,s2]
     recip s@(Signal s1)         = Signal $ Wire $ Entity (op s "recip") [s1]
@@ -182,45 +137,19 @@ instance (Floating a, OpType a) => Floating (Signal a) where
     atanh s@(Signal s1)         = Signal $ Wire $ Entity (op s "atanh") [s1]
     acosh s@(Signal s1)         = Signal $ Wire $ Entity (op s "acosh") [s1]
 -}
-{-
-class Sig (sig :: * -> *) where 
-   nothing :: sig a -> sig a
--}
- {-
-class SEQ (seq :: *) where 
-   delay :: seq -> seq -> seq
-   
-instance SEQ (Signal a) where {}
 
-class BOOL (bool :: *) where 
-   high :: bool
-   low  :: bool
-   inv  :: bool -> bool
+class Explode e where
+  type Ex e
+  explode :: Signal e -> Ex e
 
-instance BOOL (Signal a) where {}
-instance BOOL Bool where {}
-
--- instance (SEQ seq) => BOOL (seq Bool) where {}
-  
--- should conditionals imply SEQ, because they only make sense 
--- if run may times. 
-class BOOL bool => COND bool a {- | a -> bool -} where 
-  iF :: cond -> a -> a -> a
-
-instance COND (Signal Bool) (Signal a) where {}
-instance COND Bool Float where {}
-instance COND Bool Int where {}
--}
+-- TODO: somehow wire in better names than o1 and o2.
+instance Explode (a,b) where
+  type Ex (a,b) = (Signal a,Signal b)
+  explode ~(Signal v w) =
+        ( Signal (fmap fst v) $ Wire $ Port (Var "o1") w
+        , Signal (fmap snd v) $ Wire $ Port (Var "o2") w
+        )
 
 
-  
-   
--- instance Sig Signal where {}
-
--- hacks
--- instance (Sig sig, Show (sig Int), Eq (sig Int)) => Num (sig Int) where  {}
---instance (Sig sig) => Show (sig Int) where  {}
---instance (Sig sig) => Eq (sig Int) where  {}
-
-view :: Signal a -> [a]
-view (Signal xs _) = toList xs
+view :: Signal a -> [Maybe a]
+view ~(Signal xs _) = S.toList xs

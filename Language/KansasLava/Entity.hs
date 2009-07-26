@@ -16,9 +16,15 @@ instance Show Name where
 name :: String -> Name
 name n  = Name "" n
 
+data Var = Var String
+    deriving (Eq,Ord)
+
+instance Show Var where
+    show (Var nm)  = nm
+
 data Entity s = Entity Name [s]      -- an entity
-              | Port Name s        -- projection; get a specific named port of an entity
-              | Pad Name
+              | Port Var s           -- projection; get a specific named port of an entity
+              | Pad Var
               | Lit Integer
               deriving (Show, Eq, Ord)
 

@@ -5,31 +5,30 @@ module Language.KansasLava.Seq
         ) where
 
 import Data.Traversable
-import Data.Foldable 
+-- import Data.Foldable 
 import Control.Applicative
-import Prelude hiding (foldr)
+import Control.Monad
+import Prelude hiding (zipWith,zipWith3)
 
 infixr 5 :~
 
-data Seq a = a :~ Seq a
+-- A clocked sequence of values, which can be undefined (Nothing),  or have a specific value.
+data Seq a = Maybe a :~ Seq a
         deriving Show
 
 instance Applicative Seq where
-        pure a = a :~ pure a
-        (h1 :~ t1) <*> (h2 :~ t2) = (h1 h2) :~ (t1 <*> t2)
-
-instance Traversable Seq where
-  sequenceA = fmap fromList . sequenceA . Data.Foldable.toList
-
-instance Foldable Seq where
-  foldr f z (x :~ xs) = f x (foldr f z xs)
+        pure a = Just a :~ pure a
+        (h1 :~ t1) <*> (h2 :~ t2) = (h1 `ap` h2) :~ (t1 <*> t2)
 
 instance Functor Seq where
-   fmap f (a :~ as) = f a :~ fmap f as
+   fmap f (a :~ as) = liftM f a :~ fmap f as
 
-fromList :: [a] -> Seq a
+zipWith' :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
+zipWith' f xs ys = pure f <*> xs <*> ys
+
+fromList :: [Maybe a] -> Seq a
 fromList (x : xs) = x :~ fromList xs
 fromList []       = error "Seq.fromList"
 
-toList :: Seq a -> [a]
-toList = Data.Foldable.toList
+toList :: Seq a -> [Maybe a]
+toList (x :~ xs) = x : toList xs
