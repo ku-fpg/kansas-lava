@@ -27,9 +27,9 @@ instance Bits Bool where
     _    .&. _    = False
     False .|. False = False
     _     .|. _     = True
-    False `xor` False = True
-    True `xor` True   = True
-    _     `xor` _      = False
+    False `xor` False = False
+    True `xor` True   = False
+    _     `xor` _     = True
     s `shift` 0 = s
     s `shift` _ = False
     s `rotate` _ = s
