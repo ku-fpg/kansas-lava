@@ -41,15 +41,7 @@ instance Eq Wire where
    (Wire s1) == (Wire s2) = s1 == s2
 -}
 instance (Show a) => Show (Signal a) where
-    show (Signal (Constant v) _) = show v
-    show (Signal vs _) = unwords [ show x ++ " :~ " 
-                                | x <- take 20 $ S.toList vs
-                                ] ++ "..."
-
-{-
-instance Show Wire where
-    show (Wire s) = show s
--}
+    show (Signal v _) = show v
 
 instance Show E where
     show (E s) = show s
@@ -85,6 +77,13 @@ findEntityTyModName e = nm
 --fun1 nm f s     = entity1 (op s nm) inputs f s
 --fun2 nm f s1 s2 = entity2 (op s1 nm) inputs f s1 s2
 inputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
+
+entity0 :: Name -> [Var] -> a -> ESignal a
+entity0 nm outs f 
+        = ESignal (pure f)
+        $ E
+        $ Entity nm outs $ []
+
 entity1 :: Name -> [Var] -> [Var] -> (a -> b) -> Signal a -> ESignal b
 entity1 nm ins outs f s@(~(Signal vs1 w1)) 
         = ESignal (pure f <*> vs1)
@@ -168,7 +167,9 @@ instance (Floating a, OpType a) => Floating (Signal a) where
 class Explode e where
   type Ex e
   explode :: ESignal e -> Ex e
+  portsByType :: Signal e -> [String]           -- depends on the *type*, not the contents
 --  implode :: Ex e -> Signal e
+
 
 -- TODO: somehow wire in better names than o1 and o2.
 instance Explode (a,b) where
@@ -177,6 +178,21 @@ instance Explode (a,b) where
         ( Signal (fmap fst v) $ Port (Var "o1") w
         , Signal (fmap snd v) $ Port (Var "o2") w
         )
+  portsByType _ = ["1","2"] 
+
+split :: (Explode e) => Signal e -> Ex e
+split e = explode entity 
+  where entity = entity1 (Name "$POLY" "split") 
+                         [Var "i0"] 
+                         (map Var (portsByType e))
+                         id
+                         e
+{-
+join :: Ex e -> Signal e
+join = entity (Name "$POLY" "join")
+              [Var 
+-}
+
 {-
   implode (~(Signal v1 w1),~(Signal v2 w2)) =
         Signal ((,) <$> v1 <*> v2) $ Wire $ Entity (Name "$" "implode") [w1,w2]  

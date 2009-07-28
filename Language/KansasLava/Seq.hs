@@ -12,7 +12,18 @@ infixr 5 :~
 -- A clocked sequence of values, which can be undefined (Nothing),  or have a specific value.
 data Seq a = Maybe a :~ Seq a
            | Constant (Maybe a)
-        deriving Show
+
+instance Show a => Show (Seq a) where
+   show (Constant v) = showV v
+   show vs           = unwords [ showV x ++ " :~ " 
+                                | x <- take 20 $ toList vs
+                                ] ++ "..."
+
+
+showV :: (Show a) => Maybe a -> String
+showV Nothing = "?"
+showV (Just v) = show v
+
 
         -- Just a :~ pure a
 
