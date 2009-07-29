@@ -11,7 +11,7 @@ data Name = Name String String
 
 instance Show Name where
     show (Name "" nm)  = nm
-    show (Name pre nm) = "<" ++ pre ++ ">" ++ nm
+    show (Name pre nm) =  pre ++ "::" ++ nm
 
 name :: String -> Name
 name n  = Name "" n

@@ -28,6 +28,14 @@ instance OUTPUT (Signal a,Signal b) where
 instance OUTPUT (Signal a) where
         output (~(Signal _ a)) = ([],[(Var "o0",a)])
 
+instance INPUT (Signal a) where
+        input = (  \ (a:_) ->
+                (
+                         (Signal undefinedSeq $ Pad $  a)
+                )
+                , [Var "i0"]
+                )
+
 instance INPUT (Signal a,Signal b) where
         input = (  \ (a:b:_) ->
                 (

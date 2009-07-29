@@ -51,14 +51,19 @@ instance Eq E where
     
 class OpType a where
     op :: Signal a -> String -> Name
+    bitTypeOf :: Signal a -> BitType
     signalOf :: Signal a -> a
     signalOf = undefined
+
+data BitType = Bit
+	     | Vector Int
 
 instance OpType Int    where op _ nm = Name "Int" nm
 instance OpType Float  where op _ nm = Name "Float" nm
 instance OpType Double where op _ nm = Name "Double" nm
 
 instance OpType Int32 where op _  nm = Name "Int32" nm
+instance OpType Int16 where op _  nm = Name "Int16" nm
 instance OpType Word32 where op _ nm = Name "Word32" nm
 
 instance OpType Bool where op _  nm = Name "Bool" nm
@@ -220,11 +225,11 @@ be e = Signal (pure e) undefined       -- for now
 
 -- A signal, that changes over time
 with :: [a] -> Signal a
-with xs = undefined
+with xs = poke (map Just xs)
 
 -- A signal with possible unknown values, that changes over time.
 poke :: [Maybe a] -> Signal a
-poke xs = undefined
+poke xs = Signal (S.fromList xs) undefined
 
 
 
