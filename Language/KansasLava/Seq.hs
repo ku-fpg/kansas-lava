@@ -40,6 +40,11 @@ undefinedSeq = Constant Nothing
 instance Functor Seq where
    fmap f (a :~ as) = liftM f a :~ fmap f as
    fmap f (Constant a) = Constant $ liftM f a
+   
+   
+head :: Seq a -> Maybe a
+head (Constant a) = a
+head (a :~ _) = a
 
 zipWith' :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
 zipWith' f xs ys = pure f <*> xs <*> ys

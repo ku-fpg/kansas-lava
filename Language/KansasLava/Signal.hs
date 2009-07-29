@@ -168,8 +168,9 @@ class Explode e where
   type Ex e
   explode :: ESignal e -> Ex e
   portsByType :: Signal e -> [String]           -- depends on the *type*, not the contents
---  implode :: Ex e -> Signal e
 
+class Explode e => Implode e where
+  join :: Ex e -> Signal e
 
 -- TODO: somehow wire in better names than o1 and o2.
 instance Explode (a,b) where
@@ -180,6 +181,14 @@ instance Explode (a,b) where
         )
   portsByType _ = ["1","2"] 
 
+
+instance Implode (a,b) where
+  join (s1,s2) = o0 $ entity2 (Name "$POLY" "join")
+                           [Var "s1",Var "s2"]
+                           [Var "o0"]
+                           (,)
+                           s1 s2
+
 split :: (Explode e) => Signal e -> Ex e
 split e = explode entity 
   where entity = entity1 (Name "$POLY" "split") 
@@ -187,11 +196,11 @@ split e = explode entity
                          (map Var (portsByType e))
                          id
                          e
-{-
-join :: Ex e -> Signal e
-join = entity (Name "$POLY" "join")
-              [Var 
--}
+
+
+-- Signal (a -> b) -> Signal a -> Signal b
+
+
 
 {-
   implode (~(Signal v1 w1),~(Signal v2 w2)) =
@@ -202,5 +211,20 @@ implode2 :: (Signal a, Signal b) -> Signal (a,b)
 implode2 = implode
 -}
 
-view :: Signal a -> [Maybe a]
-view ~(Signal xs _) = S.toList xs
+peek :: Signal a -> [Maybe a]
+peek ~(Signal xs _) = S.toList xs
+
+-- A signal of a  constant value, for testing
+be :: a -> Signal a
+be e = Signal (pure e) undefined       -- for now
+
+-- A signal, that changes over time
+with :: [a] -> Signal a
+with xs = undefined
+
+-- A signal with possible unknown values, that changes over time.
+poke :: [Maybe a] -> Signal a
+poke xs = undefined
+
+
+
