@@ -17,10 +17,14 @@ instance (INPUT i,OUTPUT o) => OUTPUT (i -> o) where
          output f = (theseVars' ++ o_iVars,o_oVars) 
             where (i,theseVars) = input
                   (o_iVars,o_oVars) = output (f $ i theseVars')
-                  theseVars' = map mkUniq theseVars
-                  mkUniq v | v `elem` o_iVars || v `elem` (map fst o_oVars)
-                                       = mkUniq (case v of Var v' -> Var $ v' ++ "0")
-                           | otherwise = v
+                  theseVars' = map (mkUniq Nothing) theseVars
+		  mkUniq :: Maybe Int -> Var -> Var
+                  mkUniq u v | f v `elem` o_iVars 
+                            || f v `elem` (map fst o_oVars)
+                                       = mkUniq u' v
+                               |  otherwise = f v
+			where f v = case u of Nothing -> v ; Just n -> Var $ show v ++ show n
+			      u'  = case u of Nothing -> Just 0 ; Just n -> Just $ succ n
 
 instance OUTPUT (Signal a,Signal b) where
         output (~(Signal _ c),~(Signal _ d)) = ([],[(Var "c",c),(Var "d",d)])
