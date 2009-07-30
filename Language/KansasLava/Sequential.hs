@@ -15,3 +15,4 @@ delay ~(Signal d def) ~(Signal rest w)
         $ Port (Var "o")
         $ E
         $ Entity (name "delay") [Var "o"] [(Var "init",def),(Var "i",w)]
+			[[ TyVar $ Var v | v <- ["o","init","i"]]]

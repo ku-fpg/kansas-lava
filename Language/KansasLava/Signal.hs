@@ -51,23 +51,21 @@ instance Eq E where
     
 class OpType a where
     op :: Signal a -> String -> Name
-    bitTypeOf :: Signal a -> BitType
+    bitTypeOf :: Signal a -> WireType
     signalOf :: Signal a -> a
     signalOf = undefined
 
-data BitType = Bit
-	     | Vector Int
 
-instance OpType Int    where op _ nm = Name "Int" nm
-instance OpType Float  where op _ nm = Name "Float" nm
-instance OpType Double where op _ nm = Name "Double" nm
+instance OpType Int    where op _ nm = Name "Int" nm     ; bitTypeOf _ = Wires 32
+instance OpType Float  where op _ nm = Name "Float" nm   ; bitTypeOf _ = Wires 32
+instance OpType Double where op _ nm = Name "Double" nm  ; bitTypeOf _ = Wires 64
 
-instance OpType Int32 where op _  nm = Name "Int32" nm
-instance OpType Int16 where op _  nm = Name "Int16" nm
-instance OpType Word32 where op _ nm = Name "Word32" nm
+instance OpType Int32 where op _  nm = Name "Int32" nm  ; bitTypeOf _ = Wires 32
+instance OpType Int16 where op _  nm = Name "Int16" nm  ; bitTypeOf _ = Wires 16
+instance OpType Word32 where op _ nm = Name "Word32" nm  ; bitTypeOf _ = Wires 32
 
-instance OpType Bool where op _  nm = Name "Bool" nm
-instance OpType ()   where op _  nm = Name "()" nm
+instance OpType Bool where op _  nm = Name "Bool" nm  ; bitTypeOf _ = Bit
+instance OpType ()   where op _  nm = Name "()" nm  ; bitTypeOf _ = Wires 0
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity a -> String
@@ -83,35 +81,39 @@ findEntityTyModName e = nm
 --fun2 nm f s1 s2 = entity2 (op s1 nm) inputs f s1 s2
 inputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
 
-entity0 :: Name -> [Var] -> a -> ESignal a
-entity0 nm outs f 
+entity0 :: Name -> [Var] -> [[Ty Var]] -> a -> ESignal a
+entity0 nm outs tyeqs f 
         = ESignal (pure f)
         $ E
-        $ Entity nm outs $ []
+        $ Entity nm outs [] tyeqs
 
-entity1 :: Name -> [Var] -> [Var] -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs f s@(~(Signal vs1 w1)) 
+entity1 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b) -> Signal a -> ESignal b
+entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
         = ESignal (pure f <*> vs1)
         $ E
-        $ Entity nm outs $ zip ins [w1]
+        $ Entity nm outs (zip ins [w1]) tyeqs
         
-entity2 :: Name -> [Var] -> [Var] -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
-entity2 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
+entity2 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
+entity2 nm ins outs tyeqs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
         = ESignal (pure f <*> vs1 <*> vs2)
         $ E
-        $ Entity nm outs $ zip ins [w1,w2]
+        $ Entity nm outs (zip ins [w1,w2]) tyeqs
 
-entity3 :: Name -> [Var] -> [Var] -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
-entity3 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
+entity3 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
+entity3 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
         = ESignal (pure f <*> vs1 <*> vs2 <*> vs3)
         $ E
-        $ Entity nm outs $ zip ins [w1,w2,w3]
+        $ Entity nm outs (zip ins [w1,w2,w3]) tyeqs
 
 o0 :: ESignal a -> Signal a
 o0 ~(ESignal v e) = Signal v (Port (Var "o0") e)
 
-fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"] f s
-fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"] f s1 s2
+fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"] tyeqs f s
+	where allNames = take 1 inputs ++ [Var "o0"]
+	      tyeqs    = [] -- [Ty (bitTypeOf s) : map TyVar allNames]
+fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"] tyeqs f s1 s2
+	where allNames = take 2 inputs ++ [Var "o0"]
+	      tyeqs    = [Ty (bitTypeOf s1) : map TyVar allNames]
 
 
 instance (Num a, OpType a) => Num (Signal a) where
@@ -191,6 +193,7 @@ instance Implode (a,b) where
   join (s1,s2) = o0 $ entity2 (Name "$POLY" "join")
                            [Var "s1",Var "s2"]
                            [Var "o0"]
+			   [] -- nothing in this type system
                            (,)
                            s1 s2
 
@@ -199,6 +202,7 @@ split e = explode entity
   where entity = entity1 (Name "$POLY" "split") 
                          [Var "i0"] 
                          (map Var (portsByType e))
+			 []
                          id
                          e
 

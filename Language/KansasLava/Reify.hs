@@ -12,6 +12,6 @@ reifyCircuit :: [(Var, Driver E)] -> IO ([(Unique,Entity Unique)],[(Var,Driver U
 reifyCircuit outputs = do
         (Graph nodes root) <- reifyGraph root
         let nodes1 = [ (u,node) | (u,node) <- nodes, u /= root ]
-        let entries = concat [ args | (u,Entity _ _ args) <- nodes, u == root ]
+        let entries = concat [ args | (u,Entity _ _ args _) <- nodes, u == root ]
         return (nodes1,entries)
-   where root = E $ Entity (Name "$" "ROOT") [] outputs
+   where root = E $ Entity (Name "$" "ROOT") [] outputs []
