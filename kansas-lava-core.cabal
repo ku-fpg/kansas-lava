@@ -1,4 +1,4 @@
-Name:               kansas-lava-core
+Name:               kansas-lava
 Version:            0.2.0.0
 Synopsis:           Kansas Lava is a locally grown version of Lava, 
 		    in the spirit of Chalmers Lava, and Xilinx Lava. 
@@ -29,6 +29,7 @@ Library
        Language.KansasLava.Sequential
        Language.KansasLava.VHDL
        Language.KansasLava.Dot
+       Language.KansasLava.Conditional
 
        
 
