@@ -10,6 +10,7 @@ import Data.List
 
 import Data.Reify
 import qualified Data.Traversable as T
+import Language.KansasLava.Type
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Bool
@@ -23,23 +24,21 @@ import Control.Applicative
 data Signal a = Signal (Seq a) (Driver E)
 -- newtype Wire = Wire (Driver E)
 
+newtype E = E (Entity (Ty Var) E)
+
 -- internal, special use only (when defining entities, for example).
 data ESignal a = ESignal (Seq a) E
-newtype E = E (Entity E)
+
 
 -- You want to observe
 instance MuRef E where 
-  type DeRef E = Entity
+  type DeRef E = Entity (Ty Var)
   mapDeRef f (E s) = T.traverse f s
-
 
 -- not sure about this, should this use the shallow part?
 instance Eq (Signal a) where
    (Signal _ s1) == (Signal _ s2) = s1 == s2
-{-
-instance Eq Wire where
-   (Wire s1) == (Wire s2) = s1 == s2
--}
+
 instance (Show a) => Show (Signal a) where
     show (Signal v _) = show v
 
@@ -48,27 +47,38 @@ instance Show E where
     
 instance Eq E where
    (E s1) == (E s2) = s1 == s2
-    
+
+------------------------------------------------------------------
+
+-- Should be type 
+{-
+data WireType 
+	= Bit
+	| Wires Int		-- number of wires (vector)
+	deriving (Show, Eq, Ord)
+-}
+
+------------------------------------------------------------------
+
 class OpType a where
     op :: Signal a -> String -> Name
-    bitTypeOf :: Signal a -> WireType
+    bitTypeOf :: Signal a -> Ty b
     signalOf :: Signal a -> a
     signalOf = undefined
 
+instance OpType Int    where op _ nm = Name "Int" nm     ; bitTypeOf _ = S 32
+instance OpType Float  where op _ nm = Name "Float" nm   ; bitTypeOf _ = S 32
+instance OpType Double where op _ nm = Name "Double" nm  ; bitTypeOf _ = S 64
 
-instance OpType Int    where op _ nm = Name "Int" nm     ; bitTypeOf _ = Wires 32
-instance OpType Float  where op _ nm = Name "Float" nm   ; bitTypeOf _ = Wires 32
-instance OpType Double where op _ nm = Name "Double" nm  ; bitTypeOf _ = Wires 64
+instance OpType Int32 where op _  nm = Name "Int32" nm   ; bitTypeOf _ = S 32
+instance OpType Int16 where op _  nm = Name "Int16" nm   ; bitTypeOf _ = S 16
+instance OpType Word32 where op _ nm = Name "Word32" nm  ; bitTypeOf _ = U 32
 
-instance OpType Int32 where op _  nm = Name "Int32" nm  ; bitTypeOf _ = Wires 32
-instance OpType Int16 where op _  nm = Name "Int16" nm  ; bitTypeOf _ = Wires 16
-instance OpType Word32 where op _ nm = Name "Word32" nm  ; bitTypeOf _ = Wires 32
-
-instance OpType Bool where op _  nm = Name "Bool" nm  ; bitTypeOf _ = Bit
-instance OpType ()   where op _  nm = Name "()" nm  ; bitTypeOf _ = Wires 0
+instance OpType Bool where op _  nm = Name "Bool" nm     ; bitTypeOf _ = B
+instance OpType ()   where op _  nm = Name "()" nm       ; bitTypeOf _ = U 0
 
 -- find the name of the type of the entity arguments.
-findEntityTyModName :: (OpType a) => Entity a -> String
+findEntityTyModName :: (OpType a) => Entity ty a -> String
 findEntityTyModName e = nm
   where
     (Name nm _) = fn e undefined
@@ -108,12 +118,15 @@ entity3 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 
 o0 :: ESignal a -> Signal a
 o0 ~(ESignal v e) = Signal v (Port (Var "o0") e)
 
+proj :: Var -> (a -> b) -> ESignal a -> Signal b
+proj var f ~(ESignal v e) = Signal (fmap f v) (Port var e)
+
 fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"] tyeqs f s
 	where allNames = take 1 inputs ++ [Var "o0"]
-	      tyeqs    = [] -- [Ty (bitTypeOf s) : map TyVar allNames]
+	      tyeqs    = [ bitTypeOf s : map TyVar allNames ]
 fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"] tyeqs f s1 s2
 	where allNames = take 2 inputs ++ [Var "o0"]
-	      tyeqs    = [Ty (bitTypeOf s1) : map TyVar allNames]
+	      tyeqs    = [ bitTypeOf s1 : map TyVar allNames]
 
 
 instance (Num a, OpType a) => Num (Signal a) where

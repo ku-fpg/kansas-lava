@@ -1,59 +1,57 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, ExistentialQuantification #-}
 
 module Language.KansasLava.IO where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Seq
+import Language.KansasLava.Type
+
+import Debug.Trace
 
 class INPUT i where
-        input :: ([Var] -> i, [Var])         -- based on var names
+	input :: P -> i
 
-class OUTPUT o where
-        output :: o -> ([Var],[(Var,Driver E)])   
+class REIFY c where
+	capture :: P -> c -> [(Ty (),Driver E)]
 
-instance (INPUT i,OUTPUT o) => OUTPUT (i -> o) where
-         -- output :: (i -> o) -> [(String,Driver E)]
-         output f = (theseVars' ++ o_iVars,o_oVars) 
-            where (i,theseVars) = input
-                  (o_iVars,o_oVars) = output (f $ i theseVars')
-                  theseVars' = map (mkUniq Nothing) theseVars
-		  mkUniq :: Maybe Int -> Var -> Var
-                  mkUniq u v | f v `elem` o_iVars 
-                            || f v `elem` (map fst o_oVars)
-                                       = mkUniq u' v
-                               |  otherwise = f v
-			where f v = case u of Nothing -> v ; Just n -> Var $ show v ++ show n
-			      u'  = case u of Nothing -> Just 0 ; Just n -> Just $ succ n
+----
 
-instance OUTPUT (Signal a,Signal b) where
-        output (~(Signal _ c),~(Signal _ d)) = ([],[(Var "c",c),(Var "d",d)])
+data P = P [Int]
 
-instance OUTPUT (Signal a) where
-        output (~(Signal _ a)) = ([],[(Var "o0",a)])
+instance Show P where
+ 	show (P ps) = foldr (\ p s -> "_" ++ show p ++ s) "" ps
+	
+w (P ps) p = P (p:ps)
+
+----
+
+instance (INPUT i,REIFY o) => REIFY (i -> o) where
+         capture p f = capture (p `w` 2) (f o)
+	   where
+		o = input (p `w` 1)
+
+-- perhaps this can capture type??
+instance (OpType a) => REIFY (Signal a) where
+        capture p s@(Signal _ d) = [(bitTypeOf s,d)] 
+
+-- perhaps we can remove the p link here?
+-- will break (\ a -> a, \ b -> b) handling, which we might not want, anyway.
+
+instance (REIFY a, REIFY b) => REIFY (a, b) where
+	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
+instance (REIFY a, REIFY b, REIFY c) => REIFY (a, b,c ) where
+	capture p (a,b,c) = capture (p `w` 1) a ++ capture (p `w` 2) b ++ capture (p `w` 3) c
+instance (REIFY a, REIFY b, REIFY c, REIFY d) => REIFY (a, b, c, d ) where
+	capture p (a,b,c,d) = capture (p `w` 1) a ++ capture (p `w` 2) b ++ capture (p `w` 3) c ++ capture (p `w` 4) d
 
 instance INPUT (Signal a) where
-        input = (  \ (a:_) ->
-                (
-                         (Signal undefinedSeq $ Pad $  a)
-                )
-                , [Var "i0"]
-                )
+        input = \ (P ps) -> Signal undefinedSeq $ PathPad ps
 
-instance INPUT (Signal a,Signal b) where
-        input = (  \ (a:b:_) ->
-                (
-                         (Signal undefinedSeq $ Pad $  a)
-                ,        (Signal undefinedSeq $ Pad $  b)
-                )
-                , [Var "a",Var "b"]
-                )
-instance INPUT (Signal a,Signal b,Signal c) where
-        input = (  \ (a:b:c:_) ->
-                (
-                         (Signal undefinedSeq $ Pad $  a)
-                ,        (Signal undefinedSeq $ Pad $  b)
-                ,        (Signal undefinedSeq $ Pad $  c)
-                )
-                , [Var "a",Var "b",Var "c"]
-                )
+instance (INPUT a, INPUT b) => INPUT (a, b) where
+	input p = ( input (p `w` 1) , input (p `w` 2)) 
+instance (INPUT a, INPUT b, INPUT c) => INPUT (a, b, c) where
+	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3))
+instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
+	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3), input (p `w` 4))
+

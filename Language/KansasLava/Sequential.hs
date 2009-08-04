@@ -2,6 +2,7 @@ module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
+import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
 
 
