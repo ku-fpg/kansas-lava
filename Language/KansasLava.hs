@@ -2,6 +2,7 @@
 
 module Language.KansasLava (
     module Language.KansasLava.Entity,
+    module Language.KansasLava.Conditional,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Logic,
     module Language.KansasLava.Reify,
@@ -15,6 +16,7 @@ module Language.KansasLava (
      ) where
     
 import Language.KansasLava.Entity
+import Language.KansasLava.Conditional
 import Language.KansasLava.Signal
 import Language.KansasLava.Logic
 import Language.KansasLava.Reify

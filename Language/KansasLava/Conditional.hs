@@ -8,6 +8,7 @@ import Data.Bits
 import Control.Applicative
 
 
+
 (.==.) :: (Eq a) => Signal a -> Signal a -> Signal Bool
 (.==.) sA sB = o0 $ entity2 (Name "Bool" ".==.")
 		 [Var "i0", Var "i1"]
