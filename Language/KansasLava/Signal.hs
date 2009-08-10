@@ -65,17 +65,39 @@ class OpType a where
     bitTypeOf :: Signal a -> Ty b
     signalOf :: Signal a -> a
     signalOf = undefined
+    initVal :: Signal a
 
-instance OpType Int    where op _ nm = Name "Int" nm     ; bitTypeOf _ = S 32
-instance OpType Float  where op _ nm = Name "Float" nm   ; bitTypeOf _ = S 32
-instance OpType Double where op _ nm = Name "Double" nm  ; bitTypeOf _ = S 64
 
-instance OpType Int32 where op _  nm = Name "Int32" nm   ; bitTypeOf _ = S 32
-instance OpType Int16 where op _  nm = Name "Int16" nm   ; bitTypeOf _ = S 16
-instance OpType Word32 where op _ nm = Name "Word32" nm  ; bitTypeOf _ = U 32
 
-instance OpType Bool where op _  nm = Name "Bool" nm     ; bitTypeOf _ = B
-instance OpType ()   where op _  nm = Name "()" nm       ; bitTypeOf _ = U 0
+instance OpType Int    where op _ nm = Name "Int" nm     
+                             bitTypeOf _ = S 32
+                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+instance OpType Float  where op _ nm = Name "Float" nm   
+                             bitTypeOf _ = S 32
+                             initVal = Signal (pure 0.0) $ Pad $ Var "zero"
+instance OpType Double where op _ nm = Name "Double" nm  
+                             bitTypeOf _ = S 64
+                             initVal = Signal (pure 0.0) $ Pad $ Var "zero"
+
+instance OpType Int32 where op _  nm = Name "Int32" nm   
+                            bitTypeOf _ = S 32
+                            initVal = Signal (pure 0) $ Pad $ Var "zero"
+instance OpType Int16 where op _  nm = Name "Int16" nm   
+                            bitTypeOf _ = S 16
+                            initVal = Signal (pure 0) $ Pad $ Var "zero"
+instance OpType Word32 where op _ nm = Name "Word32" nm  
+                             bitTypeOf _ = U 32
+                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+instance OpType Word16 where op _ nm = Name "Word16" nm  
+                             bitTypeOf _ = U 16
+                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+
+instance OpType Bool where op _  nm = Name "Bool" nm     
+                           bitTypeOf _ = B
+                           initVal = Signal (pure False) $ Pad $ Var "zero"
+instance OpType ()   where op _  nm = Name "()" nm       
+                           bitTypeOf _ = U 0
+                           initVal = Signal (pure ()) $ Pad $ Var "zero"
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity ty a -> String
@@ -238,11 +260,11 @@ peek ~(Signal xs _) = S.toList xs
 
 -- A signal of a  constant value, for testing
 be :: a -> Signal a
-be e = Signal (pure e) undefined       -- for now
+be e = Signal (pure e) (error "improper use of be")      -- for now
 
 -- A signal, that changes over time
 with :: [a] -> Signal a
-with xs = poke (map Just xs)
+with xs = poke (map Just xs ++ repeat Nothing) 
 
 -- A signal with possible unknown values, that changes over time.
 poke :: [Maybe a] -> Signal a
