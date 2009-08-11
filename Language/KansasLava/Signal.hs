@@ -71,33 +71,33 @@ class OpType a where
 
 instance OpType Int    where op _ nm = Name "Int" nm     
                              bitTypeOf _ = S 32
-                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+                             initVal = Signal (pure 0) $ Pad $ Var "IntZero"
 instance OpType Float  where op _ nm = Name "Float" nm   
                              bitTypeOf _ = S 32
-                             initVal = Signal (pure 0.0) $ Pad $ Var "zero"
+                             initVal = Signal (pure 0.0) $ Pad $ Var "FloatZero"
 instance OpType Double where op _ nm = Name "Double" nm  
                              bitTypeOf _ = S 64
-                             initVal = Signal (pure 0.0) $ Pad $ Var "zero"
+                             initVal = Signal (pure 0.0) $ Pad $ Var "DoubleZero"
 
 instance OpType Int32 where op _  nm = Name "Int32" nm   
                             bitTypeOf _ = S 32
-                            initVal = Signal (pure 0) $ Pad $ Var "zero"
+                            initVal = Signal (pure 0) $ Pad $ Var "Int32Zero"
 instance OpType Int16 where op _  nm = Name "Int16" nm   
                             bitTypeOf _ = S 16
-                            initVal = Signal (pure 0) $ Pad $ Var "zero"
+                            initVal = Signal (pure 0) $ Pad $ Var "Int16Zero"
 instance OpType Word32 where op _ nm = Name "Word32" nm  
                              bitTypeOf _ = U 32
-                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+                             initVal = Signal (pure 0) $ Pad $ Var "Word32Zero"
 instance OpType Word16 where op _ nm = Name "Word16" nm  
                              bitTypeOf _ = U 16
-                             initVal = Signal (pure 0) $ Pad $ Var "zero"
+                             initVal = Signal (pure 0) $ Pad $ Var "Word16Zero"
 
 instance OpType Bool where op _  nm = Name "Bool" nm     
                            bitTypeOf _ = B
-                           initVal = Signal (pure False) $ Pad $ Var "zero"
+                           initVal = Signal (pure False) $ Pad $ Var "BoolZero"
 instance OpType ()   where op _  nm = Name "()" nm       
                            bitTypeOf _ = U 0
-                           initVal = Signal (pure ()) $ Pad $ Var "zero"
+                           initVal = Signal (pure ()) $ Pad $ Var "OtherZero"
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity ty a -> String
