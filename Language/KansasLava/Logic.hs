@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies, RankNTypes #-}
+
 module Language.KansasLava.Logic where
 
 import Language.KansasLava.Entity
@@ -23,6 +25,23 @@ mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
    where
 	b1 = bit 0 
 	b2 = bit 1
+
+class BROADWAY a where
+--  type LANE a
+  promote :: (forall x . (BROADWAY x) => x -> x -> x) -> a -> a -> a
+
+instance BROADWAY (Signal a) where
+  promote f = f
+
+-- mux and delay can use this.
+instance (BROADWAY a,BROADWAY b) => BROADWAY (a,b) where
+  promote f (a,b) (a',b') = (f a a',f b b')
+
+{-
+instance (BROADWAY a) => BROADWAY [a] where
+  promote f (x:xs) (y:ys) = promote f x : [] -- promote f xs
+  promote f []     [] = []
+-}
 
 class MUX a where
   mux2 :: Signal Bool -> a -> a -> a

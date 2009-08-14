@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 module Language.KansasLava.Reify where
 
 import Data.Reify
@@ -10,6 +11,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.IO
+import Debug.Trace
 
 --------------------------------------------------------
 -- Grab a set of drivers (the outputs), and give me a graph, please.
@@ -56,7 +58,7 @@ reifyCircuit opts circuit = do
 	    outputTyEquivs :: [[Ty QVar]]
 	    outputTyEquivs = [ [TyVar (Sink,a),fmap (error "tyvar?") b] | (a,b) <- zip (map fst blob) (map fst blob')]
 	
-	print outputTyEquivs
+--	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
         (Graph nodes root) <- reifyGraph root'
 
@@ -68,7 +70,7 @@ reifyCircuit opts circuit = do
 		     , p <- [ p | (v,PathPad p) <- ins ]
 		     ]	
 
-	print allPaths 
+--	print allPaths 
 
 	let pnEnv = [(p,Pad $ Var $ nm) | (p,nm) <- zip allPaths inputNames ]
 	
@@ -85,7 +87,7 @@ reifyCircuit opts circuit = do
 		
 	let nodes = nodes'
 
-	print nodes
+--	print nodes
 
 --	inputs
 
@@ -111,10 +113,10 @@ reifyCircuit opts circuit = do
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
                           ]) ++ outputTyEquivs
 
-	print all_equivs
+--	print all_equivs
 
 	let all_equivs' = findMinEquivSets all_equivs
-	print $ all_equivs'
+--	print $ all_equivs'
 
 	let findTyFor :: QVar -> Ty ()
       	    findTyFor (i,v) 
@@ -138,4 +140,72 @@ reifyCircuit opts circuit = do
 	let vars_with_types = [ (v,findTyFor v) | v <- all_vars ]
 
         return $ ReifiedCircuit nodes1 src entries vars_with_types
+
+-- Some more type class magic.
+
+entity :: 
+	(INPUT a, REIFY a,INPUT b) =>
+{- REIFY circuit => -} [ReifyOptions] 
+	->  String -> (a -> b)  ->  (a -> b) 
+entity opts nm circuit  = circuit'
+    where
+	p_root = P []
+
+	-- (a -> b) -> (a -> b)
+	circuit' inpX = result -- {- o0 $ e_entity -}
+	   where 
+		(result,pinsY) = generated' e_entity (P [1,2]) 
+		e_entity =
+        	    E
+        	  $ Entity (Name "#AUTO" "ABC") 
+			 [ Var (show ps)
+			 | (_,ps) <- pinsY
+			 ]
+			 [ (Var ("i" ++ show n),dr)
+			 | (n,(ty,dr)) <- zip [0..] pinsX
+			 ]
+			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ 
+			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
+		(insX,pinsX) = capture' p_root inpX
+
+
+entity' :: 
+	(INPUT b) =>
+{- REIFY circuit => -} [ReifyOptions] 
+	->  String -> b -> b
+entity' opts nm circuit  = wrapCircuit circuit
+{-
+
+instance (INPUT a, REIFY a,REIFY b, INPUT b) => INPUT (a -> b) where
+	wrapCircuit inpX = result -- {- o0 $ e_entity -}
+	   where 
+		p_root = P []
+		(result,pinsY) = generated' e_entity (P [1,2]) 
+		e_entity =
+        	    E
+        	  $ Entity (Name "#AUTO" "ABC") 
+			 [ Var (show ps)
+			 | (_,ps) <- pinsY
+			 ]
+			 [ (Var ("i" ++ show n),dr)
+			 | (n,(ty,dr)) <- zip [0..] pinsX
+			 ]
+			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ 
+			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
+		(insX,pinsX) = capture' p_root inpX	
+
+	-- generated :: E -> P -> (a -> b,[P])
+	generated' e p = (
+	   where
+		(a,p1) = generated (p `w` 1)
+		(b,p1) = generated (p `w` 2)
+		
+
+-}
+
+{-
+		entity1 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b) -> Signal a -> ESignal b
+entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
+        = 
+-}
 

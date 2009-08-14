@@ -61,7 +61,7 @@ data WireType
 ------------------------------------------------------------------
 
 class OpType a where
-    op :: Signal a -> String -> Name
+    op :: Signal a -> (String -> Name)
     bitTypeOf :: Signal a -> Ty b
     signalOf :: Signal a -> a
     signalOf = undefined
@@ -272,3 +272,20 @@ poke xs = Signal (S.fromList xs) undefined
 
 
 
+{-
+
+entity JK_FF is
+port (	clock:		in std_logic;
+	J, K:		in std_logic;
+	reset:		in std_logic;
+	Q, Qbar:	out std_logic
+);
+end JK_FF;
+
+
+	$(entity [ "clock : in std_logic     // Signal Bool" 
+		 , "J, K : std_vector(31..0) // Signal Int"
+		 ])
+-}
+
+		
