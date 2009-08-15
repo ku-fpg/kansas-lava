@@ -18,7 +18,7 @@ writeDotCircuit opts filename circuit = do
    print (nodes,inputs',outputs,types)
    let inputs = inputs'
 
-   let findTy :: QVar -> Ty ()
+   let findTy :: QVar -> BaseTy
        findTy v = case lookup v types of
 		    Nothing -> error $ "can not find type for : " ++ show v
 		    Just ty -> ty

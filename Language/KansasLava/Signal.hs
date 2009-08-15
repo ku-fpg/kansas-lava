@@ -62,7 +62,7 @@ data WireType
 
 class OpType a where
     op :: Signal a -> (String -> Name)
-    bitTypeOf :: Signal a -> Ty b
+    bitTypeOf :: Signal a -> BaseTy
     signalOf :: Signal a -> a
     signalOf = undefined
     initVal :: Signal a
@@ -145,10 +145,10 @@ proj var f ~(ESignal v e) = Signal (fmap f v) (Port var e)
 
 fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"] tyeqs f s
 	where allNames = take 1 inputs ++ [Var "o0"]
-	      tyeqs    = [ bitTypeOf s : map TyVar allNames ]
+	      tyeqs    = [ BaseTy (bitTypeOf s) : map TyVar allNames ]
 fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"] tyeqs f s1 s2
 	where allNames = take 2 inputs ++ [Var "o0"]
-	      tyeqs    = [ bitTypeOf s1 : map TyVar allNames]
+	      tyeqs    = [ BaseTy (bitTypeOf s1) : map TyVar allNames]
 
 
 instance (Num a, OpType a) => Num (Signal a) where
