@@ -26,7 +26,7 @@ data ReifiedCircuit = ReifiedCircuit
 		-- ^ This the main graph. There is no actual node for the source or sink. 
 	, theSrcs    :: [Var]
 	, theSinks   :: [(Var,Driver Uq)]
-	, theTypes   :: [(QVar,Ty ())]
+	, theTypes   :: [(QVar,BaseTy)]
 	}
 
 -- TODO:
@@ -50,9 +50,11 @@ reifyCircuit opts circuit = do
 	let p = P []
 
 
-	let inputs' :: [(Ty (),Var)]
-	    blob'    :: [(Ty (),Driver E)]
-	    (inputs',blob') = capture' inputEntity p circuit
+	let inputs' :: [(BaseTy,Var)]
+	    blob'    :: [(BaseTy,Driver E)]
+	    (inputs',blob') = case capture'' circuit of
+				A f -> case f inputEntity (map Var inputNames) of
+					  (res,tys,_) -> (tys,res)
 
 	    inputEntity :: E
 	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
@@ -62,11 +64,11 @@ reifyCircuit opts circuit = do
 	    blob = [ (Var o,d) | ((_,d),o) <- zip blob' outputNames ]
 	    
 	    outputTyEquivs :: [[Ty QVar]]
-	    outputTyEquivs = [ [TyVar (Sink,a),fmap (error "tyvar?") b] 
+	    outputTyEquivs = [ [TyVar (Sink,a),BaseTy b] 
 			     | (a,b) <- zip (map fst blob) (map fst blob')]
 			
 	    inputTyEquivs :: [[Ty QVar]]
-	    inputTyEquivs = [ [TyVar (Source,v),fmap (error "tyvar?") ty] 
+	    inputTyEquivs = [ [TyVar (Source,v),BaseTy ty] 
 			    | (ty,v) <- inputs'
 			    ]
 			
@@ -181,11 +183,13 @@ reifyCircuit opts circuit = do
 	let all_equivs' = findMinEquivSets all_equivs
 --	print $ all_equivs'
 
-	let findTyFor :: QVar -> Ty ()
+	let findTyFor :: QVar -> BaseTy
       	    findTyFor (i,v) 
 		      | Prelude.null theSet        = error $ "can not find : " ++ show (i,v)
 		      | Prelude.length theSet /= 1 = error $ "multiple occur, impossible : " ++ show (i,v,theSet)
-		      | Prelude.length theTy == 1  = fmap (\ _ -> ()) theTy'
+		      | Prelude.length theTy == 1  = case theTy' of
+						       BaseTy bty -> bty
+						       _ -> error "DFJFHDFJDHFJFRHE"
 		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)" ++ show (i,v) ++ " " ++ show theSet
 	     where 
 		theSet = filter (Set.member (TyVar (i,v))) all_equivs'
@@ -239,22 +243,12 @@ entity opts nm circuit  = circuit'
 		(insX,pinsX) = capture' p_root inpX
 -}
 
-entity :: (INPUT b, CLONE b) => [ReifyOptions] ->String -> b -> b
+entity :: (REIFY b, CLONE b) => [ReifyOptions] ->String -> b -> b
 entity opts nm circuit = clone circuit deep 
   where
 	deep = wrapCircuit [] [] circuit
 
-instance (INPUT a, REIFY a,REIFY b, INPUT b) => INPUT (a -> b) where
-	wrapCircuit args tys fn inpX = result -- {- o0 $ e_entity -}
-	   where 
-		(insX,pinsX) = capture' (error "CDJHFDFJ") p_root inpX
-		p_root = P []
-		args' = args ++
-			 [ (Var ("i" ++ show n),dr)
-			 | (n,(ty,dr)) <- zip [(length args)..] pinsX
-			 ]
-		tys' = [ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ tys
-		result = wrapCircuit args' tys' (fn inpX)
+-- instance (REIFY a,REIFY b) => INPUT (a -> b) where
 {-		
 		(result,pinsY) = generated' e_entity (P [1,2]) 
 		e_entity =

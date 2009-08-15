@@ -58,7 +58,7 @@ instance MUX (Signal a) where
         o0 $ entity3 (Name "Bool" "mux2")
               [Var "c",Var "t", Var "f"]
               [Var "o0"]
-	      [ [TyVar $ Var "c", B ]
+	      [ [TyVar $ Var "c", BaseTy B ]
 	      , [TyVar $ Var "t",TyVar $ Var "f",TyVar $ Var "o0"]
 	      ]
               (\ a b c -> if a then b else c)
@@ -89,8 +89,8 @@ jk_ff a b = (proj (Var "x") fst e,proj (Var "y") snd e)
 	e = entity2 (Name "JK" "FF")
 		   [Var "j",Var "k"]
 		   [Var "x",Var "y"]
-		   [ B : [ TyVar $ Var n | n <- words "j y" ]
-		   , S 32 : [ TyVar $ Var n | n <- words "k x" ]
+		   [ BaseTy B : [ TyVar $ Var n | n <- words "j y" ]
+		   , BaseTy (S 32) : [ TyVar $ Var n | n <- words "k x" ]
 		   ]
 		   (\ a b -> (b,a))
 		   a b

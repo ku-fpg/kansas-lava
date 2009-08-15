@@ -40,7 +40,7 @@ vhdlCircuit opts name circuit = do
   -- for debugging (not part of VHDL output)
   print (nodes,ins,outs',types)
 
-  let findTyFor :: QVar -> Ty ()
+  let findTyFor :: QVar -> BaseTy
       findTyFor v = case lookup v types of
 		    Nothing -> error $ "can not find type for : " ++ show v
 		    Just ty -> ty
@@ -73,12 +73,12 @@ notConst "high" = False
 notConst _ = True
 -}
 
-vhdlTypes :: Ty () -> String
+vhdlTypes :: BaseTy -> String
 vhdlTypes B     = "std_logic"
 vhdlTypes (S n) = "std_logic_vector(" ++ show n ++ ")"
 vhdlTypes (U n) = "std_ulogic_vector(" ++ show n ++ ")"
 
-decls :: (QVar -> Ty ()) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
+decls :: (QVar -> BaseTy) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
 decls tyEnv nodes = 
     -- need size info for each output, to declare length of std_logic_vector
     [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing) 

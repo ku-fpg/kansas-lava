@@ -13,7 +13,7 @@ import Control.Applicative
 (.==.) sA sB = o0 $ entity2 (Name "Bool" ".==.")
 		 [Var "i0", Var "i1"]
 		 [Var "o0"]
-		 [ [B,TyVar $ Var "o0"]
+		 [ [BaseTy B,TyVar $ Var "o0"]
 		 , [TyVar $ Var "i0", TyVar $ Var "i1"]
 		 ]
 		 (\ a b -> a == b)
@@ -22,7 +22,7 @@ import Control.Applicative
 (.>=.) sA sB = o0 $ entity2 (Name "Bool" ".>=.")
 		 [Var "i0", Var "i1"]
 		 [Var "o0"]
-		 [ [B,TyVar $ Var "o0"]
+		 [ [BaseTy B,TyVar $ Var "o0"]
 		 , [TyVar $ Var "i0", TyVar $ Var "i1"]
 		 ]
 		 (\ a b -> a >= b)
