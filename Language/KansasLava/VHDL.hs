@@ -26,7 +26,7 @@ fixed_ports =
 
 
 vhdlCircuit :: (REIFY o) =>  [ReifyOptions] -> String -> o -> IO ()
-vhdlCircuit opts name circuit = do
+vhdlCircuit opts name circuit = do 
 {-
   let (ins',g) = output' circ
   let ins = map fst ins'
@@ -46,13 +46,13 @@ vhdlCircuit opts name circuit = do
 		    Just ty -> ty
 
 --  print $ map findTyFor [(-1,v) | v <- ins ]
-  print $ map findTyFor [(Uq i,v) | (_,Port v i) <- outs' ]
+  print $ map findTyFor [(i,v) | (_,Port v i) <- outs' ]
 
   let ports = fixed_ports ++ 
               -- need size info for each input, to declare length of std_logic_vector
             [ (nm,"in",vhdlTypes (findTyFor (Source,Var nm))) | Var nm <- ins] ++
               -- need size info for each output, to declare length of std_logic_vector
-            [ (nm,"out",vhdlTypes (findTyFor (Uq i,v))) | (Var nm,Port v i) <- outs'] ++ 
+            [ (nm,"out",vhdlTypes (findTyFor (i,v))) | (Var nm,Port v i) <- outs'] ++ 
             [ (nm,"out",vhdlTypes (findTyFor (Source,v))) | (Var nm,Pad v) <- outs'] ++ 
             []
 
@@ -78,18 +78,18 @@ vhdlTypes B     = "std_logic"
 vhdlTypes (S n) = "std_logic_vector(" ++ show n ++ ")"
 vhdlTypes (U n) = "std_ulogic_vector(" ++ show n ++ ")"
 
-decls :: (QVar -> Ty ()) -> [(Unique,Entity ty Unique)] -> [DeclDescriptor]
+decls :: (QVar -> Ty ()) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
 decls tyEnv nodes = 
     -- need size info for each output, to declare length of std_logic_vector
-    [ (sig (Port (Var n) i),vhdlTypes (tyEnv (Uq i,Var n)),Nothing) 
+    [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing) 
                           | (i,Entity _ outputs _ _) <- nodes
                           , Var n <- outputs
                           ]
 
-finals :: [(Var,Driver Unique)] -> [Inst]
+finals :: [(Var,Driver Uq)] -> [Inst]
 finals args = [ Assign n (sig x) | (Var n,x) <- args ] 
 
-insts :: [(Unique,Entity ty Unique)] -> [Inst]
+insts :: [(Unique,Entity ty Uq)] -> [Inst]
 insts nodes = concat [ 
 {-        if i == root
         then [ Assign n (sig x) | (Var n,x) <- ins ] 
@@ -101,21 +101,21 @@ fixName "xor" = "XOR"
 fixName ".|." = "OR"
 fixName xs    = xs
 
-mkInst :: Int -> Entity ty Int -> [Inst]
+mkInst :: Int -> Entity ty Uq -> [Inst]
 --    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
 --    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
 mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
         | nm `elem` ["xor",".&.",".|."]
-        = [ BuiltinInst (sig (Port (Var "o0") i)) 
+        = [ BuiltinInst (sig (Port (Var "o0") (Uq i))) 
                         (sig x)
                         (fixName nm)
                         (sig y)
           ]
 mkInst i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
 	= [ Cond (sig c)
-		[ Assign (sig (Port (Var "o0") i)) (sig t)
+		[ Assign (sig (Port (Var "o0") (Uq i))) (sig t)
 		]
-		[ Assign (sig (Port (Var "o0") i)) (sig f)
+		[ Assign (sig (Port (Var "o0") (Uq i))) (sig f)
 		]
          ]
 mkInst i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
@@ -123,7 +123,7 @@ mkInst i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
 mkInst i e@(Entity (Name mod nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
-                ( [ (n,sig (Port (Var n) i)) | Var n <- outputs ] ++
+                ( [ (n,sig (Port (Var n) (Uq i))) | Var n <- outputs ] ++
                   [ (n,sig x) | (Var n,x) <- inputs ]
                 )
           ]
@@ -146,9 +146,10 @@ mkInst i e@(Entity (Name mod nm) outputs inputs _) =
 
         mkInst i ent = error $ "BAD INSTRUCTION: " ++ show i ++ " " ++ show (ent,nodes)
 -}
-sig :: Driver Int -> String
-sig (Port i 1) = "io_sig_" ++ show i
-sig (Port i v) = "sig_" ++ show i ++ "_" ++ show v
+sig :: Driver Uq -> String
+sig (Port i Sink)   = "o_sig_" ++ show i
+sig (Port i Source) = "i_sig_" ++ show i
+sig (Port i (Uq v)) = "sig_" ++ show i ++ "_" ++ show v
 sig (Pad (Var n)) = n
 sig (Lit n) = show n
 
