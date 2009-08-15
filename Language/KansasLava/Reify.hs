@@ -54,7 +54,6 @@ reifyCircuit opts circuit = do
 	    blob'    :: [(Ty (),Driver E)]
 	    (inputs',blob') = capture' inputEntity p circuit
 
-
 	    inputEntity :: E
 	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
 
@@ -65,6 +64,12 @@ reifyCircuit opts circuit = do
 	    outputTyEquivs :: [[Ty QVar]]
 	    outputTyEquivs = [ [TyVar (Sink,a),fmap (error "tyvar?") b] 
 			     | (a,b) <- zip (map fst blob) (map fst blob')]
+			
+	    inputTyEquivs :: [[Ty QVar]]
+	    inputTyEquivs = [ [TyVar (Source,v),fmap (error "tyvar?") ty] 
+			    | (ty,v) <- inputs'
+			    ]
+			
 	
 --	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
@@ -89,33 +94,52 @@ reifyCircuit opts circuit = do
 		     ]	
 
 --	print allPaths 
-
+{-
 	let pnEnv = [(p,Pad $ Var $ nm) | (p,nm) <- zip allPaths inputNames ]
 	print (pnEnv :: [([Int],Driver E)])
+-}
 	
-	let nodes' :: [(Unique,Entity (Ty Var) Unique)]
+	let mkUq :: Unique -> Uq 
+	    mkUq n | n == inputEntityId  = Source 
+		   | n == outputEntityId = Sink
+		   | otherwise           = Uq n
+
+{-
+	let nodes' :: [(Unique,Entity (Ty Var) Uq)]
 	    nodes' = [ (v, Entity name outs ins' tyeqs)
 		     | (v, Entity name outs ins tyeqs) <- nodes
 		     , let ins' = [ (v,case d of
+					 Uq
 					 PathPad p -> case lookup p pnEnv of
 							 Nothing -> error "bad internal path name"
 							 Just v -> v
 					 other -> other)
 				  | (v,d) <- ins
 				  ]
+		     , let outs' = [ (v,fmap mkUq out) | (v,out) <- outs ]
 		     ]			
 		
-	let mkUq :: Unique -> Uq 
-	    mkUq n | n == inputEntityId  = Source 
-		   | n == outputEntityId = Sink
-		   | otherwise           = Uq n
+-}
 		
+	let nodes' = nodes
+	
 	let nodes :: [(Unique,Entity (Ty Var) Uq)]
 	    nodes = [ (v,fmap mkUq e) | (v,e) <- nodes' ]
-
---	print nodes
-
---	inputs
+	
+	
+	
+	{-
+	 - Next, we rename our input variables, using the given schema.
+	 -}
+	
+	
+	let nodes' = nodes
+	let srcs = nub $ concat
+		       [  outs
+		       | (v, Entity name outs ins tyeqs) <- nodes
+		       , v == inputEntityId
+		       ]
+	let inMap = zip (sort srcs) (map Var inputNames)
 
         let nodes1 = [ (u,node) | (u,node) <- nodes
 				, u /= root
@@ -128,7 +152,7 @@ reifyCircuit opts circuit = do
 	    src  = nub $ concat
 		       [  outs
 		       | (v, Entity name outs ins tyeqs) <- nodes
-		       , name == Name "#" "INPUT"
+		       , v == inputEntityId
 		       ]
 
 {-
@@ -149,7 +173,7 @@ reifyCircuit opts circuit = do
                           | (i,Entity _ _ ins tyeqs) <- nodes
 --			  , i /= inputEntityId
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
-                          ]) ++ outputTyEquivs
+                          ]) ++ outputTyEquivs ++ inputTyEquivs
 
 	print ("ZZ",all_equivs)
 --	print all_equivs
@@ -215,8 +239,10 @@ entity opts nm circuit  = circuit'
 		(insX,pinsX) = capture' p_root inpX
 -}
 
-entity :: (INPUT b) => [ReifyOptions] ->String -> b -> b
-entity opts nm circuit  = wrapCircuit [] [] circuit
+entity :: (INPUT b, CLONE b) => [ReifyOptions] ->String -> b -> b
+entity opts nm circuit = clone circuit deep 
+  where
+	deep = wrapCircuit [] [] circuit
 
 instance (INPUT a, REIFY a,REIFY b, INPUT b) => INPUT (a -> b) where
 	wrapCircuit args tys fn inpX = result -- {- o0 $ e_entity -}

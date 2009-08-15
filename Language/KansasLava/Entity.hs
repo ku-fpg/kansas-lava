@@ -44,6 +44,11 @@ data Driver s = Port Var s      -- a specific port on the entity
               | Lit Integer
               deriving (Show, Eq, Ord)
 
+{-
+reVar :: (Var -> Var) -> Entity ty s -> Entity ty s
+reVar f (Entity nm vars 
+-}
+
 instance T.Traversable (Entity ty) where
   traverse f (Entity v vs ss tys) = Entity v vs <$> T.traverse (\ (v,a) -> ((,) v) `fmap` T.traverse f a) ss <*> pure tys
 

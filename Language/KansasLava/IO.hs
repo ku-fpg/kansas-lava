@@ -81,7 +81,7 @@ instance (OpType a) => INPUT (Signal a) where
         input = \ (P ps) -> Signal undefinedSeq $ PathPad ps
 	generated = \ (P ps) -> (Signal undefinedSeq $ PathPad ps,[P ps])
 	generated' e (P ps) = (a,args)
-	  where (a,args) = (Signal undefinedSeq $ Port (Var (show $ P ps)) e,[(bitTypeOf a,Var (show $ P ps))])
+	  where (a,args) = (Signal (error "generated'") $ Port (Var (show $ P ps)) e,[(bitTypeOf a,Var (show $ P ps))])
 
 instance (INPUT a, INPUT b) => INPUT (a, b) where
 	input p = ( input (p `w` 1) , input (p `w` 2)) 
@@ -100,3 +100,17 @@ instance (INPUT a, INPUT b, INPUT c) => INPUT (a, b, c) where
 instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
 	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3), input (p `w` 4))
 
+
+class CLONE a where
+  clone :: a -> a -> a		-- take the shallow from the first, and the deep from the second
+
+instance CLONE (Signal a) where
+  clone ~(Signal s _) ~(Signal _ d) = Signal s d
+
+
+-- AJG: why does this not need CLONE a?
+instance (CLONE b) => CLONE (a -> b) where
+  clone f1 f2 = \ a -> clone (f1 a) (f2 a)
+
+instance (CLONE a,CLONE b) => CLONE (a,b) where
+  clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
