@@ -17,11 +17,13 @@ name :: String -> Name
 name n  = Name "" n
 
 data Var = Var String
+	 | UqVar [Int]		-- uniquely generated name
          | NoVar                -- not needed, because the default does fine???
     deriving (Eq,Ord)
 
 instance Show Var where
-    show (Var nm)  = nm
+    show (Var nm)     = nm
+    show (UqVar path) = "<" ++ foldr (\ p s -> "_" ++ show p ++ s) ">" path
 {-
 -- The old defintion.
 data Entity s = Entity Name [(Var,s)]      -- an entity

@@ -22,10 +22,10 @@ data Uq = Uq Unique | Sink | Source
 type QVar = (Uq,Var)
 
 data ReifiedCircuit = ReifiedCircuit
-	{ theCircuit :: [(Unique,Entity (Ty Var) Unique)]
+	{ theCircuit :: [(Unique,Entity (Ty Var) Uq)]
 		-- ^ This the main graph. There is no actual node for the source or sink. 
 	, theSrcs    :: [Var]
-	, theSinks   :: [(Var,Driver Unique)]
+	, theSinks   :: [(Var,Driver Uq)]
 	, theTypes   :: [(QVar,Ty ())]
 	}
 
@@ -49,19 +49,37 @@ reifyCircuit opts circuit = do
 
 	let p = P []
 
-	let inputs' :: [(Var,Ty ())]
+
+	let inputs' :: [(Ty (),Var)]
 	    blob'    :: [(Ty (),Driver E)]
-	    (inputs',blob') = ([],capture p circuit)
+	    (inputs',blob') = capture' inputEntity p circuit
+
+
+	    inputEntity :: E
+	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
+
+--	    inputs' = []
 
 	    blob = [ (Var o,d) | ((_,d),o) <- zip blob' outputNames ]
 	    
 	    outputTyEquivs :: [[Ty QVar]]
-	    outputTyEquivs = [ [TyVar (Sink,a),fmap (error "tyvar?") b] | (a,b) <- zip (map fst blob) (map fst blob')]
+	    outputTyEquivs = [ [TyVar (Sink,a),fmap (error "tyvar?") b] 
+			     | (a,b) <- zip (map fst blob) (map fst blob')]
 	
 --	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
         (Graph nodes root) <- reifyGraph root'
 
+	let inputEntityId :: Unique
+	    inputEntityId = head [ v
+	 	     	         | (v, Entity name outs ins tyeqs) <- nodes
+		                 , name == Name "#" "INPUT"
+		                 ]	 
+	let outputEntityId :: Unique
+	    outputEntityId = head [ v
+	 	     	         | (v, Entity name outs ins tyeqs) <- nodes
+		                 , name == Name "$" "ROOT"
+		                 ]	 
 	-- now, rewrite the names
 	
 	let allPaths = L.sort $ L.nub
@@ -73,8 +91,10 @@ reifyCircuit opts circuit = do
 --	print allPaths 
 
 	let pnEnv = [(p,Pad $ Var $ nm) | (p,nm) <- zip allPaths inputNames ]
+	print (pnEnv :: [([Int],Driver E)])
 	
-	let nodes' = [ (v, Entity name outs ins' tyeqs)
+	let nodes' :: [(Unique,Entity (Ty Var) Unique)]
+	    nodes' = [ (v, Entity name outs ins' tyeqs)
 		     | (v, Entity name outs ins tyeqs) <- nodes
 		     , let ins' = [ (v,case d of
 					 PathPad p -> case lookup p pnEnv of
@@ -85,34 +105,53 @@ reifyCircuit opts circuit = do
 				  ]
 		     ]			
 		
-	let nodes = nodes'
+	let mkUq :: Unique -> Uq 
+	    mkUq n | n == inputEntityId  = Source 
+		   | n == outputEntityId = Sink
+		   | otherwise           = Uq n
+		
+	let nodes :: [(Unique,Entity (Ty Var) Uq)]
+	    nodes = [ (v,fmap mkUq e) | (v,e) <- nodes' ]
 
 --	print nodes
 
 --	inputs
 
-        let nodes1 = [ (u,node) | (u,node) <- nodes, u /= root ]
-        let entries = concat [ args | (u,Entity _ _ args _) <- nodes, u == root ]
-	let src      = nub [ v | (_,Entity _ _ vs _) <- nodes, (_,Pad v) <- vs ]
+        let nodes1 = [ (u,node) | (u,node) <- nodes
+				, u /= root
+			  	, u /= inputEntityId
+				]
+				
+            
+	let src :: [Var]
+--	    src  = nub [ v | (_,Entity _ _ vs _) <- nodes, (_,Pad v) <- vs ]
+	    src  = nub $ concat
+		       [  outs
+		       | (v, Entity name outs ins tyeqs) <- nodes
+		       , name == Name "#" "INPUT"
+		       ]
 
+{-
 	let mkUq :: Unique -> Uq
 	    mkUq n | n == root = Sink
 		   | otherwise = Uq n
+-}
 
 	let all_equivs :: [Set (Ty QVar)] 
 	    all_equivs = filter (not . Set.null)
 	         $ map (Set.fromList)
-		 $ (concat [ map (map addEntityId) tyeqs 
+		 $ (concat [map (map addEntityId) tyeqs 
 			 ++ [ case dr of
-				Port v' i' -> [TyVar (mkUq i,v),TyVar (mkUq i',v')]
-				Pad v'     -> [TyVar (mkUq i,v),TyVar (Source,v')] 
+				Port v' i' -> [TyVar (Uq i,v),TyVar (i',v')]
 				Lit _      -> []
 			    | (v,dr) <- ins
 			    ]
                           | (i,Entity _ _ ins tyeqs) <- nodes
+--			  , i /= inputEntityId
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
                           ]) ++ outputTyEquivs
 
+	print ("ZZ",all_equivs)
 --	print all_equivs
 
 	let all_equivs' = findMinEquivSets all_equivs
@@ -123,7 +162,7 @@ reifyCircuit opts circuit = do
 		      | Prelude.null theSet        = error $ "can not find : " ++ show (i,v)
 		      | Prelude.length theSet /= 1 = error $ "multiple occur, impossible : " ++ show (i,v,theSet)
 		      | Prelude.length theTy == 1  = fmap (\ _ -> ()) theTy'
-		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)"
+		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)" ++ show (i,v) ++ " " ++ show theSet
 	     where 
 		theSet = filter (Set.member (TyVar (i,v))) all_equivs'
 		theSet' = Prelude.head theSet
@@ -137,12 +176,19 @@ reifyCircuit opts circuit = do
 		       ]
 --	print $ all_vars
 
+        let entries = concat [ args 
+			     | (u,Entity _ _ args _) <- nodes
+ 			     , u == outputEntityId
+			     ]
+
 	let vars_with_types = [ (v,findTyFor v) | v <- all_vars ]
+
+	print ("XX",vars_with_types)
 
         return $ ReifiedCircuit nodes1 src entries vars_with_types
 
 -- Some more type class magic.
-
+{-
 entity :: 
 	(INPUT a, REIFY a,INPUT b) =>
 {- REIFY circuit => -} [ReifyOptions] 
@@ -167,19 +213,23 @@ entity opts nm circuit  = circuit'
 			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ 
 			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
 		(insX,pinsX) = capture' p_root inpX
+-}
 
-
-entity' :: 
-	(INPUT b) =>
-{- REIFY circuit => -} [ReifyOptions] 
-	->  String -> b -> b
-entity' opts nm circuit  = wrapCircuit circuit
-{-
+entity :: (INPUT b) => [ReifyOptions] ->String -> b -> b
+entity opts nm circuit  = wrapCircuit [] [] circuit
 
 instance (INPUT a, REIFY a,REIFY b, INPUT b) => INPUT (a -> b) where
-	wrapCircuit inpX = result -- {- o0 $ e_entity -}
+	wrapCircuit args tys fn inpX = result -- {- o0 $ e_entity -}
 	   where 
+		(insX,pinsX) = capture' (error "CDJHFDFJ") p_root inpX
 		p_root = P []
+		args' = args ++
+			 [ (Var ("i" ++ show n),dr)
+			 | (n,(ty,dr)) <- zip [(length args)..] pinsX
+			 ]
+		tys' = [ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ tys
+		result = wrapCircuit args' tys' (fn inpX)
+{-		
 		(result,pinsY) = generated' e_entity (P [1,2]) 
 		e_entity =
         	    E
@@ -192,15 +242,15 @@ instance (INPUT a, REIFY a,REIFY b, INPUT b) => INPUT (a -> b) where
 			 ]
 			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ 
 			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
-		(insX,pinsX) = capture' p_root inpX	
-
+-}
+			
+{-
 	-- generated :: E -> P -> (a -> b,[P])
 	generated' e p = (
 	   where
 		(a,p1) = generated (p `w` 1)
 		(b,p1) = generated (p `w` 2)
 		
-
 -}
 
 {-

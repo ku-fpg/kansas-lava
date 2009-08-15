@@ -31,7 +31,12 @@ writeDotCircuit opts filename circuit = do
 	   ++ join (map showP outs) ++ "}}"
 
 
-   print (inputs,inputs',nodes,outputs,types)
+   print ("INPUTS:" ,inputs)
+   print ("NODES:" ,nodes)
+   print ("OUTPUTS:" ,outputs)
+   print ("TYPES:" ,types)
+
+--   print (inputs,inputs',nodes,outputs,types)
 
 
    writeFile filename $ showDot $ do
@@ -50,14 +55,17 @@ writeDotCircuit opts filename circuit = do
 			       		 ]
 			     return (n,nd)
 		        | (n,Entity nm outs ins _) <- nodes ]
-	let findNd n = case lookup n nds of
-			  Nothing -> error $ "strange port: " ++ show n
-			  Just nd -> nd
 
 	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,i) | (i,_) <- outputs ] ++ "}}") 
 	 		                 , ("shape","record")
 			       		 , ("style","filled")
 			       		 ]
+
+	let findNd (Uq n) = case lookup n nds of
+			     Nothing -> error $ "strange port: " ++ show (n,nds)
+			     Just nd -> nd
+	    findNd Source = input_bar
+	    findNd Sink   = output_bar
 
 	let drawEdge dr n v = case dr of
 		     Port nm' n' -> edge' (findNd n') (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
@@ -73,7 +81,7 @@ writeDotCircuit opts filename circuit = do
 		 | (v,dr) <- outputs 
 		 ]
 
-	sequence [ drawEdge dr (findNd n) v
+	sequence [ drawEdge dr (findNd (Uq n)) v
 	       	 | (n,Entity nm outs ins _) <- nodes
 		 , (v,dr) <- ins 
 		 ]

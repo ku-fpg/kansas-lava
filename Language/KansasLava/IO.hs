@@ -15,11 +15,11 @@ import Debug.Trace
 class INPUT i where
 	input :: P -> i
 	generated :: P -> (i,[P])
-	generated' :: E -> P -> (i,[(Ty (),P)])
+	generated' :: E -> P -> (i,[(Ty (),Var)])
 	
 	
-	wrapCircuit :: i -> i
-	wrapCircuit circuit' = result -- {- o0 $ e_entity -}
+	wrapCircuit :: [(Var, Driver E)] -> [[Ty Var]] -> i -> i
+	wrapCircuit args tys circuit' = result -- {- o0 $ e_entity -}
 	   where 
 		(result,pinsY) = generated' e_entity (P [1,2]) 
 		e_entity =
@@ -28,24 +28,16 @@ class INPUT i where
 			 [ Var (show ps)
 			 | (_,ps) <- pinsY
 			 ]
-			 []
-	{-		
-			 [ (Var ("i" ++ show n),dr)
-			 | (n,(ty,dr)) <- zip [0..] pinsX
-			 ]
-	-}
-			 ({- [ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++  -}
-			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
-{-
-		(insX,pinsX) = capture' p_root inpX
--}
-
+			 args
+			 (tys ++
+			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ]
+			 )
 	
 
 class REIFY c where
 	capture :: P -> c -> [(Ty (),Driver E)]
-	capture' :: P -> c -> ([P],[(Ty (),Driver E)])
-	capture' p c = ([],capture p c)
+	capture' :: E -> P -> c -> ([((Ty ()),Var)],[(Ty (),Driver E)])
+	capture' _ p c = ([],capture p c)
 ----
 
 data P = P [Int]
@@ -61,16 +53,16 @@ instance (INPUT i,REIFY o) => REIFY (i -> o) where
          capture p f = capture (p `w` 2) (f o)
 	   where
 		o = input (p `w` 1)
-         capture' p f = ( args ++ args', res)
+         capture' e p f = (args ++ args', res)
 	   where
-		(o,args)    = generated (p `w` 1)
-		(args',res) = capture' (p `w` 2) (f o)
+		(o,args)    = generated' e (p `w` 1)
+		(args',res) = capture' e (p `w` 2) (f o)
 	
 
 -- perhaps this can capture type??
 instance (OpType a) => REIFY (Signal a) where
         capture p s@(Signal _ d) = [(bitTypeOf s,d)] 
-        capture' p s@(Signal _ d) = ([],[(bitTypeOf s,d)])
+        capture' _ p s@(Signal _ d) = ([],[(bitTypeOf s,d)])
 
 -- perhaps we can remove the p link here?
 -- will break (\ a -> a, \ b -> b) handling, which we might not want, anyway.
@@ -89,7 +81,7 @@ instance (OpType a) => INPUT (Signal a) where
         input = \ (P ps) -> Signal undefinedSeq $ PathPad ps
 	generated = \ (P ps) -> (Signal undefinedSeq $ PathPad ps,[P ps])
 	generated' e (P ps) = (a,args)
-	  where (a,args) = (Signal undefinedSeq $ Port (Var $ show (P ps)) e,[(bitTypeOf a,P ps)])
+	  where (a,args) = (Signal undefinedSeq $ Port (Var (show $ P ps)) e,[(bitTypeOf a,Var (show $ P ps))])
 
 instance (INPUT a, INPUT b) => INPUT (a, b) where
 	input p = ( input (p `w` 1) , input (p `w` 2)) 
