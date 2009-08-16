@@ -8,6 +8,7 @@ import Language.KansasLava.Type
 import Language.KansasLava.Seq
 import Data.Bits
 import Control.Applicative
+import Data.Bits.Bool
 
 high :: Signal Bool
 high = Signal (pure True) $ Pad $ Var "high"
