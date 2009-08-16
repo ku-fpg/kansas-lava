@@ -1,9 +1,6 @@
-module Language.KansasLava.Bool where
+module Data.Bits.Bool where
 
 import Data.Bits
-
---import Data.Boolean -- Use this overloading for our booleans.
--- import Language.KansasLava.Signal
 
 -- These should really be in their own package.
 instance Num Bool where
