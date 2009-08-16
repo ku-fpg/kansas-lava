@@ -12,7 +12,6 @@ module Language.KansasLava (
     module Language.KansasLava.VHDL,
     module Language.KansasLava.Dot,
     module Language.KansasLava.Type,
-    module Language.KansasLava.Bool
      ) where
     
 import Language.KansasLava.Entity
@@ -27,7 +26,7 @@ import Language.KansasLava.VHDL
 import Language.KansasLava.Dot
 import Language.KansasLava.Dot
 import Language.KansasLava.Type
-import Language.KansasLava.Bool
+import Data.Bits.Bool()	-- for the instances
 
 
 

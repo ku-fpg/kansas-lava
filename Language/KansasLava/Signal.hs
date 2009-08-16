@@ -13,7 +13,7 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Bool
+-- import Language.KansasLava.Bool
 import Language.KansasLava.Seq as S
 import Data.Monoid
 import Debug.Trace

@@ -22,7 +22,6 @@ Library
        Language.KansasLava
        Language.KansasLava.Entity
        Language.KansasLava.Logic
-       Language.KansasLava.Bool
        Language.KansasLava.Reify
        Language.KansasLava.Signal
        Language.KansasLava.Seq
@@ -31,7 +30,8 @@ Library
        Language.KansasLava.Dot
        Language.KansasLava.Conditional,
        Data.Sized.Ix,
-       Data.Sized.Matrix
+       Data.Sized.Matrix,
+       Data.Bits.Bool
   Other-modules
        Data.Sized.Ix.TH
 
