@@ -17,7 +17,7 @@ build-type: 	     Simple
 Cabal-Version:       >= 1.6
 
 Library
-  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.4, pretty, dotgen >= 0.4.1
+  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.4, pretty, dotgen >= 0.4.1, array, template-haskell
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Entity
@@ -29,7 +29,11 @@ Library
        Language.KansasLava.Sequential
        Language.KansasLava.VHDL
        Language.KansasLava.Dot
-       Language.KansasLava.Conditional
+       Language.KansasLava.Conditional,
+       Data.Sized.Ix,
+       Data.Sized.Matrix
+  Other-modules
+       Data.Sized.Ix.TH
 
        
 
