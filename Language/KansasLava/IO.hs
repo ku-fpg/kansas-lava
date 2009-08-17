@@ -7,6 +7,10 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Seq
 import Language.KansasLava.Type
 import Control.Applicative
+import Data.Sized.Matrix
+import Data.Traversable
+import Data.Sized.Matrix as M
+import Data.Array (Ix)
 
 import Debug.Trace
 
@@ -154,6 +158,13 @@ instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
 	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3), input (p `w` 4))
 
 -}
+
+instance (Ix ix, Bounded ix, REIFY a) => REIFY (Matrix ix a) where
+--	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
+	create = traverse (\ i -> create) coord
+	capture'' m = concat <$> (traverse capture'' $ M.toList m)
+
+
 
 class CLONE a where
   clone :: a -> a -> a		-- take the shallow from the first, and the deep from the second

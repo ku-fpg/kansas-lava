@@ -1,10 +1,14 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, RankNTypes #-}
 module Data.Sized.Matrix where
 
 import Data.Array as A hiding (indices,(!), ixmap)
 import qualified Data.Array as A
 import Prelude as P
 import Control.Applicative
+import qualified Data.Traversable as T
+import qualified Data.Foldable as F
+import Data.Monoid
+
 
 
 import Data.Sized.Ix -- for testing
@@ -39,6 +43,10 @@ fromList xs = check minBound maxBound
 -- | Unlike the array version of 'indices', this does not need the 'Matrix'
 -- argument, because the types determine the contents.
 
+matrix :: (Bounded i, Ix i) => [a] -> Matrix i a
+matrix = fromList
+
+
 indices :: (Bounded i, Ix i) => [i]
 indices = range (minBound,maxBound)
 
@@ -48,6 +56,11 @@ indices' _ = indices
 
 assocs :: (Ix i) => Matrix i a -> [(i,a)]
 assocs (Matrix a) = A.assocs a
+
+
+-- for use only to force typing
+sizeOf :: Matrix i a -> i
+sizeOf _ = undefined
 
 -- I find this useful
 coord :: (Bounded i, Ix i) => Matrix i i
@@ -82,12 +95,6 @@ transpose = ixmap $ \ (x,y) -> (y,x)
 -- neat defintion!
 identity :: (Ix x, Bounded x, Num a) => Matrix (x,x) a
 identity = (\ (x,y) -> if x == y then 1 else 0) <$> coord
-
-rows :: (Bounded m, Ix m) => Matrix (m,n) a -> [m]
-rows _ = indices
-	
-columns :: (Bounded n, Ix n) => Matrix (m,n) a -> [n]
-columns _ = indices
 	
 above :: (Ix m, Ix n, Ix m', Ix m'', Bounded m, Bounded n, Bounded m', Bounded m'') 
       => Matrix (m,n) a -> Matrix (m',n) a -> Matrix (m'',n) a
@@ -127,3 +134,46 @@ crop2D
       Ix a1) =>
      (a, a1) -> Matrix (a, a1) a2 -> Matrix (t, t1) a2
 crop2D (cM,cN) = ixmap (\ (m,n) -> (toEnum (fromEnum m) + cM,toEnum (fromEnum n) + cN))
+
+-- slice into rows
+rows :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix (m,n) a -> Matrix m (Matrix n a)
+rows a = (\ m -> matrix [ a ! (m,n) | n <- indices ]) <$> coord
+
+columns :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix (m,n) a -> Matrix n (Matrix m a)
+columns = rows . transpose
+
+joinrows :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix m (Matrix n a) -> Matrix (m,n) a
+joinrows a = (\ (m,n) -> (a ! m) ! n) <$> coord
+
+aRow :: (Ix m, Bounded m) => Matrix m a -> Matrix (X1,m) a
+aRow = ixmap snd
+
+aColumn :: (Ix m, Bounded m) => Matrix m a -> Matrix (m,X1) a
+aColumn = ixmap fst
+
+type Sized x = forall a . [a] -> Matrix x a
+type SizedX x = forall a . Matrix x a -> Matrix x a
+
+-- very general; required that m and n have the same elements.
+squash :: (Bounded n, Ix n, Ix m) => Matrix m a -> Matrix n a
+squash = fromList . toList
+
+
+instance (Ix ix, Bounded ix) => T.Traversable (Matrix ix) where
+  traverse f a = matrix <$> (T.traverse f $ toList a)
+ 
+instance (Ix ix) => F.Foldable (Matrix ix) where
+  foldMap f m = F.foldMap f (toList m)
+
+{-
+class SIZED c where {}
+instance SIZED [] where {}
+instance SIZED (Matrix ix) where {}
+-}
+
+{- idiom. When you can not give the explicit sized type (because for example in a where
+   clause, and there is a scoped 'a'), you can used
+
+   a = (matrix :: Sized X8) 
+ 	  [ 1 .. 8 ]
+ -}
