@@ -147,8 +147,8 @@ mkInst i e@(Entity (Name mod nm) outputs inputs _) =
         mkInst i ent = error $ "BAD INSTRUCTION: " ++ show i ++ " " ++ show (ent,nodes)
 -}
 sig :: Driver Uq -> String
-sig (Port i Sink)   = "o_sig_" ++ show i
-sig (Port i Source) = "i_sig_" ++ show i
+sig (Port i Sink)   = show i	-- pre normalized
+sig (Port i Source) = show i
 sig (Port i (Uq v)) = "sig_" ++ show i ++ "_" ++ show v
 sig (Pad (Var n)) = n
 sig (Lit n) = show n
