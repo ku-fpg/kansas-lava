@@ -5,6 +5,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
 import Control.Applicative
+import Language.KansasLava.Applicative
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a
 -- delay = error "delay!"
@@ -41,8 +42,11 @@ instance Show Time where
 time :: Signal Time -> Signal Integer		-- simluation only
 time = fmap (\ (Time t) -> t)
 
+
+-- 'clock' gives 2 cycles of bla, 1 cycle of reset, then counts from 0.
 clock :: Signal Time
-clock = Signal (Seq.fromList $ map Just $ map Time [0..]) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+clock = Signal clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+  where clock_times = Nothing :~ Nothing :~ (Seq.fromList $ map Just $ map Time (-1 : [0..]))
 
 reset :: Signal Time 
 reset = Signal (pure (Time (-1))) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
