@@ -1,6 +1,7 @@
 module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
+import Language.KansasLava.IO
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
@@ -11,15 +12,17 @@ import Language.KansasLava.Applicative
 -- delay = error "delay!"
 
 -- Should this be a -> S a -> S a ??
-delay :: Signal Time -> Signal a -> Signal a -> Signal a
-delay ~(Signal tm tm_w) ~(Signal d def) ~(Signal rest w) 
-        = Signal (shallowDelay tm d rest)
+delay :: Time -> Signal a -> Signal a -> Signal a
+delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w) 
+        = Signal (shallowDelay r d rest)
         $ Port (Var "o")
         $ E
-        $ Entity (Name "Lava" "delay") [Var "o"] [(Var "t",tm_w), (Var "init",def),(Var "i",w)]
-			[[ TyVar $ Var v | v <- ["o","init","i"]]]
+        $ Entity (Name "Lava" "delay") [Var "o"] [(Var "clk",tm_w), (Var "rst", r_w), (Var "init",def),(Var "i",w)]
+			[ [ TyVar $ Var v | v <- ["o","init","i"]]
+			, [ TyVar $ Var v | v <- ["clk","rst"]] ++ [BaseTy B]
+			]
 
-shallowDelay :: Seq Time -> Seq a -> Seq a -> Seq a
+shallowDelay :: Seq Bool -> Seq a -> Seq a -> Seq a
 shallowDelay sT sInit input =
 	pure (\ reset a b -> if reset then a else b)
 		<*> reset_delayed
@@ -27,29 +30,57 @@ shallowDelay sT sInit input =
 		<*> input_delayed
    where
 	input_delayed = Nothing :~ input
-	reset_delayed = Nothing :~ ((\ (Time t) -> t == -1) <$> sT)
+	reset_delayed = Nothing :~ sT
 
 
-data Time = Time Integer 		-- local clocks
-					-- 0 == reset signal
-					-- 1 == first cycle
-					-- 2 == second cycle
+data Time = Time 
+		(Signal Clk)		-- threading clock
+		(Signal Bool)		-- threading reset
+
+newtype Clk = Clk Integer
 
 instance Show Time where
-	show (Time t) = show t
+	show (Time t r) = show (pure (,) <*> t <*> r)
+
+instance REIFY Time where
+--	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
+	create     = Time <$> create <*> create
+--	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b 
+
+instance Show Clk where
+	show (Clk n) = show n
+
+instance OpType Clk    
+  where op _ nm = Name "Time" nm 
+	bitTypeOf _ = B
+	initVal = error "can not use clock as an init value"
 
 
-time :: Signal Time -> Signal Integer		-- simluation only
-time = fmap (\ (Time t) -> t)
+-- newtype Clk = Clk Integer	-- always running
 
+clk :: Time -> Signal Integer
+clk (Time c _) = fmap (\ (Clk n) -> n) c
+
+rst :: Time -> Signal Bool
+rst (Time _ r) = r
+
+{-
+time :: Time -> Signal Integer		-- simluation only
+time (Time t) = t
+-}
 
 -- 'clock' gives 2 cycles of bla, 1 cycle of reset, then counts from 0.
-clock :: Signal Time
-clock = Signal clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
-  where clock_times = Nothing :~ Nothing :~ (Seq.fromList $ map Just $ map Time (-1 : [0..]))
+clock :: Time
+clock = Time (with $ map Clk [0..])
+	     (poke $ Nothing : Nothing : Just True : repeat (Just False))
+{-
+	Time $ Signal clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+  where clock_times = Nothing :~ Nothing :~ (Seq.fromList $ map Just $ (-1 : [0..]))
+-}
 
-reset :: Signal Time 
-reset = Signal (pure (Time (-1))) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+{-
+reset :: Time  
+reset = Time $ Signal (pure (-1)) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
 
 switch :: Int -> Signal a -> Signal a -> Signal a
 switch n (Signal s1 _) (Signal s2 _) 
@@ -58,11 +89,8 @@ switch n (Signal s1 _) (Signal s2 _)
 		<*> s2
 		<*> (Seq.fromList [ Just i | i <- [0..]])
 	   ) undefined
-	
+-}
 
-
-instance OpType Time    
-  where op _ nm = Name "Time" nm 
-	bitTypeOf _ = T
-	initVal = error "can not use Signal Time as an init value"
+{-	
+-}
 

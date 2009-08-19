@@ -47,6 +47,7 @@ instance (BROADWAY a) => BROADWAY [a] where
 class MUX a where
   mux2 :: Signal Bool -> a -> a -> a
   mux3 :: Signal Ordering -> a -> a -> a -> a
+
 --  mux4 :: Signal (Bool,Bool) -> a -> a -> a -> a -> a
 --   mux3 o a1 a2 a3 = (mux2 (o == EQ) a2) (mux2 (o == LT
 
