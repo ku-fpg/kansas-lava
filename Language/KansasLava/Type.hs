@@ -9,6 +9,8 @@ data BaseTy
 	= B		-- Bit
 	| S Int		-- Signed vector
 	| U Int  	-- Unsigned vector
+
+	| T		-- Time 
 			-- What about Float/Double, special, etc.
 	deriving (Eq, Ord)
 	
@@ -24,6 +26,7 @@ instance Show BaseTy where
 	show B 		= "B"
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
+	show T		= "T"
 
 instance Show v => Show (Ty v) where
 	show (BaseTy ty) = show ty

@@ -160,7 +160,6 @@ instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
 -}
 
 instance (Ix ix, Bounded ix, REIFY a) => REIFY (Matrix ix a) where
---	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
 	create = traverse (\ i -> create) coord
 	capture'' m = concat <$> (traverse capture'' $ M.toList m)
 
