@@ -29,9 +29,6 @@ newtype E = E (Entity (Ty Var) E)
 -- internal, special use only (when defining entities, for example).
 data ESignal a = ESignal (Seq a) E
 
-instance Functor Signal where
-   fmap f = o0 . entity1 (Name "Functor" "fmap") [Var "o0"] [Var "i0"] [] f
-
 -- You want to observe
 instance MuRef E where 
   type DeRef E = Entity (Ty Var)
