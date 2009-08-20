@@ -7,6 +7,7 @@ import Data.Set (Set)
 
 data BaseTy 
 	= B		-- Bit
+	| CB		-- Control Bit (raw bit for clk or rst)
 	| S Int		-- Signed vector
 	| U Int  	-- Unsigned vector
 
@@ -24,6 +25,7 @@ instance Functor Ty where
 
 instance Show BaseTy where
 	show B 		= "B"
+	show CB 	= "C"
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
 	show T		= "T"
