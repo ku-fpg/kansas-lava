@@ -65,8 +65,7 @@ class OpType a where
     signalOf :: Signal a -> a
     signalOf = undefined
     initVal :: Signal a
-
-
+    constSignal :: a -> Signal a
 
 instance OpType Int    where op _ nm = Name "Int" nm     
                              bitTypeOf _ = S 32
@@ -84,6 +83,7 @@ instance OpType Int32 where op _  nm = Name "Int32" nm
 instance OpType Int16 where op _  nm = Name "Int16" nm   
                             bitTypeOf _ = S 16
                             initVal = Signal (pure 0) $ Pad $ Var "Int16Zero"
+			    constSignal a = fromInteger (fromIntegral a)
 instance OpType Word32 where op _ nm = Name "Word32" nm  
                              bitTypeOf _ = U 32
                              initVal = Signal (pure 0) $ Pad $ Var "Word32Zero"

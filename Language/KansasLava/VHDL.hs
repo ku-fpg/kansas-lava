@@ -21,8 +21,8 @@ import Language.KansasLava.Type
 import qualified Data.Set as Set
 
 
-fixed_ports = 
-  [("clk,rst", "in", "std_logic")]           --- error, hack?
+fixed_ports = []
+--  [("clk,rst", "in", "std_logic")]           --- error, hack?
 
 
 vhdlCircuit :: (REIFY o) =>  [ReifyOptions] -> String -> o -> IO ()
@@ -64,7 +64,7 @@ vhdlCircuit opts name circuit = do
 ports :: (Graph (Entity a)) -> [PortDescriptor]
 ports (Graph nodes out) =
 --  [(n,"in","std_logic_vector") | (i,Pad (Var n)) <- nodes, notConst n] ++
-  [("clk,rst", "in", "std_logic")] ++
+ -- [("clk,rst", "in", "std_logic")] ++
   [("sig" ++ show out, "out", "std_logic_vector")]
 
 {-
@@ -75,8 +75,9 @@ notConst _ = True
 
 vhdlTypes :: BaseTy -> String
 vhdlTypes B     = "std_logic"
-vhdlTypes (S n) = "std_logic_vector(" ++ show n ++ ")"
-vhdlTypes (U n) = "std_ulogic_vector(" ++ show n ++ ")"
+vhdlTypes CB	= "bit"			-- control bit
+vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
+vhdlTypes (U n) = "std_ulogic_vector(" ++ show (n - 1) ++ " downto 0)"
 
 decls :: (QVar -> BaseTy) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
 decls tyEnv nodes = 
@@ -84,7 +85,12 @@ decls tyEnv nodes =
     [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing) 
                           | (i,Entity _ outputs _ _) <- nodes
                           , Var n <- outputs
-                          ]
+                          ] ++
+    concat [ [ ("state_" ++ show i, vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
+	     , ("first_" ++ show i, vhdlTypes CB,Just "'0'")
+     	     ]
+           | (i,Entity (Name "Lava" "delay") [Var n] _ _) <- nodes
+           ]
 
 finals :: [(Var,Driver Uq)] -> [Inst]
 finals args = [ Assign n (sig x) | (Var n,x) <- args ] 
@@ -111,11 +117,38 @@ mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
                         (fixName nm)
                         (sig y)
           ]
+-- BUG: o vs o0
+mkInst i e@(Entity (Name "Lava" "delay") [Var "o"] 
+			[ (Var "clk",clk)
+			, (Var "rst",rst)
+			, (Var "init",x)
+			, (Var "i",y)
+			] _)
+        = [ Comment "-- delay"
+	  , Process [sig clk] 
+            [ Cond (sig clk ++ "='1' and " ++ sig clk ++ "'event")
+		   [ Assign ("state_" ++ show i) (sig y)
+		   , Cond (sig rst ++ "='1'")
+			  [ Assign ("first_" ++ show i)
+				   ("'1'")
+			  ]
+			  [ Assign ("first_" ++ show i)
+				   ("'0'")
+			  ]
+		   ]
+		   []
+	    ]
+	  , CondAssign (sig (Port (Var "o") (Uq i)))
+		  [ (sig x,"first_" ++ show i ++ " = '1'")
+	          ]
+	          ("state_" ++ show i)
+
+          ]
 mkInst i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
-	= [ Cond (sig c)
-		[ Assign (sig (Port (Var "o0") (Uq i))) (sig t)
-		]
+	= [ Cond (sig c ++ " = '0'")
 		[ Assign (sig (Port (Var "o0") (Uq i))) (sig f)
+		]	-- because we compare with zero
+		[ Assign (sig (Port (Var "o0") (Uq i))) (sig t)
 		]
          ]
 mkInst i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
@@ -189,7 +222,12 @@ data Inst = Assign String String
 	  | Cond String	-- condition
 		 [Inst]
 		 [Inst]
+	  | CondAssign String
+		        [(String,String)]	-- (Val, Cond)
+			String
           | Comment String
+          | Process [String]
+		    [Inst]
           deriving Show
 
 
@@ -226,16 +264,20 @@ instance Pretty VhdlStruct where
          printDecl (name,ty,Nothing) =
            text "signal" <+> text name <+> colon <+> text ty <> semi
          printDecl (name, ty, Just def) =
-           text "signal" <+> text name <+> text ty <+> text ":=" <+> text def <> semi
+           text "signal" <+> text name <+> colon <+> text ty <+> text ":=" <+> text def <> semi
 
 instance Pretty Inst where
   pretty (Assign a b) = text a <+> text "<=" <+> text b <> semi
   pretty (BuiltinInst a b op c) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
+  pretty (Cond cond ifT []) =
+    text "if" <+> text cond <+> text "then" $$
+      nest 4 (vcat $ map pretty ifT) $$	
+      (text "end if") <> semi
   pretty (Cond cond ifT ifF) =
-    text "if" <+> text cond <+> text "= '0'" <+> text "then" $$
-      nest 4 (vcat $ map pretty ifF) $$	-- false, because we cmp with '0'
+    text "if" <+> text cond <+> text "then" $$
+      nest 4 (vcat $ map pretty ifT) $$	
       (text "else") $$
-      nest 4 (vcat $ map pretty ifT) $$
+      nest 4 (vcat $ map pretty ifF) $$
       (text "end if") <> semi
 
   pretty (Inst lab ent generics ports) =
@@ -248,8 +290,25 @@ instance Pretty Inst where
                | otherwise = text "port map" <> parens (hcat $ intersperse comma $ map printMap ports)
           printMap (p,t) = text p <+> text "=>" <+> text t
   pretty (Comment str) = text "--" <+> text str
+  pretty (Process watch insts) =
+	hang (text "process" <+> parens (hcat $ intersperse comma $ map text watch)
+	 	       <+> text "is") 2 
+	   (hang (text "begin") 2 (vcat $ map pretty insts) $$
+	   text "end process" <> semi)
 
+  pretty (CondAssign a alts def) = 
+	text a <+> text "<=" <+> (hsep $ map prettyAlt alts) <+> text def <> semi
+    where prettyAlt (val,cond) = text val <+> text "when" <+> parens (text cond) <+> text "else"
+ 
 
+--   '0' when (Sreg0 = S2 and  X='1') else
+
+{-
+	(text "architecture str of") <+> text entity <+> text "is" $$
+      ddoc $$
+      hang (text "begin") 2 (vcat $ map pretty insts) $$
+      text "end architecture" <> semi
+-}
 
 
 

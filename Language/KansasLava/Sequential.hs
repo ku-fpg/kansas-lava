@@ -11,33 +11,36 @@ import Language.KansasLava.Applicative
 --delay :: (Sig sig) => sig a -> sig a -> sig a
 -- delay = error "delay!"
 
--- Should this be a -> S a -> S a ??
-delay :: Time -> Signal a -> Signal a -> Signal a
+-- To revisit: Should this be a -> S a -> S a ??
+
+delay :: (OpType a) => Time -> Signal a -> Signal a -> Signal a
 delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w) 
         = Signal (shallowDelay r d rest)
         $ Port (Var "o")
         $ E
         $ Entity (Name "Lava" "delay") [Var "o"] [(Var "clk",tm_w), (Var "rst", r_w), (Var "init",def),(Var "i",w)]
 			[ [ TyVar $ Var v | v <- ["o","init","i"]]
-			, [ TyVar $ Var v | v <- ["clk","rst"]] ++ [BaseTy B]
+			, [ TyVar $ Var v | v <- ["clk","rst"]] ++ [BaseTy CB]
 			]
 
-shallowDelay :: Seq Bool -> Seq a -> Seq a -> Seq a
+
+shallowDelay :: Seq Rst -> Seq a -> Seq a -> Seq a
 shallowDelay sT sInit input =
-	pure (\ reset a b -> if reset then a else b)
+	pure (\ (Rst reset) a b -> if reset then a else b)
 		<*> reset_delayed
 		<*> sInit
 		<*> input_delayed
    where
 	input_delayed = Nothing :~ input
-	reset_delayed = Nothing :~ sT
+	reset_delayed = Just (Rst False) :~ sT
 
 
 data Time = Time 
 		(Signal Clk)		-- threading clock
-		(Signal Bool)		-- threading reset
+		(Signal Rst)		-- threading reset
 
 newtype Clk = Clk Integer
+newtype Rst = Rst Bool
 
 instance Show Time where
 	show (Time t r) = show (pure (,) <*> t <*> r)
@@ -52,8 +55,16 @@ instance Show Clk where
 
 instance OpType Clk    
   where op _ nm = Name "Time" nm 
-	bitTypeOf _ = B
-	initVal = error "can not use clock as an init value"
+	bitTypeOf _ = CB
+	initVal = error "can not use a clock as an init value"
+
+instance Show Rst where
+	show (Rst n) = show n
+
+instance OpType Rst    
+  where op _ nm = Name "Time" nm 
+	bitTypeOf _ = CB
+	initVal = error "can not use a reset as an init value"
 
 
 -- newtype Clk = Clk Integer	-- always running
@@ -62,7 +73,7 @@ clk :: Time -> Signal Integer
 clk (Time c _) = fmap (\ (Clk n) -> n) c
 
 rst :: Time -> Signal Bool
-rst (Time _ r) = r
+rst (Time _ r) = fmap (\ (Rst r') -> r') r
 
 {-
 time :: Time -> Signal Integer		-- simluation only
@@ -72,8 +83,10 @@ time (Time t) = t
 -- 'clock' gives 2 cycles of bla, 1 cycle of reset, then counts from 0.
 clock :: Time
 clock = Time (with $ map Clk [0..])
-	     (poke $ Nothing : Nothing : Just True : repeat (Just False))
+	     (with $ map Rst ([False,False,True] ++ repeat False))
+
 {-
+
 	Time $ Signal clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
   where clock_times = Nothing :~ Nothing :~ (Seq.fromList $ map Just $ (-1 : [0..]))
 -}
