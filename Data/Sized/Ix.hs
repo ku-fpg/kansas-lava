@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Data.Sized.Ix 
 	( X1
 	, X2
@@ -255,9 +255,18 @@ module Data.Sized.Ix
 	, X253
 	, X254
 	, X255
+	, X256
+	, Size(..)
 	) where
 	
 import Language.Haskell.TH
 import Data.Sized.Ix.TH
+import Data.Ix
 
 $(sizedTypeGenForUpto 256)
+
+class (Eq ix, Ord ix, Show ix, Ix ix, Num ix, Enum ix, Bounded ix) => Size ix where
+	size :: ix -> Int
+	size ix = f ix (maxBound - minBound ) 
+	   where f :: (Enum ix) => ix -> ix -> Int 
+		 f _ n = toEnum (fromEnum n) + 1

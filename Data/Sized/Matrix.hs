@@ -8,7 +8,7 @@ import Control.Applicative
 import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Data.Monoid
-
+import qualified Data.List as L
 
 
 import Data.Sized.Ix -- for testing
@@ -33,19 +33,18 @@ toList (Matrix a) = elems a
 fromList :: (Bounded i, Ix i) => [a] -> Matrix i a
 fromList xs = check minBound maxBound
     where 
-	check low high | length (range (low,high)) == length xs
+	check low high | L.length (range (low,high)) == L.length xs
 		       = Matrix $ listArray (low,high) xs
 		       | otherwise
 		       = error $ "bad length of fromList for Matrix, "
-			      ++ "expecting " ++ show (length (range (low,high))) ++ " elements"
-			      ++ ", found " ++ show (length xs) ++ " elements."
-
--- | Unlike the array version of 'indices', this does not need the 'Matrix'
--- argument, because the types determine the contents.
+			      ++ "expecting " ++ show (L.length (range (low,high))) ++ " elements"
+			      ++ ", found " ++ show (L.length xs) ++ " elements."
 
 matrix :: (Bounded i, Ix i) => [a] -> Matrix i a
 matrix = fromList
 
+-- | Unlike the array version of 'indices', this does not need the 'Matrix'
+-- argument, because the types determine the contents.
 
 indices :: (Bounded i, Ix i) => [i]
 indices = range (minBound,maxBound)
@@ -54,9 +53,11 @@ indices = range (minBound,maxBound)
 indices' :: (Bounded i, Ix i) => Matrix i a -> [i]
 indices' _ = indices
 
+length :: (Bounded i, Ix i) => Matrix i a -> Int
+length = L.length . indices'
+
 assocs :: (Ix i) => Matrix i a -> [(i,a)]
 assocs (Matrix a) = A.assocs a
-
 
 -- for use only to force typing
 sizeOf :: Matrix i a -> i
@@ -69,8 +70,8 @@ coord = fromList Data.Sized.Matrix.indices
 zipWith :: (Bounded i, Ix i) => (a -> b -> c) -> Matrix i a -> Matrix i b -> Matrix i c
 zipWith f (Matrix a) (Matrix b) = fromList (P.zipWith f (elems a) (elems b))
 
-forAll :: (Bounded i, Ix i) => Matrix i a -> (i -> a -> b) -> Matrix i b
-forAll a f = Data.Sized.Matrix.zipWith f coord a
+forEach :: (Bounded i, Ix i) => Matrix i a -> (i -> a -> b) -> Matrix i b
+forEach a f = Data.Sized.Matrix.zipWith f coord a
 
 instance (Ix i, Bounded i) => Applicative (Matrix i) where
 	pure a = fmap (const a) coord
@@ -145,31 +146,24 @@ columns = rows . transpose
 joinrows :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix m (Matrix n a) -> Matrix (m,n) a
 joinrows a = (\ (m,n) -> (a ! m) ! n) <$> coord
 
-aRow :: (Ix m, Bounded m) => Matrix m a -> Matrix (X1,m) a
+aRow :: (Ix m, Bounded m) => Matrix m a -> Matrix (X1, m) a
 aRow = ixmap snd
 
-aColumn :: (Ix m, Bounded m) => Matrix m a -> Matrix (m,X1) a
+aColumn :: (Ix m, Bounded m) => Matrix m a -> Matrix (m, X1) a
 aColumn = ixmap fst
 
 type Sized x = forall a . [a] -> Matrix x a
 type SizedX x = forall a . Matrix x a -> Matrix x a
 
--- very general; required that m and n have the same elements.
+-- very general; required that m and n have the same number of elements.
 squash :: (Bounded n, Ix n, Ix m) => Matrix m a -> Matrix n a
 squash = fromList . toList
-
 
 instance (Ix ix, Bounded ix) => T.Traversable (Matrix ix) where
   traverse f a = matrix <$> (T.traverse f $ toList a)
  
 instance (Ix ix) => F.Foldable (Matrix ix) where
   foldMap f m = F.foldMap f (toList m)
-
-{-
-class SIZED c where {}
-instance SIZED [] where {}
-instance SIZED (Matrix ix) where {}
--}
 
 {- idiom. When you can not give the explicit sized type (because for example in a where
    clause, and there is a scoped 'a'), you can used
