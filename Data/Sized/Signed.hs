@@ -1,4 +1,8 @@
-module Data.Sized.Signed where
+module Data.Sized.Signed 
+	( Signed
+	, toMatrix
+	, fromMatrix
+	) where
 	
 import Data.Sized.Matrix as M
 import Data.Sized.Ix
@@ -13,8 +17,8 @@ toMatrix :: Size ix => Signed ix -> Matrix ix Bool
 toMatrix s@(Signed v) = matrix $ take (bitSize s) $ map odd $ iterate (`div` 2) v
 
 fromMatrix :: Size ix => Matrix ix Bool -> Signed ix
-fromMatrix m
-	= sum [ n	
+fromMatrix m = mkSigned $
+	  sum [ n	
 	      | (n,b) <- zip (iterate (* 2) 1)
 			      (M.toList m)
 	      , b
@@ -63,4 +67,4 @@ instance (Size ix) => Bits (Signed ix) where
 	a .&. b = fromMatrix (M.zipWith (&&) (toMatrix a) (toMatrix b))
 		
 
-		
+	
