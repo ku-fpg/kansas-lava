@@ -99,4 +99,5 @@ sizedTypeGen v = do
 		, ValD (VarP 'maxBound) 
 		       (NormalB  (LitE (IntegerL (v - 1)))) []
 		]
+	, InstanceD [] (AppT (ConT (mkName "Size")) (ConT ty))  []
 	]
