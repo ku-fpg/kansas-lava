@@ -112,25 +112,9 @@ beside m1 m2 = transpose (transpose m1 `above` transpose m2)
 ixmap :: (Size i, Size j) => (i -> j) -> Matrix j a -> Matrix i a
 ixmap f m = (\ i -> m ! f i) <$> coord
 
-crop1D :: (Bounded i, Num i, Enum i, Size i, Enum i', Bounded i', Size i') => i -> Matrix i a -> Matrix i' a
-crop1D corner = ixmap (\ i -> (toEnum (fromEnum i) + corner))
-
--- TODO: clean up the type names here.
-crop2D
-  :: (Size t,
-      Size t1,
-      Size a,
-      Size a1,
-      Num a1,
-      Enum a1,
-      Num a,
-      Enum a,
-      Num t,
-      Enum t,
-      Num t1,
-      Enum t1) =>
-     (a, a1) -> Matrix (a, a1) a2 -> Matrix (t, t1) a2
-crop2D (cM,cN) = ixmap (\ (m,n) -> (toEnum (fromEnum m) + cM,toEnum (fromEnum n) + cN))
+-- grab *part* of a matrix.
+crop :: (Index i ~ Index ix, Size i, Size ix) => ix -> Matrix ix a -> Matrix i a
+crop corner = ixmap (\ i -> (addIndex corner (toIndex i)))
 
 -- slice into rows
 rows :: (Bounded n, Size n, Bounded m, Size m) => Matrix (m,n) a -> Matrix m (Matrix n a)
@@ -148,11 +132,6 @@ aRow = ixmap snd
 aColumn :: (Size m, Bounded m) => Matrix m a -> Matrix (m, X1) a
 aColumn = ixmap fst
 
-{-
-type Sized x = forall a . [a] -> Matrix x a
-type SizedX x = forall a . Matrix x a -> Matrix x a
--}
-
 -- very general; required that m and n have the same number of elements.
 squash :: (Size n, Size m) => Matrix m a -> Matrix n a
 squash = fromList . toList
@@ -163,9 +142,3 @@ instance (Size ix) => T.Traversable (Matrix ix) where
 instance (Size ix) => F.Foldable (Matrix ix) where
   foldMap f m = F.foldMap f (toList m)
 
-{- idiom. When you can not give the explicit sized type (because for example in a where
-   clause, and there is a scoped 'a'), you can used
-
-   a = (matrix :: Sized X8) 
- 	  [ 1 .. 8 ]
- -}
