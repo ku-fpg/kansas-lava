@@ -105,6 +105,18 @@ sizedTypeGen v = do
 			      ] 
 			(NormalB (LitE (IntegerL v))) []
 		     ]
-	--	, TySynD (mkName "Off") [mkName "X1"] (ConT (mkName "Int"))
+		, ValD (VarP (mkName "toIndex")) 
+		       (NormalB (VarE (mkName "fromEnum"))) []
+		, FunD (mkName "addIndex")
+		     [ Clause [ ConP cons [VarP n]
+			      , VarP n'
+			      ] 
+			(NormalB (AppE (ConE cons)
+				       (AppE (AppE (VarE (mkName "+"))
+			             	           (VarE n)) 
+			   		     (VarE n')
+			               )
+			)) []
+		     ]
 		]
 	]
