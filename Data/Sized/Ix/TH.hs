@@ -7,7 +7,7 @@ import Data.Array (Ix)
 sizedTypeGenForUpto :: Int -> Q [Dec]
 sizedTypeGenForUpto maxVal = do
 	decs <- sequence [ sizedTypeGen (fromIntegral n)				-- count
-			| n <- [1..maxVal]
+			| n <- [0..maxVal]
 			]
 	return $ concat decs
 
