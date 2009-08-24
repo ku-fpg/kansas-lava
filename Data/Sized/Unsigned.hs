@@ -54,7 +54,7 @@ instance (Size ix) => Enum (Unsigned ix) where
 	fromEnum (Unsigned n) = fromEnum n
 	toEnum n = mkUnsigned (toInteger n)	
 instance (Size ix) => Bits (Unsigned ix) where
-	bitSize s = f s (maxBound - minBound)
+	bitSize s = f s undefined
 	  where
 		f :: (Size a) => Unsigned a -> a -> Int
 		f _ ix = size ix

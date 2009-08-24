@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 module Data.Sized.Ix 
 	( X1
 	, X2
@@ -264,9 +264,24 @@ import Data.Sized.Ix.TH
 import Data.Ix
 
 $(sizedTypeGenForUpto 256)
-
-class (Eq ix, Ord ix, Show ix, Ix ix, Num ix, Enum ix, Bounded ix) => Size ix where
+{-
+type family Off a
+type instance Off X1 = Int
+type instance Off X2 = Int
+type instance Off X3 = Int
+type instance Off (a,b) = (Off a,Off b)
+-}
+class (Eq ix, Ord ix, Show ix, Ix ix, {- Num ix, Enum ix, -} Bounded ix) => Size ix where
+--	type Off ix
 	size :: ix -> Int
-	size ix = f ix (maxBound - minBound ) 
-	   where f :: (Enum ix) => ix -> ix -> Int 
-		 f _ n = toEnum (fromEnum n) + 1
+{-
+	cursor :: Off ix -> ix -> ix
+	offset :: ix -> Off ix
+-}		
+instance (Size x, Size y) => Size (x,y) where
+--	type Off (x,y) = (Int,Int)
+	size (a,b) = size a * size b
+--	cursor :: Off (x,y) -> (x,y) -> (x,y)
+{-
+	cursor (a,b) (a',b') = (cursor a a',cursor b b')
+-}
