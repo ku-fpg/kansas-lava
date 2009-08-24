@@ -107,9 +107,26 @@ fixName "xor" = "XOR"
 fixName ".|." = "OR"
 fixName xs    = xs
 
+-- infix specials
+isSpecialName :: Name -> Maybe String
+isSpecialName (Name "Bool" "+") = return "XOR"
+isSpecialName (Name "Bool" "*") = return "AND"
+isSpecialName _ = Nothing
+
 mkInst :: Int -> Entity ty Uq -> [Inst]
 --    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
 --    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
+mkInst i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+	| case spec of
+	    Nothing -> False
+	    Just {} -> True
+	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i))) 
+                        (sig x)
+                        (op)
+                        (sig y)
+           ]
+  where spec      = isSpecialName nm
+	(Just op) = spec
 mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
         | nm `elem` ["xor",".&.",".|."]
         = [ BuiltinInst (sig (Port (Var "o0") (Uq i))) 

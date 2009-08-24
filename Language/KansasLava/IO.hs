@@ -9,7 +9,9 @@ import Language.KansasLava.Type
 import Control.Applicative
 import Data.Sized.Matrix
 import Data.Traversable
+import Data.List as L
 import Data.Sized.Matrix as M
+import Data.Sized.Ix
 import Data.Array (Ix)
 
 import Debug.Trace
@@ -98,7 +100,7 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 		p_root = P []
 		args' = args ++
 			 [ (Var ("i" ++ show n),dr)
-			 | (n,(ty,dr)) <- zip [(length args)..] pinsX
+			 | (n,(ty,dr)) <- zip [(L.length args)..] pinsX
 			 ]
 		tys' = [ [BaseTy ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ tys
 		result = wrapCircuit args' tys' (fn inpX)
@@ -159,7 +161,7 @@ instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
 
 -}
 
-instance (Ix ix, Bounded ix, REIFY a) => REIFY (Matrix ix a) where
+instance (Size ix, REIFY a) => REIFY (Matrix ix a) where
 	create = traverse (\ i -> create) coord
 	capture'' m = concat <$> (traverse capture'' $ M.toList m)
 

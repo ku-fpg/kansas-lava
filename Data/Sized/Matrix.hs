@@ -21,16 +21,16 @@ data Matrix i a = Matrix (Array i a)
 instance (Show a, Ix i) => Show (Matrix i a) where
 	show = show . toList
 
-(!) :: (Ix n) => Matrix n a -> n -> a
+(!) :: (Size n) => Matrix n a -> n -> a
 (!) (Matrix xs) n = xs A.! n
 
-instance (Ix i) => Functor (Matrix i) where
+instance (Size i) => Functor (Matrix i) where
 	fmap f (Matrix xs) = Matrix (fmap f xs)
 
 toList :: (Ix i) => Matrix i a -> [a]
 toList (Matrix a) = elems a
 
-fromList :: (Bounded i, Ix i) => [a] -> Matrix i a
+fromList :: (Size i) => [a] -> Matrix i a
 fromList xs = check minBound maxBound
     where 
 	check low high | L.length (range (low,high)) == L.length xs
@@ -40,23 +40,23 @@ fromList xs = check minBound maxBound
 			      ++ "expecting " ++ show (L.length (range (low,high))) ++ " elements"
 			      ++ ", found " ++ show (L.length xs) ++ " elements."
 
-matrix :: (Bounded i, Ix i) => [a] -> Matrix i a
+matrix :: (Size i) => [a] -> Matrix i a
 matrix = fromList
 
 -- | Unlike the array version of 'indices', this does not need the 'Matrix'
 -- argument, because the types determine the contents.
 
-indices :: (Bounded i, Ix i) => [i]
+indices :: (Size i) => [i]
 indices = range (minBound,maxBound)
 
 -- Version of 'indices' that takes a type, for forcing the result type using the Matrix type.
-indices' :: (Bounded i, Ix i) => Matrix i a -> [i]
+indices' :: (Size i) => Matrix i a -> [i]
 indices' _ = indices
 
-length :: (Bounded i, Ix i) => Matrix i a -> Int
+length :: (Size i) => Matrix i a -> Int
 length = L.length . indices'
 
-assocs :: (Ix i) => Matrix i a -> [(i,a)]
+assocs :: (Size i) => Matrix i a -> [(i,a)]
 assocs (Matrix a) = A.assocs a
 
 -- for use only to force typing
@@ -64,22 +64,22 @@ sizeOf :: Matrix i a -> i
 sizeOf _ = undefined
 
 -- I find this useful
-coord :: (Bounded i, Ix i) => Matrix i i
+coord :: (Size i) => Matrix i i
 coord = fromList Data.Sized.Matrix.indices
 
-zipWith :: (Bounded i, Ix i) => (a -> b -> c) -> Matrix i a -> Matrix i b -> Matrix i c
+zipWith :: (Size i) => (a -> b -> c) -> Matrix i a -> Matrix i b -> Matrix i c
 zipWith f (Matrix a) (Matrix b) = fromList (P.zipWith f (elems a) (elems b))
 
-forEach :: (Bounded i, Ix i) => Matrix i a -> (i -> a -> b) -> Matrix i b
+forEach :: (Size i) => Matrix i a -> (i -> a -> b) -> Matrix i b
 forEach a f = Data.Sized.Matrix.zipWith f coord a
 
-instance (Ix i, Bounded i) => Applicative (Matrix i) where
+instance (Size i) => Applicative (Matrix i) where
 	pure a = fmap (const a) coord
 	(Matrix a) <*> (Matrix b) = fromList (P.zipWith (\ a b -> a b) (elems a) (elems b))
 
 -- 2d matrix operations
 
-mm :: (Num a, Ix m, Ix n, Ix m', Ix n', n ~ m') => Matrix (m,n) a -> Matrix (m',n') a -> Matrix (m,n') a
+mm :: (Size m, Size n, Size m', Size n', n ~ m', Num a) => Matrix (m,n) a -> Matrix (m',n') a -> Matrix (m,n') a
 mm (Matrix x) (Matrix y) =  Matrix $ array resultBounds
                          [((i,j), sum [x A.! (i,k) * y A.! (k,j) | k <- range (lj,uj)])
                                        | i <- range (li,ui),
@@ -90,79 +90,77 @@ mm (Matrix x) (Matrix y) =  Matrix $ array resultBounds
                 | (lj,uj)==(li',ui')    =  ((li,lj'),(ui,uj'))
                 | otherwise             = error "matMult: incompatible bounds"
  
-transpose :: (Ix x, Ix y, Bounded x, Bounded y) => Matrix (x,y) a -> Matrix (y,x) a
+transpose :: (Size x, Size y) => Matrix (x,y) a -> Matrix (y,x) a
 transpose = ixmap $ \ (x,y) -> (y,x)
 
 -- neat defintion!
-identity :: (Ix x, Bounded x, Num a) => Matrix (x,x) a
+identity :: (Size x, Num a) => Matrix (x,x) a
 identity = (\ (x,y) -> if x == y then 1 else 0) <$> coord
 	
-above :: (Ix m, Ix n, Ix m', Ix m'', Bounded m, Bounded n, Bounded m', Bounded m'') 
+above :: (Size m, Size n, Size m', Size m'') 
       => Matrix (m,n) a -> Matrix (m',n) a -> Matrix (m'',n) a
 above m1 m2 = fromList (toList m1 ++ toList m2)
 
 beside
-  :: (Ix m,
-      Ix n,
-      Ix n',
-      Ix n'',
-      Bounded m,
-      Bounded n,
-      Bounded n',
-      Bounded n'') =>
+  :: (Size m,
+      Size n,
+      Size n',
+      Size n'') =>
      Matrix (m, n) a -> Matrix (m, n') a -> Matrix (m, n'') a
 beside m1 m2 = transpose (transpose m1 `above` transpose m2)
 
-ixmap :: (Bounded i, Ix i, Ix j) => (i -> j) -> Matrix j a -> Matrix i a
+ixmap :: (Size i, Size j) => (i -> j) -> Matrix j a -> Matrix i a
 ixmap f m = (\ i -> m ! f i) <$> coord
 
-crop1D :: (Bounded i, Num i, Enum i, Ix i, Enum i', Bounded i', Ix i') => i -> Matrix i a -> Matrix i' a
+crop1D :: (Bounded i, Num i, Enum i, Size i, Enum i', Bounded i', Size i') => i -> Matrix i a -> Matrix i' a
 crop1D corner = ixmap (\ i -> (toEnum (fromEnum i) + corner))
 
 -- TODO: clean up the type names here.
 crop2D
-  :: (Enum t,
-      Enum a,
-      Num a,
-      Enum t1,
-      Enum a1,
+  :: (Size t,
+      Size t1,
+      Size a,
+      Size a1,
       Num a1,
-      Bounded t,
-      Bounded t1,
-      Ix t,
-      Ix t1,
-      Ix a,
-      Ix a1) =>
+      Enum a1,
+      Num a,
+      Enum a,
+      Num t,
+      Enum t,
+      Num t1,
+      Enum t1) =>
      (a, a1) -> Matrix (a, a1) a2 -> Matrix (t, t1) a2
 crop2D (cM,cN) = ixmap (\ (m,n) -> (toEnum (fromEnum m) + cM,toEnum (fromEnum n) + cN))
 
 -- slice into rows
-rows :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix (m,n) a -> Matrix m (Matrix n a)
+rows :: (Bounded n, Size n, Bounded m, Size m) => Matrix (m,n) a -> Matrix m (Matrix n a)
 rows a = (\ m -> matrix [ a ! (m,n) | n <- indices ]) <$> coord
 
-columns :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix (m,n) a -> Matrix n (Matrix m a)
+columns :: (Bounded n, Size n, Bounded m, Size m) => Matrix (m,n) a -> Matrix n (Matrix m a)
 columns = rows . transpose
 
-joinrows :: (Bounded n, Ix n, Bounded m, Ix m) => Matrix m (Matrix n a) -> Matrix (m,n) a
+joinrows :: (Bounded n, Size n, Bounded m, Size m) => Matrix m (Matrix n a) -> Matrix (m,n) a
 joinrows a = (\ (m,n) -> (a ! m) ! n) <$> coord
 
-aRow :: (Ix m, Bounded m) => Matrix m a -> Matrix (X1, m) a
+aRow :: (Size m, Bounded m) => Matrix m a -> Matrix (X1, m) a
 aRow = ixmap snd
 
-aColumn :: (Ix m, Bounded m) => Matrix m a -> Matrix (m, X1) a
+aColumn :: (Size m, Bounded m) => Matrix m a -> Matrix (m, X1) a
 aColumn = ixmap fst
 
+{-
 type Sized x = forall a . [a] -> Matrix x a
 type SizedX x = forall a . Matrix x a -> Matrix x a
+-}
 
 -- very general; required that m and n have the same number of elements.
-squash :: (Bounded n, Ix n, Ix m) => Matrix m a -> Matrix n a
+squash :: (Size n, Size m) => Matrix m a -> Matrix n a
 squash = fromList . toList
 
-instance (Ix ix, Bounded ix) => T.Traversable (Matrix ix) where
+instance (Size ix) => T.Traversable (Matrix ix) where
   traverse f a = matrix <$> (T.traverse f $ toList a)
  
-instance (Ix ix) => F.Foldable (Matrix ix) where
+instance (Size ix) => F.Foldable (Matrix ix) where
   foldMap f m = F.foldMap f (toList m)
 
 {- idiom. When you can not give the explicit sized type (because for example in a where
