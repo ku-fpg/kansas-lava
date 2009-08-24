@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 module Data.Sized.Ix 
-	( X1
+	( X0
+	, X1
 	, X2
 	, X3
 	, X4
@@ -265,6 +266,8 @@ import Data.Ix
 import Data.Sized.Size
 
 $(sizedTypeGenForUpto 256)
+
+type instance Index X0 = Int
 type instance Index X1 = Int
 type instance Index X2 = Int
 type instance Index X3 = Int
