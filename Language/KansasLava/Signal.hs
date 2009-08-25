@@ -287,4 +287,18 @@ end JK_FF;
 		 ])
 -}
 
+class CLONE a where
+  clone :: a -> a -> a		-- take the shallow from the first, and the deep from the second
+
+instance CLONE (Signal a) where
+  clone ~(Signal s _) ~(Signal _ d) = Signal s d
+
+
+-- AJG: why does this not need CLONE a?
+instance (CLONE b) => CLONE (a -> b) where
+  clone f1 f2 = \ a -> clone (f1 a) (f2 a)
+
+instance (CLONE a,CLONE b) => CLONE (a,b) where
+  clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
+
 		

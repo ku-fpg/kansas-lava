@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, RankNTypes #-}
+{-# LANGUAGE TypeFamilies, RankNTypes, FlexibleInstances, UndecidableInstances, MultiParamTypeClasses #-}
 module Data.Sized.Matrix where
 
 import Data.Array as A hiding (indices,(!), ixmap)
@@ -10,7 +10,6 @@ import qualified Data.Foldable as F
 import Data.Monoid
 import qualified Data.List as L
 
-
 import Data.Sized.Ix -- for testing
 
 -- | A 'Matrix' is an array with the sized determined uniquely by the 
@@ -18,9 +17,10 @@ import Data.Sized.Ix -- for testing
 
 data Matrix i a = Matrix (Array i a)
 
+{-
 instance (Show a, Ix i) => Show (Matrix i a) where
 	show = show . toList
-
+-}
 (!) :: (Size n) => Matrix n a -> n -> a
 (!) (Matrix xs) n = xs A.! n
 
@@ -141,4 +141,20 @@ instance (Size ix) => T.Traversable (Matrix ix) where
  
 instance (Size ix) => F.Foldable (Matrix ix) where
   foldMap f m = F.foldMap f (toList m)
+
+showMatrix :: (Show a, Size n, Size m) => Matrix (m, n) a -> String
+showMatrix m = joinLines $ map showRow m_rows
+	where
+		m'	    = forEach m $ \ (x,y) a -> (x == maxBound && y == maxBound,a)
+		joinLines   = unlines . L.zipWith (++) ("[":repeat " ") 
+		showRow	r   = concat (toList $ Data.Sized.Matrix.zipWith showEle r m_cols_size)
+		showEle (f,e) s = take (s - L.length str) (cycle " ") ++ " " ++ str ++ (if f then " ]" else ",")
+			where str = show e
+		m_cols      = columns m
+		m_rows      = toList $ rows m'
+		m_cols_size = fmap (maximum . map L.length . map show . toList) m_cols
+
+
+instance (Show a, Size ix,Size (D1 ix), Size (D2 ix)) => Show (Matrix ix a) where
+	show = showMatrix . ixmap seeIn2D
 

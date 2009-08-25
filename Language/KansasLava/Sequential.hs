@@ -26,10 +26,9 @@ delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
 
 shallowDelay :: Seq Rst -> Seq a -> Seq a -> Seq a
 shallowDelay sT sInit input =
-	pure (\ (Rst reset) a b -> if reset then a else b)
-		<*> reset_delayed
-		<*> sInit
-		<*> input_delayed
+	seqMux (fmap (\ (Rst reset) -> reset) reset_delayed)
+	       sInit
+	       input_delayed
    where
 	input_delayed = Nothing :~ input
 	reset_delayed = Just (Rst False) :~ sT
@@ -84,6 +83,11 @@ time (Time t) = t
 clock :: Time
 clock = Time (with $ map Clk [0..])
 	     (with $ map Rst ([False,False,True] ++ repeat False))
+
+waitFor :: (OpType a) => Int -> Signal a -> Signal a
+waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")
+
+-- waitForReset :: 
 
 {-
 

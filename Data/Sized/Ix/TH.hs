@@ -12,8 +12,6 @@ sizedTypeGenForUpto maxVal = do
 	return $ concat decs
 
 -- v == the number of possible enumerations
--- define a smart constructor, that does bounds checking, because
--- 10 + 10 :: X16 gives 20.
 
 sizedTypeGen :: Integer -> Q [Dec]
 sizedTypeGen v = do
@@ -118,5 +116,7 @@ sizedTypeGen v = do
 			               )
 			)) []
 		     ]
+		, ValD (VarP (mkName "seeIn2D"))
+		       (NormalB  (VarE ('snd))) []
 		]
 	]
