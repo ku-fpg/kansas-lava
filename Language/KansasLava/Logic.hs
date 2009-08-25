@@ -56,15 +56,17 @@ instance (MUX a,MUX b) => MUX (a,b) where
    mux3 x (a,b) (a',b') (a'',b'') = (mux3 x a a' a'', mux3 x b b' b'')
 
 instance MUX (Signal a) where
-  mux2 sC sT sF = 
-        o0 $ entity3 (Name "Bool" "mux2")
+  mux2 sC@(~(Signal b _)) sT@(~(Signal t _)) sF@(~(Signal f _)) = 
+	clone (Signal (seqMux b t f) (error "bad entity for mux"))
+              (o0 $ entity3 (Name "Bool" "mux2")
               [Var "c",Var "t", Var "f"]
               [Var "o0"]
 	      [ [TyVar $ Var "c", BaseTy B ]
 	      , [TyVar $ Var "t",TyVar $ Var "f",TyVar $ Var "o0"]
 	      ]
-              (\ a b c -> if a then b else c)
-              sC sT sF
+	      (error "mux functionality misunderstood")
+--              (\ a b c -> if a then b else c)
+              sC sT sF)
 {-
   mux3 sC sLT sEQ sGT = 
         o0 $ entity4 (Name "Bool" "mux3")

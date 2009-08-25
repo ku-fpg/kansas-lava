@@ -37,6 +37,7 @@ instance Applicative Seq where
 undefinedSeq :: Seq a
 undefinedSeq = Constant Nothing
 
+
 instance Functor Seq where
    fmap f (a :~ as) = liftM f a :~ fmap f as
    fmap f (Constant a) = Constant $ liftM f a
@@ -56,3 +57,13 @@ fromList []       = error "Seq.fromList"
 toList :: Seq a -> [Maybe a]
 toList (x :~ xs) = x : toList xs
 toList (Constant x) = repeat x
+
+-- unlike using <*>, etc, this allows the unchosen Seq to be undefined at this time.
+seqMux :: Seq Bool -> Seq a -> Seq a -> Seq a
+seqMux sB sT sF = 
+	fromList [ case b of
+		    Just True  -> t
+		    Just False -> f
+		    Nothing    -> Nothing
+	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF) 
+	         ]
