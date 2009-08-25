@@ -31,6 +31,8 @@ Library
        Language.KansasLava.Conditional,
        Data.Sized.Ix,
        Data.Sized.Matrix,
+       Data.Sized.Signed,
+       Data.Sized.Unsigned,
        Data.Bits.Bool
   Other-modules
        Data.Sized.Ix.TH

@@ -170,6 +170,7 @@ reifyCircuit opts circuit = do
 			 ++ [ case dr of
 				Port v' i' -> [TyVar (Uq i,v),TyVar (i',v')]
 				Lit _      -> []
+				other       -> error $ show other
 			    | (v,dr) <- ins
 			    ]
                           | (i,Entity _ _ ins tyeqs) <- nodes
