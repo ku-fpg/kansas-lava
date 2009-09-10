@@ -1,4 +1,4 @@
-module SparseMatrix where
+module Data.Sized.SparseMatrix where
 
 import qualified Test.QuickCheck as QC
 
