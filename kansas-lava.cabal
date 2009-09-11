@@ -29,15 +29,10 @@ Library
        Language.KansasLava.VHDL
        Language.KansasLava.Dot
        Language.KansasLava.Conditional,
-       Data.Sized.Ix,
-       Data.Sized.Matrix,
-       Data.Sized.Signed,
-       Data.Sized.Unsigned,
        Data.Bits.Bool
-  Other-modules
-       Data.Sized.Ix.TH
-
-       
+  Other-modules:
+-- hack for now
+  Hs-Source-Dirs: ., ../sized-types
 
 
   Ghc-Options:  -Wall
