@@ -26,7 +26,7 @@ fixed_ports = []
 
 
 vhdlCircuit :: (REIFY o) =>  [ReifyOptions] -> String -> o -> IO ()
-vhdlCircuit opts name circuit = do 
+vhdlCircuit opts name circuit = do
 {-
   let (ins',g) = output' circ
   let ins = map fst ins'
@@ -48,12 +48,12 @@ vhdlCircuit opts name circuit = do
 --  print $ map findTyFor [(-1,v) | v <- ins ]
   print $ map findTyFor [(i,v) | (_,Port v i) <- outs' ]
 
-  let ports = fixed_ports ++ 
+  let ports = fixed_ports ++
               -- need size info for each input, to declare length of std_logic_vector
             [ (nm,"in",vhdlTypes (findTyFor (Source,Var nm))) | Var nm <- ins] ++
               -- need size info for each output, to declare length of std_logic_vector
-            [ (nm,"out",vhdlTypes (findTyFor (i,v))) | (Var nm,Port v i) <- outs'] ++ 
-            [ (nm,"out",vhdlTypes (findTyFor (Source,v))) | (Var nm,Pad v) <- outs'] ++ 
+            [ (nm,"out",vhdlTypes (findTyFor (i,v))) | (Var nm,Port v i) <- outs'] ++
+            [ (nm,"out",vhdlTypes (findTyFor (Source,v))) | (Var nm,Pad v) <- outs'] ++
             []
 
   let ent = VhdlEntity name [] ports
@@ -80,9 +80,9 @@ vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 vhdlTypes (U n) = "std_ulogic_vector(" ++ show (n - 1) ++ " downto 0)"
 
 decls :: (QVar -> BaseTy) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
-decls tyEnv nodes = 
+decls tyEnv nodes =
     -- need size info for each output, to declare length of std_logic_vector
-    [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing) 
+    [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
                           | (i,Entity _ outputs _ _) <- nodes
                           , Var n <- outputs
                           ] ++
@@ -93,13 +93,13 @@ decls tyEnv nodes =
            ]
 
 finals :: [(Var,Driver Uq)] -> [Inst]
-finals args = [ Assign n (sig x) | (Var n,x) <- args ] 
+finals args = [ Assign n (sig x) | (Var n,x) <- args ]
 
 insts :: [(Unique,Entity ty Uq)] -> [Inst]
-insts nodes = concat [ 
+insts nodes = concat [
 {-        if i == root
-        then [ Assign n (sig x) | (Var n,x) <- ins ] 
-        else -} mkInst i ent 
+        then [ Assign n (sig x) | (Var n,x) <- ins ]
+        else -} mkInst i ent
      | (i,ent@(Entity _ outs ins _)) <- nodes ]
 
 fixName ".&." = "AND"
@@ -120,7 +120,7 @@ mkInst i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
 	| case spec of
 	    Nothing -> False
 	    Just {} -> True
-	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i))) 
+	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (op)
                         (sig y)
@@ -128,21 +128,32 @@ mkInst i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
   where spec      = isSpecialName nm
 	(Just op) = spec
 mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | nm `elem` ["xor",".&.",".|."]
-        = [ BuiltinInst (sig (Port (Var "o0") (Uq i))) 
+        | mod == "Bool" && nm `elem` (["xor",".&.",".|."] ++ ["xor2","and2"])
+        = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (fixName nm)
                         (sig y)
           ]
+
+mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+        | mod == "Unsigned" && nm `elem` ["+", "-"]
+        = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
+                        (sig x)
+                        (fixName nm)
+                        (sig y)
+          ]
+
+
+
 -- BUG: o vs o0
-mkInst i e@(Entity (Name "Lava" "delay") [Var "o"] 
+mkInst i e@(Entity (Name "Lava" "delay") [Var "o"]
 			[ (Var "clk",clk)
 			, (Var "rst",rst)
 			, (Var "init",x)
 			, (Var "i",y)
 			] _)
         = [ Comment "-- delay"
-	  , Process [sig clk] 
+	  , Process [sig clk]
             [ Cond (sig clk ++ "='1' and " ++ sig clk ++ "'event")
 		   [ Assign ("state_" ++ show i) (sig y)
 		   , Cond (sig rst ++ "='1'")
@@ -208,8 +219,8 @@ sig (Lit n) = show n
 
 
 --implode' :: Ex (a,b) -> Signal (a,b)
---implode' = implode 
-{-  
+--implode' = implode
+{-
 instance Compile b => Compile (Signal a -> b) where
   compile f = compile (f port)
     where port = Signal (error "input port") $ Wire $ Pad (Var ("input" ++ show (pos f)))
@@ -288,11 +299,11 @@ instance Pretty Inst where
   pretty (BuiltinInst a b op c) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
   pretty (Cond cond ifT []) =
     text "if" <+> text cond <+> text "then" $$
-      nest 4 (vcat $ map pretty ifT) $$	
+      nest 4 (vcat $ map pretty ifT) $$
       (text "end if") <> semi
   pretty (Cond cond ifT ifF) =
     text "if" <+> text cond <+> text "then" $$
-      nest 4 (vcat $ map pretty ifT) $$	
+      nest 4 (vcat $ map pretty ifT) $$
       (text "else") $$
       nest 4 (vcat $ map pretty ifF) $$
       (text "end if") <> semi
@@ -309,14 +320,14 @@ instance Pretty Inst where
   pretty (Comment str) = text "--" <+> text str
   pretty (Process watch insts) =
 	hang (text "process" <+> parens (hcat $ intersperse comma $ map text watch)
-	 	       <+> text "is") 2 
+	 	       <+> text "is") 2
 	   (hang (text "begin") 2 (vcat $ map pretty insts) $$
 	   text "end process" <> semi)
 
-  pretty (CondAssign a alts def) = 
+  pretty (CondAssign a alts def) =
 	text a <+> text "<=" <+> (hsep $ map prettyAlt alts) <+> text def <> semi
     where prettyAlt (val,cond) = text val <+> text "when" <+> parens (text cond) <+> text "else"
- 
+
 
 --   '0' when (Sreg0 = S2 and  X='1') else
 
