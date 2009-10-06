@@ -40,14 +40,14 @@ Library
 
   Ghc-Options:  -Wall
 
-Executable kansas-lava-test1
-    if flag(devel)
-      Build-Depends: base, QuickCheck >= 2.0
-      buildable: True
-      Other-modules:
-    else
-      Build-depends: base
-      buildable: False
-    Main-Is:        Test1.hs
-    Hs-Source-Dirs: ., test
-    Ghc-Options: -Wall
+--Executable kansas-lava-test1
+--    if flag(devel)
+--      Build-Depends: base, QuickCheck >= 2.0
+--      buildable: True
+--      Other-modules:
+--    else
+--      Build-depends: base
+--      buildable: False
+--    Main-Is:        Test1.hs
+--    Hs-Source-Dirs: ., test
+--    Ghc-Options: -Wall

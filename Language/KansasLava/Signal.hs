@@ -43,7 +43,7 @@ instance MuRef E where
 instance Eq (Signal a) where
    (Signal _ s1) == (Signal _ s2) = s1 == s2
 
-instance (Show a, OpType a) => Show (Signal a) where
+instance (Show a) => Show (Signal a) where
     show (Signal v _) = show v
 
 instance Show E where
