@@ -8,7 +8,8 @@ import Language.KansasLava.Type
 import Language.KansasLava.Seq
 import Data.Bits
 import Control.Applicative
-import Data.Bits.Bool
+import Data.Sized.Unsigned as U
+import Data.Sized.Ix as X
 
 high :: Signal Bool
 high = Signal (pure True) $ Pad $ Var "high"
@@ -16,16 +17,13 @@ high = Signal (pure True) $ Pad $ Var "high"
 low :: Signal Bool
 low = Signal (pure False) $ Pad $ Var "low"
 
--- entity3??
-type U = Int
+type U2 = U.Unsigned X2
 
-newtype U2 = U2 U
-
-mux4 :: (MUX a) => Signal U -> a -> a -> a -> a -> a
+mux4 :: (MUX a) => Signal U2 -> a -> a -> a -> a -> a
 mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
    where
-	b1 = bit 0 
-	b2 = bit 1
+	b1 = testABit u2 0 
+	b2 = testABit u2 1
 
 class BROADWAY a where
 --  type LANE a
@@ -67,41 +65,31 @@ instance MUX (Signal a) where
 	      (error "mux functionality misunderstood")
 --              (\ a b c -> if a then b else c)
               sC sT sF)
-{-
-  mux3 sC sLT sEQ sGT = 
-        o0 $ entity4 (Name "Bool" "mux3")
-              [Var "c",Var "lt", Var "eq", Var "gt"]
-              [Var "o0"]
-	      [ [TyVar $ Var "c", U 2 ]
-	      , [TyVar $ Var "t",TyVar $ Var "f",TyVar $ Var "o0"]
-	      ]
-              (\ a b c -> if a then b else c)
-              sC sT sF
--}
 
 cases :: (MUX cir) => [(Signal Bool,cir)] -> cir -> cir
 cases []           def = def
 cases ((b,c):rest) def = mux2 b c (cases rest def)
 
+-- Misc Bool signal things. 
+-- We do not overload Bool at Bits because
+-- Bool is not a Num, and correctly so. We use U1 instead.
 
-data O = X | Y
+testABit :: (Bits a) => a -> Int -> Signal Bool
+testABit = undefined
 
-jk_ff :: Signal Bool -> Signal Int -> (Signal Int, Signal Bool)
-jk_ff a b = (proj (Var "x") fst e,proj (Var "y") snd e)
-  where
-	e :: ESignal (Int,Bool)
-	e = entity2 (Name "JK" "FF")
-		   [Var "j",Var "k"]
-		   [Var "x",Var "y"]
-		   [ BaseTy B : [ TyVar $ Var n | n <- words "j y" ]
-		   , BaseTy (S 32) : [ TyVar $ Var n | n <- words "k x" ]
-		   ]
-		   (\ a b -> (b,a))
-		   a b
-		
+and2 :: Signal Bool -> Signal Bool -> Signal Bool
+and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] tyeqs (/=) x y
+	where allNames = inputs ++ [Var "o0"]
+	      tyeqs    = [ BaseTy B : map TyVar allNames ]
+	      inputs   = map Var ["i0","i1"]
+or2 :: Signal Bool -> Signal Bool -> Signal Bool
+or2 = undefined
 
+xor2 ::  Signal Bool -> Signal Bool -> Signal Bool
+xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] tyeqs (/=) x y
+	where allNames = inputs ++ [Var "o0"]
+	      tyeqs    = [ BaseTy B : map TyVar allNames ]
+	      inputs   = map Var ["i0","i1"]
 
-
-
-
-	
+bitNot :: Signal Bool -> Signal Bool
+bitNot = undefined

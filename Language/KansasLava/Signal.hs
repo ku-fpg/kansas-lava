@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, MultiParamTypeClasses, FunctionalDependencies  #-}
+{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, 
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies  #-}
 
 module Language.KansasLava.Signal where
 
@@ -18,6 +19,10 @@ import Language.KansasLava.Seq as S
 import Data.Monoid
 import Debug.Trace
 import Control.Applicative
+import Data.Sized.Unsigned as UNSIGNED
+import Data.Sized.Signed as SIGNED
+import Data.Sized.Ix as X
+
 
 -- AJG: to consider, adding AF and Functor to this type.
 
@@ -38,7 +43,7 @@ instance MuRef E where
 instance Eq (Signal a) where
    (Signal _ s1) == (Signal _ s2) = s1 == s2
 
-instance (Show a) => Show (Signal a) where
+instance (Show a, OpType a) => Show (Signal a) where
     show (Signal v _) = show v
 
 instance Show E where
@@ -64,8 +69,8 @@ class OpType a where
     bitTypeOf :: Signal a -> BaseTy
     signalOf :: Signal a -> a
     signalOf = undefined
-    initVal :: Signal a
-    constSignal :: a -> Signal a
+    initVal :: Signal a		-- todo, remove this
+    constSignal :: a -> Signal a -- and this
 
 instance OpType Int    where op _ nm = Name "Int" nm     
                              bitTypeOf _ = S 32
@@ -97,6 +102,15 @@ instance OpType Bool where op _  nm = Name "Bool" nm
 instance OpType ()   where op _  nm = Name "()" nm       
                            bitTypeOf _ = U 0
                            initVal = Signal (pure ()) $ Pad $ Var "OtherZero"
+
+instance (Enum a, Bounded a) => OpType (Unsigned a)  
+                     where op _  nm = Name "Unsigned" nm       
+                           bitTypeOf _ = U (1 + fromEnum (maxBound :: a))
+                           initVal = Signal (error "unsigned") $ Pad $ Var "OtherZero"
+instance (Enum a, Bounded a) => OpType (Signed a)  
+                     where op _  nm = Name "Signed" nm       
+                           bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
+                           initVal = Signal (error "signed") $ Pad $ Var "OtherZero"
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity ty a -> String
