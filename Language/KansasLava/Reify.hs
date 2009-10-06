@@ -249,34 +249,4 @@ entity opts nm circuit = clone circuit deep
   where
 	deep = wrapCircuit [] [] circuit
 
--- instance (REIFY a,REIFY b) => INPUT (a -> b) where
-{-		
-		(result,pinsY) = generated' e_entity (P [1,2]) 
-		e_entity =
-        	    E
-        	  $ Entity (Name "#AUTO" "ABC") 
-			 [ Var (show ps)
-			 | (_,ps) <- pinsY
-			 ]
-			 [ (Var ("i" ++ show n),dr)
-			 | (n,(ty,dr)) <- zip [0..] pinsX
-			 ]
-			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ 
-			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
--}
-			
-{-
-	-- generated :: E -> P -> (a -> b,[P])
-	generated' e p = (
-	   where
-		(a,p1) = generated (p `w` 1)
-		(b,p1) = generated (p `w` 2)
-		
--}
-
-{-
-		entity1 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
-        = 
--}
 

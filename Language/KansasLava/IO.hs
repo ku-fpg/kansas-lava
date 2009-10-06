@@ -31,11 +31,6 @@ instance Applicative A where
 
 --class INPUT i where
 class REIFY c where
-{-
-	input :: P -> c
-	generated :: P -> (c,[P])
-	create :: E -> P -> (c,[(Ty (),Var)])
--}
 	create :: A c	
 	capture'' ::  c -> A [(BaseTy,Driver E)]
 
@@ -43,7 +38,6 @@ class REIFY c where
 	wrapCircuit :: [(Var, Driver E)] -> [[Ty Var]] -> c -> c
 	wrapCircuit args tys circuit' = result -- {- o0 $ e_entity -}
 	   where 
---		(result,pinsY) = create e_entity (P [1,2]) 
 		(result,pinsY) = case create of
 				   A fn -> case fn e_entity [Var $ "x" ++ show n | n <- [0..]] of
 					     (res,tys,_) -> (res,tys)
@@ -57,14 +51,6 @@ class REIFY c where
 			 (tys ++
 			  [ [BaseTy ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ]
 			 )
-	
-
-
---	capture :: P -> c -> [(Ty (),Driver E)]
---	capture' :: E -> P -> c -> ([((Ty ()),Var)],[(Ty (),Driver E)])
---	capture' _ p c = ([],capture p c)
-
-----
 
 data P = P [Int]
 
@@ -75,15 +61,6 @@ w (P ps) p = P (p:ps)
 
 ----
 instance (REIFY i,REIFY o) => REIFY (i -> o) where
-{-
-        capture p f = capture (p `w` 2) (f o)
-	   where
-		o = input (p `w` 1)
-        capture' e p f = (args ++ args', res)
-	   where
-		(o,args)    = create e (p `w` 1)
-		(args',res) = capture' e (p `w` 2) (f o)
--}
 	-- the one place we need bind, so we hard wire it here.
         capture'' f = A $ \ e vars -> 
 		case create of
@@ -108,12 +85,6 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 
 -- perhaps this can capture type??
 instance (OpType a) => REIFY (Signal a) where
-{-
-        input = \ (P ps) -> Signal undefinedSeq $ PathPad ps
-	generated = \ (P ps) -> (Signal undefinedSeq $ PathPad ps,[P ps])
-	create e (P ps) = (a,args)
-	  where (a,args) = (Signal (error "create") $ Port (Var (show $ P ps)) e,[(bitTypeOf a,Var (show $ P ps))])
--}
 	create = A $ \ e (v:vs) ->
  	    let f a = (a,[(bitTypeOf a,v)],vs)	-- lambda bound a, therefor monotyped.
 	    in f $ Signal (error "create") $ Port v e
@@ -129,37 +100,7 @@ instance (REIFY a, REIFY b) => REIFY (a, b) where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
 	create     = (,)  <$> create <*> create
 	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b 
-	
-{-
-instance (REIFY a) => REIFY [a] where
-	capture p [] = []
-	capture p (x:xs) = capture (p `w` 1) x ++ capture (p `w` 2) xs
-instance (REIFY a, REIFY b, REIFY c) => REIFY (a, b,c ) where
-	capture p (a,b,c) = capture (p `w` 1) a ++ capture (p `w` 2) b ++ capture (p `w` 3) c
-instance (REIFY a, REIFY b, REIFY c, REIFY d) => REIFY (a, b, c, d ) where
-	capture p (a,b,c,d) = capture (p `w` 1) a ++ capture (p `w` 2) b ++ capture (p `w` 3) c ++ capture (p `w` 4) d
--}
 
-{-
-instance (INPUT a, INPUT b) => INPUT (a, b) where
-	input p = ( input (p `w` 1) , input (p `w` 2)) 
-	generated p = ((a',b'),a_ps ++ b_ps)
-	    where
-		(a',a_ps) = generated (p `w` 1)
-		(b',b_ps) = generated (p `w` 2)
-	create e p = ((a',b'),a_ps ++ b_ps)
-	    where
-		(a',a_ps) = create e (p `w` 1)
-		(b',b_ps) = create e (p `w` 2)
-	create' = (,) <$> create' <*> create'
-		
-		
-instance (INPUT a, INPUT b, INPUT c) => INPUT (a, b, c) where
-	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3))
-instance (INPUT a, INPUT b, INPUT c, INPUT d) => INPUT (a, b, c, d) where
-	input p = ( input (p `w` 1) , input (p `w` 2), input (p `w` 3), input (p `w` 4))
-
--}
 
 instance (Size ix, REIFY a) => REIFY (Matrix ix a) where
 	create = traverse (\ i -> create) coord

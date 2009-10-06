@@ -26,7 +26,6 @@ import Language.KansasLava.VHDL
 import Language.KansasLava.Dot
 import Language.KansasLava.Dot
 import Language.KansasLava.Type
-import Data.Bits.Bool()	-- for the instances
 
 
 

@@ -16,8 +16,12 @@ Stability:	     alpha
 build-type: 	     Simple
 Cabal-Version:       >= 1.6
 
+Flag devel
+  Description: Enable full development tree
+  Default:     True
+
 Library
-  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.4, pretty, dotgen >= 0.4.1, array, template-haskell
+  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.5, pretty, dotgen >= 0.4.1, array, template-haskell, sized-types
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Entity
@@ -28,18 +32,22 @@ Library
        Language.KansasLava.Sequential
        Language.KansasLava.VHDL
        Language.KansasLava.Dot
-       Language.KansasLava.Conditional,
-       Data.Bits.Bool
+       Language.KansasLava.Conditional
   Other-modules:
 -- hack for now
-  Hs-Source-Dirs: ., ../sized-types
+--  Hs-Source-Dirs: ., ../sized-types
 
 
   Ghc-Options:  -Wall
 
---Executable data-reify-test1
---  Build-Depends:  base
---  Main-Is:        Test1.hs
---  Hs-Source-Dirs: ., test
---  buildable: False
-
+Executable kansas-lava-test1
+    if flag(devel)
+      Build-Depends: base, QuickCheck >= 2.0
+      buildable: True
+      Other-modules:
+    else
+      Build-depends: base
+      buildable: False
+    Main-Is:        Test1.hs
+    Hs-Source-Dirs: ., test
+    Ghc-Options: -Wall
