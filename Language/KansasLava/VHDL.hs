@@ -137,7 +137,7 @@ mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
           ]
 
 mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | mod == "Unsigned" && nm `elem` ["+", "-"]
+        | {- mod == "Unsigned"  && -} nm `elem` ["+", "-"]
         = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (fixName nm)
