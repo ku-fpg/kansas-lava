@@ -78,18 +78,23 @@ testABit :: (Bits a) => a -> Int -> Signal Bool
 testABit = undefined
 
 and2 :: Signal Bool -> Signal Bool -> Signal Bool
-and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] tyeqs (/=) x y
+and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] tyeqs (&&) x y
 	where allNames = inputs ++ [Var "o0"]
 	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0","i1"]
 or2 :: Signal Bool -> Signal Bool -> Signal Bool
-or2 = undefined
+or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] tyeqs (||) x y
+	where allNames = inputs ++ [Var "o0"]
+	      tyeqs    = [ BaseTy B : map TyVar allNames ]
+	      inputs   = map Var ["i0","i1"]
 
 xor2 ::  Signal Bool -> Signal Bool -> Signal Bool
 xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] tyeqs (/=) x y
 	where allNames = inputs ++ [Var "o0"]
 	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0","i1"]
-
 bitNot :: Signal Bool -> Signal Bool
-bitNot = undefined
+bitNot x = o0 $ entity1 (Name "Bool" "not") inputs [Var "o0"] tyeqs not x 
+	where allNames = inputs ++ [Var "o0"]
+	      tyeqs    = [ BaseTy B : map TyVar allNames ]
+	      inputs   = map Var ["i0"]
