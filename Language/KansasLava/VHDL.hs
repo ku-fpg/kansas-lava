@@ -16,6 +16,7 @@ import Data.List(intersperse)
 import Data.Bits
 import Data.List(mapAccumL)
 import Control.Monad(liftM)
+import Data.Maybe(catMaybes)
 
 import Language.KansasLava.Type
 import qualified Data.Set as Set
@@ -86,8 +87,7 @@ decls tyEnv nodes =
                           | (i,Entity _ outputs _ _) <- nodes
                           , Var n <- outputs
                           ] ++
-    concat [ [ ("state_" ++ show i, vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
-	     , ("first_" ++ show i, vhdlTypes CB,Just "'0'")
+    concat [ [ (sig (Port (Var n) (Uq i)) ++ "_next", vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
      	     ]
            | (i,Entity (Name "Lava" "delay") [Var n] _ _) <- nodes
            ]
@@ -100,7 +100,8 @@ insts nodes = concat [
 {-        if i == root
         then [ Assign n (sig x) | (Var n,x) <- ins ]
         else -} mkInst i ent
-     | (i,ent@(Entity _ outs ins _)) <- nodes ]
+     | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
+     (synchronous nodes)
 
 fixName ".&." = "AND"
 fixName "xor" = "XOR"
@@ -151,27 +152,10 @@ mkInst i e@(Entity (Name "Lava" "delay") [Var "o"]
 			, (Var "rst",rst)
 			, (Var "init",x)
 			, (Var "i",y)
-			] _)
-        = [ Comment "-- delay"
-	  , Process [sig clk]
-            [ Cond (sig clk ++ "='1' and " ++ sig clk ++ "'event")
-		   [ Assign ("state_" ++ show i) (sig y)
-		   , Cond (sig rst ++ "='1'")
-			  [ Assign ("first_" ++ show i)
-				   ("'1'")
-			  ]
-			  [ Assign ("first_" ++ show i)
-				   ("'0'")
-			  ]
-		   ]
-		   []
-	    ]
-	  , CondAssign (sig (Port (Var "o") (Uq i)))
-		  [ (sig x,"first_" ++ show i ++ " = '1'")
-	          ]
-	          ("state_" ++ show i)
-
-          ]
+			] _) =
+          [ Assign input (sig y) ]
+  where output = sig (Port (Var "o") (Uq i))
+        input =  output ++ "_next"
 mkInst i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
 	= [ Cond (sig c ++ " = '0'")
 		[ Assign (sig (Port (Var "o0") (Uq i))) (sig f)
@@ -339,4 +323,22 @@ instance Pretty Inst where
 -}
 
 
-
+-- The 'synchronous' function generates a synchronous process for the
+-- delay elements
+synchronous nodes
+  | null delays = []
+  | otherwise = [Process ([sig clk, sig rst] ++  inputs)
+                       [ Cond ("rising_edge(" ++ sig clk ++ ")")
+		         [Cond (sig rst ++ "='1'")
+		          (zipWith Assign outputs inits)
+                          (zipWith Assign outputs inputs)
+	                 ]   []
+	               ]
+                     ]
+  where delays@((_,d):_) = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- nodes]
+        outputs = [sig (Port (Var "o") (Uq i)) | (i,_) <- delays]
+        inputs = [o ++ "_next" | o <- outputs]
+        inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
+        Just clk = lookupInput "clk" d
+        Just rst = lookupInput "rst" d
+        lookupInput i (Entity _ outputs inputs _) = lookup (Var i) inputs
