@@ -67,50 +67,44 @@ data WireType
 class OpType a where
     op :: Signal a -> (String -> Name)
     bitTypeOf :: Signal a -> BaseTy
-    signalOf :: Signal a -> a
-    signalOf = undefined
     initVal :: Signal a		-- todo, remove this
-    constSignal :: a -> Signal a -- and this
 
 instance OpType Int    where op _ nm = Name "Int" nm     
                              bitTypeOf _ = S 32
-                             initVal = Signal (pure 0) $ Pad $ Var "IntZero"
+                             initVal = Signal (pure 0) $ Lit 0
 instance OpType Float  where op _ nm = Name "Float" nm   
                              bitTypeOf _ = S 32
-                             initVal = Signal (pure 0.0) $ Pad $ Var "FloatZero"
+                             initVal = Signal (pure 0) $ Lit 0
 instance OpType Double where op _ nm = Name "Double" nm  
                              bitTypeOf _ = S 64
-                             initVal = Signal (pure 0.0) $ Pad $ Var "DoubleZero"
-
+                             initVal = Signal (pure 0) $ Lit 0
 instance OpType Int32 where op _  nm = Name "Int32" nm   
                             bitTypeOf _ = S 32
-                            initVal = Signal (pure 0) $ Pad $ Var "Int32Zero"
+                            initVal = Signal (pure 0) $ Lit 0
 instance OpType Int16 where op _  nm = Name "Int16" nm   
                             bitTypeOf _ = S 16
-                            initVal = Signal (pure 0) $ Pad $ Var "Int16Zero"
-			    constSignal a = fromInteger (fromIntegral a)
+                            initVal = Signal (pure 0) $ Lit 0
 instance OpType Word32 where op _ nm = Name "Word32" nm  
                              bitTypeOf _ = U 32
-                             initVal = Signal (pure 0) $ Pad $ Var "Word32Zero"
+                             initVal = Signal (pure 0) $ Lit 0
 instance OpType Word16 where op _ nm = Name "Word16" nm  
                              bitTypeOf _ = U 16
-                             initVal = Signal (pure 0) $ Pad $ Var "Word16Zero"
-
+                             initVal = Signal (pure 0) $ Lit 0
 instance OpType Bool where op _  nm = Name "Bool" nm     
                            bitTypeOf _ = B
-                           initVal = Signal (pure False) $ Pad $ Var "BoolZero"
+                           initVal = Signal (pure False) $ Lit 0
 instance OpType ()   where op _  nm = Name "()" nm       
                            bitTypeOf _ = U 0
-                           initVal = Signal (pure ()) $ Pad $ Var "OtherZero"
+                           initVal = Signal (pure ()) $ Lit 0
 
-instance (Enum a, Bounded a) => OpType (Unsigned a)  
+instance (Enum a, Bounded a, Size a) => OpType (Unsigned a)  
                      where op _  nm = Name "Unsigned" nm       
                            bitTypeOf _ = U (1 + fromEnum (maxBound :: a))
-                           initVal = Signal (error "unsigned") $ Pad $ Var "OtherZero"
-instance (Enum a, Bounded a) => OpType (Signed a)  
+                           initVal = Signal (pure 0) $ Lit 0
+instance (Enum a, Bounded a, Size a) => OpType (Signed a)  
                      where op _  nm = Name "Signed" nm       
                            bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
-                           initVal = Signal (error "signed") $ Pad $ Var "OtherZero"
+                           initVal = Signal (pure 0) $ Lit 0
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity ty a -> String
@@ -121,6 +115,10 @@ findEntityTyModName e = nm
     fn _ s = s `op` ""
    
 -------------------------------------------
+
+
+
+
 
 --fun1 nm f s     = entity1 (op s nm) inputs f s
 --fun2 nm f s1 s2 = entity2 (op s1 nm) inputs f s1 s2
@@ -182,8 +180,8 @@ instance (Bits a, OpType a) => Bits (Signal a) where
     s1 `shift` n = fun2 "shift" (shift) s1 (fromIntegral n)
     s1 `rotate` n = fun2 "rotate" (rotate) s1 (fromIntegral n)
     complement s = fun1 "complement" (complement) s
-    bitSize s                       = bitSize (signalOf s)
-    isSigned s                      = isSigned (signalOf s)
+    bitSize s                       = baseTypeLength (bitTypeOf s)
+    isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
 {-
 -- TODO: represent in terms of new fun/entity interface.

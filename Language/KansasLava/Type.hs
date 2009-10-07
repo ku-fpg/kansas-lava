@@ -18,6 +18,21 @@ data BaseTy
 data Ty v = BaseTy BaseTy | TyVar v
 	deriving (Eq, Ord)
 
+-- I don't use "_" here, because additional constructors are likely to be defined 
+-- for BaseTy; and this function should be updated whenever this happens
+baseTypeLength B  = 1
+baseTypeLength CB = 1
+baseTypeLength (S x) = x
+baseTypeLength (U x) = x
+baseTypeLength T = 1
+
+-- I don't use "_" here, because additional constructors are likely to be defined 
+-- for BaseTy; and this function should be updated whenever this happens
+baseTypeIsSigned B     = False
+baseTypeIsSigned CB    = False
+baseTypeIsSigned (S x) = True
+baseTypeIsSigned (U _) = False
+baseTypeIsSigned T     = False
 
 instance Functor Ty where
 	fmap f (BaseTy ty)	= BaseTy ty
