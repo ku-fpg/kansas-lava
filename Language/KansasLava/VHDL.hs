@@ -26,7 +26,7 @@ fixed_ports = []
 --  [("clk,rst", "in", "std_logic")]           --- error, hack?
 
 
-vhdlCircuit :: (REIFY o) =>  [ReifyOptions] -> String -> o -> IO ()
+vhdlCircuit :: (REIFY o) =>  [ReifyOptions] -> String -> o -> IO String
 vhdlCircuit opts name circuit = do
 {-
   let (ins',g) = output' circ
@@ -60,7 +60,9 @@ vhdlCircuit opts name circuit = do
   let ent = VhdlEntity name [] ports
   putStrLn $ render $ pretty ent
   let arch = VhdlArchitecture name (decls findTyFor nodes) (insts nodes ++ finals outs')
-  putStrLn $ render $ pretty arch
+  let rendered = render $ pretty arch
+  putStrLn rendered
+  return rendered
 
 ports :: (Graph (Entity a)) -> [PortDescriptor]
 ports (Graph nodes out) =
@@ -335,7 +337,8 @@ synchronous nodes
 	                 ]   []
 	               ]
                      ]
-  where delays@((_,d):_) = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- nodes]
+  where delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- nodes]
+        ((_,d):_) = delays
         outputs = [sig (Port (Var "o") (Uq i)) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
         inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
