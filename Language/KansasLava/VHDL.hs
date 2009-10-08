@@ -58,9 +58,9 @@ vhdlCircuit opts name circuit = do
             []
 
   let ent = VhdlEntity name [] ports
-  putStrLn $ render $ pretty ent
+
   let arch = VhdlArchitecture name (decls findTyFor nodes) (insts nodes ++ finals outs')
-  let rendered = render $ pretty arch
+  let rendered = render $ pretty ent $$ pretty arch
   putStrLn rendered
   return rendered
 
