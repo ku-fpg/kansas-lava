@@ -106,7 +106,7 @@ insts nodes = concat [
      (synchronous nodes)
 
 fixName ".&." = "AND"
-fixName "xor" = "XOR"
+fixName "xor2" = "XOR"
 fixName ".|." = "OR"
 fixName xs    = xs
 
