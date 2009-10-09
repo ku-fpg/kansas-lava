@@ -66,7 +66,7 @@ dut name inputs outputs sequentials = unlines $ [
 stimulus name inputs outputs = unlines $ [
   "runtest: process  is",
   "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".input\";",
-  "\tFILE " ++ outputfile ++ " : TEXT IS \"" ++ name ++ ".output\";",
+  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".output\";",
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType inputs ++ ";",
   "\tvariable output_var : " ++ portType outputs ++ ";",
@@ -124,7 +124,7 @@ doscript name = unlines [
   "vcom " ++ name ++ "_tb.vhd",
   "vsim " ++ name ++ "_tb",
   "add wave -r *",
-  "run",
+  "run -all",
   "quit"]
 
 
