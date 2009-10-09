@@ -6,6 +6,7 @@ import Data.List(mapAccumL,intersperse)
 import Data.Bits
 
 import Data.Sized.Unsigned as U
+import Data.Sized.Signed as S
 import Data.Sized.Ix
 
 import System.Random

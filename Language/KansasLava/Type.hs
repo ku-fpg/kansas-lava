@@ -69,8 +69,8 @@ baseToTy (BaseTy ty) = fmap undefined ty
 -- we depend on the total number of final sets being small for efficiency here.
 
 findMinEquivSets :: (Show a, Ord a) => [Set a] -> [Set a]
-findMinEquivSets [] = [] 
-findMinEquivSets [x] = [x] 
+findMinEquivSets [] = []
+findMinEquivSets [x] = [x]
 findMinEquivSets (x:xs)  = foldr insert [x] xs
 
 insert x [] = [x]
