@@ -14,7 +14,7 @@ import Language.KansasLava.Applicative
 -- To revisit: Should this be a -> S a -> S a ??
 
 delay :: (OpType a) => Time -> Signal a -> Signal a -> Signal a
-delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w) 
+delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         = Signal (shallowDelay r d rest)
         $ Port (Var "o")
         $ E
@@ -34,7 +34,7 @@ shallowDelay sT sInit input =
 	reset_delayed = Just (Rst False) :~ sT
 
 
-data Time = Time 
+data Time = Time
 		(Signal Clk)		-- threading clock
 		(Signal Rst)		-- threading reset
 
@@ -46,22 +46,25 @@ instance Show Time where
 
 instance REIFY Time where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
-	create     = Time <$> create <*> create
---	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b 
+	-- create     = Time <$> create <*> create
+
+	create = Time <$> named "clk" <*> named "rst"
+
+--	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b
 
 instance Show Clk where
 	show (Clk n) = show n
 
-instance OpType Clk    
-  where op _ nm = Name "Time" nm 
+instance OpType Clk
+  where op _ nm = Name "Time" nm
 	bitTypeOf _ = CB
 	initVal = error "can not use a clock as an init value"
 
 instance Show Rst where
 	show (Rst n) = show n
 
-instance OpType Rst    
-  where op _ nm = Name "Time" nm 
+instance OpType Rst
+  where op _ nm = Name "Time" nm
 	bitTypeOf _ = CB
 	initVal = error "can not use a reset as an init value"
 
@@ -87,7 +90,7 @@ clock = Time (with $ map Clk [0..])
 waitFor :: (OpType a) => Int -> Signal a -> Signal a
 waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")
 
--- waitForReset :: 
+-- waitForReset ::
 
 {-
 
@@ -96,18 +99,18 @@ waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)
 -}
 
 {-
-reset :: Time  
+reset :: Time
 reset = Time $ Signal (pure (-1)) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
 
 switch :: Int -> Signal a -> Signal a -> Signal a
-switch n (Signal s1 _) (Signal s2 _) 
-  = Signal (pure (\ s1 s2 i -> if i < n then s1 else s2) 
+switch n (Signal s1 _) (Signal s2 _)
+  = Signal (pure (\ s1 s2 i -> if i < n then s1 else s2)
 		<*> s1
 		<*> s2
 		<*> (Seq.fromList [ Just i | i <- [0..]])
 	   ) undefined
 -}
 
-{-	
+{-
 -}
 
