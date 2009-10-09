@@ -17,14 +17,12 @@ mkTestbench name fun = do
   vhdl <- vhdlCircuit [] name fun
   writeFile (base ++ name ++ ".vhd") vhdl
   (inputs,outputs,sequentials) <- ports fun
-  putStrLn $ show inputs
-  -- putStrLn $ show outputs
   writeFile (base ++ name ++ "_tb.vhd") $
             entity name ++ architecture name inputs outputs sequentials
   stimulus <- vectors inputs
   writeFile (base ++ name ++ ".input") stimulus
   writeFile (base ++ name ++ ".do") (doscript name)
-  where base = "/Volumes/Synthesis/synth/"
+  where base = "" -- "/Volumes/Synthesis/synth/"
 
 
 entity name = unlines
