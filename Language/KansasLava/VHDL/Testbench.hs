@@ -15,11 +15,11 @@ mkTestbench :: REIFY fun => String -> fun -> IO ()
 mkTestbench name fun = do
   vhdl <- vhdlCircuit [] name fun
   writeFile (base ++ name ++ ".vhd") vhdl
-  (inputs,outputs) <- ports fun
+  (inputs,outputs,sequentials) <- ports fun
   putStrLn $ show inputs
-  putStrLn $ show outputs
+  -- putStrLn $ show outputs
   writeFile (base ++ name ++ "_tb.vhd") $
-            entity name ++ architecture name inputs outputs
+            entity name ++ architecture name inputs outputs sequentials
   stimulus <- vectors inputs
   writeFile (base ++ name ++ ".input") stimulus
   writeFile (base ++ name ++ ".do") (doscript name)
@@ -39,12 +39,12 @@ entity name = unlines
   ]
 
 
-architecture name inputs outputs = unlines $
+architecture name inputs outputs sequentials = unlines $
   ["architecture sim of " ++ name ++ "_tb is"] ++
    signals ++
   ["begin",
    stimulus name inputs outputs,
-   dut name inputs outputs,
+   dut name inputs outputs sequentials,
    "end architecture sim;"]
   where signals = [
          "signal clk, rst : std_logic;",
@@ -55,12 +55,12 @@ architecture name inputs outputs = unlines $
           ]
 
 
-dut name inputs outputs = unlines $ [
+dut name inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ name,
  "port map ("] ++
  portAssigns inputs outputs ++
- ["\tclk =>clk, rst=>rst",
- ");"]
+ ["\t" ++ clk ++ " => clk, " ++ rst ++ "=> rst" | ((Var clk,_),(Var rst, _)) <- sequentials] ++
+ [");"]
 
 stimulus name inputs outputs = unlines $ [
   "runtest: process  is",
@@ -85,6 +85,7 @@ stimulus name inputs outputs = unlines $ [
   "\t\toutput_var := output;",
   "\t\tWRITE(line_out, output_var);",
   "\t\tWRITELINE(" ++ outputfile ++ ", line_out);",
+  "\t\twait for 10ns;",
   "\tend loop;",
   "\twait;",
   "end process;"
@@ -95,9 +96,11 @@ stimulus name inputs outputs = unlines $ [
 -- Manipulating ports
 ports fun = do
   reified <- reifyCircuit [] fun
-  let inputs = [(name,ty) | ((Source,name),ty) <- theTypes reified]
+  let inputs = [(name,ty) | ((Source,name),ty) <- theTypes reified, not (ty `elem` [ClkTy,RstTy])]
       outputs = [(name,ty) | ((Sink,name),ty) <- theTypes reified]
-  return (inputs,outputs)
+      clocks = [(name,ClkTy) | ((Source,name),ClkTy) <- theTypes reified]
+      resets = [(name,RstTy) | ((Source,name),RstTy) <- theTypes reified]
+  return (inputs,outputs,zip clocks resets)
 
 
 portType ports = "std_logic_vector(0 to " ++ show (portLen ports - 1) ++ ")"

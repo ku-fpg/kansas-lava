@@ -26,7 +26,8 @@ data A a = A (E -> [Var] -> (a,[(BaseTy,Var)],[Var]))
 
 -- | The 'named' function constructs an A value that passes the name store
 -- | unaltered, and associates with a Var (with the given name, 'nm') with the
--- | type of the entity that is being passed in.
+-- | type of the entity that is b
+named :: (OpType a) => String -> A (Signal a)
 named nm = A $ \ e vs ->
   let f a = (a,[(bitTypeOf a,(Var nm))],vs)
   in f $ Signal (error "create") $ Port (Var nm) e

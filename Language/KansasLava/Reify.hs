@@ -20,13 +20,14 @@ data Uq = Uq Unique | Sink | Source
 	deriving (Eq,Ord,Show)
 
 type QVar = (Uq,Var)
+type TypeEnv = [(QVar,BaseTy)]
 
 data ReifiedCircuit = ReifiedCircuit
 	{ theCircuit :: [(Unique,Entity (Ty Var) Uq)]
-		-- ^ This the main graph. There is no actual node for the source or sink. 
+		-- ^ This the main graph. There is no actual node for the source or sink.
 	, theSrcs    :: [Var]
 	, theSinks   :: [(Var,Driver Uq)]
-	, theTypes   :: [(QVar,BaseTy)]
+	, theTypes   :: TypeEnv
 	}
 
 -- TODO:

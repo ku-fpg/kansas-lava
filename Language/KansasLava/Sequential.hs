@@ -46,9 +46,9 @@ instance Show Time where
 
 instance REIFY Time where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
-	-- create     = Time <$> create <*> create
+	create     = Time <$> create <*> create
 
-	create = Time <$> named "clk" <*> named "rst"
+	-- create = Time <$> named "clk" <*> named "rst"
 
 --	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b
 
@@ -57,7 +57,7 @@ instance Show Clk where
 
 instance OpType Clk
   where op _ nm = Name "Time" nm
-	bitTypeOf _ = CB
+	bitTypeOf _ = ClkTy
 	initVal = error "can not use a clock as an init value"
 
 instance Show Rst where
@@ -65,7 +65,7 @@ instance Show Rst where
 
 instance OpType Rst
   where op _ nm = Name "Time" nm
-	bitTypeOf _ = CB
+	bitTypeOf _ = RstTy
 	initVal = error "can not use a reset as an init value"
 
 
