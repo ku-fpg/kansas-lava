@@ -22,6 +22,7 @@ mkTestbench name fun = do
             entity name ++ architecture name inputs outputs
   stimulus <- vectors inputs
   writeFile (base ++ name ++ ".input") stimulus
+  writeFile (base ++ name ++ ".do") (doscript name)
   where base = "/Volumes/Synthesis/synth/"
 
 
@@ -111,6 +112,19 @@ portAssigns inputs outputs = imap ++ omap
         (_,omap) = mapAccumL (assign "output") 0 [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
 
 
+
+-- Modelsim 'do' script
+doscript name = unlines [
+  "vlib work",
+  "vcom " ++ name ++ ".vhd",
+  "vcom " ++ name ++ "_tb.vhd",
+  "vsim " ++ name ++ "_tb",
+  "add wave -r *",
+  "run",
+  "quit"]
+
+
+
 -- Generating the test vectors.
 toBits :: Bits a => Int -> a -> String
 toBits size val = map (\i -> if testBit val i then '1' else '0') upto
@@ -136,7 +150,5 @@ vectors inputs = do
 
 
         types = map snd inputs
-
-
 
 add a b c d = xor2 d $ xor2 a (xor2 b c)
