@@ -145,10 +145,19 @@ vectors inputs = do
         stim (S x) = do let bound = 2^(x-1)
                         (v :: Int) <- randomRIO (-bound,bound - 1)
                         return $ toBits x v
-        stim (S x) = do (v :: Int) <- randomRIO (0,2^x- 1)
+        stim (U x) = do (v :: Int) <- randomRIO (0,2^x- 1)
                         return $ toBits x v
 
 
         types = map snd inputs
 
-add a b c d = xor2 d $ xor2 a (xor2 b c)
+add :: Time -> Signal Bool -> Signal Bool -> Signal Bool
+add clk a b = xor2 a b
+
+
+type Unsigned8 = Signal (U.Unsigned X8)
+type Signed8 = Signal (S.Signed X8)
+add1 :: Signed8 -> Signed8 -> Signed8
+add1 a b = a + b
+
+
