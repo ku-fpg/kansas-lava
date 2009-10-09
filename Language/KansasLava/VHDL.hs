@@ -78,7 +78,7 @@ notConst _ = True
 
 vhdlTypes :: BaseTy -> String
 vhdlTypes B     = "std_logic"
-vhdlTypes CB	= "bit"			-- control bit
+vhdlTypes CB	= "std_logic"			-- control bit
 vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 vhdlTypes (U n) = "std_ulogic_vector(" ++ show (n - 1) ++ " downto 0)"
 
