@@ -167,11 +167,9 @@ mkInst tyEnv i e@(Entity (Name "Lava" "delay") [Var "o"]
   where output = sig (Port (Var "o") (Uq i))
         input =  output ++ "_next"
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
-	= [ Cond (sig c ++ " = '0'")
-		[ Assign (sig (Port (Var "o0") (Uq i))) (sig f)
-		]	-- because we compare with zero
-		[ Assign (sig (Port (Var "o0") (Uq i))) (sig t)
-		]
+	= [ CondAssign (sig (Port (Var "o0") (Uq i)))
+                       [(sig f, sig c ++ "= '0'")]
+                       (sig t)
          ]
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
 
