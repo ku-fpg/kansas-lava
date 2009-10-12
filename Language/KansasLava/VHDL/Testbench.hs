@@ -71,9 +71,10 @@ stimulus name inputs outputs = unlines $ [
 
   "begin",
   "\tclk <= '0';",
-  "\trst <= '1';",
+  "wait for 10ns;",
+  "\trst <= '1', '0' after 10ns;",
   "\tclk <= '1', '0' after 10ns;",
-  "\trst <= '0';",
+  "wait for 10ns;",
   "\twhile not endfile (" ++ inputfile ++ ") loop",
   "\t\tREADLINE(" ++ inputfile ++ ", line_in);",
   "\t\tREAD(line_in,input_var);",
