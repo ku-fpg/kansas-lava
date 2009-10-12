@@ -20,7 +20,8 @@ delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         $ E
         $ Entity (Name "Lava" "delay") [Var "o"] [(Var "clk",tm_w), (Var "rst", r_w), (Var "init",def),(Var "i",w)]
 			[ [ TyVar $ Var v | v <- ["o","init","i"]]
-			, [ TyVar $ Var v | v <- ["clk","rst"]] ++ [BaseTy CB]
+                        ,  [TyVar $ Var "clk", BaseTy ClkTy]
+                        ,  [TyVar $ Var "rst", BaseTy RstTy]
 			]
 
 
