@@ -16,7 +16,7 @@ import Data.List(intersperse)
 import Data.Bits
 import Data.List(mapAccumL)
 import Control.Monad(liftM)
-import Data.Maybe(catMaybes)
+import Data.Maybe(catMaybes,fromJust)
 
 import Language.KansasLava.Type
 import qualified Data.Set as Set
@@ -105,7 +105,7 @@ insts tyEnv nodes = concat [
         then [ Assign n (sig x) | (Var n,x) <- ins ]
         else -} mkInst tyEnv i ent
      | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
-     (synchronous nodes)
+     (synchronous tyEnv nodes)
 
 fixName ".&." = "AND"
 fixName "xor2" = "XOR"
@@ -141,18 +141,12 @@ mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
 mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
         | {- mod == "Unsigned"  && -} nm `elem` ["+", "-"] =
           [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
-                        (sigTyped xty x)
+                        (sigTyped (getTy tyEnv i "i0") x)
                         (fixName nm)
-                        (sigTyped yty y) (Just "std_logic_vector")
+                        (sigTyped (getTy tyEnv i "i1") y) (Just "std_logic_vector")
           ]
-  where sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
-        sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
-        sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
-        sigTyped (S _) s = "signed(" ++ sig s ++ ")"
-        qvarx = (Uq i,Var "i0")
-        qvary = (Uq i,Var "i1")
-        Just xty = lookup qvarx tyEnv
-        Just yty = lookup qvary tyEnv
+
+
 
 
 
@@ -205,6 +199,21 @@ sig (Port i Source) = show i
 sig (Port i (Uq v)) = "sig_" ++ show i ++ "_" ++ show v
 sig (Pad (Var n)) = n
 sig (Lit n) = show n
+
+-- sigTyped allows the type casts, especially for literals.
+sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
+sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
+sigTyped B         (Lit 0) = "'0'"
+sigTyped B         (Lit 1) = "'0'"
+sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
+sigTyped (S _) s = "signed(" ++ sig s ++ ")"
+
+sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
+
+
+-- getType
+getTy tyEnv i var = maybe (error "VHDL.getTy") id (lookup (Uq i, Var var) tyEnv)
+
 
 --        inst i entity o formals actuals =
 --          Inst ("inst" ++ show i) entity [] ((o,sig i):(zip formals (map sig actuals)))
@@ -333,7 +342,7 @@ instance Pretty Inst where
 
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
-synchronous nodes
+synchronous tyEnv nodes
   | null delays = []
   | otherwise = [Process ([sig clk, sig rst] ++  inputs)
                        [ Cond ("rising_edge(" ++ sig clk ++ ")")
@@ -347,7 +356,10 @@ synchronous nodes
         ((_,d):_) = delays
         outputs = [sig (Port (Var "o") (Uq i)) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
-        inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
+        -- inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
+        inits = [sigTyped (getTy tyEnv i "init") (fromJust (lookupInput "init" e))
+                 | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- delays]
+
         Just clk = lookupInput "clk" d
         Just rst = lookupInput "rst" d
         lookupInput i (Entity _ outputs inputs _) = lookup (Var i) inputs
