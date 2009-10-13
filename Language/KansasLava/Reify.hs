@@ -21,6 +21,12 @@ data Uq = Uq Unique | Sink | Source
 
 type QVar = (Uq,Var)
 
+showQVar :: QVar -> String
+showQVar (u,v) = show v ++ "-" ++ (case u of 
+				    Uq uq -> show uq
+				    Sink -> "out"
+				    Source -> "in") ++ ""
+
 data ReifiedCircuit = ReifiedCircuit
 	{ theCircuit :: [(Unique,Entity (Ty Var) Uq)]
 		-- ^ This the main graph. There is no actual node for the source or sink. 
@@ -37,6 +43,9 @@ data ReifyOptions
 	= InputNames [String]
 	| OutputNames [String]
 
+
+findTy :: ReifiedCircuit -> QVar -> Maybe BaseTy
+findTy re (u,v) = lookup (u,v) (theTypes re)
 
 -- | reifyCircuit does reification and type inference.
 reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
@@ -178,7 +187,7 @@ reifyCircuit opts circuit = do
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
                           ]) ++ outputTyEquivs ++ inputTyEquivs
 
-	print ("ZZ",all_equivs)
+--	print ("ZZ",all_equivs)
 --	print all_equivs
 
 	let all_equivs' = findMinEquivSets all_equivs
@@ -212,7 +221,7 @@ reifyCircuit opts circuit = do
 
 	let vars_with_types = [ (v,findTyFor v) | v <- all_vars ]
 
-	print ("XX",vars_with_types)
+--	print ("XX",vars_with_types)
 
         return $ ReifiedCircuit nodes1 src entries vars_with_types
 
@@ -249,4 +258,59 @@ entity opts nm circuit = clone circuit deep
   where
 	deep = wrapCircuit [] [] circuit
 
+showReifiedCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO String
+showReifiedCircuit opt c = do
+	rCir <- reifyCircuit opt c
+	let bar = take 78 (repeat '-') ++ "\n"
+	let showTy _ = "*"
+	let showType :: QVar -> String
+	    showType (u,v) = case findTy rCir (u,v) of
+			      Just t -> show t
+			      Nothing -> "?"
+
+	let showVar v =  showQVar v ++ " : " ++ showType v
+	let showDriver :: Driver Uq -> String
+	    showDriver (Port v uq) = showVar (uq,v)
+	let inputs = unlines
+		[ showVar (Source,var)
+		| var <- theSrcs rCir
+		]
+	let outputs = unlines
+		[ showVar (Sink,var)  ++ " <- " ++ showDriver dr
+		| (var,dr) <- theSinks rCir
+		]
+	let types = unlines
+		[ showVar qv
+		| (qv,_) <- theTypes rCir
+		]
+	let circuit = unlines
+		[ "(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			++ unlines [ "      out " ++ showVar (Uq uq,v) | v <- ins ]
+			++ unlines [ "      in  " ++ showVar (Uq uq,v) ++ " <- " ++ showDriver dr | (v,dr) <- outs ]
+			++ unlines [ "      eq  " ++ show tys | tys <- tyss ]
+		| (uq,Entity nm ins outs tyss) <- theCircuit rCir
+		]
+
+	let msg = bar 
+		++ "-- Inputs                                                                   --\n" 
+		++ bar
+		++ inputs 
+		++ bar
+		++ "-- Outputs                                                                  --\n" 
+		++ bar
+		++ outputs 
+		++ bar
+		++ "-- Types                                                                    --\n" 
+		++ bar
+		++ types 
+		++ bar
+		++ "-- Entities                                                                 --\n" 
+		++ bar
+		++ circuit 
+		++ bar
+
+	return $ msg
+
+debugCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ()
+debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 
