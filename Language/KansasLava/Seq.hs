@@ -1,8 +1,8 @@
-module Language.KansasLava.Seq 
+module Language.KansasLava.Seq
         where
-                
+
 import Data.Traversable
--- import Data.Foldable 
+-- import Data.Foldable
 import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3)
@@ -15,7 +15,7 @@ data Seq a = Maybe a :~ Seq a
 
 instance Show a => Show (Seq a) where
    show (Constant v) = showV v
-   show vs           = unwords [ showV x ++ " :~ " 
+   show vs           = unwords [ showV x ++ " :~ "
                                 | x <- take 20 $ toList vs
                                 ] ++ "..."
 
@@ -41,11 +41,14 @@ undefinedSeq = Constant Nothing
 instance Functor Seq where
    fmap f (a :~ as) = liftM f a :~ fmap f as
    fmap f (Constant a) = Constant $ liftM f a
-   
-   
+
+
 head :: Seq a -> Maybe a
 head (Constant a) = a
 head (a :~ _) = a
+
+tail (Constant a) = (Constant a)
+tail (_ :~ as) = as
 
 zipWith' :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
 zipWith' f xs ys = pure f <*> xs <*> ys
@@ -60,10 +63,10 @@ toList (Constant x) = repeat x
 
 -- unlike using <*>, etc, this allows the unchosen Seq to be undefined at this time.
 seqMux :: Seq Bool -> Seq a -> Seq a -> Seq a
-seqMux sB sT sF = 
+seqMux sB sT sF =
 	fromList [ case b of
 		    Just True  -> t
 		    Just False -> f
 		    Nothing    -> Nothing
-	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF) 
+	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF)
 	         ]
