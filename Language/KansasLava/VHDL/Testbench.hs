@@ -6,6 +6,7 @@ import Data.List(mapAccumL,intersperse)
 import Data.Bits
 
 import Data.Sized.Unsigned as U
+import Data.Sized.Signed as S
 import Data.Sized.Ix
 
 import System.Random
@@ -15,14 +16,13 @@ mkTestbench :: REIFY fun => String -> fun -> IO ()
 mkTestbench name fun = do
   vhdl <- vhdlCircuit [] name fun
   writeFile (base ++ name ++ ".vhd") vhdl
-  (inputs,outputs) <- ports fun
-  putStrLn $ show inputs
-  putStrLn $ show outputs
+  (inputs,outputs,sequentials) <- ports fun
   writeFile (base ++ name ++ "_tb.vhd") $
-            entity name ++ architecture name inputs outputs
+            entity name ++ architecture name inputs outputs sequentials
   stimulus <- vectors inputs
   writeFile (base ++ name ++ ".input") stimulus
-  where base = "/Volumes/Synthesis/synth/"
+  writeFile (base ++ name ++ ".do") (doscript name)
+  where base = "" -- "/Volumes/Synthesis/synth/"
 
 
 entity name = unlines
@@ -38,12 +38,12 @@ entity name = unlines
   ]
 
 
-architecture name inputs outputs = unlines $
+architecture name inputs outputs sequentials = unlines $
   ["architecture sim of " ++ name ++ "_tb is"] ++
    signals ++
   ["begin",
    stimulus name inputs outputs,
-   dut name inputs outputs,
+   dut name inputs outputs sequentials,
    "end architecture sim;"]
   where signals = [
          "signal clk, rst : std_logic;",
@@ -54,26 +54,27 @@ architecture name inputs outputs = unlines $
           ]
 
 
-dut name inputs outputs = unlines $ [
+dut name inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ name,
  "port map ("] ++
  portAssigns inputs outputs ++
- ["\tclk =>clk, rst=>rst",
- ");"]
+ ["\t" ++ clk ++ " => clk, " ++ rst ++ "=> rst" | ((Var clk,_),(Var rst, _)) <- sequentials] ++
+ [");"]
 
 stimulus name inputs outputs = unlines $ [
   "runtest: process  is",
   "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".input\";",
-  "\tFILE " ++ outputfile ++ " : TEXT IS \"" ++ name ++ ".output\";",
+  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".output\";",
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType inputs ++ ";",
   "\tvariable output_var : " ++ portType outputs ++ ";",
 
   "begin",
   "\tclk <= '0';",
-  "\trst <= '1';",
+  "wait for 10ns;",
+  "\trst <= '1', '0' after 10ns;",
   "\tclk <= '1', '0' after 10ns;",
-  "\trst <= '0';",
+  "wait for 10ns;",
   "\twhile not endfile (" ++ inputfile ++ ") loop",
   "\t\tREADLINE(" ++ inputfile ++ ", line_in);",
   "\t\tREAD(line_in,input_var);",
@@ -84,6 +85,7 @@ stimulus name inputs outputs = unlines $ [
   "\t\toutput_var := output;",
   "\t\tWRITE(line_out, output_var);",
   "\t\tWRITELINE(" ++ outputfile ++ ", line_out);",
+  "\t\twait for 10ns;",
   "\tend loop;",
   "\twait;",
   "end process;"
@@ -94,9 +96,11 @@ stimulus name inputs outputs = unlines $ [
 -- Manipulating ports
 ports fun = do
   reified <- reifyCircuit [] fun
-  let inputs = [(name,ty) | ((Source,name),ty) <- theTypes reified]
+  let inputs = [(name,ty) | ((Source,name),ty) <- theTypes reified, not (ty `elem` [ClkTy,RstTy])]
       outputs = [(name,ty) | ((Sink,name),ty) <- theTypes reified]
-  return (inputs,outputs)
+      clocks = [(name,ClkTy) | ((Source,name),ClkTy) <- theTypes reified]
+      resets = [(name,RstTy) | ((Source,name),RstTy) <- theTypes reified]
+  return (inputs,outputs,zip clocks resets)
 
 
 portType ports = "std_logic_vector(0 to " ++ show (portLen ports - 1) ++ ")"
@@ -109,6 +113,19 @@ portAssigns inputs outputs = imap ++ omap
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++" to " ++ show (idx + k - 1) ++ "),")
         (_,imap) = mapAccumL (assign "input") 0 [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
         (_,omap) = mapAccumL (assign "output") 0 [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
+
+
+
+-- Modelsim 'do' script
+doscript name = unlines [
+  "vlib work",
+  "vcom " ++ name ++ ".vhd",
+  "vcom " ++ name ++ "_tb.vhd",
+  "vsim " ++ name ++ "_tb",
+  "add wave -r *",
+  "run -all",
+  "quit"]
+
 
 
 -- Generating the test vectors.
@@ -131,12 +148,19 @@ vectors inputs = do
         stim (S x) = do let bound = 2^(x-1)
                         (v :: Int) <- randomRIO (-bound,bound - 1)
                         return $ toBits x v
-        stim (S x) = do (v :: Int) <- randomRIO (0,2^x- 1)
+        stim (U x) = do (v :: Int) <- randomRIO (0,2^x- 1)
                         return $ toBits x v
 
 
         types = map snd inputs
 
+add :: Time -> Signal Bool -> Signal Bool -> Signal Bool
+add clk a b = xor2 a b
 
 
-add a b c d = xor2 d $ xor2 a (xor2 b c)
+type Unsigned8 = Signal (U.Unsigned X8)
+type Signed8 = Signal (S.Signed X8)
+add1 :: Signed8 -> Signed8 -> Signed8
+add1 a b = a + b
+
+

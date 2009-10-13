@@ -5,31 +5,36 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 
 
-data BaseTy 
+data BaseTy
 	= B		-- Bit
 	| CB		-- Control Bit (raw bit for clk or rst)
+        | ClkTy | RstTy
 	| S Int		-- Signed vector
 	| U Int  	-- Unsigned vector
 
-	| T		-- Time 
+	| T		-- Time
 			-- What about Float/Double, special, etc.
 	deriving (Eq, Ord)
-	
+
 data Ty v = BaseTy BaseTy | TyVar v
 	deriving (Eq, Ord)
 
--- I don't use "_" here, because additional constructors are likely to be defined 
+-- I don't use "_" here, because additional constructors are likely to be defined
 -- for BaseTy; and this function should be updated whenever this happens
 baseTypeLength B  = 1
 baseTypeLength CB = 1
+baseTypeLength ClkTy = 1
+baseTypeLength RstTy = 1
 baseTypeLength (S x) = x
 baseTypeLength (U x) = x
 baseTypeLength T = 1
 
--- I don't use "_" here, because additional constructors are likely to be defined 
+-- I don't use "_" here, because additional constructors are likely to be defined
 -- for BaseTy; and this function should be updated whenever this happens
 baseTypeIsSigned B     = False
 baseTypeIsSigned CB    = False
+baseTypeIsSigned ClkTy = False
+baseTypeIsSigned RstTy = False
 baseTypeIsSigned (S x) = True
 baseTypeIsSigned (U _) = False
 baseTypeIsSigned T     = False
@@ -41,6 +46,8 @@ instance Functor Ty where
 instance Show BaseTy where
 	show B 		= "B"
 	show CB 	= "C"
+        show ClkTy      = "CLK"
+        show RstTy      = "RST"
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
 	show T		= "T"
@@ -62,8 +69,8 @@ baseToTy (BaseTy ty) = fmap undefined ty
 -- we depend on the total number of final sets being small for efficiency here.
 
 findMinEquivSets :: (Show a, Ord a) => [Set a] -> [Set a]
-findMinEquivSets [] = [] 
-findMinEquivSets [x] = [x] 
+findMinEquivSets [] = []
+findMinEquivSets [x] = [x]
 findMinEquivSets (x:xs)  = foldr insert [x] xs
 
 insert x [] = [x]

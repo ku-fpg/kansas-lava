@@ -16,7 +16,23 @@ import Data.Array (Ix)
 
 import Debug.Trace
 
+
+-- | The a type is an applicative functor used for name generation, to be used
+-- | for port and signals names. The applicative functor takes an E, for the
+-- | entity that the port/signal names should be generated for, along with a
+-- | [Var] that is a supply of names. The A.F. accumulates a list of
+-- | (BaseTy,Var) associations, in addition to threading the name supply.
 data A a = A (E -> [Var] -> (a,[(BaseTy,Var)],[Var]))
+
+-- | The 'named' function constructs an A value that passes the name store
+-- | unaltered, and associates with a Var (with the given name, 'nm') with the
+-- | type of the entity that is b
+named :: (OpType a) => String -> A (Signal a)
+named nm = A $ \ e vs ->
+  let f a = (a,[(bitTypeOf a,(Var nm))],vs)
+  in f $ Signal (error "create") $ Port (Var nm) e
+
+
 
 instance Functor A where
 	fmap f (A fn) = A $ \ e vars -> case fn e vars of
@@ -29,21 +45,23 @@ instance Applicative A where
 		  (a1,tys1,vars1) -> case f2 e vars1 of
 			 	      (a2,tys2,vars2) -> (a1 a2,tys1 ++ tys2,vars2)
 
+
 --class INPUT i where
 class REIFY c where
-	create :: A c	
+        -- | Create says 'create me a port of this type'
+	create :: A c
 	capture'' ::  c -> A [(BaseTy,Driver E)]
 
-	
+
 	wrapCircuit :: [(Var, Driver E)] -> [[Ty Var]] -> c -> c
 	wrapCircuit args tys circuit' = result -- {- o0 $ e_entity -}
-	   where 
+	   where
 		(result,pinsY) = case create of
 				   A fn -> case fn e_entity [Var $ "x" ++ show n | n <- [0..]] of
 					     (res,tys,_) -> (res,tys)
 		e_entity =
         	    E
-        	  $ Entity (Name "#AUTO" "ABC") 
+        	  $ Entity (Name "#AUTO" "ABC")
 			 [ Var (show ps)
 			 | (_,ps) <- pinsY
 			 ]
@@ -56,13 +74,13 @@ data P = P [Int]
 
 instance Show P where
  	show (P ps) = foldr (\ p s -> "_" ++ show p ++ s) "" ps
-	
+
 w (P ps) p = P (p:ps)
 
 ----
 instance (REIFY i,REIFY o) => REIFY (i -> o) where
 	-- the one place we need bind, so we hard wire it here.
-        capture'' f = A $ \ e vars -> 
+        capture'' f = A $ \ e vars ->
 		case create of
 		  (A g) -> case g e vars of
 			     (o,tys,vars') -> case capture'' (f o) of
@@ -70,7 +88,7 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 							(r,tys',vars'') -> (r,tys ++ tys',vars'')
 
 	wrapCircuit args tys fn inpX = result -- {- o0 $ e_entity -}
-	   where 
+	   where
 		(insX,pinsX) = case capture'' inpX of
 				 A c -> case c  (error "GHHJDFG") [Var $ "ss" ++ show n | n <- [0..]] of
 					  (o,tys,_) -> (tys,o)
@@ -89,7 +107,7 @@ instance (OpType a) => REIFY (Signal a) where
  	    let f a = (a,[(bitTypeOf a,v)],vs)	-- lambda bound a, therefor monotyped.
 	    in f $ Signal (error "create") $ Port v e
 
---	capture p s@(Signal _ d) = [(bitTypeOf s,d)] 
+--	capture p s@(Signal _ d) = [(bitTypeOf s,d)]
 --        capture' _ p s@(Signal _ d) = ([],[(bitTypeOf s,d)])
 	capture'' s@(Signal _ d) = pure [(bitTypeOf s,d)]
 
@@ -99,7 +117,7 @@ instance (OpType a) => REIFY (Signal a) where
 instance (REIFY a, REIFY b) => REIFY (a, b) where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
 	create     = (,)  <$> create <*> create
-	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b 
+	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b
 
 
 instance (Size ix, REIFY a) => REIFY (Matrix ix a) where

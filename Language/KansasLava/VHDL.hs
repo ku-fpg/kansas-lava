@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards #-}
 module Language.KansasLava.VHDL where
 
 
@@ -16,7 +16,7 @@ import Data.List(intersperse)
 import Data.Bits
 import Data.List(mapAccumL)
 import Control.Monad(liftM)
-import Data.Maybe(catMaybes)
+import Data.Maybe(catMaybes,fromJust)
 
 import Language.KansasLava.Type
 import qualified Data.Set as Set
@@ -59,7 +59,7 @@ vhdlCircuit opts name circuit = do
 
   let ent = VhdlEntity name [] ports
 
-  let arch = VhdlArchitecture name (decls findTyFor nodes) (insts nodes ++ finals outs')
+  let arch = VhdlArchitecture name (decls findTyFor nodes) (insts types nodes ++ finals outs')
   let rendered = render $ pretty ent $$ pretty arch
   putStrLn rendered
   return rendered
@@ -78,7 +78,9 @@ notConst _ = True
 
 vhdlTypes :: BaseTy -> String
 vhdlTypes B     = "std_logic"
-vhdlTypes CB	= "bit"			-- control bit
+vhdlTypes CB	= "std_logic"			-- control bit
+vhdlTypes ClkTy	= "std_logic"			-- control bit
+vhdlTypes RstTy	= "std_logic"			-- control bit
 vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 vhdlTypes (U n) = "std_ulogic_vector(" ++ show (n - 1) ++ " downto 0)"
 
@@ -97,13 +99,13 @@ decls tyEnv nodes =
 finals :: [(Var,Driver Uq)] -> [Inst]
 finals args = [ Assign n (sig x) | (Var n,x) <- args ]
 
-insts :: [(Unique,Entity ty Uq)] -> [Inst]
-insts nodes = concat [
+insts :: Show ty => TypeEnv -> [(Unique,Entity ty Uq)] -> [Inst]
+insts tyEnv nodes = concat [
 {-        if i == root
         then [ Assign n (sig x) | (Var n,x) <- ins ]
-        else -} mkInst i ent
+        else -} mkInst tyEnv i ent
      | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
-     (synchronous nodes)
+     (synchronous tyEnv nodes)
 
 fixName ".&." = "AND"
 fixName "xor2" = "XOR"
@@ -116,40 +118,40 @@ isSpecialName (Name "Bool" "+") = return "XOR"
 isSpecialName (Name "Bool" "*") = return "AND"
 isSpecialName _ = Nothing
 
-mkInst :: Int -> Entity ty Uq -> [Inst]
+
+mkInst :: TypeEnv -> Int -> Entity ty Uq -> [Inst]
+-- mkInst _ e = error $ show e
 --    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
 --    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
-mkInst i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-	| case spec of
-	    Nothing -> False
-	    Just {} -> True
+mkInst tyEnv i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+	| Just op <- isSpecialName nm
 	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (op)
-                        (sig y)
-           ]
-  where spec      = isSpecialName nm
-	(Just op) = spec
-mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+                        (sig y) Nothing
+            ]
+mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
         | mod == "Bool" && nm `elem` (["xor",".&.",".|."] ++ ["xor2","and2"])
         = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (fixName nm)
-                        (sig y)
+                        (sig y) Nothing
           ]
 
-mkInst i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | {- mod == "Unsigned"  && -} nm `elem` ["+", "-"]
-        = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
-                        (sig x)
+mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+        | {- mod == "Unsigned"  && -} nm `elem` ["+", "-"] =
+          [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
+                        (sigTyped (getTy tyEnv i "i0") x)
                         (fixName nm)
-                        (sig y)
+                        (sigTyped (getTy tyEnv i "i1") y) (Just "std_logic_vector")
           ]
+
+
 
 
 
 -- BUG: o vs o0
-mkInst i e@(Entity (Name "Lava" "delay") [Var "o"]
+mkInst tyEnv i e@(Entity (Name "Lava" "delay") [Var "o"]
 			[ (Var "clk",clk)
 			, (Var "rst",rst)
 			, (Var "init",x)
@@ -158,16 +160,14 @@ mkInst i e@(Entity (Name "Lava" "delay") [Var "o"]
           [ Assign input (sig y) ]
   where output = sig (Port (Var "o") (Uq i))
         input =  output ++ "_next"
-mkInst i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
-	= [ Cond (sig c ++ " = '0'")
-		[ Assign (sig (Port (Var "o0") (Uq i))) (sig f)
-		]	-- because we compare with zero
-		[ Assign (sig (Port (Var "o0") (Uq i))) (sig t)
-		]
+mkInst tyEnv i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
+	= [ CondAssign (sig (Port (Var "o0") (Uq i)))
+                       [(sig f, sig c ++ "= '0'")]
+                       (sig t)
          ]
-mkInst i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
+mkInst tyEnv i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
 
-mkInst i e@(Entity (Name mod nm) outputs inputs _) =
+mkInst tyEnv i e@(Entity (Name mod nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
                 ( [ (n,sig (Port (Var n) (Uq i))) | Var n <- outputs ] ++
@@ -175,23 +175,23 @@ mkInst i e@(Entity (Name mod nm) outputs inputs _) =
                 )
           ]
 {-
-        mkInst i (Entity (Name _ "mux") inputs) =
+        mkInst tyEnv i (Entity (Name _ "mux") inputs) =
           inst i "mux" "o" ["s","d0","d1"] inputs
-        mkInst i (Entity (Name _ "not") [j]) =
+        mkInst tyEnv i (Entity (Name _ "not") [j]) =
           Assign (sig i) ("not " ++  (sig j))
-        mkInst i (Entity (Name _ "xor2") inputs) =
+        mkInst tyEnv i (Entity (Name _ "xor2") inputs) =
           inst i "xor2" "o" ["i0","i1"] inputs
-        mkInst i (Entity (Name "Bool" ".&.") inputs) =
+        mkInst tyEnv i (Entity (Name "Bool" ".&.") inputs) =
           inst i "and2" "o" ["i0","i1"] inputs
-        mkInst i (Entity (Name _ "xor") inputs) =
+        mkInst tyEnv i (Entity (Name _ "xor") inputs) =
           inst i "xor2" "o" ["i0","i1"] inputs
-        mkInst i (Entity (Name "$" n) inputs) = Comment $ show (n,inputs)
-        mkInst i (Pad (Var n)) = Assign (sig i) n
-        mkInst i (Lit x) = Assign (sig i) ("conv_std_logic(" ++ show x ++ ")")
-        mkInst i (Entity (Name "Int" "+") [l,r]) = Assign (sig i)  (sig l ++ " + " ++ sig r)
-        mkInst i (Entity (Name "Int" "fromInteger") [x]) = Assign (sig i) (sig x)
+        mkInst tyEnv i (Entity (Name "$" n) inputs) = Comment $ show (n,inputs)
+        mkInst tyEnv i (Pad (Var n)) = Assign (sig i) n
+        mkInst tyEnv i (Lit x) = Assign (sig i) ("conv_std_logic(" ++ show x ++ ")")
+        mkInst tyEnv i (Entity (Name "Int" "+") [l,r]) = Assign (sig i)  (sig l ++ " + " ++ sig r)
+        mkInst tyEnv i (Entity (Name "Int" "fromInteger") [x]) = Assign (sig i) (sig x)
 
-        mkInst i ent = error $ "BAD INSTRUCTION: " ++ show i ++ " " ++ show (ent,nodes)
+        mkInst tyEnv i ent = error $ "BAD INSTRUCTION: " ++ show i ++ " " ++ show (ent,nodes)
 -}
 sig :: Driver Uq -> String
 sig (Port i Sink)   = show i	-- pre normalized
@@ -199,6 +199,21 @@ sig (Port i Source) = show i
 sig (Port i (Uq v)) = "sig_" ++ show i ++ "_" ++ show v
 sig (Pad (Var n)) = n
 sig (Lit n) = show n
+
+-- sigTyped allows the type casts, especially for literals.
+sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
+sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
+sigTyped B         (Lit 0) = "'0'"
+sigTyped B         (Lit 1) = "'0'"
+sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
+sigTyped (S _) s = "signed(" ++ sig s ++ ")"
+
+sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
+
+
+-- getType
+getTy tyEnv i var = maybe (error "VHDL.getTy") id (lookup (Uq i, Var var) tyEnv)
+
 
 --        inst i entity o formals actuals =
 --          Inst ("inst" ++ show i) entity [] ((o,sig i):(zip formals (map sig actuals)))
@@ -229,8 +244,8 @@ data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
 
 data Inst = Assign String String
           -- a <= b;
-          | BuiltinInst String String String String
-          -- a <= b op c;
+          | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
+          -- a <= conv (b op c);
           | Inst String String [(String,String)] [(String,String)]
             -- String, VhdlEntity, DeclDescriptor Map, PortDescriptor Map
 	  | Cond String	-- condition
@@ -264,8 +279,7 @@ instance Pretty VhdlStruct where
          printGen (n,ty,Just def) = text n <+> colon <+> text ty <+> text ":=" <+> text def <> semi
          imports = vcat $ map text ["library IEEE;",
                                     "use IEEE.STD_LOGIC_1164.ALL;",
-                                    "use IEEE.STD_LOGIC_ARITH.ALL;",
-                                    "use IEEE.STD_LOGIC_UNSIGNED.ALL;",
+                                    "use IEEE.NUMERIC_STD.ALL;",
                                     "use work.all;"]
 
 
@@ -282,7 +296,8 @@ instance Pretty VhdlStruct where
 
 instance Pretty Inst where
   pretty (Assign a b) = text a <+> text "<=" <+> text b <> semi
-  pretty (BuiltinInst a b op c) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
+  pretty (BuiltinInst a b op c Nothing) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
+  pretty (BuiltinInst a b op c (Just conv)) = text a <+> text "<=" <+> text conv <> parens (text b <+> text op <+> text c) <> semi
   pretty (Cond cond ifT []) =
     text "if" <+> text cond <+> text "then" $$
       nest 4 (vcat $ map pretty ifT) $$
@@ -327,7 +342,7 @@ instance Pretty Inst where
 
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
-synchronous nodes
+synchronous tyEnv nodes
   | null delays = []
   | otherwise = [Process ([sig clk, sig rst] ++  inputs)
                        [ Cond ("rising_edge(" ++ sig clk ++ ")")
@@ -341,7 +356,10 @@ synchronous nodes
         ((_,d):_) = delays
         outputs = [sig (Port (Var "o") (Uq i)) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
-        inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
+        -- inits = map sig $ catMaybes (map (lookupInput "init" . snd) delays)
+        inits = [sigTyped (getTy tyEnv i "init") (fromJust (lookupInput "init" e))
+                 | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- delays]
+
         Just clk = lookupInput "clk" d
         Just rst = lookupInput "rst" d
         lookupInput i (Entity _ outputs inputs _) = lookup (Var i) inputs
