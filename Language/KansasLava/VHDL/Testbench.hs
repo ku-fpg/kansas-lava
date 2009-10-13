@@ -10,10 +10,18 @@ import Data.Sized.Signed as S
 import Data.Sized.Ix
 
 import System.Random
+import System.Environment(getEnvironment)
+import System.Directory
 import Control.Monad(liftM)
 
 mkTestbench :: REIFY fun => String -> fun -> IO ()
 mkTestbench name fun = do
+  env <- getEnvironment
+  let base = case lookup "LAVA_SIM_PATH" env of
+               Nothing -> name ++ "/"
+               Just dir -> dir ++"/"++name ++ "/"
+  putStrLn $ "Base directory is " ++ base
+  createDirectoryIfMissing True base
   vhdl <- vhdlCircuit [] name fun
   writeFile (base ++ name ++ ".vhd") vhdl
   (inputs,outputs,sequentials) <- ports fun
@@ -22,7 +30,6 @@ mkTestbench name fun = do
   stimulus <- vectors inputs
   writeFile (base ++ name ++ ".input") stimulus
   writeFile (base ++ name ++ ".do") (doscript name)
-  where base = "" -- "/Volumes/Synthesis/synth/"
 
 
 entity name = unlines
@@ -162,5 +169,3 @@ type Unsigned8 = Signal (U.Unsigned X8)
 type Signed8 = Signal (S.Signed X8)
 add1 :: Signed8 -> Signed8 -> Signed8
 add1 a b = a + b
-
-
