@@ -74,12 +74,13 @@ cases ((b,c):rest) def = mux2 b c (cases rest def)
 -- We do not overload Bool at Bits because
 -- Bool is not a Num, and correctly so. We use U1 instead.
 
-
 --	    (Sized ix) => Signal a -> ix -> Signal Bool
-testABit :: (Bits a) => Signal a -> Int -> Signal Bool
+testABit :: (Bits a, OpType a) => Signal a -> Int -> Signal Bool
 testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] tyeqs (\ a -> error "TODO") x
 	where allNames = inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy B : map TyVar [Var "o0"] ]
+	      tyeqs    = [ BaseTy B : map TyVar [Var "o0"]
+		     	 , BaseTy (bitTypeOf x) : [TyVar $ Var "i0"]
+			 ]
 	      inputs   = map Var ["i0","i1"]
 
 and2 :: Signal Bool -> Signal Bool -> Signal Bool
