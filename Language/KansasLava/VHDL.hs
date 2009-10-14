@@ -119,10 +119,47 @@ isSpecialName (Name "Bool" "*") = return "AND"
 isSpecialName _ = Nothing
 
 
+specials =
+  [(Name moduleName lavaName,
+         (vhdlName, Just "std_logic_vector"))
+   | moduleName <- ["Unsigned", "Signed"]
+  , (lavaName,vhdlName) <-
+    [("+","+"), ("-","-")]] ++
+  [(Name moduleName lavaName,
+         (vhdlName, Nothing))
+   | moduleName <- ["Unsigned", "Signed","Bool"]
+  , (lavaName,vhdlName) <-
+    [(".<.","<"), (".>.",">"),(".==.","=")]] ++
+
+  [(Name moduleName lavaName,
+         (vhdlName, Just "std_logic_vector"))
+   | moduleName <- ["Unsigned", "Signed"]
+  , (lavaName,vhdlName) <-
+    [(".|.","or"), (".&.","and"), (".^.","xor")]] ++
+  [(Name moduleName lavaName,
+         (vhdlName, Nothing))
+   | moduleName <- ["Bool"]
+  , (lavaName,vhdlName) <-
+    [("or2","or"), ("and2","and"), ("xor2","xor")]]
+
+
+
+
+
 mkInst :: TypeEnv -> Int -> Entity ty Uq -> [Inst]
 -- mkInst _ e = error $ show e
 --    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
 --    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
+
+mkInst tyEnv i e@(Entity n@(Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
+        | Just (nm',cast) <- lookup n specials =
+          [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
+                        (sigTyped (getTy tyEnv i "i0") x)
+                        nm'
+                        (sigTyped (getTy tyEnv i "i1") y) cast
+          ]
+
+
 mkInst tyEnv i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
 	| Just op <- isSpecialName nm
 	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
@@ -131,7 +168,7 @@ mkInst tyEnv i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
                         (sig y) Nothing
             ]
 mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | mod == "Bool" && nm `elem` (["xor",".&.",".|."] ++ ["xor2","and2"])
+        | mod == "Bool" && nm `elem` (["xor",".&.",".|."] ++ ["xor2","and2","or2"])
         = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
                         (sig x)
                         (fixName nm)
@@ -204,7 +241,8 @@ sig (Lit n) = show n
 sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped B         (Lit 0) = "'0'"
-sigTyped B         (Lit 1) = "'0'"
+sigTyped B         (Lit 1) = "'1'"
+sigTyped B     s = sig s
 sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
 sigTyped (S _) s = "signed(" ++ sig s ++ ")"
 
