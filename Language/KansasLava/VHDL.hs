@@ -204,7 +204,8 @@ sig (Lit n) = show n
 sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped B         (Lit 0) = "'0'"
-sigTyped B         (Lit 1) = "'0'"
+sigTyped B         (Lit 1) = "'1'"
+sigTyped B     s = sig s
 sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
 sigTyped (S _) s = "signed(" ++ sig s ++ ")"
 
