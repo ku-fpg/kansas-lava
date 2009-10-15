@@ -82,7 +82,7 @@ vhdlTypes CB	= "std_logic"			-- control bit
 vhdlTypes ClkTy	= "std_logic"			-- control bit
 vhdlTypes RstTy	= "std_logic"			-- control bit
 vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
-vhdlTypes (U n) = "std_ulogic_vector(" ++ show (n - 1) ++ " downto 0)"
+vhdlTypes (U n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 
 decls :: (QVar -> BaseTy) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
 decls tyEnv nodes =
@@ -159,7 +159,7 @@ mkInst tyEnv i e@(Entity n@(Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] 
                         (sigTyped (getTy tyEnv i "i1") y) cast
           ]
 
-
+{-
 mkInst tyEnv i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
 	| Just op <- isSpecialName nm
 	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
@@ -183,7 +183,7 @@ mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
                         (sigTyped (getTy tyEnv i "i1") y) (Just "std_logic_vector")
           ]
 
-
+-}
 
 
 
@@ -199,8 +199,8 @@ mkInst tyEnv i e@(Entity (Name "Lava" "delay") [Var "o"]
         input =  output ++ "_next"
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
 	= [ CondAssign (sig (Port (Var "o0") (Uq i)))
-                       [(sig f, sig c ++ "= '0'")]
-                       (sig t)
+                       [(sigTyped (getTy tyEnv i "f") f, sigTyped (getTy tyEnv i "c") c ++ "= '0'")]
+                       (sigTyped (getTy tyEnv i "t") t)
          ]
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
 

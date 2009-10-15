@@ -162,10 +162,18 @@ vectors inputs = do
         types = map snd inputs
 
 add :: Time -> Signal Bool -> Signal Bool -> Signal Bool
-add clk a b = xor2 a b
+add clk a b = or2 a b
 
 
 type Unsigned8 = Signal (U.Unsigned X8)
 type Signed8 = Signal (S.Signed X8)
 add1 :: Signed8 -> Signed8 -> Signed8
 add1 a b = a + b
+
+
+ortest :: Time -> Unsigned8 ->  Unsigned8 -> Signal Bool
+ortest clk a b = a .==. b
+
+
+xxx :: Signal Bool -> Signal U1 -> Signal U1
+xxx  a b = mux2 a b 1
