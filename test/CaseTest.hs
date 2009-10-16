@@ -4,6 +4,8 @@ module CaseTest where
 import Language.KansasLava.CaseExtract
 
 
+j x = [$lava|Just x|]
+n = [$lava|Nothing|]
 test x =  [$lava|
              case x of
                Just v -> v
@@ -27,3 +29,6 @@ simple = Sig (Pad "simple")
 
 another :: Signal (Either Int Char)
 another = pad "another"
+
+
+
