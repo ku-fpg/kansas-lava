@@ -30,10 +30,8 @@ another = pad "another"
 
 
 
-
 data Instr = Add Int Int
            | Sub Int Int
-
 
 instance CType Instr where
   getTagWidth _ = 1
