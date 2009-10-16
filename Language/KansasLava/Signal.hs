@@ -148,6 +148,14 @@ entity3 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 
         $ E
         $ Entity nm outs (zip ins [w1,w2,w3]) tyeqs
 
+{-
+entityM :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (Matrix ix a -> b) -> Signal (Matrix ix a) -> Signal b
+entityM nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
+        = ESignal (pure f <*> vs1)
+        $ E
+        $ Entity nm outs (zip ins [w1,w2,w3]) tyeqs
+-}
+
 o0 :: ESignal a -> Signal a
 o0 ~(ESignal v e) = Signal v (Port (Var "o0") e)
 
