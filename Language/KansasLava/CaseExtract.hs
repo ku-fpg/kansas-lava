@@ -52,11 +52,12 @@ lcase dis alts = [|
    let tagWidth = getTag $dis
        tagRange = (tagWidth - 1, 0)
        cons = getCons $dis
-       inputs = $(mkAlts [| cons |] alts)
+       inputs = $(listE $ map (mkAlt [| cons |]) alts)
    in inputs
  |]
   where mkAlts cs [] = [| [] |]
         mkAlts cs (a:as) =   [| $(mkAlt cs a): $(mkAlts cs as) |] --  (mkAlt cs) a `consE` (mkAlts cs as)
+        mkAlt cs (n,[],body) = body -- no pattern means no lookup/let binding
         mkAlt cs (n,pvars,body) =
           [| let Just slices = lookup $(litE (stringL n))  $cs
              in  $(mkPats [| slices |] pvars body)
@@ -66,7 +67,7 @@ lcase dis alts = [|
 
 
 mkPats  slices pvars body
-  = letE [valD (varP (mkName v)) (normalB [| $slices !! s |]) []  -- (normalB (litE $ intPrimL s)) []
+  = letE [valD (varP (mkName v)) (normalB [| $slices !! s |]) []
           |  v <- pvars
           |  s <- [0..]]
        body
@@ -77,23 +78,14 @@ foo = [d|v = n |]
         n :: Int
         n = 0
 
-altLets ::  ConsMap -> (String, [String], a) -> ExpQ
-altLets cons (name, pvars, body) = [|
-   let Just indices = lookup name cons
-   in (0 :: Int) -- altBindings 0 (indices, pvars, undefined)
-
-   |]
-
-altBindings base (slices, vars, body) = letE bindings body
-  where bindings = [valD (varP (mkName n)) (normalB [| Slice s $base |]) []
-                      | n <- vars | s <- slices]
 
 
+data Ent = Mux (Int,Int) [String]
+         | Slice (Int,Int) Ent
+         | Pad String
+           deriving Show
 
 
-
-
--- f x = [| let (tagTop,tagBottom) = getTag $x in tagTop |]
 
 type ConsMap = [(String,[(Int,Int)])]
 class CType a where
@@ -127,36 +119,6 @@ instance Sized Char where  size _ = 8
 
 mux sel args = [| Mux sel args |]
 
-{-
-altLet base =
-   [| let tag = getTag base
-          Just fields = Just 0
-      in 0
-   |]
-
-
-
-
-altBindings base (slices, vars, body) =
-  letE bindings body
-  where bindings = [valD (varP (mkName n)) (normalB [| Slice $s $base |]) []
-                      | n <- vars | s <- slices]
-
-t = altBindings [| Pad "base" |] ([p1,p2], ["a","b"], [|1 |])
-  where p1 = [| (31,16) |]
-        p2 = [| (15,0) |]
-
-ts =  [| case Nothing of Just v -> 1; Nothing -> 0 |]
-
--}
--- testing = CaseE (ConE Data.Maybe.Nothing) [Match (ConP Data.Maybe.Just [VarP v_0]) (NormalB (LitE (IntegerL 1))) [],Match (ConP Data.Maybe.Nothing []) (NormalB (LitE (IntegerL 0))) []]
-
-
-
-data Ent = Mux (Int,Int) [String]
-         | Slice (Int,Int) Ent
-         | Pad String
-           deriving Show
 
 
 
