@@ -14,7 +14,6 @@ test x =  [$lava|
   where y :: Int
         y = 1
 
-
 test1 x =  [$lava|
              case x of
                Left v -> pad "integer"
@@ -22,7 +21,6 @@ test1 x =  [$lava|
            |]
   where y :: Int
         y = 1
-
 
 simple :: Signal (Maybe Int)
 simple = Sig (Pad "simple")
@@ -32,3 +30,25 @@ another = pad "another"
 
 
 
+
+data Instr = Add Int Int
+           | Sub Int Int
+
+
+instance CType Instr where
+  getTagWidth _ = 1
+  getCons _ = [("Add",[(64,33),(32,1)]),
+               ("Sub",[(64,33),(32,1)])]
+  getTag (Add _ _) = 0
+  getTag (Sub _ _) = 1
+
+
+cpu :: Signal Instr -> Signal Int
+cpu istrm = [$lava|
+             case istrm of
+              Add x y -> x + y
+              Sub x y -> x - y
+            |]
+
+
+triple istrm = op "triple" [cpu istrm,cpu istrm,cpu istrm]

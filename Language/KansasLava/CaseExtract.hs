@@ -1,7 +1,9 @@
 {-# LANGUAGE TemplateHaskell, ParallelListComp, UndecidableInstances #-}
 module Language.KansasLava.CaseExtract(
   lava,
-  Ent(..),Signal(..),pad,lit,cons,getTag,getTagWidth
+  Ent(..),Signal(..),pad,lit,cons,op,
+  CType(..), Sized(..)
+
   ) where
 
 import Language.Haskell.TH
@@ -83,7 +85,13 @@ data Ent = Mux Ent [Ent]
          | Lit Int
          | Cons (Int,Int) [Ent]
          | Pad String
+         | Op String [Ent] deriving (Eq)
 
+
+instance Num (Signal a) where
+ fromInteger x = Sig (Lit (fromInteger x))
+ (Sig a) + (Sig b) = Sig (Op "+" [a,b])
+ (Sig a) - (Sig b) = Sig (Op "-" [a,b])
 
 instance Show Ent where
  show (Mux sel args) = "mux(s=> " ++ show sel ++ "," ++  (concat $ intersperse "," (map show args)) ++ ")"
@@ -91,14 +99,19 @@ instance Show Ent where
  show (Pad p) = p
  show (Lit x) = show x
  show (Cons name ents) = show name ++ " " ++ (concat $ intersperse " " $ map show ents)
+ show (Op op [a,b]) = show a ++ " " ++ op ++ " " ++ show b
+ show (Op op as) = show op ++ " " ++ (concat $ intersperse " " $ map show as)
 
-data Signal a = Sig Ent
+data Signal a = Sig Ent deriving Eq
 
 slice ran (Sig m) = Sig (Slice ran m)
 mux :: Signal a -> [Signal b] -> Signal b
 mux (Sig sel) args = Sig $ Mux sel [a | Sig a <- args]
 pad = Sig . Pad
 cons n as = Sig (Cons n [a | Sig a <- as])
+op n as = Sig (Op n [a | Sig a <- as])
+
+
 
 lit :: Int -> Signal Int
 lit = Sig . Lit
@@ -189,3 +202,5 @@ split :: Type -> (Type, [Type])    -- Split into function and args
 split t = go t []
     where go (AppT t1 t2) args = go t1 (t2:args)
           go ty           args = (ty, args)
+
+
