@@ -6,7 +6,7 @@ import Language.Haskell.TH.Quote as Q
 import qualified Language.Haskell.Exts as Ext
 
 
-
+import Data.List(intersperse)
 import Control.Monad
 
 
@@ -53,37 +53,35 @@ lcase dis alts = [|
        tagRange = (tagWidth - 1, 0)
        cons = getCons $dis
        inputs = $(listE $ map (mkAlt [| cons |]) alts)
-   in inputs
+   in Mux (Slice tagRange $dis) inputs
  |]
-  where mkAlts cs [] = [| [] |]
-        mkAlts cs (a:as) =   [| $(mkAlt cs a): $(mkAlts cs as) |] --  (mkAlt cs) a `consE` (mkAlts cs as)
-        mkAlt cs (n,[],body) = body -- no pattern means no lookup/let binding
+  where mkAlt cs (n,[],body) = body -- no pattern vars means no lookup/let binding
         mkAlt cs (n,pvars,body) =
           [| let Just slices = lookup $(litE (stringL n))  $cs
-             in  $(mkPats [| slices |] pvars body)
+             in  $(mkPats dis [| slices |] pvars body)
            |]
 
-        consE a b = [| $a : $b |]
-
-
-mkPats  slices pvars body
-  = letE [valD (varP (mkName v)) (normalB [| $slices !! s |]) []
+mkPats dis slices pvars body
+  = letE [valD (varP (mkName v)) (normalB [| Slice $dis ($slices !! s) |]) []
           |  v <- pvars
           |  s <- [0..]]
        body
 
 
-foo = [d|v = n |]
-  where v = "a"
-        n :: Int
-        n = 0
 
 
 
-data Ent = Mux (Int,Int) [String]
+data Ent = Mux Ent [Ent]
          | Slice (Int,Int) Ent
+         | Lit Int
          | Pad String
-           deriving Show
+
+
+instance Show Ent where
+ show (Mux sel args) = "mux(s=> " ++ show sel ++ (concat $ intersperse "," (map show args)) ++ ")"
+ show (Slice (low,high) val) = show val ++  "(" ++ show (high - 1) ++ " downto " ++ show low ++ ")"
+ show (Pad p) = p
+ show (Lit x) = show x
 
 
 
@@ -114,10 +112,6 @@ instance Sized Int where
 instance Sized Char where  size _ = 8
 
 
-
-
-
-mux sel args = [| Mux sel args |]
 
 
 
