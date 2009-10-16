@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell, ParallelListComp, UndecidableInstances #-}
-module Language.KansasLava.CaseExtract(lava) where
+module Language.KansasLava.CaseExtract(lava,Ent(..)) where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote as Q
-import qualified Language.Haskell.Exts as Ext
+import Language.Haskell.Meta.Parse as Ext
 
 
 import Data.List(intersperse)
@@ -12,40 +12,29 @@ import Control.Monad
 
 parseExprExp :: String -> Q Exp
 parseExprExp str =
-  case Ext.parseExp str of
-    Ext.ParseFailed _ err -> fail err
-    Ext.ParseOk val -> convertExpr val
+  case parseExp str of
+    Left err -> fail err
+    Right val -> convertExpr val
 
 parseExprPat :: String -> Q Pat
 parseExprPat str =
-  case Ext.parsePat str of
-    Ext.ParseFailed _ err -> fail err
-    Ext.ParseOk val -> convertPat val
+  case parsePat str of
+    Left err -> fail err
+    Right val -> return val
 
 
 lava = QuasiQuoter parseExprExp parseExprPat
 
 
--- Conversion of (Ext) expressions to Q expressions
-convertExpr :: Ext.Exp -> Q Exp
-convertExpr (Ext.Case e alts) = do
-    lcase (convertExpr e) alts'
+-- Conversion of 'Haskell' to 'Lava'
+convertExpr :: Exp -> Q Exp
+convertExpr (CaseE e alts) = do
+    lcase (convertExpr e) alts
   where
         alts' :: [(String,[String],ExpQ)]
-        alts' = [] -- [| map procAlt alts |]
+        alts' = []
 
-convertExpr (Ext.Var (Ext.UnQual (Ext.Ident n))) =
-  varE (mkName n)
-convertExpr e = fail $ show e
-convertPat :: Ext.Pat -> Q Pat
-convertPat e = fail $ show e
-
-
-procAlt :: Ext.Alt -> Q (String, [Pat], Exp)
-procAlt (Ext.Alt _ (Ext.PApp (Ext.UnQual (Ext.Ident c)) args)  (Ext.UnGuardedAlt body) (Ext.BDecls [])) = do
-  body' <- convertExpr body
-  return (c,[VarP (mkName n) | Ext.PVar (Ext.Ident n) <- args],body')
-
+convertExpr e = return e
 
 -- lcase :: ExpQ -> [(String,[String],ExpQ)] -> ExpQ
 lcase dis alts = [|
@@ -78,8 +67,8 @@ data Ent = Mux Ent [Ent]
 
 
 instance Show Ent where
- show (Mux sel args) = "mux(s=> " ++ show sel ++ (concat $ intersperse "," (map show args)) ++ ")"
- show (Slice (low,high) val) = show val ++  "(" ++ show (high - 1) ++ " downto " ++ show low ++ ")"
+ show (Mux sel args) = "mux(s=> " ++ show sel ++ "," ++  (concat $ intersperse "," (map show args)) ++ ")"
+ show (Slice (low,high) val) = show val ++  "(" ++ show high ++ " downto " ++ show low ++ ")"
  show (Pad p) = p
  show (Lit x) = show x
 
@@ -112,14 +101,10 @@ instance Sized Int where
 instance Sized Char where  size _ = 8
 
 
+instance CType Ent where
+  getTag _ = getTag (undefined :: (Maybe Int))
+  getCons _ = getCons (undefined :: (Maybe Int))
 
-
-
-
-altLet dis ctor = [| let Just fields = lookup ctor (getCons $dis) in fields |]
-  where body = [| () |]
-        genDecls :: [(Int,Int)] -> [DecQ]
-        genDecls _ =  []
 
 
 
