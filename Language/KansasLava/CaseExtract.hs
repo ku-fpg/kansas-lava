@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell, ParallelListComp, UndecidableInstances #-}
 module Language.KansasLava.CaseExtract(
   lava,
-  Ent(..),Signal(..),pad,lit,cons,getTag
+  Ent(..),Signal(..),pad,lit,cons,getTag,getTagWidth
   ) where
 
 import Language.Haskell.TH
@@ -48,7 +48,7 @@ convertExpr e = return e
 
 lcase :: ExpQ -> [Match] -> ExpQ
 lcase dis alts = [|
-   let tagWidth = tagSize $dis
+   let tagWidth = getTagWidth $dis
        tagRange = (tagWidth - 1, 0)
        cons = getCons $dis
        inputs = $(listE $ map (mkAlt' [| cons |]) alts)
@@ -81,7 +81,7 @@ lcons n args = do
 data Ent = Mux Ent [Ent]
          | Slice (Int,Int) Ent
          | Lit Int
-         | Cons Int [Ent]
+         | Cons (Int,Int) [Ent]
          | Pad String
 
 
@@ -110,19 +110,19 @@ instance Show (Signal a) where
   show (Sig x) = show x
 
 instance CType a => CType (Signal a) where
-  tagSize _ = tagSize (undefined :: a)
+  getTagWidth _ = getTagWidth (undefined :: a)
   getCons _ = getCons (undefined :: a)
   getTag (Sig n) = error "GetTag on signal"
 
 
 type ConsMap = [(String,[(Int,Int)])]
 class CType a where
-  tagSize :: a -> Int
+  getTagWidth :: a -> Int
   getCons :: a -> ConsMap
   getTag :: a -> Int
 
 instance Sized a => CType (Maybe a) where
- tagSize _ = 1
+ getTagWidth _ = 1
 
  getCons _ = [("Nothing",[]),
               ("Just", [(size (undefined :: a), 1)])]
@@ -130,7 +130,7 @@ instance Sized a => CType (Maybe a) where
  getTag Nothing = 0
 
 instance (Sized a, Sized b) => CType (Either a b) where
-  tagSize _ = 1
+  getTagWidth _ = 1
   getCons _ = [("Left",[(size (undefined :: a), 1)]),
                ("Right",[(size (undefined :: b), 1)])]
 
@@ -152,15 +152,12 @@ instance Sized () where
   size _ = error "Size on unit is crazy."
 
 instance (CType (f a), Sized a) => Sized (f a) where
-  size x = tagSize x + size  (undefined :: a)
+  size x = getTagWidth x + size  (undefined :: a)
 
 instance (CType (f a b), Sized a, Sized b) => Sized (f a b) where
-  size x = tagSize x + (sa `max` sb)
+  size x = getTagWidth x + (sa `max` sb)
    where sa = size (undefined :: a)
          sb = size (undefined :: b)
-
-
-
 
 
 genConsValue ::Name -> ExpQ
@@ -169,7 +166,8 @@ genConsValue nm = do
   val <- newName "val"
   let (value,ty) = genValue (ConE nm) dty
   return $ LetE [SigD val ty, ValD (VarP val) (NormalB value) []]
-             (AppE (VarE (mkName "getTag")) (VarE val))
+           (TupE [(AppE (VarE (mkName "getTag")) (VarE val)),
+                  (AppE (VarE (mkName "getTagWidth")) (VarE val))])
 
 
 -- genValue :: Type -> Exp
@@ -179,20 +177,14 @@ genValue acc ty = case split ty of
                     (ArrowT, [_,arg2]) -> genValue (AppE acc undef) arg2
                     (ConT nm, args) -> (acc,foldl AppT (ConT nm)  (map monoType args))
 
-  where unit = ConE $ (mkName "()") -- tupleDataName 0
+  where unit = ConE $ (mkName "()") -- tupleDataName 0 -- removed because of GHC.Tuple.() warning. This seems to work.
         undef = VarE $ mkName "undefined"
         unitType = TupleT 0
         monoType (VarT _) = unitType
         monoType t =  t
 
 
-
-aty =  AppT (AppT ArrowT (VarT a_1630963114)) (AppT (AppT ArrowT (VarT a_1630963114)) (AppT (ConT cons) (VarT a_1630963114)))
-  where a_1630963114 = mkName "a"
-        cons = mkName "Box"
-
-
-
+-- This was taken directly from the TH pretty print module.
 split :: Type -> (Type, [Type])    -- Split into function and args
 split t = go t []
     where go (AppT t1 t2) args = go t1 (t2:args)
