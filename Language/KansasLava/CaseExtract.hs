@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell, ParallelListComp, UndecidableInstances #-}
-module Language.KansasLava.CaseExtract(lava,Ent(..),Signal(..)) where
+module Language.KansasLava.CaseExtract(
+  lava,
+  Ent(..),Signal(..),pad,lit
+  ) where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote as Q
@@ -29,25 +32,19 @@ lava = QuasiQuoter parseExprExp parseExprPat
 -- Conversion of 'Haskell' to 'Lava'
 convertExpr :: Exp -> Q Exp
 convertExpr (CaseE e alts) = do
-    lcase (convertExpr e) alts
+    lcase (return e) alts
 
 convertExpr e = return e
 
 lcase :: ExpQ -> [Match] -> ExpQ
 lcase dis alts = [|
-   let tagWidth = getTag $dis
+   let tagWidth = tagSize $dis
        tagRange = (tagWidth - 1, 0)
        cons = getCons $dis
        inputs = $(listE $ map (mkAlt' [| cons |]) alts)
-   in Mux (Slice tagRange $dis) inputs
+   in mux (slice tagRange $dis) inputs
  |]
-  where mkAlt cs (n,[],body) = body -- no pattern vars means no lookup/let binding
-        mkAlt cs (n,pvars,body) =
-          [| let Just slices = lookup $(litE (stringL n))  $cs
-             in  $(mkPats dis [| slices |] pvars body)
-           |]
-
-        -- no pattern vars means no lookup/let binding
+  where -- no pattern vars means no lookup/let binding
         mkAlt' :: ExpQ -> Match -> ExpQ
         mkAlt' cs (Match (ConP n []) (NormalB body) []) =
           return body
@@ -57,15 +54,9 @@ lcase dis alts = [|
            |]
         mkAlt' cs m = error $ "mkAlt: can't convert  " ++ show m
 
-mkPats dis slices pvars body
-  = letE [valD (varP (mkName v)) (normalB [| Slice $dis ($slices !! s) |]) []
-          |  v <- pvars
-          |  s <- [0..]]
-       body
-
 mkPats' :: ExpQ -> ExpQ -> [Pat] -> Exp -> ExpQ
 mkPats' dis slices pvars body
-  = letE [valD (return v) (normalB [| Slice  ($slices !! s) $dis |]) []
+  = letE [valD (return v) (normalB [| slice  ($slices !! s) $dis |]) []
           |  v <- pvars
           |  s <- [0..]]
        (return body)
@@ -102,20 +93,25 @@ instance Show (Signal a) where
   show (Sig x) = show x
 
 instance CType a => CType (Signal a) where
-  getTag _ = getTag (undefined :: a)
+  tagSize _ = tagSize (undefined :: a)
   getCons _ = getCons (undefined :: a)
 
 
 type ConsMap = [(String,[(Int,Int)])]
 class CType a where
-  getTag :: a -> Int
+  tagSize :: a -> Int
   getCons :: a -> ConsMap
 
 instance Sized a => CType (Maybe a) where
- getTag _ = 1
+ tagSize _ = 1
 
  getCons _ = [("Nothing",[]),
               ("Just", [(size (undefined :: a), 1)])]
+
+instance (Sized a, Sized b) => CType (Either a b) where
+  tagSize _ = 1
+  getCons _ = [("Left",[(size (undefined :: a), 1)]),
+               ("Right",[(size (undefined :: b), 1)])]
 
 
 class Sized a where
@@ -124,28 +120,17 @@ class Sized a where
 instance Sized Bool where
  size _ = 1
 
-instance Sized a => Sized (Maybe a) where
-  size _ = 1 + size  (undefined :: a)
-
 instance Sized Int where
   size _ = 32
 
 instance Sized Char where  size _ = 8
 
+instance (CType (f a), Sized a) => Sized (f a) where
+  size x = tagSize x + size  (undefined :: a)
 
-instance CType Ent where
-  getTag _ = getTag (undefined :: (Maybe Int))
-  getCons _ = getCons (undefined :: (Maybe Int))
-
-
-
-{-
-test = (lcase dise alts)
-  where dis :: Maybe Int
-        dis = Just 0
-        dise = [| dis |]
-        alts = [("Nothing",[],dise),
-                ("Just", ["v"],dise)]
+instance (CType (f a b), Sized a, Sized b) => Sized (f a b) where
+  size x = tagSize x + (sa `max` sb)
+   where sa = size (undefined :: a)
+         sb = size (undefined :: b)
 
 
--}
