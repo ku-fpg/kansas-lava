@@ -2,10 +2,11 @@ module Language.KansasLava.Seq
         where
 
 import Data.Traversable
--- import Data.Foldable
+import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3)
+import Data.Monoid
 
 infixr 5 :~
 
@@ -54,6 +55,7 @@ zipWith' :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
 zipWith' f xs ys = pure f <*> xs <*> ys
 
 fromList :: [Maybe a] -> Seq a
+
 fromList (x : xs) = x :~ fromList xs
 fromList []       = error "Seq.fromList"
 
@@ -70,3 +72,13 @@ seqMux sB sT sF =
 		    Nothing    -> Nothing
 	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF)
 	         ]
+
+
+instance F.Foldable Seq where
+  foldMap f (a :~ as) = F.foldMap f a `mappend` F.foldMap f as
+
+
+instance Traversable Seq where
+  traverse f (a :~ as) = (:~) <$> traverse f a <*> traverse f as
+  traverse f (Constant a) = Constant <$> traverse f a
+

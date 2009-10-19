@@ -100,6 +100,7 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 		tys' = [ [BaseTy ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ tys
 		result = wrapCircuit args' tys' (fn inpX)
 
+        create = error "No method nor default method for `create' In the instance declaration for `REIFY (i -> o)'"
 
 -- perhaps this can capture type??
 instance (OpType a) => REIFY (Signal a) where
