@@ -208,9 +208,11 @@ mkInst tyEnv i e@(Entity (Name mod nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
                 ( [ (n,sig (Port (Var n) (Uq i))) | Var n <- outputs ] ++
-                  [ (n,sig x) | (Var n,x) <- inputs ]
+                  [ (n,sigTyped (getTy tyEnv i n) x) | (Var n,x) <- inputs ]
                 )
           ]
+
+
 {-
         mkInst tyEnv i (Entity (Name _ "mux") inputs) =
           inst i "mux" "o" ["s","d0","d1"] inputs
