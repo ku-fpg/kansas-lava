@@ -12,17 +12,17 @@ import Data.Sized.Unsigned as U
 import Data.Sized.Ix as X
 
 high :: Signal Bool
-high = Signal (pure True) $ Pad $ Var "high"
+high = Signal (pure True) $ Lit 1
 
 low :: Signal Bool
-low = Signal (pure False) $ Pad $ Var "low"
+low = Signal (pure False) $ Lit 0
 
 type U2 = U.Unsigned X2
 
 mux4 :: (MUX a) => Signal U2 -> a -> a -> a -> a -> a
 mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
    where
-	b1 = testABit u2 0 
+	b1 = testABit u2 0
 	b2 = testABit u2 1
 
 class BROADWAY a where
@@ -66,11 +66,14 @@ instance MUX (Signal a) where
 --              (\ a b c -> if a then b else c)
               sC sT sF)
 
+  mux3 _ _ _ = error "undefined method mux3 in MUX (Signal a)"
+
+
 cases :: (MUX cir) => [(Signal Bool,cir)] -> cir -> cir
 cases []           def = def
 cases ((b,c):rest) def = mux2 b c (cases rest def)
 
--- Misc Bool signal things. 
+-- Misc Bool signal things.
 -- We do not overload Bool at Bits because
 -- Bool is not a Num, and correctly so. We use U1 instead.
 
