@@ -12,10 +12,10 @@ import Data.Sized.Unsigned as U
 import Data.Sized.Ix as X
 
 high :: Signal Bool
-high = Signal (pure True) $ Pad $ Var "high"
+high = Signal (pure True) $ Lit 1
 
 low :: Signal Bool
-low = Signal (pure False) $ Pad $ Var "low"
+low = Signal (pure False) $ Lit 0
 
 type U2 = U.Unsigned X2
 

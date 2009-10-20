@@ -68,10 +68,12 @@ reifyCircuit opts circuit = do
 				A f -> case f inputEntity (map Var inputNames) of
 					  (res,tys,_) -> (tys,res)
 
+
 	    inputEntity :: E
 	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
 
 --	    inputs' = []
+
 
 	    blob = [ (Var o,d) | ((_,d),o) <- zip blob' outputNames ]
 
@@ -86,11 +88,17 @@ reifyCircuit opts circuit = do
 
 
 --	print outputTyEquivs
+
+
+
+--	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
         (Graph nodes root) <- reifyGraph root'
 
 	when (DebugReify `elem` opts) $ do
+		putStrLn "-------------------------------------------------------"
 		print (Graph nodes root)
+		putStrLn "-------------------------------------------------------"
 
 	let inputEntityId :: Unique
 	    inputEntityId = head [ v
@@ -183,7 +191,7 @@ reifyCircuit opts circuit = do
 	         $ map (Set.fromList)
 		 $ (concat [map (map addEntityId) tyeqs
 			 ++ [ case dr of
-				Port v' i' -> [TyVar (Uq i,v),TyVar (i',v')]
+				Port v' i' -> [TyVar (mkUq i,v),TyVar (i',v')]
 				Lit _      -> []
 				other       -> error $ show other
 			    | (v,dr) <- ins
@@ -192,6 +200,14 @@ reifyCircuit opts circuit = do
 --			  , i /= inputEntityId
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
                           ]) ++ outputTyEquivs ++ inputTyEquivs
+
+
+	when (DebugReify `elem` opts) $ do
+		putStrLn "-------------------------------------------------------"
+		putStrLn "[all_equivs]"
+		print all_equivs
+		putStrLn "-------------------------------------------------------"
+
 
 --	print ("ZZ",all_equivs)
 --	print all_equivs
