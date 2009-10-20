@@ -16,7 +16,7 @@ Stability:	     alpha
 build-type: 	     Simple
 Cabal-Version:       >= 1.6
 
-Flag devel
+Flag all
   Description: Enable full development tree
   Default:     True
 
@@ -46,7 +46,7 @@ Library
   Ghc-Options:  -Wall
 
 Executable kansas-lava-test1
-    if flag(devel)
+    if flag(all)
       Build-Depends: base, QuickCheck >= 2.0
       buildable: True
       Other-modules:
