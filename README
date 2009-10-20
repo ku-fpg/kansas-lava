@@ -1,0 +1,13 @@
+Kansas Lava
+
+If you want to run the tests in GHCi, use 
+
+% ghci XXX.hs -i../..
+
+To run tests
+
+% make tests
+
+The test script places the output in ./run, and compares it with a files of the same name in ./ref.
+
+
