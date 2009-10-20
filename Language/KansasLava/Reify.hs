@@ -6,6 +6,7 @@ import Data.List as L
 
 import qualified Data.Set as Set
 import Data.Set (Set)
+import Control.Monad (when)
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
@@ -43,7 +44,8 @@ data ReifiedCircuit = ReifiedCircuit
 data ReifyOptions
 	= InputNames [String]
 	| OutputNames [String]
-
+	| DebugReify		-- show debugging output of the reification stage
+	deriving (Eq, Show)
 
 findTy :: ReifiedCircuit -> QVar -> Maybe BaseTy
 findTy re (u,v) = lookup (u,v) (theTypes re)
@@ -86,6 +88,9 @@ reifyCircuit opts circuit = do
 --	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
         (Graph nodes root) <- reifyGraph root'
+
+	when (DebugReify `elem` opts) $ do
+		print (Graph nodes root)
 
 	let inputEntityId :: Unique
 	    inputEntityId = head [ v
@@ -198,9 +203,10 @@ reifyCircuit opts circuit = do
       	    findTyFor (i,v)
 		      | Prelude.null theSet        = error $ "can not find : " ++ show (i,v)
 		      | Prelude.length theSet /= 1 = error $ "multiple occur, impossible : " ++ show (i,v,theSet)
+		      | Prelude.null theTy 	   = error $ "polymophic set of wires, can not infer type (usually a loop, or using a underdefined primitive)"
 		      | Prelude.length theTy == 1  = case theTy' of
 						       BaseTy bty -> bty
-						       _ -> error "DFJFHDFJDHFJFRHE"
+						       _ -> error $ "Type of wire is not a basic type, instead found : " ++ show theTy'
 		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)" ++ show (i,v) ++ " " ++ show theSet
 	     where
 		theSet = filter (Set.member (TyVar (i,v))) all_equivs'
