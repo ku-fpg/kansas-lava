@@ -12,7 +12,9 @@ module Language.KansasLava (
     module Language.KansasLava.VHDL,
     module Language.KansasLava.Dot,
     module Language.KansasLava.Type,
-    module Language.KansasLava.Matrix
+    module Language.KansasLava.Matrix,
+    module Language.KansasLava.Applicative
+
      ) where
     
 import Language.KansasLava.Entity
@@ -28,4 +30,5 @@ import Language.KansasLava.Dot
 import Language.KansasLava.Dot
 import Language.KansasLava.Type
 import Language.KansasLava.Matrix
+import Language.KansasLava.Applicative
 

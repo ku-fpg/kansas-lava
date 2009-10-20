@@ -6,6 +6,7 @@ import Data.List as L
 
 import qualified Data.Set as Set
 import Data.Set (Set)
+import Control.Monad (when)
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
@@ -43,7 +44,8 @@ data ReifiedCircuit = ReifiedCircuit
 data ReifyOptions
 	= InputNames [String]
 	| OutputNames [String]
-
+	| DebugReify		-- show debugging output of the reification stage
+	deriving (Eq, Show)
 
 findTy :: ReifiedCircuit -> QVar -> Maybe BaseTy
 findTy re (u,v) = lookup (u,v) (theTypes re)
@@ -66,10 +68,12 @@ reifyCircuit opts circuit = do
 				A f -> case f inputEntity (map Var inputNames) of
 					  (res,tys,_) -> (tys,res)
 
+
 	    inputEntity :: E
 	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
 
 --	    inputs' = []
+
 
 	    blob = [ (Var o,d) | ((_,d),o) <- zip blob' outputNames ]
 
@@ -84,8 +88,17 @@ reifyCircuit opts circuit = do
 
 
 --	print outputTyEquivs
+
+
+
+--	print outputTyEquivs
    	let root' = E $ Entity (Name "$" "ROOT") [] blob []
         (Graph nodes root) <- reifyGraph root'
+
+	when (DebugReify `elem` opts) $ do
+		putStrLn "-------------------------------------------------------"
+		print (Graph nodes root)
+		putStrLn "-------------------------------------------------------"
 
 	let inputEntityId :: Unique
 	    inputEntityId = head [ v
@@ -178,7 +191,7 @@ reifyCircuit opts circuit = do
 	         $ map (Set.fromList)
 		 $ (concat [map (map addEntityId) tyeqs
 			 ++ [ case dr of
-				Port v' i' -> [TyVar (Uq i,v),TyVar (i',v')]
+				Port v' i' -> [TyVar (mkUq i,v),TyVar (i',v')]
 				Lit _      -> []
 				other       -> error $ show other
 			    | (v,dr) <- ins
@@ -187,6 +200,14 @@ reifyCircuit opts circuit = do
 --			  , i /= inputEntityId
 			  , let addEntityId = fmap (\ v -> (mkUq i,v))
                           ]) ++ outputTyEquivs ++ inputTyEquivs
+
+
+	when (DebugReify `elem` opts) $ do
+		putStrLn "-------------------------------------------------------"
+		putStrLn "[all_equivs]"
+		print all_equivs
+		putStrLn "-------------------------------------------------------"
+
 
 --	print ("ZZ",all_equivs)
 --	print all_equivs
@@ -198,9 +219,10 @@ reifyCircuit opts circuit = do
       	    findTyFor (i,v)
 		      | Prelude.null theSet        = error $ "can not find : " ++ show (i,v)
 		      | Prelude.length theSet /= 1 = error $ "multiple occur, impossible : " ++ show (i,v,theSet)
+		      | Prelude.null theTy 	   = error $ "polymophic set of wires, can not infer type (usually a loop, or using a underdefined primitive)"
 		      | Prelude.length theTy == 1  = case theTy' of
 						       BaseTy bty -> bty
-						       _ -> error "DFJFHDFJDHFJFRHE"
+						       _ -> error $ "Type of wire is not a basic type, instead found : " ++ show theTy'
 		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)" ++ show (i,v) ++ " " ++ show theSet
 	     where
 		theSet = filter (Set.member (TyVar (i,v))) all_equivs'
