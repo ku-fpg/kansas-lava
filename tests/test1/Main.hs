@@ -56,14 +56,14 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 		
 main = do
 	putStrLn "Testing halfAdder function"
-	print [ (a,b,halfAdder (a,b))
+	putStrLn $ unlines [ show (a,b,halfAdder (a,b))
 	 			| a <- [low,high]
 			        , b <- [low,high] ]
 	putStrLn "Testing halfAdder reify"
 	debugCircuit [] halfAdder
 
 	putStrLn "Testing fullAdder function"
-	print [ (a,b,c,fullAdder c (a,b))
+	putStrLn $ unlines [ show (a,b,c,fullAdder c (a,b))
 	 			| a <- [low,high]
 	 			, b <- [low,high]
 			        , c <- [low,high] ]
@@ -71,7 +71,7 @@ main = do
 	debugCircuit [] fullAdder
 
 	putStrLn "Testing wordAdder function"
-	print [ (a,b,c,wordAdder a (pure b,pure c))
+	putStrLn $ unlines [ show (a,b,c,wordAdder a (pure b,pure c))
 	 			| a <- [low,high]
 	 			, b <- [0..3] :: [U.Unsigned X2]
 			        , c <- [0..3] ]

@@ -43,8 +43,8 @@ instance MuRef E where
 instance Eq (Signal a) where
    (Signal _ s1) == (Signal _ s2) = s1 == s2
 
-instance (Show a) => Show (Signal a) where
-    show (Signal v _) = show v
+instance (Show a, OpType a) => Show (Signal a) where
+    show (Signal v _) = showSeq 20 v
 
 instance Show E where
     show (E s) = show s
@@ -68,6 +68,15 @@ class OpType a where
     op :: Signal a -> (String -> Name)
     bitTypeOf :: Signal a -> BaseTy
     initVal :: Signal a		-- todo, remove this
+    showSeq :: (Show a) => Int -> Seq a -> String
+    showSeq n seq = 
+	case seq of
+	   Constant v -> showV v
+	   _ -> unwords [ showV x ++ " :~ " 
+                        | x <- take n $ toList seq
+                        ] ++ "..."
+	
+	   
 
 instance OpType Int    where op _ nm = Name "Int" nm     
                              bitTypeOf _ = S 32
@@ -93,6 +102,13 @@ instance OpType Word16 where op _ nm = Name "Word16" nm
 instance OpType Bool where op _  nm = Name "Bool" nm     
                            bitTypeOf _ = B
                            initVal = Signal (pure False) $ Lit 0
+			   showSeq _ (Constant Nothing) = "?"
+			   showSeq _ (Constant (Just True)) = "high"
+			   showSeq _ (Constant (Just False)) = "low"
+			   showSeq n other = 
+				unwords [ showV x ++ " :~ " 
+                        		| x <- take n $ toList other
+                        		] ++ "..."
 instance OpType ()   where op _  nm = Name "()" nm       
                            bitTypeOf _ = U 0
                            initVal = Signal (pure ()) $ Lit 0
@@ -105,6 +121,10 @@ instance (Enum a, Bounded a, Size a) => OpType (Signed a)
                      where op _  nm = Name "Signed" nm       
                            bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
                            initVal = Signal (pure 0) $ Lit 0
+
+instance (OpType a, OpType b) => OpType (a,b) where {} -- HMM
+	
+
 
 -- find the name of the type of the entity arguments.
 findEntityTyModName :: (OpType a) => Entity ty a -> String
@@ -273,24 +293,6 @@ split e = explode entity
 implode2 :: (Signal a, Signal b) -> Signal (a,b)
 implode2 = implode
 -}
-
-peek :: Signal a -> [Maybe a]
-peek ~(Signal xs _) = S.toList xs
-
--- A signal of a  constant value, for testing
-be :: a -> Signal a
-be e = Signal (pure e) (error "improper use of be")      -- for now
-
--- A signal, that changes over time
-with :: [a] -> Signal a
-with xs = poke (map Just xs ++ repeat Nothing) 
-
--- A signal with possible unknown values, that changes over time.
-poke :: [Maybe a] -> Signal a
-poke xs = Signal (S.fromList xs) undefined
-
-
-
 {-
 
 entity JK_FF is
