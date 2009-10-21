@@ -27,6 +27,7 @@ class BitRep c where
 fff :: (Size ix) => Matrix ix (Signal Bool) -> Seq (Matrix ix Bool)
 fff m = ggg (fmap (\ ~(Signal a _) -> a) m)
 
+-- This loses any constants in the Seq.
 ggg :: forall ix a . (Size ix) => Matrix ix (Seq a) -> Seq (Matrix ix a)
 ggg m0 = m6
   where
