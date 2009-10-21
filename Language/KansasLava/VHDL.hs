@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards #-}
+{-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 module Language.KansasLava.VHDL where
 
 
@@ -87,14 +87,33 @@ vhdlTypes (U n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 decls :: (QVar -> BaseTy) -> [(Unique,Entity ty Uq)] -> [DeclDescriptor]
 decls tyEnv nodes =
     -- need size info for each output, to declare length of std_logic_vector
-    [ (sig (Port (Var n) (Uq i)),vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
+    [ SigDecl (sig (Port (Var n) (Uq i))) (vhdlTypes (tyEnv (Uq i,Var n))) Nothing
                           | (i,Entity _ outputs _ _) <- nodes
                           , Var n <- outputs
                           ] ++
-    concat [ [ (sig (Port (Var n) (Uq i)) ++ "_next", vhdlTypes (tyEnv (Uq i,Var n)),Nothing)
+    concat [ [ SigDecl (sig (Port (Var n) (Uq i)) ++ "_next") (vhdlTypes (tyEnv (Uq i,Var n))) Nothing
      	     ]
            | (i,Entity (Name "Lava" "delay") [Var n] _ _) <- nodes
-           ]
+           ] ++
+    concatMap memDecl nodes
+--     concat [ [ TypeDecl (sig (Port (Var n) (Uq i)) ++ "_ram")
+--                         -- clearly neds to calculate this...
+--                         "array(0 to 100) of std_logic_vector(32 downto 0)"
+--              , SigDecl (sig (Port (Var n) (Uq i)))
+--                        (sig (Port (Var n) (Uq i)) ++ "_ram") Nothing]
+--              | (i,Entity (Name "Lava" "BRAM") [Var n] _ _) <- nodes
+--              ]
+  where memDecl (i,Entity (Name "Lava" "BRAM") [Var n] _ _) =
+          let asize = baseTypeLength $ tyEnv (Uq i, Var "ain")
+              dsize = baseTypeLength $ tyEnv (Uq i, Var "din")
+          in [ TypeDecl (sig (Port (Var n) (Uq i)) ++ "_ram")
+                        -- clearly neds to calculate this...
+                        ("array(0  to " ++ show (2^asize)  ++ " of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
+             , SigDecl (sig (Port (Var n) (Uq i)))
+                       (sig (Port (Var n) (Uq i)) ++ "_ram") Nothing]
+        memDecl _ = []
+
+
 
 finals :: [(Var,Driver Uq)] -> [Inst]
 finals args = [ Assign n (sig x) | (Var n,x) <- args ]
@@ -122,7 +141,7 @@ isSpecialName _ = Nothing
 specials =
   [(Name moduleName lavaName,
          (vhdlName, Just "std_logic_vector"))
-   | moduleName <- ["Unsigned", "Signed"]
+   | moduleName <- ["Unsigned", "Signed","Int"]
   , (lavaName,vhdlName) <-
     [("+","+"), ("-","-")]] ++
   [(Name moduleName lavaName,
@@ -188,6 +207,7 @@ mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
 
 
 -- BUG: o vs o0
+-- Delay Circuits
 mkInst tyEnv i e@(Entity (Name "Lava" "delay") [Var "o"]
 			[ (Var "clk",clk)
 			, (Var "rst",rst)
@@ -197,6 +217,8 @@ mkInst tyEnv i e@(Entity (Name "Lava" "delay") [Var "o"]
           [ Assign input (sig y) ]
   where output = sig (Port (Var "o") (Uq i))
         input =  output ++ "_next"
+
+-- Muxes
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t),(Var "f",f)] _)
 	= [ CondAssign (sig (Port (Var "o0") (Uq i)))
                        [(sigTyped (getTy tyEnv i "f") f, sigTyped (getTy tyEnv i "c") c ++ "= '0'")]
@@ -204,6 +226,26 @@ mkInst tyEnv i e@(Entity (Name "Bool" "mux2") [Var "o0"] [(Var "c",c),(Var "t",t
          ]
 mkInst tyEnv i e@(Entity (Name "Bool" "mux2") x y z) = error $ show (x,y)
 
+mkInst tyEnv i e@(Entity (Name "Lava" "concat") [Var "o"] inps _) =
+                  [Assign (sig (Port (Var "o") (Uq i))) val]
+  where val = concat $ intersperse "&"
+              -- Note the the layout is reversed
+              [sigTyped (getTy tyEnv i v) sig | (Var v, sig) <- reverse inps]
+
+
+mkInst _ _ e@(Entity (Name "Lava" "BRAM") _ _ _) = []
+
+mkInst tyEnv i e@(Entity (Name "Lava" "index") [Var "o"] [(Var "i", input),(Var "index",idx)] _) =
+  [Assign (sig (Port (Var "o") (Uq i)))
+          (sig input ++ "(" ++ sig idx ++ ")")]
+
+mkInst tyEnv i e@(Entity (Name "Lava" "slice") [Var "o"]
+                  [(Var "i", input),(Var "low",low),(Var "high",high)] _) =
+  [Assign (sig (Port (Var "o") (Uq i)))
+          (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
+
+
+-- Catchall for everything else
 mkInst tyEnv i e@(Entity (Name mod nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
@@ -247,6 +289,8 @@ sigTyped B         (Lit 1) = "'1'"
 sigTyped B     s = sig s
 sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
 sigTyped (S _) s = "signed(" ++ sig s ++ ")"
+sigTyped ClkTy s = sig s
+sigTyped RstTy s = sig s
 
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
@@ -273,8 +317,10 @@ type GenericDescriptor = (String,String,Maybe String)
 -- (name,type,default)
 type PortDescriptor = (String,String,String)
 -- Name, Mode (in or out),Type
-type DeclDescriptor = (String,String,Maybe String)
--- (name,type,default)
+data DeclDescriptor = SigDecl String String (Maybe String) -- name, type, default
+                    | TypeDecl String String -- name, value
+                    deriving Show
+
 
 data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
                 | VhdlArchitecture String -- VhdlEntity
@@ -329,10 +375,13 @@ instance Pretty VhdlStruct where
       hang (text "begin") 2 (vcat $ map pretty insts) $$
       text "end architecture" <> semi
    where ddoc = vcat $ map printDecl decls
-         printDecl (name,ty,Nothing) =
+         printDecl (SigDecl name ty Nothing) =
            text "signal" <+> text name <+> colon <+> text ty <> semi
-         printDecl (name, ty, Just def) =
+         printDecl (SigDecl  name ty (Just def)) =
            text "signal" <+> text name <+> colon <+> text ty <+> text ":=" <+> text def <> semi
+         printDecl (TypeDecl name ty) =
+           text "type" <+> text name <+> text "is" <+> text ty <> semi
+
 
 instance Pretty Inst where
   pretty (Assign a b) = text a <+> text "<=" <+> text b <> semi
@@ -383,13 +432,26 @@ instance Pretty Inst where
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
 synchronous tyEnv nodes
-  | null delays = []
-  | otherwise = [Process ([sig clk, sig rst] ++  inputs)
+  | null delays && null brams  = []
+  | otherwise = [Process ([sig clk, sig rst] ++  inputs ++ bramWE ++  bramData)
                        [ Cond ("rising_edge(" ++ sig clk ++ ")")
-		         [Cond (sig rst ++ "='1'")
-		          (zipWith Assign outputs inits)
-                          (zipWith Assign outputs inputs)
-	                 ]   []
+		         ((if null delays
+                          then []
+                          else
+                            [Cond (sig rst ++ "='1'")
+		             (zipWith Assign outputs inits)
+                             (zipWith Assign outputs inputs)
+	                    ])  ++
+                         [(Cond (we ++ "='1'")
+                                [Assign target dat,
+                                 Assign o "(others => '0')"]
+                                [Assign o target])
+                           | we <- bramWE
+                           | o <- bramOuts
+                           | target <- bramTargets
+                           | dat <- bramData
+                          ]) -- Then
+                         [] -- Else
 	               ]
                      ]
   where delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- nodes]
@@ -400,6 +462,23 @@ synchronous tyEnv nodes
         inits = [sigTyped (getTy tyEnv i "init") (fromJust (lookupInput "init" e))
                  | (i,e@(Entity (Name "Lava" "delay") [Var n] _ _)) <- delays]
 
-        Just clk = lookupInput "clk" d
-        Just rst = lookupInput "rst" d
+        Just clk  = lookupInput "clk" (head (map snd (delays ++ brams)))
+        Just rst =  lookupInput "rst" (head (map snd (delays ++ brams)))
         lookupInput i (Entity _ outputs inputs _) = lookup (Var i) inputs
+
+        brams = [(i,e) | (i,e@(Entity (Name "Lava" "BRAM") [Var n] _ _)) <- nodes]
+        bramOuts =[sig (Port (Var "o") (Uq i)) | (i,_) <- brams]
+        bramSigs = [(sig (Port (Var n) (Uq i)) ++ "_ram")
+                      | (i,Entity _ [Var n] _ _) <- nodes]
+        bramAddr = ["conv_integer(" ++ sig (fromJust (lookupInput "ain" e)) ++ ")"
+                   | (i,e) <- brams]
+        bramData = [sig (fromJust (lookupInput "din" e))
+                   | (i,e) <- brams]
+        bramWE = [sig (fromJust (lookupInput "we" e))
+                   | (i,e) <- brams]
+        bramTargets = [s ++ "(" ++ a ++ ")" |  s <- bramSigs | a <- bramAddr]
+
+
+
+
+

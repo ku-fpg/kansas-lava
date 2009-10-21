@@ -52,6 +52,7 @@ instance REIFY Time where
 	-- create = Time <$> named "clk" <*> named "rst"
 
 --	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b
+        capture'' = error "No method nor default method for `capture''' in the instance declaration for `REIFY Time'"
 
 instance Show Clk where
 	show (Clk n) = show n

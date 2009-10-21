@@ -1,19 +1,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.KansasLava.Matrix where
-		
+
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Sized.Ix as X
 import Data.Sized.Matrix as M
 import Data.List
 import Data.Maybe
+import Control.Applicative
 
 import Language.KansasLava.Signal
 import Language.KansasLava.Seq as Seq
 import Language.KansasLava.Logic
 import Language.KansasLava.Type
 import Language.KansasLava.Entity
-	
+
 class BitRep c where
   toBoolMatrix   :: (Size ix, Enum ix) => Signal (c ix) -> Matrix ix (Signal Bool)
   fromBoolMatrix :: (Size ix, Enum ix) => Matrix ix (Signal Bool) -> Signal (c ix)
@@ -21,34 +22,39 @@ class BitRep c where
 
 --
 -- To consider, these ops
+--	:: Signal (Matrix ix Bool) -> Matrix ix (Signal Bool)
 --	:: Matrix ix (Signal Bool) -> Signal (Matrix ix Bool)
---	:: Signal (Matrix ix Bool) -> Matrix ix (Signal Bool)	
 
-fff :: (Size ix) => Matrix ix (Signal Bool) -> Seq (Matrix ix Bool)
-fff m = ggg (fmap (\ ~(Signal a _) -> a) m)
+-- The Seq versions
+pushin :: Size i => Seq (Matrix i t) -> Matrix i (Seq t)
+pushin  m = M.fromList (fmapConst m)
+  where fmapConst (Nothing :~ as) = Data.List.zipWith (:~) nothings (fmapConst as)
+        fmapConst (Just a :~ as) = Data.List.zipWith (:~) (map Just (M.toList a)) (fmapConst as)
+        fmapConst (Constant Nothing) = map Constant nothings
+        fmapConst (Constant (Just a)) = map (Constant . Just) (M.toList a)
+        nothings = replicate (98 {-size (undefined :: ix) -}) Nothing
 
-ggg :: forall ix a . (Size ix) => Matrix ix (Seq a) -> Seq (Matrix ix a)
-ggg m0 = m6
-  where
-	m1 :: Matrix ix [Maybe a]
- 	m1 = fmap Seq.toList m0
-	m2 :: [[Maybe a]]
-	m2 = M.toList m1
-	m3 :: [[Maybe a]]
-	m3 = Data.List.transpose m2
-	m4 :: [Maybe [a]]
-	m4 = [ Just (catMaybes a) | a <- m3 ]
-	m5 :: Seq [a]
-	m5 = Seq.fromList m4
-	m6 :: Seq (Matrix ix a)
-	m6 = fmap M.fromList m5
+pullout :: Size i => Matrix i (Seq t) -> Seq (Matrix i t)
+pullout m = combine (M.toList m)
+  where combine seqs
+          | constant && valid = Constant (Just (M.fromList values))
+          | constant && not valid = Constant Nothing
+          | not constant && valid = Just (M.fromList values) :~ combine tails
+          | not constant && not valid = Nothing :~ combine tails
+          where heads = map Seq.head seqs
+                tails = map Seq.tail seqs
+                valid = and $ map isJust heads
+                constant = and $ map isConstant seqs
+                values = map fromJust heads
+                isConstant (Constant _) = True
+                isConstant _ = False
 
 
--- signalMatrixBoolToMatrixSignalBool :: 
+-- signalMatrixBoolToMatrixSignalBool ::
 matrixSignalBoolToSignalMatrixBool :: (Size ix) => Matrix ix (Signal Bool) -> Signal (Matrix ix Bool)
-matrixSignalBoolToSignalMatrixBool m 
+matrixSignalBoolToSignalMatrixBool m
         = o0
-	$ ESignal (fff m)
+	$ ESignal (pullout mSeq)
         $ E
         $ Entity (Name "Matrix" "matrixSignalBoolToSignalMatrixBool")
  		 [Var "o0"]
@@ -58,11 +64,13 @@ matrixSignalBoolToSignalMatrixBool m
 		 , BaseTy (U (M.length m)) : [TyVar (Var "o0")]
 		 ]
    where inVars = [Var ("i" ++ show i) | i <- indices m ]
+         mSeq = fmap (\ ~(Signal a _) -> a) m
+
 
 
 signalMatrixBoolToSignalUnsigned :: (Enum ix, Size ix) => Signal (Matrix ix Bool) -> Signal (Unsigned ix)
 signalMatrixBoolToSignalUnsigned  x =
-	o0 $ entity1 (Name "Matrix" "signalMatrixBoolToSignalUnsigned") inputs [Var "o0"] tyeqs fn x 
+	o0 $ entity1 (Name "Matrix" "signalMatrixBoolToSignalUnsigned") inputs [Var "o0"] tyeqs fn x
 	where allNames = inputs ++ [Var "o0"]
 	      tyeqs    = [ map TyVar allNames ]-- TODO: add monomorphism
 	      inputs   = map Var ["i0"]
@@ -71,5 +79,7 @@ signalMatrixBoolToSignalUnsigned  x =
 --instance BitRep Signed where
 instance BitRep Unsigned where
   toBoolMatrix sig = forAll $ \ i -> testABit sig (fromEnum i)
-  fromBoolMatrix = signalMatrixBoolToSignalUnsigned . matrixSignalBoolToSignalMatrixBool	
-	
+  fromBoolMatrix = signalMatrixBoolToSignalUnsigned . matrixSignalBoolToSignalMatrixBool
+
+
+
