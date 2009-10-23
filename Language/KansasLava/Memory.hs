@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Language.KansasLava.Memory
-  (MemOp,readMem, writeMem,  bram) where
+  (MemOp(..),readMem, writeMem,  bram) where
 import Language.KansasLava
 import Data.Sized.Unsigned
 import Data.Sized.Ix
@@ -32,7 +32,7 @@ memop (m,ds) Noop = ((m,vs),v)
 memop (m,ds) (R a) = ((m,vs),v)
   where val = M.lookup a m
         (v,vs) = dequeue (enqueue val ds)
-memop (m,v:ds) (W a d) = ((m',ds ++ [Nothing]),v)
+memop (m,ds) (W a d) = ((m',vs),v)
   where m' = M.insert a d m
         (v,vs) = dequeue (enqueue Nothing ds)
 
