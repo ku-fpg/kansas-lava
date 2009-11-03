@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module MemoryTest where
 
 import Language.KansasLava
@@ -9,45 +10,73 @@ import Data.Sized.Unsigned
 import Control.Applicative
 type Unsigned2 = Unsigned X2
 
+
+{-
 test = permute p clock testvector
   where p :: [(Unsigned2,Unsigned2)]
         p = zip [0..3] ( reverse [0..3])
 
 
-permute :: [(Unsigned2,Unsigned2)] -> Time -> Signal Unsigned2 -> Signal (Maybe Unsigned2)
-permute p clk i = bufferRAM address
-  where count = counter clk
-        writing = delayN 2 clk $ toggle clk (fmap (==0) count)
-
-        permutationROM = bram p clk
-        addressMaybe = permutationROM (readMem count)
-        bufferRAM = bram [] clk
 
 
-        idelayed = delayN 2 clk i
-        address = merge <$>  writing <*> addressMaybe <*> idelayed <*> (delayN 2 clk count)
-
-        -- First parameter is whether we are writing
-        -- Had to export R/W constructors, since we're using an a.f., and readMem/writeMem generate signals.
-        merge :: Bool -> Maybe addr -> dat -> addr -> MemOp addr dat
-        merge False _ _ i = R i
-        merge True (Just addr) dat _ = W addr dat
-        merge True Nothing _ i = R i
-
-        counter clk = out
-          where out :: Signal Unsigned2
-                out = delay clk 0 out'
-                out' =  1 + out
-
-delayN n clock input = foldr ($) input (replicate n (delay clock initVal))
 
 toggle clk i = res
   where res = xor2 (delay clk low res) i
 
-trajectory clk l = foldr c 0 l
-  where c a as = delay clk a as
-
-
-
 
 testvector = trajectory clock (map fromInteger [0..10])
+-}
+
+trajectory :: (OpType a) => Time -> [Signal a] -> Signal a
+trajectory clk l = foldr c initVal l
+  where c a as = delay clk a as
+
+delayN n clock input = foldr ($) input (replicate n (delay clock initVal))
+
+--permute :: (Num a, OpType a) => [(a,a)] -> Time -> Signal Bool -> Signal Bool
+permute ::
+  (OpType d, Ord d, Num d, Enum d, Bounded d) =>
+  [(d, d)] -> Time -> Signal Bool -> Signal Bool
+permute permutation clk input = out
+  where out = mux2 toggle_z_zz bufA bufB
+        addr = counter clk
+        permRead = readMem addr
+
+        rom = bram permutation clk permRead
+
+        writeReq = writeMem rom input_zz
+        readReq = readMem addr_zz
+
+        muxA = mux2 toggle_z readReq writeReq
+        muxB = mux2 toggle_z writeReq readReq
+
+        bufA = bram initBuf clock muxA
+        bufB = bram initBuf clock muxB
+        initBuf = [(i,False) | i <- [minBound..maxBound]]
+        toggle = delay clock high (toggle `xor2` overflow)
+           where overflow = (addr .==. 0)
+
+        addr_zz = delayN 2 clock addr
+        input_zz = delayN 2 clock input
+        -- the 'toggle' has a built-in 1-cycle delay, so we only delay 1 cycle
+        toggle_z = delayN 1 clock toggle
+        toggle_z_zz = delayN 2 clock toggle_z
+
+
+counter :: (OpType a, Num a) => Time -> Signal a
+counter clk = out
+  where out = delay clk 0 out'
+        -- out' :: Signal Int
+        out' =  1 + out
+
+
+p1 :: [(Unsigned X2, Unsigned X2)]
+p1 = [(0,1),(1,0),(2,3),(3,2)]
+
+
+instance (Size s) => Bounded (Unsigned s) where
+  minBound = 0
+  maxBound = let a :: s
+                 a = error "making a s"
+             -- had to use -fglasgow-exts. Don't know which extension is needed.
+             in fromIntegral $ 2 ^ (size a)  - 1

@@ -13,7 +13,7 @@ import Control.Applicative
 
 data MemOp a d = W a d
                | R a
-               | Noop deriving (Show,Eq)
+               deriving (Show,Eq)
 
 
 
@@ -26,15 +26,23 @@ enqueue v vs = vs ++ [v]
 dequeue (v:vs) = (v,vs)
 
 
-memop :: Ord a => Memory a d -> MemOp a d -> (Memory a d,Maybe d)
-memop (m,ds) Noop = ((m,vs),v)
+memop :: Ord a => Memory a d -> Maybe (MemOp a d) -> (Memory a d,Maybe d)
+memop (m,ds) Nothing = ((m,vs),v)
   where (v,vs) = dequeue (enqueue Nothing ds)
-memop (m,ds) (R a) = ((m,vs),v)
+memop (m,ds) (Just (R a)) = ((m,vs),v)
   where val = M.lookup a m
         (v,vs) = dequeue (enqueue val ds)
-memop (m,ds) (W a d) = ((m',vs),v)
+memop (m,ds) (Just (W a d)) = ((m',vs),v)
   where m' = M.insert a d m
         (v,vs) = dequeue (enqueue Nothing ds)
+
+
+mapAccumLS :: (s -> Maybe a -> (s,Maybe b)) -> s -> Seq a -> Seq b
+mapAccumLS f acc (a :~ as) = o :~ (mapAccumLS f acc' as)
+  where (acc',o) = f acc a
+mapAccumLS f acc as@(Constant a) = o :~ mapAccumLS f acc' as
+   where (acc',o) = f acc a
+
 
 -- Copy test moves the values from one memory to another. The ugly part includes
 -- the need to line up read requests for the second memory.
@@ -42,26 +50,6 @@ counter clk = out'
   where out = delay clk 0 out'
         out' :: Signal Int
         out' =  1 + out
-
-
-
-copy clk = (writeReq,writeOuts)
-  where readAddr = counter clk
-        readReqs = fmap R readAddr
-        readOuts = mem1 readReqs
-        writeAddr :: Signal Int
-        writeAddr = delayN latency clock readAddr
-        writeReq :: Signal (MemOp Int Int)
-        writeReq = w <$> writeAddr <*> readOuts <*> (delayN 13 clock readAddr)
-        w a (Just v) _ = W a v
-        w _ _ a = R a
-
-
-        writeOuts = mem2 writeReq
-
-        mem1 = snd . mapAccumL memop (initMem latency [(i,i) | i <- [0..10]])
-        mem2 = snd . mapAccumL memop (initMem latency [(i,0) | i <- [0..10]])
-        latency = 2
 
 
 
@@ -81,7 +69,7 @@ bram ::  forall a d . (OpType a, OpType d, Ord a) =>
          [(a, d)] ->
          Time ->  -- Clock/Reset
          Signal (MemOp a d) -> -- operation
-         Signal (Maybe d) -- output value
+         Signal d -- output value
 
 bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
            ~op@(Signal opShallow opDeep)
@@ -95,7 +83,7 @@ bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
              (Var "din", dataDeep)
             ]
         types
-  where mem = snd . mapAccumL memop (initMem 2 imap)
+  where mem = mapAccumLS memop (initMem 2 imap)
         (Signal weShallow weDeep) = bitIndex 0 op
         (Signal _ addrDeep) = bitSliceCast (baseTypeLength addrTy) 1 (BaseTy addrTy) op
         addrTy = bitTypeOf (undefined :: Signal d)
@@ -192,13 +180,13 @@ writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
 instance (OpType a, OpType d) =>  OpType (MemOp a d) where
    bitTypeOf _ = size
     where size = U $  (baseTypeLength (bitTypeOf $ (undefined :: Signal a))) + (baseTypeLength (bitTypeOf $ (undefined :: Signal d))) + 1
+   op = error "op undefined for MemOp"
+   initVal = readMem initVal
 
-instance OpType a => OpType (Maybe a) where
-  bitTypeOf _ = bitTypeOf (undefined :: Signal a)
 
 
 
 type Unsigned16 = Unsigned X16
-baseBRAM :: Time -> Signal Unsigned16 -> Signal (Maybe Unsigned16)
+baseBRAM :: Time -> Signal Unsigned16 -> Signal Unsigned16
 baseBRAM clk addr = bram [] clk op
   where op = writeMem addr 0
