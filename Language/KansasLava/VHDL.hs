@@ -106,11 +106,15 @@ decls tyEnv nodes =
   where memDecl (i,Entity (Name "Lava" "BRAM") [Var n] _ _) =
           let asize = baseTypeLength $ tyEnv (Uq i, Var "ain")
               dsize = baseTypeLength $ tyEnv (Uq i, Var "din")
-          in [ TypeDecl (sig (Port (Var n) (Uq i)) ++ "_ram")
+              outputType = vhdlTypes $ tyEnv (Uq i, Var "din")
+          in [ TypeDecl (sig (Port (Var n) (Uq i)) ++ "_ram_type")
                         -- clearly neds to calculate this...
-                        ("array(0  to " ++ show (2^asize)  ++ " of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
+                        ("array(0  to " ++ show (2^asize)  ++ ") of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
+             , SigDecl (sig (Port (Var n) (Uq i)) ++ "_ram")
+                       (sig (Port (Var n) (Uq i)) ++ "_ram_type") Nothing
              , SigDecl (sig (Port (Var n) (Uq i)))
-                       (sig (Port (Var n) (Uq i)) ++ "_ram") Nothing]
+                       outputType Nothing
+             ]
         memDecl _ = []
 
 
