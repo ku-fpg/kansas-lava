@@ -86,9 +86,9 @@ bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
   where mem = mapAccumLS memop (initMem 2 imap)
         (Signal weShallow weDeep) = bitIndex 0 op
         (Signal _ addrDeep) = bitSliceCast (baseTypeLength addrTy) 1 (BaseTy addrTy) op
-        addrTy = bitTypeOf (undefined :: Signal d)
+        addrTy = bitTypeOf (error "bram:addrType" :: Signal d)
         addrWidth = baseTypeLength addrTy
-        dataTy = bitTypeOf (undefined :: Signal a)
+        dataTy = bitTypeOf (error "bram:dataType" :: Signal a)
         dataWidth = baseTypeLength dataTy
         (Signal _ dataDeep) = bitSliceCast (dataWidth + addrWidth) (addrWidth + 1) (BaseTy dataTy) op
 
@@ -105,7 +105,7 @@ bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
 
 bitIndex :: forall a . OpType a => Int -> Signal a -> Signal Bool
 bitIndex idx (Signal s d)
-                   = Signal undefined -- FIXME: Get the slicing down.
+                   = Signal (error "bitIndex") -- FIXME: Get the slicing down.
                    $ Port (Var "o")
                    $ E
                    $ Entity (Name "Lava" "index")
@@ -114,14 +114,14 @@ bitIndex idx (Signal s d)
                        ,(Var "index",Lit (toInteger idx))] -- inputs
                        types
   where types = [[TyVar $ Var "o", BaseTy B]
-                ,[TyVar $ Var "i", BaseTy (bitTypeOf (undefined :: Signal a))]]
+                ,[TyVar $ Var "i", BaseTy (bitTypeOf (error "bitIndex:types" :: Signal a))]]
 
 
 bitSlice high low = bitSliceCast high low (BaseTy (U (high - low + 1)))
 
 bitSliceCast :: forall a b . OpType a => Int -> Int -> Ty Var -> Signal a -> Signal b
 bitSliceCast high low cast (Signal s d)
-                   = Signal undefined -- FIXME: Get the slicing down.
+                   = Signal (error "bitSliceCast") -- FIXME: Get the slicing down.
                    $ Port (Var "o")
                    $ E
                    $ Entity (Name "Lava" "slice")
@@ -131,7 +131,7 @@ bitSliceCast high low cast (Signal s d)
                        ,(Var "high",Lit (toInteger high))] -- inputs
                        types
   where types = [[TyVar $ Var "o", cast]
-                ,[TyVar $ Var "i", BaseTy (bitTypeOf (undefined :: Signal a))]]
+                ,[TyVar $ Var "i", BaseTy (bitTypeOf (error "bitSliceCase:types" :: Signal a))]]
 
 
 
@@ -149,14 +149,15 @@ readMem (Signal addr addrDeep)  =
                 ]
               types
   where types = [[TyVar (Var "i0"), BaseTy (U 1)]
-                ,[TyVar (Var "i1"), BaseTy (bitTypeOf (undefined :: Signal a))]
-                ,[TyVar (Var "i2"), BaseTy (bitTypeOf (undefined :: Signal d))]
+                ,[TyVar (Var "i1"), BaseTy (bitTypeOf (error "readMem:types" :: Signal a))]
+                ,[TyVar (Var "i2"), BaseTy (bitTypeOf (error "readMem:types" :: Signal d))]
                 ,[TyVar (Var "o"), BaseTy (U size)]]
-        size = 20
+        size = baseTypeLength $ bitTypeOf (error "readMem" :: Signal (MemOp a d))
 
 
 
-writeMem :: (OpType a, OpType d) => Signal a -> Signal d -> Signal (MemOp a d)
+
+writeMem :: forall a d. (OpType a, OpType d) => Signal a -> Signal d -> Signal (MemOp a d)
 writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
         Signal (W <$> addrShallow <*> val)
             $ Port (Var "o")
@@ -170,16 +171,14 @@ writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
   where types = [[TyVar (Var "i0"), BaseTy (U 1)]
                 ,[TyVar (Var "i1"), BaseTy (bitTypeOf addr)]
                 ,[TyVar (Var "i2"), BaseTy (bitTypeOf dat)]
-                ,[TyVar (Var "o"), BaseTy (U op_size)]]
-        -- FIXME: Calculate size properly
-        op_size = baseTypeLength (bitTypeOf addr) +
-                  baseTypeLength (bitTypeOf dat) +
-                  1
+                ,[TyVar (Var "o"), BaseTy (U size)]]
+        size = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
+
 
 
 instance (OpType a, OpType d) =>  OpType (MemOp a d) where
    bitTypeOf _ = size
-    where size = U $  (baseTypeLength (bitTypeOf $ (undefined :: Signal a))) + (baseTypeLength (bitTypeOf $ (undefined :: Signal d))) + 1
+    where size = U $  (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + 1
    op = error "op undefined for MemOp"
    initVal = readMem initVal
 

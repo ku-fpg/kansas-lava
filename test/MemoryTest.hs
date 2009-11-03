@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances, ScopedTypeVariables #-}
 module MemoryTest where
 
 import Language.KansasLava
@@ -31,9 +31,10 @@ trajectory :: (OpType a) => Time -> [Signal a] -> Signal a
 trajectory clk l = foldr c initVal l
   where c a as = delay clk a as
 
-delayN n clock input = foldr ($) input (replicate n (delay clock initVal))
+delayN n clk input = foldr ($) input (replicate n (delay clk initVal))
 
 --permute :: (Num a, OpType a) => [(a,a)] -> Time -> Signal Bool -> Signal Bool
+
 permute ::
   (OpType d, Ord d, Num d, Enum d, Bounded d) =>
   [(d, d)] -> Time -> Signal Bool -> Signal Bool
@@ -50,17 +51,18 @@ permute permutation clk input = out
         muxA = mux2 toggle_z readReq writeReq
         muxB = mux2 toggle_z writeReq readReq
 
-        bufA = bram initBuf clock muxA
-        bufB = bram initBuf clock muxB
+        bufA = bram initBuf clk muxA
+        bufB = bram initBuf clk muxB
         initBuf = [(i,False) | i <- [minBound..maxBound]]
-        toggle = delay clock high (toggle `xor2` overflow)
+        toggle = delay clk high (toggle `xor2` overflow)
            where overflow = (addr .==. 0)
 
-        addr_zz = delayN 2 clock addr
-        input_zz = delayN 2 clock input
+        addr_zz = delayN 2 clk addr
+        input_zz = delayN 2 clk input
         -- the 'toggle' has a built-in 1-cycle delay, so we only delay 1 cycle
-        toggle_z = delayN 1 clock toggle
-        toggle_z_zz = delayN 2 clock toggle_z
+        toggle_z = delayN 1 clk toggle
+        toggle_z_zz = delayN 2 clk toggle_z
+
 
 
 counter :: (OpType a, Num a) => Time -> Signal a
