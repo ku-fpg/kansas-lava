@@ -32,7 +32,7 @@ shallowDelay sT sInit input =
 	       input_delayed
    where
 	input_delayed = Nothing :~ input
-	reset_delayed = Just (Rst False) :~ sT
+	reset_delayed = sT -- Just (Rst False) :~ sT
 
 
 data Time = Time
@@ -87,7 +87,7 @@ time (Time t) = t
 -- 'clock' gives 2 cycles of bla, 1 cycle of reset, then counts from 0.
 clock :: Time
 clock = Time (with $ map Clk [0..])
-	     (with $ map Rst ([False,False,True] ++ repeat False))
+	     (with $ map Rst (True:(repeat False)))
 
 waitFor :: (OpType a) => Int -> Signal a -> Signal a
 waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")
