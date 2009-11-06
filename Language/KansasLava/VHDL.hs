@@ -109,11 +109,9 @@ decls tyEnv nodes =
               outputType = vhdlTypes $ tyEnv (Uq i, Var "din")
           in [ TypeDecl (sig (Port (Var n) (Uq i)) ++ "_ram_type")
                         -- clearly neds to calculate this...
-                        ("array(0  to " ++ show (2^asize)  ++ ") of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
+                        ("array(0  to " ++ show (2^asize -1)  ++ ") of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
              , SigDecl (sig (Port (Var n) (Uq i)) ++ "_ram")
                        (sig (Port (Var n) (Uq i)) ++ "_ram_type") Nothing
-             , SigDecl (sig (Port (Var n) (Uq i)))
-                       outputType Nothing
              ]
         memDecl _ = []
 

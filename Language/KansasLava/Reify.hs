@@ -23,7 +23,7 @@ type QVar = (Uq,Var)
 type TypeEnv = [(QVar,BaseTy)]
 
 showQVar :: QVar -> String
-showQVar (u,v) = show v ++ "-" ++ (case u of 
+showQVar (u,v) = show v ++ "-" ++ (case u of
 				    Uq uq -> show uq
 				    Sink -> "out"
 				    Source -> "in") ++ ""
@@ -292,22 +292,22 @@ showReifiedCircuit opt c = do
 		| (uq,Entity nm ins outs tyss) <- theCircuit rCir
 		]
 
-	let msg = bar 
-		++ "-- Inputs                                                                   --\n" 
+	let msg = bar
+		++ "-- Inputs                                                                   --\n"
 		++ bar
-		++ inputs 
+		++ inputs
 		++ bar
-		++ "-- Outputs                                                                  --\n" 
+		++ "-- Outputs                                                                  --\n"
 		++ bar
-		++ outputs 
+		++ outputs
 		++ bar
-		++ "-- Types                                                                    --\n" 
+		++ "-- Types                                                                    --\n"
 		++ bar
-		++ types 
+		++ types
 		++ bar
-		++ "-- Entities                                                                 --\n" 
+		++ "-- Entities                                                                 --\n"
 		++ bar
-		++ circuit 
+		++ circuit
 		++ bar
 
 	return $ msg

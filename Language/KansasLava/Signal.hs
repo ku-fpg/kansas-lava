@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, 
+{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies  #-}
 
 module Language.KansasLava.Signal where
@@ -35,7 +35,7 @@ newtype E = E (Entity (Ty Var) E)
 data ESignal a = ESignal (Seq a) E
 
 -- You want to observe
-instance MuRef E where 
+instance MuRef E where
   type DeRef E = Entity (Ty Var)
   mapDeRef f (E s) = T.traverse f s
 
@@ -48,15 +48,15 @@ instance (Show a) => Show (Signal a) where
 
 instance Show E where
     show (E s) = show s
-    
+
 instance Eq E where
    (E s1) == (E s2) = s1 == s2
 
 ------------------------------------------------------------------
 
--- Should be type 
+-- Should be type
 {-
-data WireType 
+data WireType
 	= Bit
 	| Wires Int		-- number of wires (vector)
 	deriving (Show, Eq, Ord)
@@ -69,40 +69,40 @@ class OpType a where
     bitTypeOf :: Signal a -> BaseTy
     initVal :: Signal a		-- todo, remove this
 
-instance OpType Int    where op _ nm = Name "Int" nm     
+instance OpType Int    where op _ nm = Name "Int" nm
                              bitTypeOf _ = S 32
                              initVal = Signal (pure 0) $ Lit 0
-instance OpType Float  where op _ nm = Name "Float" nm   
+instance OpType Float  where op _ nm = Name "Float" nm
                              bitTypeOf _ = S 32
                              initVal = Signal (pure 0) $ Lit 0
-instance OpType Double where op _ nm = Name "Double" nm  
+instance OpType Double where op _ nm = Name "Double" nm
                              bitTypeOf _ = S 64
                              initVal = Signal (pure 0) $ Lit 0
-instance OpType Int32 where op _  nm = Name "Int32" nm   
+instance OpType Int32 where op _  nm = Name "Int32" nm
                             bitTypeOf _ = S 32
                             initVal = Signal (pure 0) $ Lit 0
-instance OpType Int16 where op _  nm = Name "Int16" nm   
+instance OpType Int16 where op _  nm = Name "Int16" nm
                             bitTypeOf _ = S 16
                             initVal = Signal (pure 0) $ Lit 0
-instance OpType Word32 where op _ nm = Name "Word32" nm  
+instance OpType Word32 where op _ nm = Name "Word32" nm
                              bitTypeOf _ = U 32
                              initVal = Signal (pure 0) $ Lit 0
-instance OpType Word16 where op _ nm = Name "Word16" nm  
+instance OpType Word16 where op _ nm = Name "Word16" nm
                              bitTypeOf _ = U 16
                              initVal = Signal (pure 0) $ Lit 0
-instance OpType Bool where op _  nm = Name "Bool" nm     
+instance OpType Bool where op _  nm = Name "Bool" nm
                            bitTypeOf _ = B
                            initVal = Signal (pure False) $ Lit 0
-instance OpType ()   where op _  nm = Name "()" nm       
+instance OpType ()   where op _  nm = Name "()" nm
                            bitTypeOf _ = U 0
                            initVal = Signal (pure ()) $ Lit 0
 
-instance (Enum a, Bounded a, Size a) => OpType (Unsigned a)  
-                     where op _  nm = Name "Unsigned" nm       
+instance (Enum a, Bounded a, Size a) => OpType (Unsigned a)
+                     where op _  nm = Name "Unsigned" nm
                            bitTypeOf _ = U (1 + fromEnum (maxBound :: a))
                            initVal = Signal (pure 0) $ Lit 0
-instance (Enum a, Bounded a, Size a) => OpType (Signed a)  
-                     where op _  nm = Name "Signed" nm       
+instance (Enum a, Bounded a, Size a) => OpType (Signed a)
+                     where op _  nm = Name "Signed" nm
                            bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
                            initVal = Signal (pure 0) $ Lit 0
 
@@ -110,10 +110,10 @@ instance (Enum a, Bounded a, Size a) => OpType (Signed a)
 findEntityTyModName :: (OpType a) => Entity ty a -> String
 findEntityTyModName e = nm
   where
-    (Name nm _) = fn e undefined
+    (Name nm _) = fn e (error "findEntityTyModName")
     fn :: (OpType a) => c a -> Signal a -> Name
     fn _ s = s `op` ""
-   
+
 -------------------------------------------
 
 
@@ -125,17 +125,17 @@ findEntityTyModName e = nm
 inputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
 
 entity0 :: Name -> [Var] -> [[Ty Var]] -> a -> ESignal a
-entity0 nm outs tyeqs f 
+entity0 nm outs tyeqs f
         = ESignal (pure f)
         $ E
         $ Entity nm outs [] tyeqs
 
 entity1 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
+entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1))
         = ESignal (pure f <*> vs1)
         $ E
         $ Entity nm outs (zip ins [w1]) tyeqs
-        
+
 entity2 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
 entity2 nm ins outs tyeqs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
         = ESignal (pure f <*> vs1 <*> vs2)
@@ -150,7 +150,7 @@ entity3 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 
 
 {-
 entityM :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (Matrix ix a -> b) -> Signal (Matrix ix a) -> Signal b
-entityM nm ins outs tyeqs f  s@(~(Signal vs1 w1)) 
+entityM nm ins outs tyeqs f  s@(~(Signal vs1 w1))
         = ESignal (pure f <*> vs1)
         $ E
         $ Entity nm outs (zip ins [w1,w2,w3]) tyeqs
@@ -197,7 +197,7 @@ instance (Bits a, OpType a) => Bits (Signal a) where
 instance (Fractional a, OpType a) => Fractional (Signal a) where
     s@(Signal s1) / (Signal s2) = Signal $ Wire $ Entity (op s "/")     [s1,s2]
     recip s@(Signal s1)         = Signal $ Wire $ Entity (op s "recip") [s1]
-    fromRational r              = s 
+    fromRational r              = s
             where s = Signal $ Wire $ Entity (op s "fromRational")
                                                 -- The :% arguments are tupled here
                                     [ Wire $ Lit $ numerator r
@@ -240,7 +240,7 @@ instance Explode (a,b) where
         ( Signal (fmap fst v) $ Port (Var "o1") w
         , Signal (fmap snd v) $ Port (Var "o2") w
         )
-  portsByType _ = ["1","2"] 
+  portsByType _ = ["1","2"]
 
 
 instance Implode (a,b) where
@@ -252,9 +252,9 @@ instance Implode (a,b) where
                            s1 s2
 
 split :: (Explode e) => Signal e -> Ex e
-split e = explode entity 
-  where entity = entity1 (Name "$POLY" "split") 
-                         [Var "i0"] 
+split e = explode entity
+  where entity = entity1 (Name "$POLY" "split")
+                         [Var "i0"]
                          (map Var (portsByType e))
 			 []
                          id
@@ -267,7 +267,7 @@ split e = explode entity
 
 {-
   implode (~(Signal v1 w1),~(Signal v2 w2)) =
-        Signal ((,) <$> v1 <*> v2) $ Wire $ Entity (Name "$" "implode") [w1,w2]  
+        Signal ((,) <$> v1 <*> v2) $ Wire $ Entity (Name "$" "implode") [w1,w2]
 -}
 {-
 implode2 :: (Signal a, Signal b) -> Signal (a,b)
@@ -283,11 +283,11 @@ be e = Signal (pure e) (error "improper use of be")      -- for now
 
 -- A signal, that changes over time
 with :: [a] -> Signal a
-with xs = poke (map Just xs ++ repeat Nothing) 
+with xs = poke (map Just xs ++ repeat Nothing)
 
 -- A signal with possible unknown values, that changes over time.
 poke :: [Maybe a] -> Signal a
-poke xs = Signal (S.fromList xs) undefined
+poke xs = Signal (S.fromList xs) (error "Signal:poke")
 
 
 
@@ -302,7 +302,7 @@ port (	clock:		in std_logic;
 end JK_FF;
 
 
-	$(entity [ "clock : in std_logic     // Signal Bool" 
+	$(entity [ "clock : in std_logic     // Signal Bool"
 		 , "J, K : std_vector(31..0) // Signal Int"
 		 ])
 -}
@@ -321,4 +321,4 @@ instance (CLONE b) => CLONE (a -> b) where
 instance (CLONE a,CLONE b) => CLONE (a,b) where
   clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
 
-		
+
