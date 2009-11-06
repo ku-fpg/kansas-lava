@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, RankNTypes #-}
+{-# LANGUAGE TypeFamilies, RankNTypes, ScopedTypeVariables #-}
 
 module Language.KansasLava.Logic where
 
@@ -18,6 +18,7 @@ low :: Signal Bool
 low = Signal (pure False) $ Lit 0
 
 type U2 = U.Unsigned X2
+
 
 mux4 :: (MUX a) => Signal U2 -> a -> a -> a -> a -> a
 mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
@@ -53,15 +54,12 @@ instance (MUX a,MUX b) => MUX (a,b) where
    mux2 x (a,b) (a',b') = (mux2 x a a',mux2 x b b')
    mux3 x (a,b) (a',b') (a'',b'') = (mux3 x a a' a'', mux3 x b b' b'')
 
-instance MUX (Signal a) where
-  mux2 sC@(~(Signal b _)) sT@(~(Signal t _)) sF@(~(Signal f _)) = 
+instance OpType a => MUX (Signal a) where
+  mux2 sC@(~(Signal b _)) sT@(~(Signal t _)) sF@(~(Signal f _)) =
 	clone (Signal (seqMux b t f) (error "bad entity for mux"))
               (o0 $ entity3 (Name "Bool" "mux2")
               [Var "c",Var "t", Var "f"]
               [Var "o0"]
-	      [ [TyVar $ Var "c", BaseTy B ]
-	      , [TyVar $ Var "t",TyVar $ Var "f",TyVar $ Var "o0"]
-	      ]
 	      (error "mux functionality misunderstood")
 --              (\ a b c -> if a then b else c)
               sC sT sF)
@@ -79,7 +77,7 @@ cases ((b,c):rest) def = mux2 b c (cases rest def)
 
 --	    (Sized ix) => Signal a -> ix -> Signal Bool
 testABit :: (Bits a, OpType a) => Signal a -> Int -> Signal Bool
-testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] tyeqs (\ a -> error "TODO") x
+testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] (\ a -> error "TODO") x
 	where allNames = inputs ++ [Var "o0"]
 	      tyeqs    = [ BaseTy B : map TyVar [Var "o0"]
 		     	 , BaseTy (bitTypeOf x) : [TyVar $ Var "i0"]
@@ -87,23 +85,19 @@ testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] tyeqs (\ 
 	      inputs   = map Var ["i0","i1"]
 
 and2 :: Signal Bool -> Signal Bool -> Signal Bool
-and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] tyeqs (&&) x y
+and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] (&&) x y
 	where allNames = inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0","i1"]
 or2 :: Signal Bool -> Signal Bool -> Signal Bool
-or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] tyeqs (||) x y
+or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] (||) x y
 	where allNames = inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0","i1"]
 
 xor2 ::  Signal Bool -> Signal Bool -> Signal Bool
-xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] tyeqs (/=) x y
+xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] (/=) x y
 	where allNames = inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0","i1"]
 bitNot :: Signal Bool -> Signal Bool
-bitNot x = o0 $ entity1 (Name "Bool" "not") inputs [Var "o0"] tyeqs not x 
+bitNot x = o0 $ entity1 (Name "Bool" "not") inputs [Var "o0"]  not x
 	where allNames = inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy B : map TyVar allNames ]
 	      inputs   = map Var ["i0"]

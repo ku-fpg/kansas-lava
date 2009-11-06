@@ -8,25 +8,22 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Type
 import Text.Dot
 
-writeDotCircuit :: (REIFY circuit) => [ReifyOptions] -> String -> circuit -> IO ()
+writeDotCircuit :: (Ports circuit,REIFY circuit) => [ReifyOptions] -> String -> circuit -> IO ()
 writeDotCircuit opts filename circuit = do
 {-
    let (inputs',blob) = output' circuit
    let inputs = map fst inputs'
 -}
-   (ReifiedCircuit nodes inputs' outputs types) <- reifyCircuit opts circuit
-   print (nodes,inputs',outputs,types)
+   (ReifiedCircuit nodes inputs' outputs) <- reifyCircuit opts circuit
+   print (nodes,inputs',outputs)
    let inputs = inputs'
 
-   let findTy :: QVar -> BaseTy
-       findTy v = case lookup v types of
-		    Nothing -> error $ "can not find type for : " ++ show v
-		    Just ty -> ty
 
-   let showP (i,v) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show (findTy (i,v))
 
-   let  mkLabel nm ins outs = 
-	      (concatMap addSpecial $ show nm) ++ "|{{" 
+   let showP (i,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
+
+   let  mkLabel nm ins outs =
+	      (concatMap addSpecial $ show nm) ++ "|{{"
  	   ++ join (map showP ins) ++ "}|{"
 	   ++ join (map showP outs) ++ "}}"
 
@@ -34,7 +31,7 @@ writeDotCircuit opts filename circuit = do
    print ("INPUTS:" ,inputs)
    print ("NODES:" ,nodes)
    print ("OUTPUTS:" ,outputs)
-   print ("TYPES:" ,types)
+   -- print ("TYPES:" ,types)
 
 --   print (inputs,inputs',nodes,outputs,types)
 
@@ -42,21 +39,21 @@ writeDotCircuit opts filename circuit = do
    writeFile filename $ showDot $ do
 	attribute ("rankdir","LR")
 
-	input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP (Source,i) | i <- inputs] ++ "}}") 
+	input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP (Source,i) | i <- inputs] ++ "}}")
 	 		                 , ("shape","record")
 			       		 , ("style","filled")
 			       		 ]
 
 
-	nds <- sequence [ do nd <- node [ ("label",mkLabel nm [ (Uq n,v) |(v,_) <- ins ] 
-							      [ (Uq n,v) | v <- outs] )
+	nds <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
+							      [ (n,(v,ty)) | (v,ty) <- outs] )
 	 		                 , ("shape","record")
 			       		 , ("style","rounded")
 			       		 ]
 			     return (n,nd)
-		        | (n,Entity nm outs ins _) <- nodes ]
+		        | (n,Entity nm outs ins) <- nodes ]
 
-	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,i) | (i,_) <- outputs ] ++ "}}") 
+	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
 	 		                 , ("shape","record")
 			       		 , ("style","filled")
 			       		 ]
@@ -68,8 +65,9 @@ writeDotCircuit opts filename circuit = do
 	    findNd Sink   = output_bar
 
 	let drawEdge dr n v = case dr of
-		     Port nm' n' -> edge' (findNd n') (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
-		     Pad v' | v' `elem` inputs
+		     Port nm' n' -> let (Just nd) = lookup n' nds
+                                    in edge' nd (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
+		     Pad v' | v' `elem` (map fst inputs)
 					 -> edge' input_bar (Just (show v' ++ ":e")) n (Just (show v ++ ":w")) []
 			    | otherwise  -> do nd' <- node [ ("label",show v')
 				  	                   ]
@@ -78,16 +76,16 @@ writeDotCircuit opts filename circuit = do
 				 edge' nd' Nothing n (Just (show v ++ ":w")) []
 
 	sequence [ drawEdge dr output_bar v
-		 | (v,dr) <- outputs 
+		 | (v,_,dr) <- outputs
 		 ]
 
 	sequence [ drawEdge dr (findNd (Uq n)) v
-	       	 | (n,Entity nm outs ins _) <- nodes
-		 , (v,dr) <- ins 
+	       	 | (n,Entity nm outs ins) <- nodes
+		 , (v,_,dr) <- ins
 		 ]
 
 	return ()
-        
+
 
 -- addSpecial '>' = ['\\','>']
 addSpecial '>' = "&gt;";

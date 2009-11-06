@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
 module Language.KansasLava.Signal where
 
@@ -29,14 +29,14 @@ import Data.Sized.Ix as X
 data Signal a = Signal (Seq a) (Driver E)
 -- newtype Wire = Wire (Driver E)
 
-newtype E = E (Entity (Ty Var) E)
+newtype E = E (Entity BaseTy E)
 
 -- internal, special use only (when defining entities, for example).
 data ESignal a = ESignal (Seq a) E
 
 -- You want to observe
 instance MuRef E where
-  type DeRef E = Entity (Ty Var)
+  type DeRef E = Entity BaseTy
   mapDeRef f (E s) = T.traverse f s
 
 -- not sure about this, should this use the shallow part?
@@ -65,9 +65,20 @@ data WireType
 ------------------------------------------------------------------
 
 class OpType a where
+    -- op generates the 'module' name for a given type
     op :: Signal a -> (String -> Name)
+    -- bitTypeOf returns the base netlist type of signal. Good for
+    -- when you have a witness value.
     bitTypeOf :: Signal a -> BaseTy
+
+    -- tyRep returns the base netlist type of a value. Good for when
+    -- you don't have a witness value.
+    tyRep :: a -> BaseTy
+    tyRep _ = bitTypeOf (error "OpType.tyRep" :: Signal a)
+
+    -- A 'default' Signal for a value type.
     initVal :: Signal a		-- todo, remove this
+
 
 instance OpType Int    where op _ nm = Name "Int" nm
                              bitTypeOf _ = S 32
@@ -117,36 +128,47 @@ findEntityTyModName e = nm
 -------------------------------------------
 
 
-
-
-
 --fun1 nm f s     = entity1 (op s nm) inputs f s
 --fun2 nm f s1 s2 = entity2 (op s1 nm) inputs f s1 s2
 inputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
 
-entity0 :: Name -> [Var] -> [[Ty Var]] -> a -> ESignal a
-entity0 nm outs tyeqs f
+entity0 :: OpType a => Name -> [Var] -> a -> ESignal a
+entity0 nm outs f
         = ESignal (pure f)
         $ E
-        $ Entity nm outs [] tyeqs
+        $ Entity nm [(o,ty) | o <- outs] []
+  where ty = tyRep f
 
-entity1 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs tyeqs f  s@(~(Signal vs1 w1))
+entity1 :: forall a b . (OpType a, OpType b) =>
+           Name -> [Var] -> [Var]  -> (a -> b) -> Signal a -> ESignal b
+entity1 nm ins outs f  s@(~(Signal vs1 w1))
         = ESignal (pure f <*> vs1)
         $ E
-        $ Entity nm outs (zip ins [w1]) tyeqs
+        $ Entity nm [(o,bTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy] | val <- [w1]]
+   where aTy = tyRep (error "entity1" :: a)
+         bTy = tyRep (error "entity1" :: b)
 
-entity2 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
-entity2 nm ins outs tyeqs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
+entity2 :: forall a b c . (OpType a, OpType b,OpType c) =>
+           Name -> [Var] -> [Var]  -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
+entity2 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
         = ESignal (pure f <*> vs1 <*> vs2)
         $ E
-        $ Entity nm outs (zip ins [w1,w2]) tyeqs
+        $ Entity nm [(o,cTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy] | val <- [w1,w2]]
+   where aTy = tyRep (error "entity2" :: a)
+         bTy = tyRep (error "entity2" :: b)
+         cTy = tyRep (error "entity2" :: c)
 
-entity3 :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
-entity3 nm ins outs tyeqs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
+entity3 :: forall a b c d . (OpType a, OpType b,OpType c,OpType d) =>
+           Name -> [Var] -> [Var]  -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
+entity3 nm ins outs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
         = ESignal (pure f <*> vs1 <*> vs2 <*> vs3)
         $ E
-        $ Entity nm outs (zip ins [w1,w2,w3]) tyeqs
+        $ Entity nm [(o,dTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy,cTy] | val <- [w1,w2,w3]]
+   where aTy = tyRep (error "entity3" :: a)
+         bTy = tyRep (error "entity3" :: b)
+         cTy = tyRep (error "entity3" :: c)
+         dTy = tyRep (error "entity3" :: d)
+
 
 {-
 entityM :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (Matrix ix a -> b) -> Signal (Matrix ix a) -> Signal b
@@ -162,10 +184,10 @@ o0 ~(ESignal v e) = Signal v (Port (Var "o0") e)
 proj :: Var -> (a -> b) -> ESignal a -> Signal b
 proj var f ~(ESignal v e) = Signal (fmap f v) (Port var e)
 
-fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"] tyeqs f s
+fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"]  f s
 	where allNames = take 1 inputs ++ [Var "o0"]
 	      tyeqs    = [ BaseTy (bitTypeOf s) : map TyVar allNames ]
-fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"] tyeqs f s1 s2
+fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"]  f s1 s2
 	where allNames = take 2 inputs ++ [Var "o0"]
 	      tyeqs    = [ BaseTy (bitTypeOf s1) : map TyVar allNames]
 
@@ -243,20 +265,18 @@ instance Explode (a,b) where
   portsByType _ = ["1","2"]
 
 
-instance Implode (a,b) where
+instance (OpType a, OpType b, OpType (a,b)) => Implode (a,b) where
   join (s1,s2) = o0 $ entity2 (Name "$POLY" "join")
                            [Var "s1",Var "s2"]
                            [Var "o0"]
-			   [] -- nothing in this type system
                            (,)
                            s1 s2
 
-split :: (Explode e) => Signal e -> Ex e
+split :: (OpType e, Explode e) => Signal e -> Ex e
 split e = explode entity
   where entity = entity1 (Name "$POLY" "split")
                          [Var "i0"]
                          (map Var (portsByType e))
-			 []
                          id
                          e
 
@@ -320,5 +340,4 @@ instance (CLONE b) => CLONE (a -> b) where
 
 instance (CLONE a,CLONE b) => CLONE (a,b) where
   clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
-
 

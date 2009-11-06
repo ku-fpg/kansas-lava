@@ -56,24 +56,3 @@ instance Show v => Show (Ty v) where
 	show (BaseTy ty) = show ty
 	show (TyVar v) 	 = show v
 
-
-
-{-
---
-data BaseTy = BaseTy (forall a . Ty a)
-
-baseToTy :: BaseTy -> Ty v
-baseToTy (BaseTy ty) = fmap undefined ty
--}
-
--- we depend on the total number of final sets being small for efficiency here.
-
-findMinEquivSets :: (Show a, Ord a) => [Set a] -> [Set a]
-findMinEquivSets [] = []
-findMinEquivSets [x] = [x]
-findMinEquivSets (x:xs)  = foldr insert [x] xs
-
-insert x [] = [x]
-insert x (y:ys) | Set.null (x `Set.intersection` y) = y : insert x ys
-		| otherwise                         = insert (x `Set.union` y) ys
-

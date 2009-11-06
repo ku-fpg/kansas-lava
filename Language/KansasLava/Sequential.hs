@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts #-}
 module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
@@ -13,16 +14,16 @@ import Language.KansasLava.Applicative
 
 -- To revisit: Should this be a -> S a -> S a ??
 
-delay :: (OpType a) => Time -> Signal a -> Signal a -> Signal a
+delay :: forall a. (OpType a) => Time -> Signal a -> Signal a -> Signal a
 delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         = Signal (shallowDelay r d rest)
-        $ Port (Var "o")
+        $ Port (Var "o0")
         $ E
-        $ Entity (Name "Lava" "delay") [Var "o"] [(Var "clk",tm_w), (Var "rst", r_w), (Var "init",def),(Var "i",w)]
-			[ [ TyVar $ Var v | v <- ["o","init","i"]]
-                        ,  [TyVar $ Var "clk", BaseTy ClkTy]
-                        ,  [TyVar $ Var "rst", BaseTy RstTy]
-			]
+        $ Entity (Name "Lava" "delay") [(Var "o0",aTy)]
+            [(Var "clk",clkTy,tm_w), (Var "rst", rstTy,r_w), (Var "init",aTy,def),(Var "i",aTy,w)]
+  where aTy = tyRep (error "delay/aTy" ::  a)
+        clkTy = tyRep (error "delay/clk" :: Clk)
+        rstTy = tyRep (error "delay/rst" :: Rst)
 
 
 shallowDelay :: Seq Rst -> Seq a -> Seq a -> Seq a
@@ -43,7 +44,8 @@ newtype Clk = Clk Integer
 newtype Rst = Rst Bool
 
 instance Show Time where
-	show (Time t r) = show (pure (,) <*> t <*> r)
+	-- show (Time t r) = show (pure (,) <*> t <*> r)
+        show (Time (Signal t_s _) (Signal r_s _)) = show $ zipWith' (,) t_s r_s
 
 instance REIFY Time where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
@@ -71,13 +73,14 @@ instance OpType Rst
 	initVal = error "can not use a reset as an init value"
 
 
+
 -- newtype Clk = Clk Integer	-- always running
 
 clk :: Time -> Signal Integer
-clk (Time c _) = fmap (\ (Clk n) -> n) c
+clk (Time c _) = error "Sequential.clk" -- fmap (\ (Clk n) -> n) c
 
 rst :: Time -> Signal Bool
-rst (Time _ r) = fmap (\ (Rst r') -> r') r
+rst (Time _ r) = error "Sequential.rst"  -- fmap (\ (Rst r') -> r') r
 
 {-
 time :: Time -> Signal Integer		-- simluation only
