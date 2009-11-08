@@ -6,6 +6,7 @@ import Data.List as L
 
 import qualified Data.Set as Set
 import Data.Set (Set)
+import Control.Monad (when)
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
@@ -32,6 +33,8 @@ data ReifiedCircuit = ReifiedCircuit
 data ReifyOptions
 	= InputNames [String]
 	| OutputNames [String]
+	| DebugReify		-- show debugging output of the reification stage
+	deriving (Eq, Show)
 
 
 -- | reifyCircuit does reification and type inference.
@@ -109,6 +112,8 @@ showReifiedCircuit opt c = do
         let showDriver :: Driver Unique -> BaseTy -> String
             showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
             showDriver (Lit x) ty = show x ++ ":" ++ show ty
+            showDriver (Pad x) ty = show x ++ ":" ++ show ty
+            showDriver l ty = error $ "showDriver" ++ show l
 	let inputs = unlines
 		[ show var ++ " : " ++ show ty
 		| (var,ty) <- theSrcs rCir

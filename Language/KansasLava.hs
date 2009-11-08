@@ -13,6 +13,8 @@ module Language.KansasLava (
     module Language.KansasLava.Dot,
     module Language.KansasLava.Type,
     module Language.KansasLava.Matrix,
+    module Language.KansasLava.Applicative,
+    module Language.KansasLava.Matrix,
     module Language.KansasLava.Memory
      ) where
 
@@ -28,5 +30,6 @@ import Language.KansasLava.VHDL
 import Language.KansasLava.Dot
 import Language.KansasLava.Type
 import Language.KansasLava.Matrix
+import Language.KansasLava.Applicative
 import Language.KansasLava.Memory
 

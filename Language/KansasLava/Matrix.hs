@@ -75,3 +75,9 @@ instance   BitRep Unsigned where
 
 -- instance Size ix => TyRep (Matrix ix Bool) where
 --   tyRep m = U (size (error "TyRep(Matrix ix Bool)" :: ix))
+
+instance Size ix => OpType (Matrix ix Bool) where
+  bitTypeOf _ = U (size (undefined :: ix))
+
+instance Size ix => OpType (Matrix ix (Signal Bool)) where
+  bitTypeOf _ = U (size (undefined :: ix))
