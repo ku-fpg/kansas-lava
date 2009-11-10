@@ -20,3 +20,10 @@ import Control.Applicative
 		 [Var "o0"]
 		 (\ a b -> a >= b)
 		 sA sB
+
+(.<.) :: (OpType a, Ord a) => Signal a -> Signal a -> Signal Bool
+(.<.) sA sB = o0 $ entity2 (Name "Bool" ".<.")
+		 [Var "i0", Var "i1"]
+		 [Var "o0"]
+		 (\ a b -> a < b)
+		 sA sB
