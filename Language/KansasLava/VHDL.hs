@@ -26,7 +26,7 @@ import qualified Data.Set as Set
 -- fixed_ports = []--  [("clk,rst", "in", "std_logic")]           --- error, hack?
 
 
-vhdlCircuit :: (Ports o,REIFY o) =>  [ReifyOptions] -> String -> o -> IO String
+vhdlCircuit :: (Ports o) =>  [ReifyOptions] -> String -> o -> IO String
 vhdlCircuit opts name circuit = do
   (ReifiedCircuit nodes srcs sinks) <- reifyCircuit opts circuit
 

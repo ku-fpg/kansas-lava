@@ -8,7 +8,7 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Type
 import Text.Dot
 
-writeDotCircuit :: (Ports circuit,REIFY circuit) => [ReifyOptions] -> String -> circuit -> IO ()
+writeDotCircuit :: (Ports circuit) => [ReifyOptions] -> String -> circuit -> IO ()
 writeDotCircuit opts filename circuit = do
 {-
    let (inputs',blob) = output' circuit

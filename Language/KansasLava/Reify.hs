@@ -105,7 +105,7 @@ entity opts nm circuit = clone circuit deep
 -}
 
 
-showReifiedCircuit :: (Ports circuit, REIFY circuit) => [ReifyOptions] -> circuit -> IO String
+showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
 showReifiedCircuit opt c = do
 	rCir <- reifyCircuit opt c
 	let bar = (replicate 78 '-') ++ "\n"
@@ -149,7 +149,7 @@ showReifiedCircuit opt c = do
 
 	return $ msg
 
-debugCircuit :: (Ports circuit, REIFY circuit) => [ReifyOptions] -> circuit -> IO ()
+debugCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO ()
 debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 
 
