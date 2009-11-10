@@ -78,6 +78,10 @@ instance   BitRep Unsigned where
 
 instance Size ix => OpType (Matrix ix Bool) where
   bitTypeOf _ = U (size (undefined :: ix))
+  op _ _  = error "OpType (Matrix ix Bool)"
+  initVal = error "initVal (Matix ix Bool)"
 
 instance Size ix => OpType (Matrix ix (Signal Bool)) where
   bitTypeOf _ = U (size (undefined :: ix))
+  op _ _  = error "OpType (Matrix ix (Signal Bool))"
+  initVal = error "initVal (Matix ix (Signal Bool))"
