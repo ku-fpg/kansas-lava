@@ -46,6 +46,9 @@ instance Eq (Signal a) where
 instance (Show a, OpType a) => Show (Signal a) where
     show (Signal v _) = showSeq 20 v
 
+showSignal :: (Show a, OpType a) => Int -> Signal a -> String
+showSignal n (Signal v _) = showSeq n v
+
 instance Show E where
     show (E s) = show s
     
@@ -75,6 +78,7 @@ class OpType a where
 	   _ -> unwords [ showV x ++ " :~ " 
                         | x <- take n $ toList seq
                         ] ++ "..."
+	
 	
 	   
 
