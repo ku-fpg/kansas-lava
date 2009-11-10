@@ -60,7 +60,7 @@ matrixSignalBoolToSignalMatrixBool m
    where inVars = [Var ("i" ++ show i) | i <- indices m ]
 
 
-signalMatrixBoolToSignalUnsigned :: (Size ix) => Signal (Matrix ix Bool) -> Signal (Unsigned ix)
+signalMatrixBoolToSignalUnsigned :: (Enum ix, Size ix) => Signal (Matrix ix Bool) -> Signal (Unsigned ix)
 signalMatrixBoolToSignalUnsigned  x =
 	o0 $ entity1 (Name "Matrix" "signalMatrixBoolToSignalUnsigned") inputs [Var "o0"] tyeqs fn x 
 	where allNames = inputs ++ [Var "o0"]
