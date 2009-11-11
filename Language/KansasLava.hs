@@ -13,8 +13,10 @@ module Language.KansasLava (
     module Language.KansasLava.Dot,
     module Language.KansasLava.Type,
     module Language.KansasLava.Matrix,
-    module Language.KansasLava.Applicative,
-    module Language.KansasLava.Matrix,
+    -- The Applicative module (only containing instances) is implicitly exported,
+    -- and we get a warning if we explicitly export it. If non-instance stuff is added
+    -- then this should be exported.
+    -- module Language.KansasLava.Applicative,
     module Language.KansasLava.Memory
      ) where
 
