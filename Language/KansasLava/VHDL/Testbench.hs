@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Language.KansasLava.VHDL.Testbench where
+module Language.KansasLava.VHDL.Testbench
+  (mkTestbench) where
 
-import Language.KansasLava hiding (entity,ports)
+import Language.KansasLava hiding (ports)
 import Data.List(mapAccumL,intersperse)
 import Data.Bits
 
@@ -14,7 +15,7 @@ import System.Environment(getEnvironment)
 import System.Directory
 import Control.Monad(liftM)
 
-mkTestbench :: REIFY fun => String -> fun -> IO ()
+mkTestbench :: Ports fun => String -> fun -> IO ()
 mkTestbench name fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
@@ -103,10 +104,10 @@ stimulus name inputs outputs = unlines $ [
 -- Manipulating ports
 ports fun = do
   reified <- reifyCircuit [] fun
-  let inputs = [(name,ty) | ((Source,name),ty) <- theTypes reified, not (ty `elem` [ClkTy,RstTy])]
-      outputs = [(name,ty) | ((Sink,name),ty) <- theTypes reified]
-      clocks = [(name,ClkTy) | ((Source,name),ClkTy) <- theTypes reified]
-      resets = [(name,RstTy) | ((Source,name),RstTy) <- theTypes reified]
+  let inputs = [(name,ty) | (name,ty) <- theSrcs reified, not (ty `elem` [ClkTy,RstTy])]
+      outputs = [(name,ty) | (name,ty,driver) <- theSinks reified]
+      clocks = [(name,ClkTy) | (name,ClkTy) <- theSrcs reified]
+      resets = [(name,RstTy) | (name,RstTy) <- theSrcs reified]
   return (inputs,outputs,zip clocks resets)
 
 
