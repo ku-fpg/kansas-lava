@@ -66,15 +66,15 @@ decls :: [(Unique,Entity BaseTy Unique)] -> [DeclDescriptor]
 decls nodes =
     -- need size info for each output, to declare length of std_logic_vector
     [ SigDecl (sig (Port (Var n) i)) (vhdlTypes nTy) Nothing
-                          | (i,Entity _ outputs _) <- nodes
+                          | (i,Entity _ outputs _ _) <- nodes
                           , (Var n,nTy) <- outputs
                           ] ++
     concat [ [ SigDecl (sig (Port (Var n) i) ++ "_next") (vhdlTypes nTy) Nothing
      	     ]
-           | (i,Entity (Name "Lava" "delay") [(Var n,nTy)] _) <- nodes
+           | (i,Entity (Name "Lava" "delay") [(Var n,nTy)] _ _) <- nodes
            ] ++
     concatMap memDecl nodes
-  where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,nTy)] inputs) =
+  where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,nTy)] inputs _) =
           let Just (_,aTy,_) = find (\(Var v,_,_) -> v == "ain") inputs
               Just (_,dTy,_) = find (\(Var v,_,_) -> v == "din") inputs
               asize = baseTypeLength $ aTy
@@ -95,7 +95,7 @@ finals args = [ Assign n (sig x) | (Var n,_,x) <- args ]
 insts :: [(Unique,Entity BaseTy Unique)] -> [Inst]
 insts nodes = concat [
                mkInst i ent
-                 | (i,ent@(Entity _ outs ins)) <- nodes ] ++
+                 | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
               (synchronous nodes)
 
 fixName ".&." = "AND"
@@ -142,7 +142,7 @@ mkInst :: Unique -> Entity BaseTy Unique -> [Inst]
 --    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
 --    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
 
-mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x),(Var "i1",yTy,y)])
+mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x),(Var "i1",yTy,y)] _)
         | Just (nm',cast) <- lookup n specials =
           [ BuiltinInst (sig (Port (Var "o0") i))
                         (sigTyped xTy x)
@@ -184,40 +184,44 @@ mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
 			, (Var "rst",rstTy,rst)
 			, (Var "init",initTy,x)
 			, (Var "i",iTy,y)
-			]) =
+			] _) =
           [ Assign input (sig y) ]
   where output = sig (Port (Var "o0") i)
         input =  output ++ "_next"
 
 -- Muxes
-mkInst i e@(Entity (Name "Bool" "mux2") [(Var "o0",oTy)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)])
+mkInst i e@(Entity (Name "Bool" "mux2") [(Var "o0",oTy)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)] _)
 	= [ CondAssign (sig (Port (Var "o0") i))
                        [(sigTyped fTy f, sigTyped cTy c ++ "= '0'")]
                        (sigTyped tTy t)
          ]
-mkInst i e@(Entity (Name "Bool" "mux2") x y) = error $ show (x,y)
+mkInst i e@(Entity (Name "Bool" "mux2") x y _) = error $ show (x,y)
 
-mkInst  i e@(Entity (Name "Lava" "concat") [(Var "o0",oTy)] inps) =
+mkInst  i e@(Entity (Name "Lava" "concat") [(Var "o0",oTy)] inps _) =
                   [Assign (sig (Port (Var "o0") i)) val]
   where val = concat $ intersperse "&"
               -- Note the the layout is reversed
               [sigTyped sigTy sig | (Var v,sigTy, sig) <- reverse inps]
 
 
-mkInst  _ e@(Entity (Name "Lava" "BRAM") _ _) = []
+-- The 'Top' entity should not generate anything, because we've already exposed
+-- the input drivers via theSinks.
+mkInst _ (Entity (Name "Lava" "top") _ _ _) = []
 
-mkInst i e@(Entity (Name "Lava" "index") [(Var "o0",oTy)] [(Var "i", iTy, input),(Var "index",indexTy,idx)]) =
+mkInst  _ e@(Entity (Name "Lava" "BRAM") _ _ _) = []
+
+mkInst i e@(Entity (Name "Lava" "index") [(Var "o0",oTy)] [(Var "i", iTy, input),(Var "index",indexTy,idx)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig idx ++ ")")]
 
 mkInst i e@(Entity (Name "Lava" "slice") [(Var "o0",oTy)]
-                  [(Var "i", inputTy, input),(Var "low",lowTy,low),(Var "high",highTy,high)]) =
+                  [(Var "i", inputTy, input),(Var "low",lowTy,low),(Var "high",highTy,high)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
 
 
 -- Catchall for everything else
-mkInst i e@(Entity (Name mod nm) outputs inputs) =
+mkInst i e@(Entity (Name mod nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
                 ( [ (n,sig (Port (Var n) i)) | (Var n,nTy) <- outputs ] ++
@@ -253,12 +257,12 @@ synchronous nodes
 	               ]
                      ]
   where -- Handling registers
-        delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _)) <- nodes]
+        delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _ _)) <- nodes]
         ((_,d):_) = delays
         outputs = [sig (Port (Var "o0") i) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
         inits = [sigTyped (inputType "init" e) (inputDriver "init" e)
-                 | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _)) <- delays]
+                 | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _ _)) <- delays]
 
         Just (_,clkTy,clk)  = lookupInput "clk" (head (map snd (delays ++ brams)))
         Just (_,rstTy,rst) =  lookupInput "rst" (head (map snd (delays ++ brams)))
@@ -267,13 +271,13 @@ synchronous nodes
                           in d
         inputType i e = let (Just (_,ty,_)) = lookupInput i e
                         in ty
-        lookupInput i (Entity _ outputs inputs) = find (\(Var v,_,_) -> v == i) inputs
+        lookupInput i (Entity _ outputs inputs _) = find (\(Var v,_,_) -> v == i) inputs
 
         -- Handling BRAMS
-        brams = [(i,e) | (i,e@(Entity (Name "Lava" "BRAM") _ _)) <- nodes]
+        brams = [(i,e) | (i,e@(Entity (Name "Lava" "BRAM") _ _ _)) <- nodes]
         bramOuts =[sig (Port (Var "o0") i) | (i,_) <- brams]
         bramSigs = [(sig (Port (Var n) i) ++ "_ram")
-                      | (i,Entity _ [(Var n,_)] _) <- nodes]
+                      | (i,Entity _ [(Var n,_)] _ _) <- nodes]
         bramAddr = ["conv_integer(" ++ sig (inputDriver "ain" e) ++ ")"
                    | (i,e) <- brams]
         bramData = [sig (inputDriver "din" e)

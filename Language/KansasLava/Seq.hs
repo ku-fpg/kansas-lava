@@ -57,7 +57,7 @@ zipWith' f xs ys = pure f <*> xs <*> ys
 fromList :: [Maybe a] -> Seq a
 
 fromList (x : xs) = x :~ fromList xs
-fromList []       = error "Seq.fromList"
+fromList []       = Constant Nothing -- error "Seq.fromList"
 
 toList :: Seq a -> [Maybe a]
 toList (x :~ xs) = x : toList xs

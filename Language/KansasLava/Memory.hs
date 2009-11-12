@@ -88,7 +88,7 @@ bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
              (Var "we",B,weDeep),
              (Var "ain",addrTy,addrDeep),
              (Var "din",dataTy,dataDeep)
-            ]
+            ] Nothing
 
 
   where mem = mapAccumLS memop (initMem 2 imap)
@@ -113,6 +113,7 @@ bitIndex idx (Signal s d)
                        [(Var "o0",B)] -- outputs
                        [(Var "i", iTy,d)
                        ,(Var "index",U 32,Lit (toInteger idx))] -- inputs
+                       Nothing
 
   where iTy = tyRep (error "bitIndex:types" :: a)
 
@@ -126,6 +127,7 @@ bitSlice high low (Signal s d)
                        [(Var "i",iTy, d)
                        ,(Var "low",U 32,Lit (toInteger low))
                        ,(Var "high",U 32,Lit (toInteger high))] -- inputs
+                     Nothing
   where iTy = tyRep (error "bitSliceCase:iTy" :: a)
         oTy = tyRep (error "bitSliceCase:oTy" :: b)
 
@@ -144,6 +146,7 @@ readMem (Signal addr addrDeep)  =
                  (Var "i1", aTy,addrDeep),
                  (Var "i2",dTy, Lit 0)
                 ]
+                Nothing
   where size = baseTypeLength $ tyRep (error "readMem" :: (MemOp a d))
         aTy = tyRep (error "readMem:aTy" :: a)
         dTy = tyRep (error "readMem:dTy" :: d)
@@ -161,6 +164,7 @@ writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
                  (Var "i1", aTy,addrDeep),
                  (Var "i2",dTy, valDeep)
                 ]
+                Nothing
   where size = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
         aTy = tyRep (error "writeMem:aTy" :: a)
         dTy = tyRep (error "writeMem:dTy" :: d)

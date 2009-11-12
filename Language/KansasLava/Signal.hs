@@ -136,7 +136,7 @@ entity0 :: OpType a => Name -> [Var] -> a -> ESignal a
 entity0 nm outs f
         = ESignal (pure f)
         $ E
-        $ Entity nm [(o,ty) | o <- outs] []
+        $ Entity nm [(o,ty) | o <- outs] [] Nothing
   where ty = tyRep f
 
 entity1 :: forall a b . (OpType a, OpType b) =>
@@ -144,7 +144,7 @@ entity1 :: forall a b . (OpType a, OpType b) =>
 entity1 nm ins outs f  s@(~(Signal vs1 w1))
         = ESignal (pure f <*> vs1)
         $ E
-        $ Entity nm [(o,bTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy] | val <- [w1]]
+        $ Entity nm [(o,bTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy] | val <- [w1]] Nothing
    where aTy = tyRep (error "entity1" :: a)
          bTy = tyRep (error "entity1" :: b)
 
@@ -153,7 +153,7 @@ entity2 :: forall a b c . (OpType a, OpType b,OpType c) =>
 entity2 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
         = ESignal (pure f <*> vs1 <*> vs2)
         $ E
-        $ Entity nm [(o,cTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy] | val <- [w1,w2]]
+        $ Entity nm [(o,cTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy] | val <- [w1,w2]] Nothing
    where aTy = tyRep (error "entity2" :: a)
          bTy = tyRep (error "entity2" :: b)
          cTy = tyRep (error "entity2" :: c)
@@ -163,7 +163,7 @@ entity3 :: forall a b c d . (OpType a, OpType b,OpType c,OpType d) =>
 entity3 nm ins outs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
         = ESignal (pure f <*> vs1 <*> vs2 <*> vs3)
         $ E
-        $ Entity nm [(o,dTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy,cTy] | val <- [w1,w2,w3]]
+        $ Entity nm [(o,dTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy,cTy] | val <- [w1,w2,w3]] Nothing
    where aTy = tyRep (error "entity3" :: a)
          bTy = tyRep (error "entity3" :: b)
          cTy = tyRep (error "entity3" :: c)
@@ -302,12 +302,12 @@ be :: a -> Signal a
 be e = Signal (pure e) (error "improper use of be")      -- for now
 
 -- A signal, that changes over time
-with :: [a] -> Signal a
-with xs = poke (map Just xs ++ repeat Nothing)
+with :: String -> [a] -> Signal a
+with name xs = poke name (map Just xs ++ repeat Nothing)
 
 -- A signal with possible unknown values, that changes over time.
-poke :: [Maybe a] -> Signal a
-poke xs = Signal (S.fromList xs) (error "Signal:poke")
+poke :: String ->  [Maybe a] -> Signal a
+poke name xs = Signal (S.fromList xs) (Pad (Var name))
 
 
 

@@ -20,7 +20,7 @@ delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         $ Port (Var "o0")
         $ E
         $ Entity (Name "Lava" "delay") [(Var "o0",aTy)]
-            [(Var "clk",clkTy,tm_w), (Var "rst", rstTy,r_w), (Var "init",aTy,def),(Var "i",aTy,w)]
+            [(Var "clk",clkTy,tm_w), (Var "rst", rstTy,r_w), (Var "init",aTy,def),(Var "i",aTy,w)] Nothing
   where aTy = tyRep (error "delay/aTy" ::  a)
         clkTy = tyRep (error "delay/clk" :: Clk)
         rstTy = tyRep (error "delay/rst" :: Rst)
@@ -89,8 +89,8 @@ time (Time t) = t
 
 -- 'clock' gives 2 cycles of bla, 1 cycle of reset, then counts from 0.
 clock :: Time
-clock = Time (with $ map Clk [0..])
-	     (with $ map Rst (True:(repeat False)))
+clock = Time (with "global_clock" $ map Clk [0..])
+	     (with "global_reset" $ map Rst (True:(repeat False)))
 
 waitFor :: (OpType a) => Int -> Signal a -> Signal a
 waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")

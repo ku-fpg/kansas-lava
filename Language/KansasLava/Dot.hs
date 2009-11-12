@@ -51,7 +51,7 @@ writeDotCircuit opts filename circuit = do
 			       		 , ("style","rounded")
 			       		 ]
 			     return (n,nd)
-		        | (n,Entity nm outs ins) <- nodes ]
+		        | (n,Entity nm outs ins _) <- nodes ]
 
 	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
 	 		                 , ("shape","record")
@@ -80,7 +80,7 @@ writeDotCircuit opts filename circuit = do
 		 ]
 
 	sequence [ drawEdge dr (findNd (Uq n)) v
-	       	 | (n,Entity nm outs ins) <- nodes
+	       	 | (n,Entity nm outs ins _) <- nodes
 		 , (v,_,dr) <- ins
 		 ]
 

@@ -57,15 +57,15 @@ reifyCircuit opts circuit = do
         (gr, outputs) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
-                   let Just (Entity _ outs _) = lookup out gr
-                   return $ (gr,[(Var sink,ty, Port v out )
-                                 | (v,ty) <- outs
+                   let Just (Entity (Name "Lava" "top")  _ ins _) = lookup out gr
+                   return $ (gr,[(Var sink,ty, driver)
+                                 | (v,ty,driver) <- ins
                                  | sink <- outputNames])
                 l@(Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [(v,vTy) | (_,Entity _ _ ins) <- gr, (_,vTy,Pad v) <- ins]
+        let inputs = [(v,vTy) | (_,Entity _ _ ins _) <- gr, (_,vTy,Pad v) <- ins]
         return $ ReifiedCircuit { theCircuit = gr
                                 , theSrcs = nub inputs
                                 , theSinks = outputs
@@ -126,7 +126,7 @@ showReifiedCircuit opt c = do
 		[ "(" ++ show uq ++ ") " ++ show nm ++ "\n"
 			++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
 			++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
-		| (uq,Entity nm outs ins) <- theCircuit rCir
+		| (uq,Entity nm outs ins _) <- theCircuit rCir
 		]
 
 	let msg = bar
@@ -170,10 +170,10 @@ instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
             (U size,
                Port (Var "o0")
             $ E
-            $ Entity (Name "Lava" "concat") [(Var "o0",aTy), (Var "o1", bTy)]
+            $ Entity (Name "Lava" "top") [(Var "o0",U size)]
              [(Var "i0", aTy, da),
               (Var "i1",bTy, db)
-             ])
+             ] Nothing)
     where aTy = bitTypeOf aSig
           bTy = bitTypeOf bSig
           size = baseTypeLength aTy  + baseTypeLength bTy
