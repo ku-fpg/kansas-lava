@@ -1,10 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
 import Language.KansasLava
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Control.Applicative
 
--- import Test.QuickCheck 
+-- import Test.QuickCheck
 -- Simple examples
 
 halfAdder :: (Signal Bool,Signal Bool) -> (Signal Bool,Signal Bool)
@@ -18,7 +19,7 @@ for test two
 prop_shallow_bit v n = True
    where
 	_types = (v :: Int, n :: X32)
-	
+
 	print [testABit (be (v :: Int)) n | n <- [0..31], v <- [1..100]]
 
 -}
@@ -28,7 +29,9 @@ fullAdder c (a,b) = (s2,c2 `xor2` c1)
   where (s1,c1) = halfAdder (a,b)
 	(s2,c2) = halfAdder (s1,c)
 
-wordAdder :: (Size x, Enum x) => Signal Bool ->  (Signal (Unsigned x), Signal (Unsigned x)) -> (Signal (Unsigned x), Signal Bool)
+wordAdder :: (OpType (Matrix x (Signal Bool)),
+              OpType (Matrix x  Bool),
+              Size x, Enum x) => Signal Bool ->  (Signal (Unsigned x), Signal (Unsigned x)) -> (Signal (Unsigned x), Signal Bool)
 wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
    where
 	m   = M.zipWith (,) (toBoolMatrix a) (toBoolMatrix b)
@@ -41,19 +44,19 @@ wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
 -- Assumes the Matrix is not zero sized.
 -- we'll also need folds, etc.
 
-scanM :: (Size ix, Bounded ix, Enum ix) 
-      => ((left,a,right) -> (right,b,left)) 
-      -> (left, Matrix ix a,right) 
+scanM :: (Size ix, Bounded ix, Enum ix)
+      => ((left,a,right) -> (right,b,left))
+      -> (left, Matrix ix a,right)
       -> (right,Matrix ix b,left)
 scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBound) )
-  where tmp = forEach m $ \ i a -> f (prev i, a, next i)			       
+  where tmp = forEach m $ \ i a -> f (prev i, a, next i)
 	prev i = if i == minBound then l else (trd3 (tmp ! (pred i)))
 	next i = if i == maxBound then r else (fst3 (tmp ! (succ i)))
 	fst3 (a,_,_) = a
 	snd3 (_,b,_) = b
 	trd3 (_,_,c) = c
-	
-		
+
+
 main = do
 	putStrLn "Testing halfAdder function"
 	print [ (a,b,halfAdder (a,b))

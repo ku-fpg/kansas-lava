@@ -1,7 +1,13 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Language.KansasLava.Memory
   (MemOp(..),readMem, writeMem,  bram) where
-import Language.KansasLava
+-- import Language.KansasLava
+import Language.KansasLava.Signal
+import Language.KansasLava.Entity
+import Language.KansasLava.Type
+import Language.KansasLava.Seq
+import Language.KansasLava.Sequential
+
 import Data.Sized.Unsigned
 import Data.Sized.Ix
 
@@ -11,6 +17,7 @@ import qualified Data.Foldable as F
 import Data.Monoid
 import Control.Applicative
 
+-- | a 'MemOp' is either a write (with address and data) or read (with address)
 data MemOp a d = W a d
                | R a
                deriving (Show,Eq)
@@ -74,64 +81,54 @@ bram ::  forall a d . (OpType a, OpType d, Ord a) =>
 bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
            ~op@(Signal opShallow opDeep)
         = Signal (mem opShallow)
-        $ Port (Var "o")
+        $ Port (Var "o0")
         $ E
-        $ Entity (Name "Lava" "BRAM") [Var "o"]
-            [(Var "clk",tm_w), (Var "rst", r_w),
-             (Var "we", weDeep),
-             (Var "ain",addrDeep),
-             (Var "din", dataDeep)
+        $ Entity (Name "Lava" "BRAM") [(Var "o0",dataTy)]
+            [(Var "clk",ClkTy,tm_w), (Var "rst",RstTy,r_w),
+             (Var "we",B,weDeep),
+             (Var "ain",addrTy,addrDeep),
+             (Var "din",dataTy,dataDeep)
             ]
-        types
+
+
   where mem = mapAccumLS memop (initMem 2 imap)
         (Signal weShallow weDeep) = bitIndex 0 op
-        (Signal _ addrDeep) = bitSliceCast (baseTypeLength addrTy) 1 (BaseTy addrTy) op
-        addrTy = bitTypeOf (error "bram:addrType" :: Signal d)
+        addr :: Signal a
+        addr@(Signal _ addrDeep) = bitSlice (baseTypeLength addrTy) 1 op
+        addrTy = tyRep (error "bram:addrType" :: d)
         addrWidth = baseTypeLength addrTy
-        dataTy = bitTypeOf (error "bram:dataType" :: Signal a)
+        dataTy = tyRep (error "bram:dataType" :: a)
         dataWidth = baseTypeLength dataTy
-        (Signal _ dataDeep) = bitSliceCast (dataWidth + addrWidth) (addrWidth + 1) (BaseTy dataTy) op
-
-
-        types = [ [TyVar $ Var "o", BaseTy dataTy]
-                , [TyVar $ Var "clk", BaseTy ClkTy]
-                , [TyVar $ Var "rst", BaseTy RstTy]
-                , [TyVar $ Var "we", BaseTy B]
-                , [TyVar $ Var "ain", BaseTy addrTy]
-                , [TyVar $ Var "din", BaseTy dataTy]
-		]
+        dat :: Signal d
+        dat@(Signal _ dataDeep) = bitSlice (dataWidth + addrWidth) (addrWidth + 1) op
 
 
 
-bitIndex :: forall a . OpType a => Int -> Signal a -> Signal Bool
+bitIndex :: forall a . (OpType a) => Int -> Signal a -> Signal Bool
 bitIndex idx (Signal s d)
                    = Signal (error "bitIndex") -- FIXME: Get the slicing down.
                    $ Port (Var "o")
                    $ E
                    $ Entity (Name "Lava" "index")
-                       [Var "o"] -- outputs
-                       [(Var "i", d)
-                       ,(Var "index",Lit (toInteger idx))] -- inputs
-                       types
-  where types = [[TyVar $ Var "o", BaseTy B]
-                ,[TyVar $ Var "i", BaseTy (bitTypeOf (error "bitIndex:types" :: Signal a))]]
+                       [(Var "o0",B)] -- outputs
+                       [(Var "i", iTy,d)
+                       ,(Var "index",U 32,Lit (toInteger idx))] -- inputs
 
+  where iTy = tyRep (error "bitIndex:types" :: a)
 
-bitSlice high low = bitSliceCast high low (BaseTy (U (high - low + 1)))
-
-bitSliceCast :: forall a b . OpType a => Int -> Int -> Ty Var -> Signal a -> Signal b
-bitSliceCast high low cast (Signal s d)
+bitSlice :: forall a b . (OpType a, OpType b) => Int -> Int ->  Signal a -> Signal b
+bitSlice high low (Signal s d)
                    = Signal (error "bitSliceCast") -- FIXME: Get the slicing down.
-                   $ Port (Var "o")
+                   $ Port (Var "o0")
                    $ E
                    $ Entity (Name "Lava" "slice")
-                       [Var "o"] -- outputs
-                       [(Var "i", d)
-                       ,(Var "low",Lit (toInteger low))
-                       ,(Var "high",Lit (toInteger high))] -- inputs
-                       types
-  where types = [[TyVar $ Var "o", cast]
-                ,[TyVar $ Var "i", BaseTy (bitTypeOf (error "bitSliceCase:types" :: Signal a))]]
+                       [(Var "o0",oTy)] -- outputs
+                       [(Var "i",iTy, d)
+                       ,(Var "low",U 32,Lit (toInteger low))
+                       ,(Var "high",U 32,Lit (toInteger high))] -- inputs
+  where iTy = tyRep (error "bitSliceCase:iTy" :: a)
+        oTy = tyRep (error "bitSliceCase:oTy" :: b)
+
 
 
 
@@ -140,19 +137,16 @@ readMem :: forall a d . (OpType a, OpType d) =>
            Signal a -> Signal (MemOp a d)
 readMem (Signal addr addrDeep)  =
         Signal (fmap R addr)
-            $ Port (Var "o")
+            $ Port (Var "o0")
             $ E
-            $ Entity (Name "Lava" "concat") [Var "o"]
-                [(Var "i0", Lit 0),
-                 (Var "i1", addrDeep),
-                 (Var "i2",Lit 0)
+            $ Entity (Name "Lava" "concat") [(Var "o0",U size)]
+                [(Var "i0", U 1, Lit 0),
+                 (Var "i1", aTy,addrDeep),
+                 (Var "i2",dTy, Lit 0)
                 ]
-              types
-  where types = [[TyVar (Var "i0"), BaseTy (U 1)]
-                ,[TyVar (Var "i1"), BaseTy (bitTypeOf (error "readMem:types" :: Signal a))]
-                ,[TyVar (Var "i2"), BaseTy (bitTypeOf (error "readMem:types" :: Signal d))]
-                ,[TyVar (Var "o"), BaseTy (U size)]]
-        size = baseTypeLength $ bitTypeOf (error "readMem" :: Signal (MemOp a d))
+  where size = baseTypeLength $ tyRep (error "readMem" :: (MemOp a d))
+        aTy = tyRep (error "readMem:aTy" :: a)
+        dTy = tyRep (error "readMem:dTy" :: d)
 
 
 
@@ -160,20 +154,16 @@ readMem (Signal addr addrDeep)  =
 writeMem :: forall a d. (OpType a, OpType d) => Signal a -> Signal d -> Signal (MemOp a d)
 writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
         Signal (W <$> addrShallow <*> val)
-            $ Port (Var "o")
+            $ Port (Var "o0")
             $ E
-            $ Entity (Name "Lava" "concat") [Var "o"]
-                [(Var "i0", Lit 0),
-                 (Var "i1", addrDeep),
-                 (Var "i2",valDeep)
+            $ Entity (Name "Lava" "concat") [(Var "o0",U size)]
+                [(Var "i0", U 1, Lit 0),
+                 (Var "i1", aTy,addrDeep),
+                 (Var "i2",dTy, valDeep)
                 ]
-              types
-  where types = [[TyVar (Var "i0"), BaseTy (U 1)]
-                ,[TyVar (Var "i1"), BaseTy (bitTypeOf addr)]
-                ,[TyVar (Var "i2"), BaseTy (bitTypeOf dat)]
-                ,[TyVar (Var "o"), BaseTy (U size)]]
-        size = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
-
+  where size = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
+        aTy = tyRep (error "writeMem:aTy" :: a)
+        dTy = tyRep (error "writeMem:dTy" :: d)
 
 
 instance (OpType a, OpType d) =>  OpType (MemOp a d) where
@@ -182,7 +172,13 @@ instance (OpType a, OpType d) =>  OpType (MemOp a d) where
    op = error "op undefined for MemOp"
    initVal = readMem initVal
 
+{-
+instance (TyRep a, TyRep d) =>  TyRep (MemOp a d) where
+   tyRep _ = size
+    where size = U $  (baseTypeLength (tyRep $ ((error "tyRep (MemOp a d)") :: a))) +
+                      (baseTypeLength (tyRep $ ((error "tyRep (MemOp a d)") :: d))) + 1
 
+-}
 
 
 type Unsigned16 = Unsigned X16

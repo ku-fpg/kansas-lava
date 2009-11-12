@@ -68,7 +68,6 @@ permute permutation clk input = out
 counter :: (OpType a, Num a) => Time -> Signal a
 counter clk = out
   where out = delay clk 0 out'
-        -- out' :: Signal Int
         out' =  1 + out
 
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp #-}
 module Language.KansasLava.Reify where
 
 import Data.Reify
@@ -12,6 +12,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.IO
+import Language.KansasLava.Sequential(Time(..), Clk(..),Rst(..))
 import Debug.Trace
 
 --------------------------------------------------------
@@ -20,26 +21,14 @@ import Debug.Trace
 data Uq = Uq Unique | Sink | Source
 	deriving (Eq,Ord,Show)
 
-type QVar = (Uq,Var)
-type TypeEnv = [(QVar,BaseTy)]
-
-showQVar :: QVar -> String
-showQVar (u,v) = show v ++ "-" ++ (case u of
-				    Uq uq -> show uq
-				    Sink -> "out"
-				    Source -> "in") ++ ""
-
 data ReifiedCircuit = ReifiedCircuit
-	{ theCircuit :: [(Unique,Entity (Ty Var) Uq)]
+	{ theCircuit :: [(Unique,Entity BaseTy Unique)]
 		-- ^ This the main graph. There is no actual node for the source or sink.
-	, theSrcs    :: [Var]
-	, theSinks   :: [(Var,Driver Uq)]
-	, theTypes   :: TypeEnv
+	, theSrcs    :: [(Var,BaseTy)]
+	, theSinks   :: [(Var,BaseTy,Driver Unique)]
+	-- , theTypes   :: TypeEnv
 	}
 
--- TODO:
---   1. Use IN and OUT inside the unification pass
---   2. Use INPUT and OUTPUT overloading here.
 
 data ReifyOptions
 	= InputNames [String]
@@ -47,207 +36,40 @@ data ReifyOptions
 	| DebugReify		-- show debugging output of the reification stage
 	deriving (Eq, Show)
 
-findTy :: ReifiedCircuit -> QVar -> Maybe BaseTy
-findTy re (u,v) = lookup (u,v) (theTypes re)
 
 -- | reifyCircuit does reification and type inference.
-reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
+-- reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
 -- ([(Unique,Entity (Ty Var) Unique)],[(Var,Driver Unique)])
+reifyCircuit :: (Ports a) => [ReifyOptions] -> a -> IO ReifiedCircuit
+
 reifyCircuit opts circuit = do
+        -- GenSym for input/output pad names
 	let inputNames = head $
 		[ nms | InputNames nms <- opts ] ++ [[ "i" ++ show i | i <- [0..]]]
 	let outputNames = head $
 		[ nms | OutputNames nms <- opts ] ++ [[ "o" ++ show i | i <- [0..]]]
 
-	let p = P []
 
+        let (ty,o) = ports inputNames circuit
 
-	let inputs' :: [(BaseTy,Var)]
-	    blob'    :: [(BaseTy,Driver E)]
-	    (inputs',blob') = case capture'' circuit of
-				A f -> case f inputEntity (map Var inputNames) of
-					  (res,tys,_) -> (tys,res)
+        -- Get the graph, and associate the output drivers for the graph with
+        -- output pad names.
+        (gr, outputs) <- case o of
+                Port _ o' -> do
+                   (Graph gr out) <- reifyGraph o'
+                   let Just (Entity _ outs _) = lookup out gr
+                   return $ (gr,[(Var sink,ty, Port v out )
+                                 | (v,ty) <- outs
+                                 | sink <- outputNames])
+                l@(Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
+                v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
-
-	    inputEntity :: E
-	    inputEntity = E $ Entity (Name "#" "INPUT") (map snd inputs') [] []
-
---	    inputs' = []
-
-
-	    blob = [ (Var o,d) | ((_,d),o) <- zip blob' outputNames ]
-
-	    outputTyEquivs :: [[Ty QVar]]
-	    outputTyEquivs = [ [TyVar (Sink,a),BaseTy b]
-			     | (a,b) <- zip (map fst blob) (map fst blob')]
-
-	    inputTyEquivs :: [[Ty QVar]]
-	    inputTyEquivs = [ [TyVar (Source,v),BaseTy ty]
-			    | (ty,v) <- inputs'
-			    ]
-
-
---	print outputTyEquivs
-
-
-
---	print outputTyEquivs
-   	let root' = E $ Entity (Name "$" "ROOT") [] blob []
-        (Graph nodes root) <- reifyGraph root'
-
-	when (DebugReify `elem` opts) $ do
-		putStrLn "-------------------------------------------------------"
-		print (Graph nodes root)
-		putStrLn "-------------------------------------------------------"
-
-	let inputEntityId :: Unique
-	    inputEntityId = head [ v
-	 	     	         | (v, Entity name outs ins tyeqs) <- nodes
-		                 , name == Name "#" "INPUT"
-		                 ]
-	let outputEntityId :: Unique
-	    outputEntityId = head [ v
-	 	     	         | (v, Entity name outs ins tyeqs) <- nodes
-		                 , name == Name "$" "ROOT"
-		                 ]
-	-- now, rewrite the names
-
-	let allPaths = L.sort $ L.nub
-		     [ p
-		     | (v, Entity name outs ins tyeqs) <- nodes
-		     , p <- [ p | (v,PathPad p) <- ins ]
-		     ]
-
---	print allPaths
-{-
-	let pnEnv = [(p,Pad $ Var $ nm) | (p,nm) <- zip allPaths inputNames ]
-	print (pnEnv :: [([Int],Driver E)])
--}
-
-	let mkUq :: Unique -> Uq
-	    mkUq n | n == inputEntityId  = Source
-		   | n == outputEntityId = Sink
-		   | otherwise           = Uq n
-
-{-
-	let nodes' :: [(Unique,Entity (Ty Var) Uq)]
-	    nodes' = [ (v, Entity name outs ins' tyeqs)
-		     | (v, Entity name outs ins tyeqs) <- nodes
-		     , let ins' = [ (v,case d of
-					 Uq
-					 PathPad p -> case lookup p pnEnv of
-							 Nothing -> error "bad internal path name"
-							 Just v -> v
-					 other -> other)
-				  | (v,d) <- ins
-				  ]
-		     , let outs' = [ (v,fmap mkUq out) | (v,out) <- outs ]
-		     ]
-
--}
-
-	let nodes' = nodes
-
-	let nodes :: [(Unique,Entity (Ty Var) Uq)]
-	    nodes = [ (v,fmap mkUq e) | (v,e) <- nodes' ]
-
-
-
-	{-
-	 - Next, we rename our input variables, using the given schema.
-	 -}
-
-
-	let nodes' = nodes
-	let srcs = nub $ concat
-		       [  outs
-		       | (v, Entity name outs ins tyeqs) <- nodes
-		       , v == inputEntityId
-		       ]
-	let inMap = zip (sort srcs) (map Var inputNames)
-
-        let nodes1 = [ (u,node) | (u,node) <- nodes
-				, u /= root
-			  	, u /= inputEntityId
-				]
-
-
-	let src :: [Var]
---	    src  = nub [ v | (_,Entity _ _ vs _) <- nodes, (_,Pad v) <- vs ]
-	    src  = nub $ concat
-		       [  outs
-		       | (v, Entity name outs ins tyeqs) <- nodes
-		       , v == inputEntityId
-		       ]
-
-{-
-	let mkUq :: Unique -> Uq
-	    mkUq n | n == root = Sink
-		   | otherwise = Uq n
--}
-
-	let all_equivs :: [Set (Ty QVar)]
-	    all_equivs = filter (not . Set.null)
-	         $ map (Set.fromList)
-		 $ (concat [map (map addEntityId) tyeqs
-			 ++ [ case dr of
-				Port v' i' -> [TyVar (mkUq i,v),TyVar (i',v')]
-				Lit _      -> []
-				other       -> error $ show other
-			    | (v,dr) <- ins
-			    ]
-                          | (i,Entity _ _ ins tyeqs) <- nodes
---			  , i /= inputEntityId
-			  , let addEntityId = fmap (\ v -> (mkUq i,v))
-                          ]) ++ outputTyEquivs ++ inputTyEquivs
-
-
-	when (DebugReify `elem` opts) $ do
-		putStrLn "-------------------------------------------------------"
-		putStrLn "[all_equivs]"
-		print all_equivs
-		putStrLn "-------------------------------------------------------"
-
-
---	print ("ZZ",all_equivs)
---	print all_equivs
-
-	let all_equivs' = findMinEquivSets all_equivs
---	print $ all_equivs'
-
-	let findTyFor :: QVar -> BaseTy
-      	    findTyFor (i,v)
-		      | Prelude.null theSet        = error $ "can not find : " ++ show (i,v)
-		      | Prelude.length theSet /= 1 = error $ "multiple occur, impossible : " ++ show (i,v,theSet)
-		      | Prelude.null theTy 	   = error $ "polymophic set of wires, can not infer type (usually a loop, or using a underdefined primitive)"
-		      | Prelude.length theTy == 1  = case theTy' of
-						       BaseTy bty -> bty
-						       _ -> error $ "Type of wire is not a basic type, instead found : " ++ show theTy'
-		      | otherwise                  = error $ "multiple Ty in one equiv class (err?)" ++ show (i,v) ++ " " ++ show theSet
-	     where
-		theSet = filter (Set.member (TyVar (i,v))) all_equivs'
-		theSet' = Prelude.head theSet
-		theTy   = filter (\ t -> case t of
-					   TyVar {} -> False
-					   _ -> True) $ Set.elems theSet'
-		theTy'  = Prelude.head theTy
-
-	let all_vars = [ v
-		       | (TyVar v) <- Set.toList (Set.unions all_equivs)
-		       ]
---	print $ all_vars
-
-        let entries = concat [ args
-			     | (u,Entity _ _ args _) <- nodes
- 			     , u == outputEntityId
-			     ]
-
-	let vars_with_types = [ (v,findTyFor v) | v <- all_vars ]
-
---	print ("XX",vars_with_types)
-
-        return $ ReifiedCircuit nodes1 src entries vars_with_types
-
+        -- Search all of the enities, looking for input ports.
+        let inputs = [(v,vTy) | (_,Entity _ _ ins) <- gr, (_,vTy,Pad v) <- ins]
+        return $ ReifiedCircuit { theCircuit = gr
+                                , theSrcs = nub inputs
+                                , theSinks = outputs
+                                }
 -- Some more type class magic.
 {-
 entity ::
@@ -275,43 +97,36 @@ entity opts nm circuit  = circuit'
 			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
 		(insX,pinsX) = capture' p_root inpX
 -}
-
+{-
 entity :: (REIFY b, CLONE b) => [ReifyOptions] ->String -> b -> b
 entity opts nm circuit = clone circuit deep
   where
 	deep = wrapCircuit [] [] circuit
+-}
 
-showReifiedCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO String
+
+showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
 showReifiedCircuit opt c = do
 	rCir <- reifyCircuit opt c
-	let bar = take 78 (repeat '-') ++ "\n"
-	let showTy _ = "*"
-	let showType :: QVar -> String
-	    showType (u,v) = case findTy rCir (u,v) of
-			      Just t -> show t
-			      Nothing -> "?"
-
-	let showVar v =  showQVar v ++ " : " ++ showType v
-	let showDriver :: Driver Uq -> String
-	    showDriver (Port v uq) = showVar (uq,v)
+	let bar = (replicate 78 '-') ++ "\n"
+        let showDriver :: Driver Unique -> BaseTy -> String
+            showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
+            showDriver (Lit x) ty = show x ++ ":" ++ show ty
+            showDriver (Pad x) ty = show x ++ ":" ++ show ty
+            showDriver l ty = error $ "showDriver" ++ show l
 	let inputs = unlines
-		[ showVar (Source,var)
-		| var <- theSrcs rCir
+		[ show var ++ " : " ++ show ty
+		| (var,ty) <- theSrcs rCir
 		]
 	let outputs = unlines
-		[ showVar (Sink,var)  ++ " <- " ++ showDriver dr
-		| (var,dr) <- theSinks rCir
-		]
-	let types = unlines
-		[ showVar qv
-		| (qv,_) <- theTypes rCir
+		[ show var   ++ " <- " ++ showDriver dr ty
+		| (var,ty,dr) <- theSinks rCir
 		]
 	let circuit = unlines
 		[ "(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			++ unlines [ "      out " ++ showVar (Uq uq,v) | v <- ins ]
-			++ unlines [ "      in  " ++ showVar (Uq uq,v) ++ " <- " ++ showDriver dr | (v,dr) <- outs ]
-			++ unlines [ "      eq  " ++ show tys | tys <- tyss ]
-		| (uq,Entity nm ins outs tyss) <- theCircuit rCir
+			++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+			++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+		| (uq,Entity nm outs ins) <- theCircuit rCir
 		]
 
 	let msg = bar
@@ -323,10 +138,10 @@ showReifiedCircuit opt c = do
 		++ bar
 		++ outputs
 		++ bar
-		++ "-- Types                                                                    --\n"
-		++ bar
-		++ types
-		++ bar
+-- 		++ "-- Types                                                                    --\n"
+-- 		++ bar
+-- 		++ types
+-- 		++ bar
 		++ "-- Entities                                                                 --\n"
 		++ bar
 		++ circuit
@@ -334,6 +149,47 @@ showReifiedCircuit opt c = do
 
 	return $ msg
 
-debugCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ()
+debugCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO ()
 debugCircuit opt c = showReifiedCircuit opt c >>= putStr
+
+
+
+-- | The 'Ports' class generates input pads for a function type, so that the
+-- function can be Reified. The result of the circuit, as a driver, as well as
+-- the result's type, are returned. I _think_ this takes the place of the REIFY
+-- typeclass, but I'm not really sure.
+
+class Ports a where
+  ports :: [String] -> a -> (BaseTy, Driver E)
+
+instance OpType a => Ports (Signal a) where
+  ports _ sig@(Signal s d) =  (bitTypeOf sig, d)
+
+instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
+  ports _ (aSig@(Signal sa da), bSig@(Signal sb db)) =
+            (U size,
+               Port (Var "o0")
+            $ E
+            $ Entity (Name "Lava" "concat") [(Var "o0",aTy), (Var "o1", bTy)]
+             [(Var "i0", aTy, da),
+              (Var "i1",bTy, db)
+             ])
+    where aTy = bitTypeOf aSig
+          bTy = bitTypeOf bSig
+          size = baseTypeLength aTy  + baseTypeLength bTy
+
+
+
+instance (OpType a, Ports b) => Ports (Signal a -> b) where
+  ports (v:vs) f = ports vs $ f (Signal (error "Ports(Signal a -> b)") (Pad (Var v)))
+
+instance Ports b => Ports (Time -> b) where
+  ports vs f = ports vs $ f'
+    where f' c r = f (Time c r)
+
+instance (OpType a, OpType b, Ports c) => Ports ((Signal a, Signal b) -> c) where
+  ports vs f = ports vs (curry f)
+
+
+
 

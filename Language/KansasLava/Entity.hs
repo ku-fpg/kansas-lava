@@ -32,9 +32,9 @@ data Entity s = Entity Name [(Var,s)]      -- an entity
               | Lit Integer
               deriving (Show, Eq, Ord)
 -}
--- you want to tie the knot at the 'Entity' level, for observable sharing.
 
-data Entity ty s = Entity Name [Var] [(Var,Driver s)] [[ty]]
+-- We tie the knot at the 'Entity' level, for observable sharing.
+data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)]
               deriving (Show, Eq, Ord)
 
 -- These can all be unshared without any problems.
@@ -44,13 +44,9 @@ data Driver s = Port Var s      -- a specific port on the entity
               | Lit Integer
               deriving (Show, Eq, Ord)
 
-{-
-reVar :: (Var -> Var) -> Entity ty s -> Entity ty s
-reVar f (Entity nm vars
--}
 
 instance T.Traversable (Entity ty) where
-  traverse f (Entity v vs ss tys) = Entity v vs <$> T.traverse (\ (v,a) -> ((,) v) `fmap` T.traverse f a) ss <*> pure tys
+  traverse f (Entity v vs ss) = Entity v vs <$> T.traverse (\ (v,ty,a) -> ((,,) v ty) `fmap` T.traverse f a) ss
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
@@ -59,7 +55,7 @@ instance T.Traversable Driver where
   traverse _ (Lit i)       = pure $ Lit i
 
 instance F.Foldable (Entity ty) where
-  foldMap f (Entity v vs ss tys) = mconcat [ F.foldMap f d | (_,d) <- ss ]
+  foldMap f (Entity v vs ss) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance F.Foldable Driver where
   foldMap f (Port v s)    = f s
@@ -68,7 +64,7 @@ instance F.Foldable Driver where
   foldMap _ (Lit i)       = mempty
 
 instance Functor (Entity ty) where
-    fmap f (Entity v vs ss tys) = Entity v vs (fmap (\ (v,a) -> (v,fmap f a)) ss) tys
+    fmap f (Entity v vs ss) = Entity v vs (fmap (\ (v,ty,a) -> (v,ty,fmap f a)) ss)
 
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
