@@ -57,10 +57,19 @@ reifyCircuit opts circuit = do
         (gr, outputs) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
-                   let Just (Entity (Name "Lava" "top")  _ ins _) = lookup out gr
-                   return $ (gr,[(Var sink,ty, driver)
-                                 | (v,ty,driver) <- ins
-                                 | sink <- outputNames])
+                   case lookup out gr of
+                     Just (Entity (Name "Lava" "top")  _ ins _) ->
+                       return $ (gr,[(Var sink,ty, driver)
+                                       | (v,ty,driver) <- ins
+                                       | sink <- outputNames])
+                     Just e@(Entity (Name _ _) outs ins _) ->
+                       return $ (gr, [(Var sink,oty, Port ovar out)
+                                      | (ovar,oty) <- outs
+                                      | sink <- outputNames])
+
+
+
+
                 l@(Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
