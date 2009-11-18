@@ -25,7 +25,6 @@ showV :: (Show a) => Maybe a -> String
 showV Nothing = "?"
 showV (Just v) = show v
 
-
         -- Just a :~ pure a
 
 instance Applicative Seq where

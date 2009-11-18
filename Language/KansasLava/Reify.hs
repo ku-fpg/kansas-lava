@@ -294,6 +294,7 @@ showReifiedCircuit opt c = do
 	let showVar v =  showQVar v ++ " : " ++ showType v
 	let showDriver :: Driver Uq -> String
 	    showDriver (Port v uq) = showVar (uq,v)
+	    showDriver (Lit n)     = "#" ++ show n
 	let inputs = unlines
 		[ showVar (Source,var)
 		| var <- theSrcs rCir
