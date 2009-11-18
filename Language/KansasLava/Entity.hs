@@ -36,7 +36,7 @@ data Entity s = Entity Name [(Var,s)]      -- an entity
 -}
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
-data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] (Maybe Dynamic)
+data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
               deriving (Show, Eq, Ord)
 
 instance Eq Dynamic where

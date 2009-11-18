@@ -67,3 +67,33 @@ minSum' = minSum
 
 cats :: M.Matrix X2 (Signal Int) -> M.Matrix X2 (Signal Int)
 cats x = x
+
+
+-- cn (min,min2) (min',min2') vi =
+
+-- A variable node is associated with a set of check nodes.
+
+type VariableNode = Int
+-- a/a2 is the _previous_ iteration's minimum/min2.
+-- b/b2 is the _current_ iteration's minimum/min2 accumulator.
+data CheckNode = CN { a,a2,b,b2 :: Int }
+type VAdjacent = VariableNode -> [CheckNode]
+
+{-
+
+The idea is that we can interleave the calculation of Check Node updates with
+the calculation of Variable Node updates.
+
+Check Nodes are updated incrementally,by accumulating variable node values. We
+scan the variable nodes from left-to-right. For each variable (column), we fetch
+the previous variable node value, along with the min and min2 values for each
+check node associated with that variable. The check node values are combined to
+calculate a new variable node value. This new variable node value is then
+propogated to each of the check nodes associated with the variable node, which
+then accumulate the new variable node value. Moreover, the new variable node
+value is written to the variable node store.
+
+
+-}
+
+

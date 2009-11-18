@@ -20,7 +20,7 @@ delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         $ Port (Var "o0")
         $ E
         $ Entity (Name "Lava" "delay") [(Var "o0",aTy)]
-            [(Var "clk",clkTy,tm_w), (Var "rst", rstTy,r_w), (Var "init",aTy,def),(Var "i",aTy,w)] Nothing
+            [(Var "clk",clkTy,tm_w), (Var "rst", rstTy,r_w), (Var "init",aTy,def),(Var "i",aTy,w)] []
   where aTy = tyRep (error "delay/aTy" ::  a)
         clkTy = tyRep (error "delay/clk" :: Clk)
         rstTy = tyRep (error "delay/rst" :: Rst)

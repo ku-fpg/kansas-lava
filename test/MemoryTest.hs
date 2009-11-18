@@ -10,7 +10,13 @@ import Data.Sized.Unsigned
 import Control.Applicative
 type Unsigned2 = Unsigned X2
 
-
+-- FIXME: Remove and pull in Ed's version from Data.Sized
+instance (Enum s, Size s) => Bounded (Unsigned s) where
+  minBound = 0
+  maxBound = let a :: s
+                 a = error "making a s"
+             -- had to use -fglasgow-exts. Don't know which extension is needed.
+             in fromIntegral $ 2 ^ (size a)  - 1
 {-
 test = permute p clock testvector
   where p :: [(Unsigned2,Unsigned2)]
@@ -37,7 +43,7 @@ delayN n clk input = foldr ($) input (replicate n (delay clk initVal))
 
 permute ::
   (OpType d, Ord d, Num d, Enum d, Bounded d) =>
-  [(d, d)] -> Time -> Signal Bool -> Signal Bool
+  [(d, d)] -> Time -> Signal Int -> Signal Int
 permute permutation clk input = out
   where out = mux2 toggle_z_zz bufA bufB
         addr = counter clk
@@ -53,7 +59,7 @@ permute permutation clk input = out
 
         bufA = bram initBuf clk muxA
         bufB = bram initBuf clk muxB
-        initBuf = [(i,False) | i <- [minBound..maxBound]]
+        initBuf = [(i,0) | i <- [minBound..maxBound]]
         toggle = delay clk high (toggle `xor2` overflow)
            where overflow = (addr .==. 0)
 
@@ -72,12 +78,6 @@ counter clk = out
 
 
 p1 :: [(Unsigned X2, Unsigned X2)]
-p1 = [(0,1),(1,0),(2,3),(3,2)]
+p1 = [(0,3),(1,2),(2,1),(3,0)]
 
 
-instance (Size s) => Bounded (Unsigned s) where
-  minBound = 0
-  maxBound = let a :: s
-                 a = error "making a s"
-             -- had to use -fglasgow-exts. Don't know which extension is needed.
-             in fromIntegral $ 2 ^ (size a)  - 1

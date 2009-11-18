@@ -62,7 +62,7 @@ matrixSignalToSignalMatrix m
         $ Entity (Name "Lava" "concat")
  		 [(Var "o0", oTy)]
                  -- FIXME: Need to think about how to handle dynamics better
-		 (zip3 inVars (repeat aTy) (map (\ ~(Signal _ w) -> w) (M.toList m))) Nothing
+		 (zip3 inVars (repeat aTy) (map (\ ~(Signal _ w) -> w) (M.toList m))) []
    where inVars = [Var ("i" ++ show i) | i <- indices m ]
          mSeq = fmap (\ ~(Signal a _) -> a) m
          oTy = U $ (size (undefined :: ix)) * (baseTypeLength aTy)

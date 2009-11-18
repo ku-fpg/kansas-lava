@@ -19,7 +19,7 @@ mkTestbench :: Ports fun => String -> fun -> IO ()
 mkTestbench name fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
-               Nothing -> name ++ "/"
+               Nothing -> "/tmp/" ++ name ++ "/"
                Just dir -> dir ++"/"++name ++ "/"
   putStrLn $ "Base directory is " ++ base
   createDirectoryIfMissing True base

@@ -182,7 +182,7 @@ instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
             $ Entity (Name "Lava" "top") [(Var "o0",U size)]
              [(Var "i0", aTy, da),
               (Var "i1",bTy, db)
-             ] Nothing)
+             ] [])
     where aTy = bitTypeOf aSig
           bTy = bitTypeOf bSig
           size = baseTypeLength aTy  + baseTypeLength bTy
