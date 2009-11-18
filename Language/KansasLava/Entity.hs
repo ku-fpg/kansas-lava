@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 module Language.KansasLava.Entity where
 
 import qualified Data.Traversable as T
@@ -5,6 +6,7 @@ import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Unique
 import Data.Monoid
+import Data.Dynamic
 
 data Name = Name String String
     deriving (Eq, Ord)
@@ -32,10 +34,17 @@ data Entity s = Entity Name [(Var,s)]      -- an entity
               | Lit Integer
               deriving (Show, Eq, Ord)
 -}
--- you want to tie the knot at the 'Entity' level, for observable sharing.
 
-data Entity ty s = Entity Name [Var] [(Var,Driver s)] [[ty]]
+-- We tie the knot at the 'Entity' level, for observable sharing.
+data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
               deriving (Show, Eq, Ord)
+
+instance Eq Dynamic where
+ _ == _ = True
+
+instance Ord Dynamic where
+ compare _ _ = EQ
+
 
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
@@ -44,13 +53,10 @@ data Driver s = Port Var s      -- a specific port on the entity
               | Lit Integer
               deriving (Show, Eq, Ord)
 
-{-
-reVar :: (Var -> Var) -> Entity ty s -> Entity ty s
-reVar f (Entity nm vars
--}
 
 instance T.Traversable (Entity ty) where
-  traverse f (Entity v vs ss tys) = Entity v vs <$> T.traverse (\ (v,a) -> ((,) v) `fmap` T.traverse f a) ss <*> pure tys
+  traverse f (Entity v vs ss dyn) =
+    Entity v vs <$> (T.traverse (\ (v,ty,a) -> ((,,) v ty) `fmap` T.traverse f a) ss) <*> pure dyn
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
@@ -58,8 +64,9 @@ instance T.Traversable Driver where
   traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
 
+
 instance F.Foldable (Entity ty) where
-  foldMap f (Entity v vs ss tys) = mconcat [ F.foldMap f d | (_,d) <- ss ]
+  foldMap f (Entity v vs ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance F.Foldable Driver where
   foldMap f (Port v s)    = f s
@@ -68,7 +75,7 @@ instance F.Foldable Driver where
   foldMap _ (Lit i)       = mempty
 
 instance Functor (Entity ty) where
-    fmap f (Entity v vs ss tys) = Entity v vs (fmap (\ (v,a) -> (v,fmap f a)) ss) tys
+    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (v,ty,a) -> (v,ty,fmap f a)) ss) dyn
 
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)

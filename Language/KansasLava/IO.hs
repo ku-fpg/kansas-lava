@@ -52,7 +52,7 @@ class REIFY c where
 	create :: A c
 	capture'' ::  c -> A [(BaseTy,Driver E)]
 
-
+{-
 	wrapCircuit :: [(Var, Driver E)] -> [[Ty Var]] -> c -> c
 	wrapCircuit args tys circuit' = result -- {- o0 $ e_entity -}
 	   where
@@ -64,12 +64,12 @@ class REIFY c where
         	  $ Entity (Name "#AUTO" "ABC")
 			 [ Var (show ps)
 			 | (_,ps) <- pinsY
-			 ]
+ | 			 ]
 			 args
 			 (tys ++
 			  [ [BaseTy ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ]
 			 )
-
+-}
 data P = P [Int]
 
 instance Show P where
@@ -86,6 +86,7 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 			     (o,tys,vars') -> case capture'' (f o) of
 					       A c -> case c e vars' of
 							(r,tys',vars'') -> (r,tys ++ tys',vars'')
+{-
 
 	wrapCircuit args tys fn inpX = result -- {- o0 $ e_entity -}
 	   where
@@ -99,7 +100,7 @@ instance (REIFY i,REIFY o) => REIFY (i -> o) where
 			 ]
 		tys' = [ [BaseTy ty,TyVar v] | (ty,Port v _) <- pinsX ] ++ tys
 		result = wrapCircuit args' tys' (fn inpX)
-
+-}
         create = error "No method nor default method for `create' In the instance declaration for `REIFY (i -> o)'"
 
 -- perhaps this can capture type??

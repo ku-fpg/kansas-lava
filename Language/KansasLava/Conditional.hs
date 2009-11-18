@@ -8,24 +8,22 @@ import Data.Bits
 import Control.Applicative
 
 
-
-(.==.) :: (Eq a) => Signal a -> Signal a -> Signal Bool
+(.==.) :: (OpType a, Eq a) => Signal a -> Signal a -> Signal Bool
 (.==.) sA sB = o0 $ entity2 (Name "Bool" ".==.")
 		 [Var "i0", Var "i1"]
 		 [Var "o0"]
-		 [ [BaseTy B,TyVar $ Var "o0"]
-		 , [TyVar $ Var "i0", TyVar $ Var "i1"]
-		 ]
 		 (\ a b -> a == b)
 		 sA sB
-(.>=.) :: (Ord a) => Signal a -> Signal a -> Signal Bool
+(.>=.) :: (OpType a, Ord a) => Signal a -> Signal a -> Signal Bool
 (.>=.) sA sB = o0 $ entity2 (Name "Bool" ".>=.")
 		 [Var "i0", Var "i1"]
 		 [Var "o0"]
-		 [ [BaseTy B,TyVar $ Var "o0"]
-		 , [TyVar $ Var "i0", TyVar $ Var "i1"]
-		 ]
 		 (\ a b -> a >= b)
 		 sA sB
 
-
+(.<.) :: (OpType a, Ord a) => Signal a -> Signal a -> Signal Bool
+(.<.) sA sB = o0 $ entity2 (Name "Bool" ".<.")
+		 [Var "i0", Var "i1"]
+		 [Var "o0"]
+		 (\ a b -> a < b)
+		 sA sB
