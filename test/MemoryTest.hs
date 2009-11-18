@@ -10,28 +10,6 @@ import Data.Sized.Unsigned
 import Control.Applicative
 type Unsigned2 = Unsigned X2
 
--- FIXME: Remove and pull in Ed's version from Data.Sized
-instance (Enum s, Size s) => Bounded (Unsigned s) where
-  minBound = 0
-  maxBound = let a :: s
-                 a = error "making a s"
-             -- had to use -fglasgow-exts. Don't know which extension is needed.
-             in fromIntegral $ 2 ^ (size a)  - 1
-{-
-test = permute p clock testvector
-  where p :: [(Unsigned2,Unsigned2)]
-        p = zip [0..3] ( reverse [0..3])
-
-
-
-
-
-toggle clk i = res
-  where res = xor2 (delay clk low res) i
-
-
-testvector = trajectory clock (map fromInteger [0..10])
--}
 
 trajectory :: (OpType a) => Time -> [Signal a] -> Signal a
 trajectory clk l = foldr c initVal l

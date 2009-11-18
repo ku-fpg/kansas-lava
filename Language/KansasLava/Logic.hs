@@ -17,8 +17,6 @@ high = Signal (pure True) $ Lit 1
 low :: Signal Bool
 low = Signal (pure False) $ Lit 0
 
-type U2 = U.Unsigned X2
-
 
 mux4 :: (MUX a) => Signal U2 -> a -> a -> a -> a -> a
 mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
