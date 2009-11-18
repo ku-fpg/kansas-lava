@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
-{-# LANGUAGE ScopedTypeVariables #-} -- REMOVE
+
 module Language.KansasLava.VHDL(vhdlCircuit) where
 
 
