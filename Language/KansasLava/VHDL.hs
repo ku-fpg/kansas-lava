@@ -39,7 +39,6 @@ vhdlCircuit opts name circuit = do
 
   let arch = VhdlArchitecture name (decls nodes) (insts nodes ++ finals sinks)
   let rendered = render $ pretty ent $$ pretty arch
-  putStrLn rendered
   return rendered
 
 vhdlTypes :: BaseTy -> String
@@ -86,74 +85,59 @@ insts nodes = concat [
                  | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
               (synchronous nodes)
 
+-- A funciton to render a Driver as a valid VHDL expression (of the appropriate type)
+type SigToVhdl = BaseTy -> Driver Unique -> String
+slvCast = const $ Just "std_logic_vector"
+active_high = const $ Just "active_high"
+
+to_integer _ (Lit l) =  show l
+to_integer ty  p =  "to_integer(" ++ sigTyped ty p ++ ")"
+
+
+data VhdlOperation = 
+     VHDLOp OpFix String (BaseTy -> Maybe String) [SigToVhdl]
+
+-- the static list, specials, describes entities
+-- that can be directly converted VHDL behavioral expressions
+-- 
+specials :: [(Name, VhdlOperation)]
 specials =
-  [(Name moduleName lavaName, (vhdlName, Just "std_logic_vector"))
+  [(Name moduleName lavaName, (VHDLOp Infix vhdlName slvCast  [sigTyped, sigTyped]))
        | moduleName <- ["Unsigned", "Signed","Int"]
-       , (lavaName,vhdlName) <- [("+","+"), ("-","-"), ("negate", "-")]]
-
-  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
-          | moduleName <- ["Unsigned", "Signed","Bool"]
-          , (lavaName,vhdlName) <- [(".<.","<"), (".>.",">"),(".==.","="),(".<=.","<="), (".>=.",">=") ]]
-
-  ++ [(Name moduleName lavaName, (vhdlName, Just "std_logic_vector"))
-         | moduleName <- ["Unsigned", "Signed"]
-         , (lavaName,vhdlName) <- [(".|.","or"), (".&.","and"), (".^.","xor")]]
-
-  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
-          | moduleName <- ["Bool"]
+       , (lavaName,vhdlName) <- [("+","+"), ("-","-"), (".|.","or"), (".&.","and"), (".^.","xor")]]
+  ++  
+  [(Name moduleName lavaName, (VHDLOp Prefix vhdlName slvCast [sigTyped]))
+       | moduleName <- ["Unsigned", "Signed","Int"]
+       , (lavaName,vhdlName) <- [("negate", "-"), ("complement", "not")]]
+  ++ 
+  [(Name moduleName lavaName, (VHDLOp Infix vhdlName (const Nothing)  [sigTyped, sigTyped]))
+       | moduleName <- ["Bool"]
           , (lavaName,vhdlName) <- [("or2","or"), ("and2","and"), ("xor2","xor")]]
-
-  ++ [(Name moduleName lavaName, (vhdlName,  Just "std_logic_vector"))
-         | moduleName <- ["Unsigned", "Signed"]
-          , (lavaName,vhdlName) <- [("complement","not")]]
-
-  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
-         | moduleName <- ["Bool"]
-          , (lavaName,vhdlName) <- [("not","not")]]
-
+  ++  
+  [(Name moduleName lavaName, (VHDLOp Prefix vhdlName (const Nothing) [sigTyped]))
+       | moduleName <- ["Bool"]
+       , (lavaName,vhdlName) <- [("not", "not")]]
+  ++
+  [(Name moduleName lavaName, (VHDLOp Infix vhdlName active_high  [sigTyped, sigTyped]))
+       | moduleName <- ["Unsigned", "Signed","Int","Bool"]
+       , (lavaName,vhdlName) <- [(".<.","<"), (".>.",">"),(".==.","="),(".<=.","<="), (".>=.",">=") ]]
+  ++
     -- The VHDL operator "sll" (Shift Left Logical)
     -- actually performs sign extension IF the first argument is Signed
     -- and the effective shift direction is to the "right" 
-    -- (i.e. the shift count is negative)
-  ++ [(Name moduleName lavaName, (vhdlName,  Just "std_logic_vector"))
-         | moduleName <- ["Unsigned", "Signed"]
-          , (lavaName,vhdlName) <- [("shift","sll")]]
+    -- (i.e. the shift count is negative)-}
+  [(Name moduleName lavaName, (VHDLOp Infix vhdlName slvCast  [sigTyped, to_integer]))
+       | moduleName <- ["Unsigned", "Signed"]
+       , (lavaName,vhdlName) <- [("shift","sll")]]
 
 
 mkInst :: Unique -> Entity BaseTy Unique -> [Inst]
-mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x),(Var "i1",yTy,y)] _)
-        | Just (nm',cast) <- lookup n specials =
-          [ BuiltinInst (sig (Port (Var "o0") i))
-                        (sigTyped xTy x)
-                        nm'
-                        (sigTyped yTy y) cast
-          ]
-
-mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x)] _)
-        | Just (nm',cast) <- lookup n specials =
-          [ BuiltinInst1 (sig (Port (Var "o0") i))
-                         (sigTyped xTy x) nm'  cast]
-
-{-
-
-mkInst i e@(Entity n@(Name mod nm) [out)] ins _)
-        | Just (nm',fix, castout, castin) <- lookup n specials =
-            let sigIns = zipWith castyin [(ty,p) | (_,ty,p) <- ins]
-            in case fix of
-                 Unary -> 
-                     [ BuiltinInst (sig (Port (Var "o0") i))
-                       nm'
-                       (head sigIns)
-                       cast]
-                 BinaryInfix -> 
-                     [ BuiltinInst (sig (Port (Var "o0") i))
-                       (head sigIns)
-                       nm'
-                       (head (tail sigIns)) 
-                       cast]
-
-                 FunCall -> undefined
--}
+mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] ins _)
+        | Just (VHDLOp opFix opName outConv inConvs) <- lookup n specials =
+          [ BuiltinInst opFix (sig (Port (Var "o0") i)) opName
+                        [f inTy driver | f <- inConvs
+                                       | (_, inTy, driver) <- ins]
+                        (outConv oTy)]
 
 -- Delay Circuits
 mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
@@ -169,8 +153,8 @@ mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
 -- Muxes
 mkInst i e@(Entity (Name "Bool" "mux2") [(Var "o0",oTy)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)] _)
 	= [ CondAssign (sig (Port (Var "o0") i))
-                       [(sig f, sig c ++ "= '0'")]
-                       (sig t)
+                       [(ocast fTy f, sigTyped cTy c ++ "= '0'")]
+                       (ocast tTy t)
          ]
 mkInst i e@(Entity (Name "Bool" "mux2") x y _) = error $ show (x,y)
 
@@ -237,8 +221,9 @@ synchronous nodes
         ((_,d):_) = delays
         outputs = [sig (Port (Var "o0") i) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
-        inits = [sig (inputDriver "init" e)
-                 | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _ _)) <- delays]
+        inits = [ocast ty (inputDriver "init" e)
+                 | (i,e@(Entity (Name "Lava" "delay") [(Var n,ty)] _ _)) <- delays]
+
 
         Just (_,clkTy,clk)  = lookupInput "clk" (head (map snd (delays ++ brams)))
         Just (_,rstTy,rst) =  lookupInput "rst" (head (map snd (delays ++ brams)))
@@ -285,6 +270,18 @@ sigTyped RstTy s = sig s
 
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
+-- ocast is for assigments where the driver may need to be cast
+ocast B (Lit i) = "'" ++ show i ++ "'"
+ocast CB (Lit i) = "'" ++ show i ++ "'"
+ocast ClkTy (Lit i) = "'" ++ show i ++ "'"
+ocast RstTy (Lit i) = "'" ++ show i ++ "'"
+ocast B x = "std_logic(" ++ sig x ++ ")"
+ocast CB x = "std_logic(" ++ sig x ++ ")"
+ocast ClkTy x = "std_logic(" ++ sig x ++ ")"
+ocast RstTy x = "std_logic(" ++ sig x ++ ")"
+ocast ty driver = "std_logic_vector" ++ "(" ++ sigTyped ty driver ++ ")"
+
+
 
 
 -- * The VHDL data structure and pretty-printing routines
@@ -301,12 +298,13 @@ data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
                   [DeclDescriptor]
                   [Inst]
             deriving Show
+data OpFix = Prefix | Infix | PostFix | NoFix deriving (Show)
 
 data Inst = Assign String String
           -- a <= b;
-          | BuiltinInst1 String String String (Maybe String) -- a,b,op,conv
+          | BuiltinInst OpFix String String [String] (Maybe String) -- output,opname, [in1,in2],conv
           -- a <= conv (op (b));
-          | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
+--          | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
           -- a <= conv (b op c);
           | Inst String String [(String,String)] [(String,String)]
             -- String, VhdlEntity, DeclDescriptor Map, PortDescriptor Map
@@ -342,6 +340,7 @@ instance Pretty VhdlStruct where
          imports = vcat $ map text ["library IEEE;",
                                     "use IEEE.STD_LOGIC_1164.ALL;",
                                     "use IEEE.NUMERIC_STD.ALL;",
+--                                    "use work.lava.all",
                                     "use work.all;"]
 
 
@@ -361,10 +360,15 @@ instance Pretty VhdlStruct where
 
 instance Pretty Inst where
   pretty (Assign a b) = text a <+> text "<=" <+> text b <> semi
-  pretty (BuiltinInst a b op c Nothing) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
-  pretty (BuiltinInst a b op c (Just conv)) = text a <+> text "<=" <+> text conv <> parens (text b <+> text op <+> text c) <> semi
-  pretty (BuiltinInst1 a b op  Nothing) = text a <+> text "<="  <+> text op <> parens (text b)  <> semi
-  pretty (BuiltinInst1 a b op  (Just conv)) = text a <+> text "<=" <+>  text conv <> parens (text op <> parens (text b) ) <> semi
+--  pretty (BuiltinInst a b op c Nothing) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
+  -- pretty (BuiltinInst a op [in1, in2] Nothing) = text a <+> text "<=" <+> text in1 <+> text op <+> text in2 <> semi
+  pretty (BuiltinInst Infix a op [in1, in2] cval) = text a <+> text "<=" <+> (cast (text in1 <+> text op <+> text in2)) <> semi
+    where cast t = maybe t (\s -> (text s) <> parens t) cval
+  pretty (BuiltinInst Prefix a op [in1] cval) = text a <+> text "<=" <+> (cast (text op <+> text in1)) <> semi
+    where cast t = maybe t (\s -> (text s) <> parens t) cval
+
+--  pretty (BuiltinInst1 a b op  Nothing) = text a <+> text "<="  <+> text op <> parens (text b)  <> semi
+--  pretty (BuiltinInst1 a b op  (Just conv)) = text a <+> text "<=" <+>  text conv <> parens (text op <> parens (text b) ) <> semi
 
   pretty (Cond cond ifT []) =
     text "if" <+> text cond <+> text "then" $$
@@ -396,6 +400,7 @@ instance Pretty Inst where
   pretty (CondAssign a alts def) =
 	text a <+> text "<=" <+> (hsep $ map prettyAlt alts) <+> text def <> semi
     where prettyAlt (val,cond) = text val <+> text "when" <+> parens (text cond) <+> text "else"
+
 
 
 
