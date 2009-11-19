@@ -42,18 +42,6 @@ vhdlCircuit opts name circuit = do
   putStrLn rendered
   return rendered
 
-ports :: (Graph (Entity a)) -> [PortDescriptor]
-ports (Graph nodes out) =
---  [(n,"in","std_logic_vector") | (i,Pad (Var n)) <- nodes, notConst n] ++
- -- [("clk,rst", "in", "std_logic")] ++
-  [("sig" ++ show out, "out", "std_logic_vector")]
-
-{-
-notConst "low" = False
-notConst "high" = False
-notConst _ = True
--}
-
 vhdlTypes :: BaseTy -> String
 vhdlTypes B     = "std_logic"
 vhdlTypes CB	= "std_logic"			-- control bit
@@ -98,50 +86,41 @@ insts nodes = concat [
                  | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
               (synchronous nodes)
 
-fixName ".&." = "AND"
-fixName "xor2" = "XOR"
-fixName ".|." = "OR"
-fixName xs    = xs
-
--- infix specials
-isSpecialName :: Name -> Maybe String
-isSpecialName (Name "Bool" "+") = return "XOR"
-isSpecialName (Name "Bool" "*") = return "AND"
-isSpecialName _ = Nothing
-
-
 specials =
-  [(Name moduleName lavaName,
-         (vhdlName, Just "std_logic_vector"))
-   | moduleName <- ["Unsigned", "Signed","Int"]
-  , (lavaName,vhdlName) <-
-    [("+","+"), ("-","-")]] ++
-  [(Name moduleName lavaName,
-         (vhdlName, Nothing))
-   | moduleName <- ["Unsigned", "Signed","Bool"]
-  , (lavaName,vhdlName) <-
-    [(".<.","<"), (".>.",">"),(".==.","=")]] ++
+  [(Name moduleName lavaName, (vhdlName, Just "std_logic_vector"))
+       | moduleName <- ["Unsigned", "Signed","Int"]
+       , (lavaName,vhdlName) <- [("+","+"), ("-","-"), ("negate", "-")]]
 
-  [(Name moduleName lavaName,
-         (vhdlName, Just "std_logic_vector"))
-   | moduleName <- ["Unsigned", "Signed"]
-  , (lavaName,vhdlName) <-
-    [(".|.","or"), (".&.","and"), (".^.","xor")]] ++
-  [(Name moduleName lavaName,
-         (vhdlName, Nothing))
-   | moduleName <- ["Bool"]
-  , (lavaName,vhdlName) <-
-    [("or2","or"), ("and2","and"), ("xor2","xor")]]
+  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
+          | moduleName <- ["Unsigned", "Signed","Bool"]
+          , (lavaName,vhdlName) <- [(".<.","<"), (".>.",">"),(".==.","="),(".<=.","<="), (".>=.",">=") ]]
 
+  ++ [(Name moduleName lavaName, (vhdlName, Just "std_logic_vector"))
+         | moduleName <- ["Unsigned", "Signed"]
+         , (lavaName,vhdlName) <- [(".|.","or"), (".&.","and"), (".^.","xor")]]
 
+  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
+          | moduleName <- ["Bool"]
+          , (lavaName,vhdlName) <- [("or2","or"), ("and2","and"), ("xor2","xor")]]
 
+  ++ [(Name moduleName lavaName, (vhdlName,  Just "std_logic_vector"))
+         | moduleName <- ["Unsigned", "Signed"]
+          , (lavaName,vhdlName) <- [("complement","not")]]
+
+  ++ [(Name moduleName lavaName, (vhdlName, Nothing))
+         | moduleName <- ["Bool"]
+          , (lavaName,vhdlName) <- [("not","not")]]
+
+    -- The VHDL operator "sll" (Shift Left Logical)
+    -- actually performs sign extension IF the first argument is Signed
+    -- and the effective shift direction is to the "right" 
+    -- (i.e. the shift count is negative)
+  ++ [(Name moduleName lavaName, (vhdlName,  Just "std_logic_vector"))
+         | moduleName <- ["Unsigned", "Signed"]
+          , (lavaName,vhdlName) <- [("shift","sll")]]
 
 
 mkInst :: Unique -> Entity BaseTy Unique -> [Inst]
--- mkInst _ e = error $ show e
---    mkInst i (Pad (Var "low")) = Assign (sig i) "'0'"
---    mkInst i (Pad (Var "high")) = Assign (sig i) "'1'"
-
 mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x),(Var "i1",yTy,y)] _)
         | Just (nm',cast) <- lookup n specials =
           [ BuiltinInst (sig (Port (Var "o0") i))
@@ -150,33 +129,31 @@ mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x),(Var "i1",
                         (sigTyped yTy y) cast
           ]
 
+mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] [(Var "i0",xTy,x)] _)
+        | Just (nm',cast) <- lookup n specials =
+          [ BuiltinInst1 (sig (Port (Var "o0") i))
+                         (sigTyped xTy x) nm'  cast]
+
 {-
-mkInst tyEnv i e@(Entity nm [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-	| Just op <- isSpecialName nm
-	  = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
-                        (sig x)
-                        (op)
-                        (sig y) Nothing
-            ]
-mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | mod == "Bool" && nm `elem` (["xor",".&.",".|."] ++ ["xor2","and2","or2"])
-        = [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
-                        (sig x)
-                        (fixName nm)
-                        (sig y) Nothing
-          ]
 
-mkInst tyEnv i e@(Entity (Name mod nm) [Var "o0"] [(Var "i0",x),(Var "i1",y)] _)
-        | {- mod == "Unsigned"  && -} nm `elem` ["+", "-"] =
-          [ BuiltinInst (sig (Port (Var "o0") (Uq i)))
-                        (sigTyped (getTy tyEnv i "i0") x)
-                        (fixName nm)
-                        (sigTyped (getTy tyEnv i "i1") y) (Just "std_logic_vector")
-          ]
+mkInst i e@(Entity n@(Name mod nm) [out)] ins _)
+        | Just (nm',fix, castout, castin) <- lookup n specials =
+            let sigIns = zipWith castyin [(ty,p) | (_,ty,p) <- ins]
+            in case fix of
+                 Unary -> 
+                     [ BuiltinInst (sig (Port (Var "o0") i))
+                       nm'
+                       (head sigIns)
+                       cast]
+                 BinaryInfix -> 
+                     [ BuiltinInst (sig (Port (Var "o0") i))
+                       (head sigIns)
+                       nm'
+                       (head (tail sigIns)) 
+                       cast]
 
+                 FunCall -> undefined
 -}
-
-
 
 -- Delay Circuits
 mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
@@ -192,8 +169,8 @@ mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
 -- Muxes
 mkInst i e@(Entity (Name "Bool" "mux2") [(Var "o0",oTy)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)] _)
 	= [ CondAssign (sig (Port (Var "o0") i))
-                       [(sigTyped fTy f, sigTyped cTy c ++ "= '0'")]
-                       (sigTyped tTy t)
+                       [(sig f, sig c ++ "= '0'")]
+                       (sig t)
          ]
 mkInst i e@(Entity (Name "Bool" "mux2") x y _) = error $ show (x,y)
 
@@ -201,7 +178,7 @@ mkInst  i e@(Entity (Name "Lava" "concat") [(Var "o0",oTy)] inps _) =
                   [Assign (sig (Port (Var "o0") i)) val]
   where val = concat $ intersperse "&"
               -- Note the the layout is reversed
-              [sigTyped sigTy sig | (Var v,sigTy, sig) <- reverse inps]
+              [sig s | (Var v,sigTy, s) <- reverse inps]
 
 
 -- The 'Top' entity should not generate anything, because we've already exposed
@@ -218,7 +195,6 @@ mkInst i e@(Entity (Name "Lava" "slice") [(Var "o0",oTy)]
                   [(Var "i", inputTy, input),(Var "low",lowTy,low),(Var "high",highTy,high)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
-
 
 -- Catchall for everything else
 mkInst i e@(Entity (Name mod nm) outputs inputs _) =
@@ -261,7 +237,7 @@ synchronous nodes
         ((_,d):_) = delays
         outputs = [sig (Port (Var "o0") i) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
-        inits = [sigTyped (inputType "init" e) (inputDriver "init" e)
+        inits = [sig (inputDriver "init" e)
                  | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _ _)) <- delays]
 
         Just (_,clkTy,clk)  = lookupInput "clk" (head (map snd (delays ++ brams)))
@@ -328,6 +304,8 @@ data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
 
 data Inst = Assign String String
           -- a <= b;
+          | BuiltinInst1 String String String (Maybe String) -- a,b,op,conv
+          -- a <= conv (op (b));
           | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
           -- a <= conv (b op c);
           | Inst String String [(String,String)] [(String,String)]
@@ -385,6 +363,9 @@ instance Pretty Inst where
   pretty (Assign a b) = text a <+> text "<=" <+> text b <> semi
   pretty (BuiltinInst a b op c Nothing) = text a <+> text "<=" <+> text b <+> text op <+> text c <> semi
   pretty (BuiltinInst a b op c (Just conv)) = text a <+> text "<=" <+> text conv <> parens (text b <+> text op <+> text c) <> semi
+  pretty (BuiltinInst1 a b op  Nothing) = text a <+> text "<="  <+> text op <> parens (text b)  <> semi
+  pretty (BuiltinInst1 a b op  (Just conv)) = text a <+> text "<=" <+>  text conv <> parens (text op <> parens (text b) ) <> semi
+
   pretty (Cond cond ifT []) =
     text "if" <+> text cond <+> text "then" $$
       nest 4 (vcat $ map pretty ifT) $$
