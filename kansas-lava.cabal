@@ -33,11 +33,11 @@ Library
        Language.KansasLava.VHDL
        Language.KansasLava.Dot
        Language.KansasLava.Conditional
-       Language.KansasLava.Matrix 
+       Language.KansasLava.Matrix
   Other-modules:
        Language.KansasLava.Applicative
        Language.KansasLava.Type
-       Language.KansasLava.IO
+
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types

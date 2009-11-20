@@ -4,9 +4,7 @@ module Language.KansasLava.VHDL(vhdlCircuit) where
 
 
 -- import qualified Language.KansasLava.Entity as E
-import Language.KansasLava.Reify
-import Language.KansasLava.Signal
-import Language.KansasLava.IO
+import Language.KansasLava.Reify(reifyCircuit,Ports,ReifyOptions,ReifiedCircuit(..))
 import Language.KansasLava.Entity hiding (name)
 
 
@@ -14,13 +12,11 @@ import Data.Reify.Graph
 
 import Text.PrettyPrint
 import Data.List(intersperse)
-import Data.Bits
-import Data.List(mapAccumL,find)
-import Control.Monad(liftM)
-import Data.Maybe(catMaybes,fromJust)
+import Data.List(find)
+
 
 import Language.KansasLava.Type
-import qualified Data.Set as Set
+
 
 
 -- fixed_ports = []--  [("clk,rst", "in", "std_logic")]           --- error, hack?
@@ -37,7 +33,7 @@ vhdlCircuit opts name circuit = do
 
   let ent = VhdlEntity name [] ports
 
-  let arch = VhdlArchitecture name (decls nodes) (insts nodes ++ finals sinks)
+  let arch = VhdlArchitecture name (genDecls nodes) (genInsts nodes ++ genFinals sinks)
   let rendered = render $ pretty ent $$ pretty arch
   return rendered
 
@@ -48,9 +44,10 @@ vhdlTypes ClkTy	= "std_logic"			-- control bit
 vhdlTypes RstTy	= "std_logic"			-- control bit
 vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 vhdlTypes (U n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
+vhdlTypes ty = error "vhdlTypes: " ++ show ty
 
-decls :: [(Unique,Entity BaseTy Unique)] -> [DeclDescriptor]
-decls nodes =
+genDecls :: [(Unique,Entity BaseTy Unique)] -> [DeclDescriptor]
+genDecls nodes =
     -- need size info for each output, to declare length of std_logic_vector
     [ SigDecl (sig (Port (Var n) i)) (vhdlTypes nTy) Nothing
                           | (i,Entity _ outputs _ _) <- nodes
@@ -61,14 +58,13 @@ decls nodes =
            | (i,Entity (Name "Lava" "delay") [(Var n,nTy)] _ _) <- nodes
            ] ++
     concatMap memDecl nodes
-  where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,nTy)] inputs _) =
+  where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,_)] inputs _) =
           let Just (_,aTy,_) = find (\(Var v,_,_) -> v == "ain") inputs
               Just (_,dTy,_) = find (\(Var v,_,_) -> v == "din") inputs
               asize = baseTypeLength $ aTy
               dsize = baseTypeLength $ dTy
-              outputType = vhdlTypes $ dTy
           in [ TypeDecl (sig (Port (Var n) i) ++ "_ram_type")
-                        ("array(0  to " ++ show (2^asize -1)  ++ ") of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
+               ("array(0  to " ++ show (2^asize - 1)  ++ ") of std_logic_vector(" ++ show (dsize - 1)  ++ " downto 0)")
              , SigDecl (sig (Port (Var n) i) ++ "_ram")
                        (sig (Port (Var n) i) ++ "_ram_type") Nothing
              ]
@@ -76,44 +72,48 @@ decls nodes =
 
 
 
-finals :: [(Var,BaseTy,Driver Unique)] -> [Inst]
-finals args = [ Assign n (sig x) | (Var n,_,x) <- args ]
+genFinals :: [(Var,BaseTy,Driver Unique)] -> [Inst]
+genFinals args = [ Assign n (sig x) | (Var n,_,x) <- args ]
 
-insts :: [(Unique,Entity BaseTy Unique)] -> [Inst]
-insts nodes = concat [
+genInsts :: [(Unique,Entity BaseTy Unique)] -> [Inst]
+genInsts nodes = concat [
                mkInst i ent
-                 | (i,ent@(Entity _ outs ins _)) <- nodes ] ++
+                 | (i,ent@(Entity _ _ _ _)) <- nodes ] ++
               (synchronous nodes)
 
 -- A funciton to render a Driver as a valid VHDL expression (of the appropriate type)
 type SigToVhdl = BaseTy -> Driver Unique -> String
+slvCast :: a -> Maybe String
 slvCast = const $ Just "std_logic_vector"
+
+active_high :: a -> Maybe String
 active_high = const $ Just "active_high"
 
+to_integer :: SigToVhdl
 to_integer _ (Lit l) =  show l
 to_integer ty  p =  "to_integer(" ++ sigTyped ty p ++ ")"
 
 
-data VhdlOperation = 
+data VhdlOperation =
      VHDLOp OpFix String (BaseTy -> Maybe String) [SigToVhdl]
 
 -- the static list, specials, describes entities
 -- that can be directly converted VHDL behavioral expressions
--- 
+--
 specials :: [(Name, VhdlOperation)]
 specials =
   [(Name moduleName lavaName, (VHDLOp Infix vhdlName slvCast  [sigTyped, sigTyped]))
        | moduleName <- ["Unsigned", "Signed","Int"]
        , (lavaName,vhdlName) <- [("+","+"), ("-","-"), (".|.","or"), (".&.","and"), (".^.","xor")]]
-  ++  
+  ++
   [(Name moduleName lavaName, (VHDLOp Prefix vhdlName slvCast [sigTyped]))
        | moduleName <- ["Unsigned", "Signed","Int"]
        , (lavaName,vhdlName) <- [("negate", "-"), ("complement", "not")]]
-  ++ 
+  ++
   [(Name moduleName lavaName, (VHDLOp Infix vhdlName (const Nothing)  [sigTyped, sigTyped]))
        | moduleName <- ["Bool"]
           , (lavaName,vhdlName) <- [("or2","or"), ("and2","and"), ("xor2","xor")]]
-  ++  
+  ++
   [(Name moduleName lavaName, (VHDLOp Prefix vhdlName (const Nothing) [sigTyped]))
        | moduleName <- ["Bool"]
        , (lavaName,vhdlName) <- [("not", "not")]]
@@ -124,7 +124,7 @@ specials =
   ++
     -- The VHDL operator "sll" (Shift Left Logical)
     -- actually performs sign extension IF the first argument is Signed
-    -- and the effective shift direction is to the "right" 
+    -- and the effective shift direction is to the "right"
     -- (i.e. the shift count is negative)-}
   [(Name moduleName lavaName, (VHDLOp Infix vhdlName slvCast  [sigTyped, to_integer]))
        | moduleName <- ["Unsigned", "Signed"]
@@ -132,7 +132,7 @@ specials =
 
 
 mkInst :: Unique -> Entity BaseTy Unique -> [Inst]
-mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] ins _)
+mkInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
         | Just (VHDLOp opFix opName outConv inConvs) <- lookup n specials =
           [ BuiltinInst opFix (sig (Port (Var "o0") i)) opName
                         [f inTy driver | f <- inConvs
@@ -140,51 +140,51 @@ mkInst i e@(Entity n@(Name mod nm) [(Var "o0",oTy)] ins _)
                         (outConv oTy)]
 
 -- Delay Circuits
-mkInst i e@(Entity (Name "Lava" "delay") [(Var "o0",oTy)]
-			[ (Var "clk",clkTy,clk)
-			, (Var "rst",rstTy,rst)
-			, (Var "init",initTy,x)
-			, (Var "i",iTy,y)
+mkInst i (Entity (Name "Lava" "delay") [(Var "o0",_)]
+			[ (Var "clk",_,_)
+			, (Var "rst",_,_)
+			, (Var "init",_,_)
+			, (Var "i",_,y)
 			] _) =
           [ Assign input (sig y) ]
   where output = sig (Port (Var "o0") i)
         input =  output ++ "_next"
 
 -- Muxes
-mkInst i e@(Entity (Name "Bool" "mux2") [(Var "o0",oTy)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)] _)
+mkInst i (Entity (Name "Bool" "mux2") [(Var "o0",_)] [(Var "c",cTy,c),(Var "t",tTy,t),(Var "f",fTy,f)] _)
 	= [ CondAssign (sig (Port (Var "o0") i))
                        [(ocast fTy f, sigTyped cTy c ++ "= '0'")]
                        (ocast tTy t)
          ]
-mkInst i e@(Entity (Name "Bool" "mux2") x y _) = error $ show (x,y)
+mkInst _ (Entity (Name "Bool" "mux2") x y _) = error $ show (x,y)
 
-mkInst  i e@(Entity (Name "Lava" "concat") [(Var "o0",oTy)] inps _) =
+mkInst  i (Entity (Name "Lava" "concat") [(Var "o0",_)] inps _) =
                   [Assign (sig (Port (Var "o0") i)) val]
   where val = concat $ intersperse "&"
               -- Note the the layout is reversed
-              [sig s | (Var v,sigTy, s) <- reverse inps]
+              [sig s | (Var _,_, s) <- reverse inps]
 
 
 -- The 'Top' entity should not generate anything, because we've already exposed
 -- the input drivers via theSinks.
 mkInst _ (Entity (Name "Lava" "top") _ _ _) = []
 
-mkInst  _ e@(Entity (Name "Lava" "BRAM") _ _ _) = []
+mkInst  _ (Entity (Name "Lava" "BRAM") _ _ _) = []
 
-mkInst i e@(Entity (Name "Lava" "index") [(Var "o0",oTy)] [(Var "i", iTy, input),(Var "index",indexTy,idx)] _) =
+mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var "index",_,idx)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig idx ++ ")")]
 
-mkInst i e@(Entity (Name "Lava" "slice") [(Var "o0",oTy)]
-                  [(Var "i", inputTy, input),(Var "low",lowTy,low),(Var "high",highTy,high)] _) =
+mkInst i (Entity (Name "Lava" "slice") [(Var "o0",_)]
+                  [(Var "i", _, input),(Var "low",_,low),(Var "high",_,high)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
 
 -- Catchall for everything else
-mkInst i e@(Entity (Name mod nm) outputs inputs _) =
+mkInst i (Entity (Name _ nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm
                 []
-                ( [ (n,sig (Port (Var n) i)) | (Var n,nTy) <- outputs ] ++
+                ( [ (n,sig (Port (Var n) i)) | (Var n,_) <- outputs ] ++
                   [ (n,sigTyped nTy x) | (Var n,nTy,x) <- inputs ]
                 )
           ]
@@ -193,6 +193,7 @@ mkInst i e@(Entity (Name mod nm) outputs inputs _) =
 
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
+synchronous :: [(Unique, Entity BaseTy Unique)] -> [Inst]
 synchronous nodes
   | null delays && null brams  = []
   | otherwise = [Process ([sig clk, sig rst] ++  inputs ++ bramWE ++  bramData)
@@ -217,22 +218,20 @@ synchronous nodes
 	               ]
                      ]
   where -- Handling registers
-        delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [(Var n,_)] _ _)) <- nodes]
-        ((_,d):_) = delays
+        delays = [(i,e) | (i,e@(Entity (Name "Lava" "delay") [(Var _,_)] _ _)) <- nodes]
+        ((_,_):_) = delays
         outputs = [sig (Port (Var "o0") i) | (i,_) <- delays]
         inputs = [o ++ "_next" | o <- outputs]
         inits = [ocast ty (inputDriver "init" e)
-                 | (i,e@(Entity (Name "Lava" "delay") [(Var n,ty)] _ _)) <- delays]
+                 | (_,e@(Entity (Name "Lava" "delay") [(Var _,ty)] _ _)) <- delays]
 
 
-        Just (_,clkTy,clk)  = lookupInput "clk" (head (map snd (delays ++ brams)))
-        Just (_,rstTy,rst) =  lookupInput "rst" (head (map snd (delays ++ brams)))
+        Just (_,_,clk)  = lookupInput "clk" (head (map snd (delays ++ brams)))
+        Just (_,_,rst) =  lookupInput "rst" (head (map snd (delays ++ brams)))
 
         inputDriver i e = let (Just (_,_,d)) = lookupInput i e
                           in d
-        inputType i e = let (Just (_,ty,_)) = lookupInput i e
-                        in ty
-        lookupInput i (Entity _ outputs inputs _) = find (\(Var v,_,_) -> v == i) inputs
+        lookupInput i (Entity _ _ inps _) = find (\(Var v,_,_) -> v == i) inps
 
         -- Handling BRAMS
         brams = [(i,e) | (i,e@(Entity (Name "Lava" "BRAM") _ _ _)) <- nodes]
@@ -240,11 +239,11 @@ synchronous nodes
         bramSigs = [(sig (Port (Var n) i) ++ "_ram")
                       | (i,Entity _ [(Var n,_)] _ _) <- nodes]
         bramAddr = ["conv_integer(" ++ sig (inputDriver "ain" e) ++ ")"
-                   | (i,e) <- brams]
+                   | (_,e) <- brams]
         bramData = [sig (inputDriver "din" e)
-                   | (i,e) <- brams]
+                   | (_,e) <- brams]
         bramWE = [sig (inputDriver "we" e)
-                   | (i,e) <- brams]
+                   | (_,e) <- brams]
         bramTargets = [s ++ "(" ++ a ++ ")" |  s <- bramSigs | a <- bramAddr]
 
 
@@ -256,8 +255,10 @@ sig :: Driver Unique -> String
 sig (Port (Var v) d) = "sig_" ++  show d ++ "_" ++ v
 sig (Pad (Var n)) = n
 sig (Lit n) = show n
+sig p = error $ "sig: " ++ show p
 
 -- sigTyped allows the type casts, especially for literals.
+sigTyped :: BaseTy -> Driver Unique -> [Char]
 sigTyped (U width) (Lit n) = "to_unsigned(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped (S width) (Lit n) = "to_signed(" ++ show n ++ "," ++ show width ++ ")"
 sigTyped B         (Lit 0) = "'0'"
@@ -271,6 +272,7 @@ sigTyped RstTy s = sig s
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
 -- ocast is for assigments where the driver may need to be cast
+ocast :: BaseTy -> Driver Unique -> [Char]
 ocast B (Lit i) = "'" ++ show i ++ "'"
 ocast CB (Lit i) = "'" ++ show i ++ "'"
 ocast ClkTy (Lit i) = "'" ++ show i ++ "'"
@@ -331,7 +333,7 @@ instance Pretty VhdlStruct where
     (nest 2 ((text "port") <+> parens pdoc) <> semi) $$
     (text "end entity") <+> text name <> semi
    where pdoc = (cat $ punctuate semi $ map printPort ports)
-         printPort (n,mode,ty) = text n <+> colon <+> text mode <+> text ty
+         printPort (n,portDir,ty) = text n <+> colon <+> text portDir <+> text ty
          gdoc | null generics = empty
               | otherwise = nest 2 $ (text "generic") <+>
                                      parens (vcat $ map printGen generics)
@@ -366,6 +368,16 @@ instance Pretty Inst where
     where cast t = maybe t (\s -> (text s) <> parens t) cval
   pretty (BuiltinInst Prefix a op [in1] cval) = text a <+> text "<=" <+> (cast (text op <+> text in1)) <> semi
     where cast t = maybe t (\s -> (text s) <> parens t) cval
+
+  pretty (BuiltinInst PostFix a op [in1] cval) = text a <+> text "<=" <+> (cast (text in1 <+> text op)) <> semi
+    where cast t = maybe t (\s -> (text s) <> parens t) cval
+
+  pretty (BuiltinInst NoFix a op ins cval) =
+      text a <+> text "<=" <+> (cast (text op <> parens (cat (punctuate comma (map text ins))))) <> semi
+    where cast t = maybe t (\s -> (text s) <> parens t) cval
+
+  pretty i@(BuiltinInst _ _ _ _ _) = error $ "Unmatched pattern in Pretty.pretty(Inst)" ++ show i
+
 
 --  pretty (BuiltinInst1 a b op  Nothing) = text a <+> text "<="  <+> text op <> parens (text b)  <> semi
 --  pretty (BuiltinInst1 a b op  (Just conv)) = text a <+> text "<=" <+>  text conv <> parens (text op <> parens (text b) ) <> semi

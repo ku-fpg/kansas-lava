@@ -2,10 +2,6 @@ module Language.KansasLava.Conditional where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
-import Language.KansasLava.Type
-import Language.KansasLava.Seq
-import Data.Bits
-import Control.Applicative
 
 
 (.==.) :: (OpType a, Eq a) => Signal a -> Signal a -> Signal Bool

@@ -1,10 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module Language.KansasLava.Type where
 
-import qualified Data.Set as Set
-import Data.Set (Set)
-
-
+-- | BaseTy captures HDL-representable types.
 data BaseTy
 	= B		-- Bit
 	| CB		-- Control Bit (raw bit for clk or rst)
@@ -16,11 +13,11 @@ data BaseTy
 			-- What about Float/Double, special, etc.
 	deriving (Eq, Ord)
 
-data Ty v = BaseTy BaseTy | TyVar v
-	deriving (Eq, Ord)
 
 -- I don't use "_" here, because additional constructors are likely to be defined
 -- for BaseTy; and this function should be updated whenever this happens
+-- | baseTypeLength returns the width of a type when represented in VHDL.
+baseTypeLength :: BaseTy -> Int
 baseTypeLength B  = 1
 baseTypeLength CB = 1
 baseTypeLength ClkTy = 1
@@ -29,19 +26,19 @@ baseTypeLength (S x) = x
 baseTypeLength (U x) = x
 baseTypeLength T = 1
 
--- I don't use "_" here, because additional constructors are likely to be defined
--- for BaseTy; and this function should be updated whenever this happens
+-- I don't use "_" here, because additional constructors are likely to be
+-- defined for BaseTy; and this function should be updated whenever this happens
+-- | 'baseTypeIsSigned' determines if a type has a signed representation. This is
+-- necessary for the implementation of 'isSigned' in the 'Bits' type class.
+baseTypeIsSigned :: BaseTy -> Bool
 baseTypeIsSigned B     = False
 baseTypeIsSigned CB    = False
 baseTypeIsSigned ClkTy = False
 baseTypeIsSigned RstTy = False
-baseTypeIsSigned (S x) = True
+baseTypeIsSigned (S _) = True
 baseTypeIsSigned (U _) = False
 baseTypeIsSigned T     = False
 
-instance Functor Ty where
-	fmap f (BaseTy ty)	= BaseTy ty
-	fmap f (TyVar v) 	= TyVar (f v)
 
 instance Show BaseTy where
 	show B 		= "B"
@@ -52,7 +49,4 @@ instance Show BaseTy where
 	show (U i) 	= show i ++ "U"
 	show T		= "T"
 
-instance Show v => Show (Ty v) where
-	show (BaseTy ty) = show ty
-	show (TyVar v) 	 = show v
 

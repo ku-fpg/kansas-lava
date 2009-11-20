@@ -3,7 +3,7 @@
 
 module Language.KansasLava.Signal where
 
-import Data.Ratio
+
 import Data.Word
 import Data.Int
 import Data.Bits
@@ -14,10 +14,8 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 
 import Language.KansasLava.Entity
--- import Language.KansasLava.Bool
 import Language.KansasLava.Seq as S
-import Data.Monoid
-import Debug.Trace
+
 import Control.Applicative
 import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED
@@ -82,11 +80,11 @@ class OpType a where
     -- A 'default' Signal for a value type.
     initVal :: Signal a		-- todo, remove this
     showSeq :: (Show a) => Int -> Seq a -> String
-    showSeq n seq =
-	case seq of
+    showSeq n strm =
+	case strm of
 	   Constant v -> showV v
 	   _ -> unwords [ showV x ++ " :~ "
-                        | x <- take n $ toList seq
+                        | x <- take n $ toList strm
                         ] ++ "..."
 
 
@@ -137,7 +135,10 @@ instance (Enum a, Bounded a, Size a) => OpType (Signed a)
                            bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
                            initVal = Signal (pure 0) $ Lit 0
 
-instance (OpType a, OpType b) => OpType (a,b) where {} -- HMM
+instance (OpType a, OpType b) => OpType (a,b) where
+ op _ _ = error "unimplemented OpType.op (a,b)"
+ bitTypeOf _ = error "unimplemented OpType.bitTypeOf (a,b)"
+ initVal = error "unimplemented OpType.initVal (a,b)"
 
 
 
@@ -154,7 +155,9 @@ findEntityTyModName e = nm
 
 --fun1 nm f s     = entity1 (op s nm) inputs f s
 --fun2 nm f s1 s2 = entity2 (op s1 nm) inputs f s1 s2
-inputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
+-- | 'inpus' is a default list of input port names
+defaultInputs :: [Var]
+defaultInputs = [Var $ "i" ++ show (n :: Int) | n <- [0..]]
 
 entity0 :: OpType a => Name -> [Var] -> a -> ESignal a
 entity0 nm outs f
@@ -165,7 +168,7 @@ entity0 nm outs f
 
 entity1 :: forall a b . (OpType a, OpType b) =>
            Name -> [Var] -> [Var]  -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs f  s@(~(Signal vs1 w1))
+entity1 nm ins outs f  (~(Signal vs1 w1))
         = ESignal (pure f <*> vs1)
         $ E
         $ Entity nm [(o,bTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy] | val <- [w1]] []
@@ -174,7 +177,7 @@ entity1 nm ins outs f  s@(~(Signal vs1 w1))
 
 entity2 :: forall a b c . (OpType a, OpType b,OpType c) =>
            Name -> [Var] -> [Var]  -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
-entity2 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
+entity2 nm ins outs f (~(Signal vs1 w1)) ~(Signal vs2 w2)
         = ESignal (pure f <*> vs1 <*> vs2)
         $ E
         $ Entity nm [(o,cTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy] | val <- [w1,w2]] []
@@ -184,7 +187,7 @@ entity2 nm ins outs f s@(~(Signal vs1 w1)) ~(Signal vs2 w2)
 
 entity3 :: forall a b c d . (OpType a, OpType b,OpType c,OpType d) =>
            Name -> [Var] -> [Var]  -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
-entity3 nm ins outs f  s@(~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
+entity3 nm ins outs f  (~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
         = ESignal (pure f <*> vs1 <*> vs2 <*> vs3)
         $ E
         $ Entity nm [(o,dTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy,cTy] | val <- [w1,w2,w3]] []
@@ -208,12 +211,14 @@ o0 ~(ESignal v e) = Signal v (Port (Var "o0") e)
 proj :: Var -> (a -> b) -> ESignal a -> Signal b
 proj var f ~(ESignal v e) = Signal (fmap f v) (Port var e)
 
-fun1 nm f s     = o0 $ entity1 (op s nm) inputs [Var "o0"]  f s
-	where allNames = take 1 inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy (bitTypeOf s) : map TyVar allNames ]
-fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) inputs [Var "o0"]  f s1 s2
-	where allNames = take 2 inputs ++ [Var "o0"]
-	      tyeqs    = [ BaseTy (bitTypeOf s1) : map TyVar allNames]
+fun1 :: (OpType a1, OpType a) => String -> (a1 -> a) -> Signal a1 -> Signal a
+fun1 nm f s     = o0 $ entity1 (op s nm) defaultInputs [Var "o0"]  f s
+
+fun2 :: (OpType a1, OpType b, OpType a) =>
+        String -> (a1 -> b -> a) -> Signal a1 -> Signal b -> Signal a
+fun2 nm f s1 s2 = o0 $ entity2 (op s1 nm) defaultInputs [Var "o0"]  f s1 s2
+
+
 
 
 instance (Num a, OpType a) => Num (Signal a) where
@@ -348,4 +353,6 @@ instance (CLONE b) => CLONE (a -> b) where
 
 instance (CLONE a,CLONE b) => CLONE (a,b) where
   clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
+
+
 

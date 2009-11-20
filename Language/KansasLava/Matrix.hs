@@ -2,12 +2,10 @@
 module Language.KansasLava.Matrix where
 
 import Data.Sized.Unsigned as U
-import Data.Sized.Signed as S
-import Data.Sized.Ix as X
 import Data.Sized.Matrix as M
-import Data.List
+import Data.List hiding (tails)
 import Data.Maybe
-import Control.Applicative
+
 
 import Language.KansasLava.Signal
 import Language.KansasLava.Seq as Seq
@@ -42,6 +40,7 @@ pullout m = combine (M.toList m)
           | constant && not valid = Constant Nothing
           | not constant && valid = Just (M.fromList values) :~ combine tails
           | not constant && not valid = Nothing :~ combine tails
+          | otherwise = error "pullout.combine: unmatched pattern"
           where heads = map Seq.head seqs
                 tails = map Seq.tail seqs
                 valid = and $ map isJust heads
@@ -74,10 +73,8 @@ matrixSignalToSignalMatrix m
 signalMatrixBoolToSignalUnsigned :: forall ix. (Enum ix, Size ix) => Signal (Matrix ix Bool) -> Signal (Unsigned ix)
 signalMatrixBoolToSignalUnsigned  x =
 	o0 $ entity1 (Name "Matrix" "signalMatrixBoolToSignalUnsigned") inputs [Var "o0"] fn x
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0"]
+	where inputs   = map Var ["i0"]
 	      fn = U.fromMatrix
-              oTy = U (size (undefined :: ix))
 
 --instance BitRep Signed where
 instance BitRep Unsigned where

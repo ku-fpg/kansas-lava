@@ -4,12 +4,11 @@ module Language.KansasLava.Logic where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
-import Language.KansasLava.Type
 import Language.KansasLava.Seq
 import Data.Bits
 import Control.Applicative
 import Data.Sized.Unsigned as U
-import Data.Sized.Ix as X
+
 
 high :: Signal Bool
 high = Signal (pure True) $ Lit 1
@@ -76,23 +75,17 @@ cases ((b,c):rest) def = mux2 b c (cases rest def)
 --	    (Sized ix) => Signal a -> ix -> Signal Bool
 testABit :: (Bits a, OpType a) => Signal a -> Int -> Signal Bool
 testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] (\ x' -> testBit x' y) x
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0","i1"]
-
+	where inputs   = take 2 defaultInputs
 and2 :: Signal Bool -> Signal Bool -> Signal Bool
 and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] (&&) x y
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0","i1"]
+	where inputs   = take 2 defaultInputs
 or2 :: Signal Bool -> Signal Bool -> Signal Bool
 or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] (||) x y
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0","i1"]
+        where inputs = take 2 defaultInputs
 
 xor2 ::  Signal Bool -> Signal Bool -> Signal Bool
 xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] (/=) x y
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0","i1"]
+	where inputs   = take 2 defaultInputs
 bitNot :: Signal Bool -> Signal Bool
 bitNot x = o0 $ entity1 (Name "Bool" "not") inputs [Var "o0"]  not x
-	where allNames = inputs ++ [Var "o0"]
-	      inputs   = map Var ["i0"]
+	where inputs   = take 1 defaultInputs

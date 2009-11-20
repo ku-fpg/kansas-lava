@@ -2,10 +2,8 @@ module Language.KansasLava.Dot
 	( writeDotCircuit
 	) where
 
-import Language.KansasLava.IO
 import Language.KansasLava.Entity
 import Language.KansasLava.Reify
-import Language.KansasLava.Type
 import Text.Dot
 
 writeDotCircuit :: (Ports circuit) => [ReifyOptions] -> String -> circuit -> IO ()
@@ -18,9 +16,7 @@ writeDotCircuit opts filename circuit = do
    print (nodes,inputs',outputs)
    let inputs = inputs'
 
-
-
-   let showP (i,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
+   let showP (_,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
 
    let  mkLabel nm ins outs =
 	      (concatMap addSpecial $ show nm) ++ "|{{"
@@ -74,13 +70,14 @@ writeDotCircuit opts filename circuit = do
 				               edge' nd' Nothing n (Just (show v ++ ":w")) []
 		     Lit i -> do nd' <- node [("label",show i),("shape","none")]
 				 edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     p@(PathPad _) -> error $ "Unmatched pattern in drawEdge: " ++ show p
 
 	sequence [ drawEdge dr output_bar v
 		 | (v,_,dr) <- outputs
 		 ]
 
 	sequence [ drawEdge dr (findNd (Uq n)) v
-	       	 | (n,Entity nm outs ins _) <- nodes
+	       	 | (n,Entity _ _ ins _) <- nodes
 		 , (v,_,dr) <- ins
 		 ]
 
@@ -88,10 +85,12 @@ writeDotCircuit opts filename circuit = do
 
 
 -- addSpecial '>' = ['\\','>']
+addSpecial :: Char -> String
 addSpecial '>' = "&gt;";
 addSpecial '<' = "&lt;";
 addSpecial c = [c]
 
+join :: [String] -> String
 join [x] = x
 join []  = ""
 join (x:xs) = x ++ "|" ++ join xs

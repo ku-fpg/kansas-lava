@@ -47,6 +47,7 @@ head :: Seq a -> Maybe a
 head (Constant a) = a
 head (a :~ _) = a
 
+tail :: Seq a -> Seq a
 tail (Constant a) = (Constant a)
 tail (_ :~ as) = as
 
@@ -75,6 +76,7 @@ seqMux sB sT sF =
 
 instance F.Foldable Seq where
   foldMap f (a :~ as) = F.foldMap f a `mappend` F.foldMap f as
+  foldMap _ _ = error "Foldable.foldMap(Seq)"
 
 
 instance Traversable Seq where

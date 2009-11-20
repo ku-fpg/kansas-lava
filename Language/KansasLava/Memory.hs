@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Language.KansasLava.Memory
-  (MemOp(..),readMem, writeMem,  bram) where
+  (MemOp(..),readMem, writeMem,  bram, baseBRAM) where
 -- import Language.KansasLava
 import Language.KansasLava.Signal
 import Language.KansasLava.Entity
@@ -12,9 +12,6 @@ import Data.Sized.Unsigned
 import Data.Sized.Ix
 
 import qualified Data.Map as M
-import Data.Traversable as T
-import qualified Data.Foldable as F
-import Data.Monoid
 import Control.Applicative
 
 -- | a 'MemOp' is either a write (with address and data) or read (with address)
@@ -29,8 +26,12 @@ initMem :: Ord a => Int -> [(a,d)] -> Memory a d
 initMem readLatency vals = (m, replicate readLatency Nothing)
   where m = M.fromList vals
 
+enqueue :: a -> [a] -> [a]
 enqueue v vs = vs ++ [v]
+
+dequeue :: [a] -> (a,[a])
 dequeue (v:vs) = (v,vs)
+dequeue [] = error "can't dequeue from empty list"
 
 
 memop :: Ord a => Memory a d -> Maybe (MemOp a d) -> (Memory a d,Maybe d)
@@ -51,25 +52,6 @@ mapAccumLS f acc as@(Constant a) = o :~ mapAccumLS f acc' as
    where (acc',o) = f acc a
 
 
--- Copy test moves the values from one memory to another. The ugly part includes
--- the need to line up read requests for the second memory.
-counter clk = out'
-  where out = delay clk 0 out'
-        out' :: Signal Int
-        out' =  1 + out
-
-
-
-delayN n clock input = foldr ($) input (replicate n (delay clock initVal))
-
-instance F.Foldable Signal where
-  foldMap _ _ = error "Foldable.foldMap Signal not defined"
-
-instance T.Traversable Signal where
- traverse f (Signal s d) = Signal <$> traverse f s <*> pure d
-
-
-
 
 -- The Signal implementation...
 bram ::  forall a d . (OpType a, OpType d, Ord a) =>
@@ -78,8 +60,8 @@ bram ::  forall a d . (OpType a, OpType d, Ord a) =>
          Signal (MemOp a d) -> -- operation
          Signal d -- output value
 
-bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
-           ~op@(Signal opShallow opDeep)
+bram imap  ~(Time ~(Signal _ tm_w) ~(Signal _ r_w))
+           ~memOp@(Signal opShallow _)
         = Signal (mem opShallow)
         $ Port (Var "o0")
         $ E
@@ -92,20 +74,18 @@ bram imap  ~(Time ~(Signal tm tm_w) ~(Signal r r_w))
 
 
   where mem = mapAccumLS memop (initMem 2 imap)
-        (Signal weShallow weDeep) = bitIndex 0 op
-        addr :: Signal a
-        addr@(Signal _ addrDeep) = bitSlice (baseTypeLength addrTy) 1 op
+        (Signal _ weDeep) = bitIndex 0 memOp
+        (Signal _ addrDeep) :: Signal a = bitSlice (baseTypeLength addrTy) 1 memOp
         addrTy = tyRep (error "bram:addrType" :: d)
         addrWidth = baseTypeLength addrTy
         dataTy = tyRep (error "bram:dataType" :: a)
         dataWidth = baseTypeLength dataTy
-        dat :: Signal d
-        dat@(Signal _ dataDeep) = bitSlice (dataWidth + addrWidth) (addrWidth + 1) op
+        (Signal _ dataDeep) :: Signal a = bitSlice (dataWidth + addrWidth) (addrWidth + 1) memOp
 
 
 
 bitIndex :: forall a . (OpType a) => Int -> Signal a -> Signal Bool
-bitIndex idx (Signal s d)
+bitIndex idx (Signal _ d)
                    = Signal (error "bitIndex") -- FIXME: Get the slicing down.
                    $ Port (Var "o")
                    $ E
@@ -118,7 +98,7 @@ bitIndex idx (Signal s d)
   where iTy = tyRep (error "bitIndex:types" :: a)
 
 bitSlice :: forall a b . (OpType a, OpType b) => Int -> Int ->  Signal a -> Signal b
-bitSlice high low (Signal s d)
+bitSlice high low (Signal _ d)
                    = Signal (error "bitSliceCast") -- FIXME: Get the slicing down.
                    $ Port (Var "o0")
                    $ E
@@ -141,13 +121,13 @@ readMem (Signal addr addrDeep)  =
         Signal (fmap R addr)
             $ Port (Var "o0")
             $ E
-            $ Entity (Name "Lava" "concat") [(Var "o0",U size)]
+            $ Entity (Name "Lava" "concat") [(Var "o0",U opSize)]
                 [(Var "i0", U 1, Lit 0),
                  (Var "i1", aTy,addrDeep),
                  (Var "i2",dTy, Lit 0)
                 ]
                 []
-  where size = baseTypeLength $ tyRep (error "readMem" :: (MemOp a d))
+  where opSize = baseTypeLength $ tyRep (error "readMem" :: (MemOp a d))
         aTy = tyRep (error "readMem:aTy" :: a)
         dTy = tyRep (error "readMem:dTy" :: d)
 
@@ -155,24 +135,24 @@ readMem (Signal addr addrDeep)  =
 
 
 writeMem :: forall a d. (OpType a, OpType d) => Signal a -> Signal d -> Signal (MemOp a d)
-writeMem addr@(Signal addrShallow addrDeep) dat@(Signal val valDeep)  =
+writeMem (Signal addrShallow addrDeep) (Signal val valDeep)  =
         Signal (W <$> addrShallow <*> val)
             $ Port (Var "o0")
             $ E
-            $ Entity (Name "Lava" "concat") [(Var "o0",U size)]
+            $ Entity (Name "Lava" "concat") [(Var "o0",U opSize)]
                 [(Var "i0", U 1, Lit 0),
                  (Var "i1", aTy,addrDeep),
                  (Var "i2",dTy, valDeep)
                 ]
                 []
-  where size = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
+  where opSize = baseTypeLength $ bitTypeOf (error "writeMem" :: Signal (MemOp a d))
         aTy = tyRep (error "writeMem:aTy" :: a)
         dTy = tyRep (error "writeMem:dTy" :: d)
 
 
 instance (OpType a, OpType d) =>  OpType (MemOp a d) where
-   bitTypeOf _ = size
-    where size = U $  (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + 1
+   bitTypeOf _ = opSize
+    where opSize = U $  (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + (baseTypeLength (bitTypeOf $ ((error "bitTypeOf (MemOp a d)") :: Signal a))) + 1
    op = error "op undefined for MemOp"
    initVal = readMem initVal
 
@@ -187,5 +167,5 @@ instance (TyRep a, TyRep d) =>  TyRep (MemOp a d) where
 
 type Unsigned16 = Unsigned X16
 baseBRAM :: Time -> Signal Unsigned16 -> Signal Unsigned16
-baseBRAM clk addr = bram [] clk op
-  where op = writeMem addr 0
+baseBRAM bramClk addr = bram [] bramClk writeOp
+  where writeOp = writeMem addr 0

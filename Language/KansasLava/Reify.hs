@@ -4,16 +4,11 @@ module Language.KansasLava.Reify where
 import Data.Reify
 import Data.List as L
 
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Control.Monad (when)
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
-import Language.KansasLava.IO
-import Language.KansasLava.Sequential(Time(..), Clk(..),Rst(..))
-import Debug.Trace
+import Language.KansasLava.Sequential(Time(..))
 
 --------------------------------------------------------
 -- Grab a set of drivers (the outputs), and give me a graph, please.
@@ -59,18 +54,19 @@ reifyCircuit opts circuit = do
                    (Graph gr out) <- reifyGraph o'
                    case lookup out gr of
                      Just (Entity (Name "Lava" "top")  _ ins _) ->
-                       return $ (gr,[(Var sink,ty, driver)
-                                       | (v,ty,driver) <- ins
+                       return $ (gr,[(Var sink,ity, driver)
+                                       | (_,ity,driver) <- ins
                                        | sink <- outputNames])
-                     Just e@(Entity (Name _ _) outs ins _) ->
+                     Just (Entity (Name _ _) outs _ _) ->
                        return $ (gr, [(Var sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames])
+                     _ -> error $ "reifyCircuit: " ++ show o
 
 
 
 
-                l@(Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
+                (Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
@@ -122,7 +118,7 @@ showReifiedCircuit opt c = do
             showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
             showDriver (Lit x) ty = show x ++ ":" ++ show ty
             showDriver (Pad x) ty = show x ++ ":" ++ show ty
-            showDriver l ty = error $ "showDriver" ++ show l
+            showDriver l _ = error $ "showDriver" ++ show l
 	let inputs = unlines
 		[ show var ++ " : " ++ show ty
 		| (var,ty) <- theSrcs rCir
@@ -172,10 +168,10 @@ class Ports a where
   ports :: [String] -> a -> (BaseTy, Driver E)
 
 instance OpType a => Ports (Signal a) where
-  ports _ sig@(Signal s d) =  (bitTypeOf sig, d)
+  ports _ sig@(Signal _ d) =  (bitTypeOf sig, d)
 
 instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
-  ports _ (aSig@(Signal sa da), bSig@(Signal sb db)) =
+  ports _ (aSig@(Signal _ da), bSig@(Signal _ db)) =
             (U size,
                Port (Var "o0")
             $ E
@@ -191,6 +187,7 @@ instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
 
 instance (OpType a, Ports b) => Ports (Signal a -> b) where
   ports (v:vs) f = ports vs $ f (Signal (error "Ports(Signal a -> b)") (Pad (Var v)))
+  ports _ _ = error "Ports.ports (Signal a -> b)"
 
 instance Ports b => Ports (Time -> b) where
   ports vs f = ports vs $ f'

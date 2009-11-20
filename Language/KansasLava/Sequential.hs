@@ -2,12 +2,11 @@
 module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
-import Language.KansasLava.IO
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
-import Control.Applicative
 import Language.KansasLava.Applicative
+
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a
 -- delay = error "delay!"
@@ -15,7 +14,7 @@ import Language.KansasLava.Applicative
 -- To revisit: Should this be a -> S a -> S a ??
 
 delay :: forall a. (OpType a) => Time -> Signal a -> Signal a -> Signal a
-delay ~(Time ~(Signal tm tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
+delay ~(Time ~(Signal _ tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         = Signal (shallowDelay r d rest)
         $ Port (Var "o0")
         $ E
@@ -47,6 +46,7 @@ instance Show Time where
 	-- show (Time t r) = show (pure (,) <*> t <*> r)
         show (Time (Signal t_s _) (Signal r_s _)) = show $ zipWith' (,) t_s r_s
 
+{-
 instance REIFY Time where
 --	capture p (a,b) = capture (p `w` 1) a ++ capture (p `w` 2) b
 	create     = Time <$> create <*> create
@@ -55,6 +55,7 @@ instance REIFY Time where
 
 --	capture'' (a,b) = (++) <$> capture'' a <*> capture'' b
         capture'' = error "No method nor default method for `capture''' in the instance declaration for `REIFY Time'"
+-}
 
 instance Show Clk where
 	show (Clk n) = show n
@@ -77,10 +78,10 @@ instance OpType Rst
 -- newtype Clk = Clk Integer	-- always running
 
 clk :: Time -> Signal Integer
-clk (Time c _) = error "Sequential.clk" -- fmap (\ (Clk n) -> n) c
+clk (Time _ _) = error "Sequential.clk" -- fmap (\ (Clk n) -> n) c
 
 rst :: Time -> Signal Bool
-rst (Time _ r) = error "Sequential.rst"  -- fmap (\ (Rst r') -> r') r
+rst (Time _ _) = error "Sequential.rst"  -- fmap (\ (Rst r') -> r') r
 
 {-
 time :: Time -> Signal Integer		-- simluation only

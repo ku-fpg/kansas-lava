@@ -4,7 +4,6 @@ module Language.KansasLava.Entity where
 import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Control.Applicative
-import Data.Unique
 import Data.Monoid
 import Data.Dynamic
 
@@ -26,6 +25,7 @@ data Var = Var String
 instance Show Var where
     show (Var nm)     = nm
     show (UqVar path) = "<" ++ foldr (\ p s -> "_" ++ show p ++ s) ">" path
+    show NoVar = "NoVar"
 {-
 -- The old defintion.
 data Entity s = Entity Name [(Var,s)]      -- an entity
@@ -56,7 +56,7 @@ data Driver s = Port Var s      -- a specific port on the entity
 
 instance T.Traversable (Entity ty) where
   traverse f (Entity v vs ss dyn) =
-    Entity v vs <$> (T.traverse (\ (v,ty,a) -> ((,,) v ty) `fmap` T.traverse f a) ss) <*> pure dyn
+    Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
@@ -66,16 +66,16 @@ instance T.Traversable Driver where
 
 
 instance F.Foldable (Entity ty) where
-  foldMap f (Entity v vs ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
+  foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance F.Foldable Driver where
-  foldMap f (Port v s)    = f s
-  foldMap _ (Pad v)       = mempty
-  foldMap _ (PathPad v)   = mempty
-  foldMap _ (Lit i)       = mempty
+  foldMap f (Port _ s)    = f s
+  foldMap _ (Pad _)       = mempty
+  foldMap _ (PathPad _)   = mempty
+  foldMap _ (Lit _)       = mempty
 
 instance Functor (Entity ty) where
-    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (v,ty,a) -> (v,ty,fmap f a)) ss) dyn
+    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
 
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
