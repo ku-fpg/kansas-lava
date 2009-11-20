@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies, RankNTypes, ScopedTypeVariables #-}
+-- | The 'Logic' module provides basic combinational circuit combinators.
 
 module Language.KansasLava.Logic where
 
@@ -22,7 +23,7 @@ mux4 u2 a b c d = mux2 b1 (mux2 b2 a b) (mux2 b2 c d)
    where
 	b1 = testABit u2 0
 	b2 = testABit u2 1
-
+{-
 class BROADWAY a where
 --  type LANE a
   promote :: (forall x . (BROADWAY x) => x -> x -> x) -> a -> a -> a
@@ -33,7 +34,7 @@ instance BROADWAY (Signal a) where
 -- mux and delay can use this.
 instance (BROADWAY a,BROADWAY b) => BROADWAY (a,b) where
   promote f (a,b) (a',b') = (f a a',f b b')
-
+-}
 {-
 instance (BROADWAY a) => BROADWAY [a] where
   promote f (x:xs) (y:ys) = promote f x : [] -- promote f xs

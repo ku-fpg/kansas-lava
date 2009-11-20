@@ -1,24 +1,25 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+-- | The 'Memory' module provides an interface for using synchronous BlockRAM
+--   storage within Lava.
 module Language.KansasLava.Memory
-  (MemOp(..),readMem, writeMem,  bram, baseBRAM) where
--- import Language.KansasLava
+  (MemOp, readMem, writeMem,  bram) where
+
 import Language.KansasLava.Signal
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Seq
 import Language.KansasLava.Sequential
 
-import Data.Sized.Unsigned
-import Data.Sized.Ix
 
 import qualified Data.Map as M
 import Control.Applicative
 
--- | a 'MemOp' is either a write (with address and data) or read (with address)
+-- | A 'MemOp' is either a write (with a ddress and data) or read (with
+-- | address). It is exported abstract, so 'readMem' and 'writeMem' functions
+-- | should be used to construct values.
 data MemOp a d = W a d
                | R a
                deriving (Show,Eq)
-
 
 
 type Memory a d = (M.Map a d, [Maybe d])
@@ -54,12 +55,12 @@ mapAccumLS f acc as@(Constant a) = o :~ mapAccumLS f acc' as
 
 
 -- The Signal implementation...
+-- | 'bram' constructs a BlockRam component.
 bram ::  forall a d . (OpType a, OpType d, Ord a) =>
          [(a, d)] ->
          Time ->  -- Clock/Reset
          Signal (MemOp a d) -> -- operation
          Signal d -- output value
-
 bram imap  ~(Time ~(Signal _ tm_w) ~(Signal _ r_w))
            ~memOp@(Signal opShallow _)
         = Signal (mem opShallow)
@@ -114,7 +115,7 @@ bitSlice high low (Signal _ d)
 
 
 
-
+-- | 'readMem' constructs a read memory request from an address.
 readMem :: forall a d . (OpType a, OpType d) =>
            Signal a -> Signal (MemOp a d)
 readMem (Signal addr addrDeep)  =
@@ -133,7 +134,7 @@ readMem (Signal addr addrDeep)  =
 
 
 
-
+-- | 'writeMem' constructs a write memory request, given an address and a value to write.
 writeMem :: forall a d. (OpType a, OpType d) => Signal a -> Signal d -> Signal (MemOp a d)
 writeMem (Signal addrShallow addrDeep) (Signal val valDeep)  =
         Signal (W <$> addrShallow <*> val)
@@ -164,8 +165,9 @@ instance (TyRep a, TyRep d) =>  TyRep (MemOp a d) where
 
 -}
 
-
+{-
 type Unsigned16 = Unsigned X16
 baseBRAM :: Time -> Signal Unsigned16 -> Signal Unsigned16
 baseBRAM bramClk addr = bram [] bramClk writeOp
   where writeOp = writeMem addr 0
+-}

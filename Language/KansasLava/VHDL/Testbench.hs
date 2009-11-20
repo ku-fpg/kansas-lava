@@ -1,57 +1,74 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+-- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.VHDL.Testbench
   (mkTestbench) where
 
 import Language.KansasLava hiding (ports)
-import Data.List(mapAccumL,intersperse)
+import Data.List(mapAccumL)
 import Data.Bits
-
-import Data.Sized.Unsigned as U
-import Data.Sized.Signed as S
-import Data.Sized.Ix
 
 import System.Random
 import System.Environment(getEnvironment)
 import System.Directory
 import Control.Monad(liftM)
 
-mkTestbench :: Ports fun => String -> fun -> IO ()
-mkTestbench name fun = do
+-- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
+--   circuit. Given a circuit (with a given name), this will generate a series
+--   of support files. The files will place in a directory with the name of the
+--   circuit. The directory will be created in the location pointed to in the
+--   @LAVA_SIM_PATH@ environment variable, or else in @/tmp@ if that is not
+--   defined.
+--   'mkTestbench' will create the following files, assuming a circuit @name@ :
+--
+--   [@name.vhd@] The VHDL entity/architecture pair for the circuit.
+--
+--   [@name_tb.vhd@] A testbench that instantiates the @name@ entity as the
+--   device under test and supplies test stimuli.
+--
+--   [@name.input@] A list of input stimuli used by the testbench. These are
+--   randomly generated stimuli, and may not be appropriate for many circuits.
+--
+--   [@name.do@] A @modelsim@ script that will compile the vhd and execute the testbench.
+mkTestbench :: Ports fun =>
+               String -- ^ The name of the function
+            -> fun    -- ^ The Lava circuit
+            -> IO ()
+mkTestbench coreName fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
-               Nothing -> "/tmp/" ++ name ++ "/"
-               Just dir -> dir ++"/"++name ++ "/"
+               Nothing -> "/tmp/" ++ coreName ++ "/"
+               Just dir -> dir ++"/"++coreName ++ "/"
   putStrLn $ "Base directory is " ++ base
   createDirectoryIfMissing True base
-  vhdl <- vhdlCircuit [] name fun
-  writeFile (base ++ name ++ ".vhd") vhdl
+  vhdl <- vhdlCircuit [] coreName fun
+  writeFile (base ++ coreName ++ ".vhd") vhdl
   (inputs,outputs,sequentials) <- ports fun
-  writeFile (base ++ name ++ "_tb.vhd") $
-            entity name ++ architecture name inputs outputs sequentials
-  stimulus <- vectors inputs
-  writeFile (base ++ name ++ ".input") stimulus
-  writeFile (base ++ name ++ ".do") (doscript name)
+  writeFile (base ++ coreName ++ "_tb.vhd") $
+            entity coreName ++ architecture coreName inputs outputs sequentials
+  stim <- vectors inputs
+  writeFile (base ++ coreName ++ ".input") stim
+  writeFile (base ++ coreName ++ ".do") (doscript coreName)
 
-
-entity name = unlines
+entity :: String -> String
+entity coreName = unlines
   ["library ieee;",
    "use ieee.std_logic_1164.all;",
    "use ieee.std_logic_textio.all;",
    "library std;",
    "use std.textio.all;",
    "library work;",
-   "entity " ++ name ++ "_tb is",
+   "entity " ++ coreName ++ "_tb is",
    "begin",
-   "end entity " ++ name ++ "_tb;"
+   "end entity " ++ coreName ++ "_tb;"
   ]
 
-
-architecture name inputs outputs sequentials = unlines $
-  ["architecture sim of " ++ name ++ "_tb is"] ++
+architecture :: String  -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [((Var, t), (Var, t1))] -> String
+architecture coreName inputs outputs sequentials = unlines $
+  ["architecture sim of " ++ coreName ++ "_tb is"] ++
    signals ++
   ["begin",
-   stimulus name inputs outputs,
-   dut name inputs outputs sequentials,
+   stimulus coreName inputs outputs,
+   dut coreName inputs outputs sequentials,
    "end architecture sim;"]
   where signals = [
          "signal clk, rst : std_logic;",
@@ -61,18 +78,19 @@ architecture name inputs outputs sequentials = unlines $
          "signal output : " ++ portType outputs ++ ";"
           ]
 
-
-dut name inputs outputs sequentials = unlines $ [
- "dut: entity work." ++ name,
+dut :: String -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [((Var, t), (Var, t1))] -> String
+dut coreName inputs outputs sequentials = unlines $ [
+ "dut: entity work." ++ coreName,
  "port map ("] ++
  portAssigns inputs outputs ++
- ["\t" ++ clk ++ " => clk, " ++ rst ++ "=> rst" | ((Var clk,_),(Var rst, _)) <- sequentials] ++
+ ["\t" ++ c ++ " => clk, " ++ r ++ "=> rst" | ((Var c,_),(Var r, _)) <- sequentials] ++
  [");"]
 
-stimulus name inputs outputs = unlines $ [
+stimulus :: String -> [(a, BaseTy)] -> [(a1, BaseTy)] -> String
+stimulus coreName inputs outputs = unlines $ [
   "runtest: process  is",
-  "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".input\";",
-  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".output\";",
+  "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ coreName ++ ".input\";",
+  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ coreName ++ ".output\";",
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType inputs ++ ";",
   "\tvariable output_var : " ++ portType outputs ++ ";",
@@ -98,22 +116,27 @@ stimulus name inputs outputs = unlines $ [
   "\twait;",
   "end process;"
                 ]
-  where inputfile = name ++ "_input"
-        outputfile = name ++ "_output"
+  where inputfile = coreName ++ "_input"
+        outputfile = coreName ++ "_output"
 
 -- Manipulating ports
+ports :: (Ports a) =>
+         a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[((Var, BaseTy), (Var, BaseTy))])
+
 ports fun = do
   reified <- reifyCircuit [] fun
-  let inputs = [(name,ty) | (name,ty) <- theSrcs reified, not (ty `elem` [ClkTy,RstTy])]
-      outputs = [(name,ty) | (name,ty,driver) <- theSinks reified]
-      clocks = [(name,ClkTy) | (name,ClkTy) <- theSrcs reified]
-      resets = [(name,RstTy) | (name,RstTy) <- theSrcs reified]
+  let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy,RstTy])]
+      outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
+      clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
+      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
   return (inputs,outputs,zip clocks resets)
 
+portType :: [(a, BaseTy)] -> [Char]
+portType pts = "std_logic_vector(0 to " ++ show (portLen pts - 1) ++ ")"
+portLen :: [(a, BaseTy)] -> Int
+portLen pts = sum (map (baseTypeLength .snd) pts)
 
-portType ports = "std_logic_vector(0 to " ++ show (portLen ports - 1) ++ ")"
-portLen ports = sum (map (baseTypeLength .snd) ports)
-
+portAssigns :: [(Var, BaseTy)]-> [(Var, BaseTy)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
@@ -125,11 +148,12 @@ portAssigns inputs outputs = imap ++ omap
 
 
 -- Modelsim 'do' script
-doscript name = unlines [
+doscript :: String -> String
+doscript coreName = unlines [
   "vlib work",
-  "vcom " ++ name ++ ".vhd",
-  "vcom " ++ name ++ "_tb.vhd",
-  "vsim " ++ name ++ "_tb",
+  "vcom " ++ coreName ++ ".vhd",
+  "vcom " ++ coreName ++ "_tb.vhd",
+  "vsim " ++ coreName ++ "_tb",
   "add wave -r *",
   "run -all",
   "quit"]
@@ -138,11 +162,11 @@ doscript name = unlines [
 
 -- Generating the test vectors.
 toBits :: Bits a => Int -> a -> String
-toBits size val = map (\i -> if testBit val i then '1' else '0') upto
+toBits size val = map (\i -> if testBit val i then '1' else '0') downto
   where downto = reverse upto
         upto = [0..size-1]
 
-
+vectors ::  [(a, BaseTy)] -> IO String
 vectors inputs = do
     setStdGen (mkStdGen 0)
     let vector = liftM concat $ mapM stim types
@@ -158,23 +182,9 @@ vectors inputs = do
                         return $ toBits x v
         stim (U x) = do (v :: Int) <- randomRIO (0,2^x- 1)
                         return $ toBits x v
+        stim ClkTy = return $ toBits 1 (0 :: Int)
+        stim RstTy = return $ toBits 1 (0 :: Int)
+        stim T     = error "vectors.stim T not supported"
 
 
         types = map snd inputs
-
-add :: Time -> Signal Bool -> Signal Bool -> Signal Bool
-add clk a b = or2 a b
-
-
-type Unsigned8 = Signal (U.Unsigned X8)
-type Signed8 = Signal (S.Signed X8)
-add1 :: Signed8 -> Signed8 -> Signed8
-add1 a b = a + b
-
-
-ortest :: Time -> Unsigned8 ->  Unsigned8 -> Signal Bool
-ortest clk a b = a .==. b
-
-
-xxx :: Signal Bool -> Signal U1 -> Signal U1
-xxx  a b = mux2 a b 1

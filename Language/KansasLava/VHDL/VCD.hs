@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ImpredicativeTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances #-}
-module Language.KansasLava.VCD where
+-- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
+--   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
+--   a waveform viewer.
+module Language.KansasLava.VHDL.VCD(vcdCircuit,probe) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
@@ -7,34 +10,50 @@ import Data.Sized.Ix
 
 import Data.Char
 import Data.Bits
-import Data.List(inits)
 import Data.Dynamic
-import Data.Traversable
 import Data.Maybe
 import Data.Char
-import Control.Applicative
 
 
 
--- gatherProbes takes a signal and turns it into a list of probes, with
--- each probe associated with a Seq
-vcdCircuit :: (Ports a) => [Char] -> TimeTag -> a -> IO ()
-vcdCircuit name end circuit = do
+-- | 'vcdCircuit' simulates a circuit and logs the probes to a file. The
+--   function takes a name parameter for the circuit and generates a file
+--   @name.vcd@ in the cwd.  The circuit type must implement the 'Ports' class
+--   so that we can use observable sharing but in reality the circuit must not
+--   be a function type.
+vcdCircuit :: (Ports a) =>
+              String   -- ^ The name of the
+           -> Int  -- ^ The maximum number of clock ticks
+           -> a        -- ^ The Lava circuit.
+           -> IO ()
+vcdCircuit circuitName end circuit = do
     rc <- reifyCircuit [] circuit
-    let evts = [(n,pv) | (n,Entity name outs ins attrs) <- theCircuit rc,
+    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
                 Just val <- [lookup "simValue" attrs],
-                Just pv@(ProbeValue n s) <- [fromDynamic val]]
+                Just pv@(ProbeValue n _) <- [fromDynamic val]]
 
     putStrLn $ "There are " ++ show (length evts) ++ " probes"
     let vcd = format end evts
-    writeFile ("/Users/kimmell/Desktop/" ++ name ++ ".vcd") vcd
+    writeFile (circuitName ++ ".vcd") vcd
     return ()
+
+-- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
+probe :: (VCDSize t, VCDValue t) => String -> Signal t -> Signal t
+probe probeName (Signal s d) = Signal s (addAttr d)
+  where addAttr (Port v (E (Entity n outs ins _))) =
+            Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
+        addAttr driver = driver
+
+
+-- Below this is all implementation.
 
 type TimeTag = Int
 type TaggedEvents = [(TimeTag,VCDVal)]
 
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
+taggedEvent :: (VCDSize t, VCDValue t, Ord a, Num a) =>
+               a -> Seq t -> [(a, VCDVal)]
 taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
   where taggedEvent' time old (new :~ as)
                      | time >= maxTime = []
@@ -43,39 +62,36 @@ taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
         taggedEvent' time old (Constant new)
                      | old == new = []
                      | otherwise  = [(time,VCDVal new)]
-taggedEvent maxTime (Constant x) = [(0,VCDVal x)]
+taggedEvent _ (Constant x) = [(0,VCDVal x)]
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
+taggedEvents :: [a] -> [TaggedEvents] -> [(Int, [(a, VCDVal)])]
 taggedEvents identifiers tags = collated labeled
   where labeled = zip identifiers tags
         -- collated :: [(Int,TaggedEvents)] -> [(Time,[(Int,VCDVal )])]
         collated [] = []
-        collated l = let min = minimum $ map (maxHead . snd) l
+        collated labEvents =
+                     let minTime = minimum $ map (maxHead . snd) labEvents
                          maxHead :: TaggedEvents -> Int
                          maxHead [] = maxBound
-                         maxHead ((t,_):as) = t
+                         maxHead ((t,_):_) = t
                          -- next :: (Int,TaggedEvents) -> (Maybe (Int,VCDVal), (Int,TaggedEvents))
-                         next (l,[]) = (Nothing,Nothing)
+                         next (_,[]) = (Nothing,Nothing)
                          next (l,es@((t,v):vs))
-                           | t == min = (Just (l,v), Just (l,vs))
+                           | t == minTime = (Just (l,v), Just (l,vs))
                            | otherwise  = (Nothing,Just (l,es))
-                         (this,rest) = unzip $ map next l
+                         (this,rest) = unzip $ map next labEvents
                       in case catMaybes this of
                            [] -> collated (catMaybes rest)
-                           head -> (min,head):(collated (catMaybes rest))
+                           hd -> (minTime,hd):(collated (catMaybes rest))
 
 
--- Probe constructs a (named) vcd wire observation.
-probe :: (VCDSize t, VCDValue t) => String -> Signal t -> Signal t
-probe name sig@(Signal s d) = Signal s (addAttr d)
-  where addAttr (Port v (E (Entity n outs ins _))) =
-            Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue name s)))]))
-        addAttr d = d
 
 
 
 -- format creates the actual VCD formatted dump.
+format :: TimeTag -> [(String,ProbeValue)] -> String
 format maxTime seqs = unlines $ [
           "$timescale 10ns $end", -- Timescale section
           "$scope module logic $end"] -- scope section
@@ -86,17 +102,18 @@ format maxTime seqs = unlines $ [
           "$enddefinitions $end"] ++
          -- timestamp section
          concatMap fmtTimeStep evts
-  where decl (n,val) id =
-          "$var wire " ++ show (vcdSize val) ++ " " ++ id ++ " " ++ n ++ " $end"
+  where decl (n,val) ident =
+          "$var wire " ++ show (vcdSize val) ++ " " ++ ident ++ " " ++ n ++ " $end"
         fmtTimeStep (t,vals) =
           ["#" ++ show t] ++
-          [vcdFmt v++id | (id,v) <- vals] -- no space between value and identifier
+          [vcdFmt v++ident | (ident,v) <- vals] -- no space between value and identifier
         tes = [taggedEvent maxTime a | (_,ProbeValue _ a) <- seqs]
         evts = taggedEvents identifier_code tes
 
 
 
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
+identifier_code :: [String]
 identifier_code = res
   where chars = [(chr 33)..(chr 126)]
         ids@(_:res) = [[]]  ++ concatMap (\i -> [c:i | c <- chars]) ids
@@ -130,7 +147,7 @@ instance Show VCDVal where
   show (VCDVal x) = vcdFmt x
 
 instance Eq VCDVal where
-  (VCDVal a) == (VCDVal b) = False
+  (VCDVal _) == (VCDVal _) = False
 
 instance VCDValue VCDVal where
   vcdFmt (VCDVal v) = vcdFmt v
@@ -154,14 +171,11 @@ instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
     where val = toInteger v
           width = size (undefined :: ix) - 1
 
-instance OpType a => OpType (Signal a) where
-  bitTypeOf x = tyRep (undefined :: a)
-
 -- This was necessary to satisfy Data.Dynamic
 deriving instance Typeable1 Seq
 
 
-
+{-
 -- Test Circuits
 halfAdder :: (Signal Bool,Signal Bool) -> (Signal Bool,Signal Bool)
 halfAdder (a,b) = (sum,carry)
@@ -182,12 +196,6 @@ trajectory clk l = foldr c initVal l
 a = trajectory clock (take 100 $ cycle [low,high,low])
 b = trajectory clock (take 100 $ cycle [high,low])
 
-
-
-
-
-
-
 ua = probe "ua" $ trajectory clock ((map fromInteger [0..100]) :: [Signal (Unsigned X8)])
 
 plus :: Signal (Unsigned X8) -> Signal (Unsigned X8) -> Signal (Unsigned X8)
@@ -195,3 +203,4 @@ plus x y = x' + y'
   where x' = probe "x" x
         y' = probe "y" y
 
+-}

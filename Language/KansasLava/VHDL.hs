@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
-
+-- | This module converts a Lava circuit to a synthesizable VHDL netlist.
 module Language.KansasLava.VHDL(vhdlCircuit) where
 
 
@@ -14,15 +14,18 @@ import Text.PrettyPrint
 import Data.List(intersperse)
 import Data.List(find)
 
-
 import Language.KansasLava.Type
 
-
-
--- fixed_ports = []--  [("clk,rst", "in", "std_logic")]           --- error, hack?
-
-
-vhdlCircuit :: (Ports o) =>  [ReifyOptions] -> String -> o -> IO String
+-- | The 'vhdlCircuit' function converts a Lava circuit into a VHDL
+--   entity/architecture pair. The circuit type must implement the 'Ports'
+--   class.  If the circuit type is a function, the function arguments will be
+--   exposed as input ports, and the result will be exposed as an output port
+--   (or ports, if it is a compound type).
+vhdlCircuit :: (Ports o) =>
+               [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+            -> String         -- ^ The name of the generated entity.
+            -> o              -- ^ The Lava circuit.
+            -> IO String
 vhdlCircuit opts name circuit = do
   (ReifiedCircuit nodes srcs sinks) <- reifyCircuit opts circuit
 

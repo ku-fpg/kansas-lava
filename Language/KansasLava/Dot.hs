@@ -1,3 +1,4 @@
+-- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
 module Language.KansasLava.Dot
 	( writeDotCircuit
 	) where
@@ -6,7 +7,15 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Reify
 import Text.Dot
 
-writeDotCircuit :: (Ports circuit) => [ReifyOptions] -> String -> circuit -> IO ()
+-- | The 'writeDot' function converts a Lava circuit into a graphviz output. The
+--   circuit type must implement the 'Ports' class, so that the circuit
+--   inputs/outpus can be represented in the output graph.
+writeDotCircuit :: (Ports circuit) =>
+                   [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+                -> String  -- ^ The name of the circuit. The graph will be
+                           -- written a file with this name (with a .dot extension).
+                -> circuit  -- ^ The Lava circuit.
+                -> IO ()
 writeDotCircuit opts filename circuit = do
 {-
    let (inputs',blob) = output' circuit

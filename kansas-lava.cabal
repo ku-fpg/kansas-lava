@@ -18,10 +18,12 @@ Cabal-Version:       >= 1.6
 
 Flag all
   Description: Enable full development tree
-  Default:     True
+  Default:     False
 
 Library
-  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.5, pretty, dotgen >= 0.4.1, array, template-haskell, sized-types
+  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.5, pretty,
+                 dotgen  >= 0.4.1, array, template-haskell, sized-types,
+                 directory, random
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Entity
@@ -31,6 +33,8 @@ Library
        Language.KansasLava.Seq
        Language.KansasLava.Sequential
        Language.KansasLava.VHDL
+       Language.KansasLava.VHDL.Testbench
+       Language.KansasLava.VHDL.VCD
        Language.KansasLava.Dot
        Language.KansasLava.Conditional
        Language.KansasLava.Matrix
