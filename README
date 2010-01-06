@@ -8,7 +8,7 @@ To run tests
 
 % make tests
 
-The test script places the output in ./run, and compares it with a files of the same name in ./ref.
+The test script places the output in ./run, and compares it with files of the same name in ./ref.
 
 If you want to remaster a test, copy the output from the ./run directory, into the ./ref directory,
 and the add-and-commit the ./ref copy.
