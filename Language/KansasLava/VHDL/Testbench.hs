@@ -132,7 +132,7 @@ ports fun = do
   return (inputs,outputs,zip clocks resets)
 
 portType :: [(a, BaseTy)] -> [Char]
-portType pts = "std_logic_vector(0 to " ++ show (portLen pts - 1) ++ ")"
+portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
 portLen :: [(a, BaseTy)] -> Int
 portLen pts = sum (map (baseTypeLength .snd) pts)
 
@@ -141,9 +141,9 @@ portAssigns inputs outputs = imap ++ omap
   where assign sig idx (n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (n,k) =
-          (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++" to " ++ show (idx + k - 1) ++ "),")
-        (_,imap) = mapAccumL (assign "input") 0 [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
-        (_,omap) = mapAccumL (assign "output") 0 [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
+          (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
+        (_,imap) = mapAccumL (assign "input") 0 $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
 
 
 
@@ -188,3 +188,7 @@ vectors inputs = do
 
 
         types = map snd inputs
+
+
+test :: Signal Bool -> Signal Bool -> Signal Bool
+test = xor2
