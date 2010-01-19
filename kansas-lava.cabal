@@ -38,6 +38,7 @@ Library
        Language.KansasLava.Dot
        Language.KansasLava.Conditional
        Language.KansasLava.Matrix
+       Language.KansasLava.Memory
   Other-modules:
        Language.KansasLava.Applicative
        Language.KansasLava.Type
