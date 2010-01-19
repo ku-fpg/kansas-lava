@@ -178,8 +178,14 @@ mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var 
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig idx ++ ")")]
 
+mkInst i (Entity (Name "Lava" "slice") [(Var "o0",B)]
+                  [(Var "i0", _, input),(Var "low",_,low),(Var "high",_,high)] _) 
+    | high == low =   [Assign (sig (Port (Var "o0") i))
+              (sig input ++ "(" ++ sig high ++ ")")]
+    | otherwise = error "high and low indices do not match for bit slice"
+
 mkInst i (Entity (Name "Lava" "slice") [(Var "o0",_)]
-                  [(Var "i", _, input),(Var "low",_,low),(Var "high",_,high)] _) =
+                  [(Var "i0", _, input),(Var "low",_,low),(Var "high",_,high)] _) =
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
 

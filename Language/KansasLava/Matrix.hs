@@ -67,6 +67,20 @@ matrixSignalToSignalMatrix m
          oTy = U $ (size (undefined :: ix)) * (baseTypeLength aTy)
          aTy = tyRep (error "matrixSignalSignalMatrix" :: a)
 
+-- edk
+signalMatrixToMatrixSignal :: forall ix a. (OpType a, Size ix) => Signal (Matrix ix a) -> Matrix ix (Signal a)
+signalMatrixToMatrixSignal (Signal shallow deep) = res
+   where iTy = U (numElements * width)
+         aTy = tyRep (error "matrixSignalSignalMatrix" :: a)
+         slice driver (low, high) = E $ Entity (Name "Lava" "slice")
+             [(Var "o0",aTy)] [(Var "i0",iTy,driver),(Var "low",U 32,low), (Var "high",U 32, high)] []
+         numElements = size (undefined :: ix)
+         width = baseTypeLength aTy 
+         ixs = [(Lit$  fromIntegral $ (i-1)*width,Lit $ fromIntegral $ i*width - 1) | i <- [1..numElements]]
+         shallow' = pushin shallow
+         deep' :: M.Matrix ix E
+         deep' = M.fromList (map (slice deep) ixs) 
+         res = M.zipWith (\s d -> Signal s (Port (Var "o0") d)) shallow' deep'
 
 
 
@@ -89,4 +103,7 @@ instance (OpType a, Size ix) => OpType (Matrix ix a) where
   bitTypeOf _ =  U (size (undefined :: ix) * baseTypeLength (tyRep (undefined :: a)))
   op _ _  = error "OpType (Matrix ix a)"
   initVal = error "initVal (Matix ix a)"
+
+
+
 
