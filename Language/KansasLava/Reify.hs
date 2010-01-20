@@ -183,6 +183,21 @@ instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
           bTy = bitTypeOf bSig
           size = baseTypeLength aTy  + baseTypeLength bTy
 
+instance (OpType a, OpType b, OpType c) => Ports (Signal a, Signal b, Signal c) where
+  ports _ (aSig@(Signal _ da), bSig@(Signal _ db),  cSig@(Signal _ dc)) =
+            (U size,
+               Port (Var "o0")
+            $ E
+            $ Entity (Name "Lava" "top") [(Var "o0",U size)]
+             [(Var "i0", aTy, da),
+              (Var "i1",bTy, db),
+              (Var "i2",cTy, dc)
+             ] [])
+    where aTy = bitTypeOf aSig
+          bTy = bitTypeOf bSig
+          cTy = bitTypeOf cSig
+          size = baseTypeLength aTy  + baseTypeLength bTy + baseTypeLength cTy
+
 
 
 instance (OpType a, Ports b) => Ports (Signal a -> b) where
@@ -197,5 +212,8 @@ instance (OpType a, OpType b, Ports c) => Ports ((Signal a, Signal b) -> c) wher
   ports vs f = ports vs (curry f)
 
 
+instance (OpType a, OpType b, OpType c, Ports d) => Ports ((Signal a, Signal b, Signal c) -> d) where
+  ports vs f = ports vs (curry3 f)
+     where curry3 f a b c = f (a,b,c)
 
 
