@@ -3,7 +3,7 @@ module Language.KansasLava.Matrix where
 
 import Data.Sized.Unsigned as U
 import Data.Sized.Matrix as M
-import Data.List hiding (tails)
+-- import Data.List hiding (tails)
 import Data.Maybe
 
 
@@ -27,11 +27,16 @@ class BitRep c where
 -- The Seq versions
 pushin :: forall i t . Size i => Seq (Matrix i t) -> Matrix i (Seq t)
 pushin  m = M.fromList (fmapConst m)
-  where fmapConst (Nothing :~ as) = Data.List.zipWith (:~) nothings (fmapConst as)
-        fmapConst (Just a :~ as) = Data.List.zipWith (:~) (map Just (M.toList a)) (fmapConst as)
+  where fmapConst :: Seq (Matrix i t) -> [Seq t]
+        fmapConst (Nothing :~ as) = lzw (:~) nothings (fmapConst as)
+        fmapConst (Just a :~ as) = lzw (:~) (map Just (M.toList a)) (fmapConst as)
         fmapConst (Constant Nothing) = map Constant nothings
         fmapConst (Constant (Just a)) = map (Constant . Just) (M.toList a)
         nothings = replicate (size (undefined :: i)) Nothing
+        -- lzw is a 'lazy' zip with that uses an irrefutable pattern to work.
+        lzw f (a:as) ~(b:bs) = f a b:(lzw f as bs)
+        lzw _ [] _ = []
+
 
 pullout :: Size i => Matrix i (Seq t) -> Seq (Matrix i t)
 pullout m = combine (M.toList m)
@@ -72,14 +77,14 @@ signalMatrixToMatrixSignal :: forall ix a. (OpType a, Size ix) => Signal (Matrix
 signalMatrixToMatrixSignal (Signal shallow deep) = res
    where iTy = U (numElements * width)
          aTy = tyRep (error "matrixSignalSignalMatrix" :: a)
-         slice driver (low, high) = E $ Entity (Name "Lava" "slice")
-             [(Var "o0",aTy)] [(Var "i0",iTy,driver),(Var "low",U 32,low), (Var "high",U 32, high)] []
+         slice driver (l, h) = E $ Entity (Name "Lava" "slice")
+             [(Var "o0",aTy)] [(Var "i0",iTy,driver),(Var "low",U 32,l), (Var "high",U 32, h)] []
          numElements = size (undefined :: ix)
-         width = baseTypeLength aTy 
+         width = baseTypeLength aTy
          ixs = [(Lit$  fromIntegral $ (i-1)*width,Lit $ fromIntegral $ i*width - 1) | i <- [1..numElements]]
          shallow' = pushin shallow
          deep' :: M.Matrix ix E
-         deep' = M.fromList (map (slice deep) ixs) 
+         deep' = M.fromList (map (slice deep) ixs)
          res = M.zipWith (\s d -> Signal s (Port (Var "o0") d)) shallow' deep'
 
 
