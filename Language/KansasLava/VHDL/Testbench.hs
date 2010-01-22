@@ -74,7 +74,7 @@ architecture coreName inputs outputs sequentials = unlines $
          "signal clk, rst : std_logic;",
          "constant input_size : integer := 16;",
          "constant output_size : integer := 16;",
-         "signal input : " ++ portType inputs ++ ";",
+         "signal input : " ++ portType inputs ++ ":= (others => '0');",
          "signal output : " ++ portType outputs ++ ";"
           ]
 
@@ -100,7 +100,7 @@ stimulus coreName inputs outputs = unlines $ [
   "wait for 10ns;",
   "\trst <= '1', '0' after 10ns;",
   "\tclk <= '1', '0' after 10ns;",
-  "wait for 10ns;",
+  "wait for 20ns;",
   "\twhile not endfile (" ++ inputfile ++ ") loop",
   "\t\tREADLINE(" ++ inputfile ++ ", line_in);",
   "\t\tREAD(line_in,input_var);",
