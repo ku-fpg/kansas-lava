@@ -13,6 +13,11 @@ import Language.KansasLava.Applicative
 
 -- To revisit: Should this be a -> S a -> S a ??
 
+latch :: forall a. (OpType a) => Time -> Signal a -> Signal a
+latch tm sig = delay tm def sig
+  where def = initVal
+
+
 delay :: forall a. (OpType a) => Time -> Signal a -> Signal a -> Signal a
 delay ~(Time ~(Signal _ tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
         = Signal (shallowDelay r d rest)
