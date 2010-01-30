@@ -33,7 +33,6 @@ deepK e = K (error "shallow argument being used incorrectly") e
 shallowK :: a -> K a
 shallowK a = K a (error "deep argument being used incorrectly")
 
-
 apply0 :: K a -> a
 apply0 (K a _) = a 
 
@@ -66,6 +65,18 @@ instance Deliver K where
   liftD0 a = a
   liftD1 f a = f a
   liftD2 f a b = f a b
+
+
+instance Konstant Bool where
+  pureD True = liftD0 $ true
+  pureD False = liftD0 $ false
+
+
+true :: K Bool
+true = K True (Lit 1)
+	
+false :: K Bool
+false = K True (Lit 0)
 
 -----------------------------------------------------------------------------------------------
 
