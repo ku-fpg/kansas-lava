@@ -37,6 +37,7 @@ data Entity s = Entity Name [(Var,s)]      -- an entity
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
+		 | Table (Var,ty) (Var,ty,Driver s) [(Int,String,Int,String)]
               deriving (Show, Eq, Ord)
 
 instance Eq Dynamic where
@@ -57,6 +58,8 @@ data Driver s = Port Var s      -- a specific port on the entity
 instance T.Traversable (Entity ty) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
+  traverse f (Table (v0,t0) (v1,t1,d) tbl) = 
+	(\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s

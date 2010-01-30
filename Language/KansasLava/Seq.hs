@@ -42,6 +42,12 @@ instance Functor Seq where
    fmap f (a :~ as) = liftM f a :~ fmap f as
    fmap f (Constant a) = Constant $ liftM f a
 
+fmapWithFail :: (a -> Maybe b) -> Seq a -> Seq b
+fmapWithFail f (Nothing :~ as) = Nothing :~ fmapWithFail f as
+fmapWithFail f (Just a :~ as) = f a :~ fmapWithFail f as
+fmapWithFail f (Constant Nothing) =  Constant Nothing
+fmapWithFail f (Constant (Just a)) = Constant (f a)
+
 
 head :: Seq a -> Maybe a
 head (Constant a) = a

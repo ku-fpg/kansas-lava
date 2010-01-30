@@ -15,7 +15,8 @@ module Language.KansasLava (
     -- The Applicative module (only containing instances) is implicitly exported,
     -- and we get a warning if we explicitly export it. If non-instance stuff is added
     -- then this should be exported.
-    -- module Language.KansasLava.Applicative,
+    -- AJG: putting it back, because we need peek and poke
+    module Language.KansasLava.Applicative,
     module Language.KansasLava.Memory
      ) where
 
@@ -30,6 +31,6 @@ import Language.KansasLava.VHDL
 import Language.KansasLava.Dot
 import Language.KansasLava.Type
 import Language.KansasLava.Matrix
-import Language.KansasLava.Applicative()
+import Language.KansasLava.Applicative
 import Language.KansasLava.Memory
 

@@ -47,6 +47,7 @@ reifyCircuit opts circuit = do
 
         let (ty,o) = ports inputNames circuit
 
+
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
         (gr, outputs) <- case o of
@@ -61,6 +62,10 @@ reifyCircuit opts circuit = do
                        return $ (gr, [(Var sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames])
+		     Just (Table (ovar,oty) _ _) ->
+		       return $ (gr, [ (Var sink,oty, Port ovar out)
+                                     | sink <- [head outputNames]
+				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
 
 
@@ -70,7 +75,8 @@ reifyCircuit opts circuit = do
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [(v,vTy) | (_,Entity _ _ ins _) <- gr, (_,vTy,Pad v) <- ins]
+        let inputs = [ (v,vTy) | (_,Entity _ _ ins _) <- gr, (_,vTy,Pad v) <- ins]
+		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
         return $ ReifiedCircuit { theCircuit = gr
                                 , theSrcs = nub inputs
                                 , theSinks = outputs
@@ -128,10 +134,19 @@ showReifiedCircuit opt c = do
 		| (var,ty,dr) <- theSinks rCir
 		]
 	let circuit = unlines
-		[ "(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
-			++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
-		| (uq,Entity nm outs ins _) <- theCircuit rCir
+		[ case e of
+		    Entity nm outs ins _	 ->
+			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+		    Table (v0,ty0) (v1,ty1,dr) mapping ->
+			"(" ++ show uq ++ ") TABLE \n" 
+			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
+			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
+			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2 
+				       | (i,e1,o,e2) <- mapping 
+				       ]
+		| (uq,e) <- theCircuit rCir
 		]
 
 	let msg = bar

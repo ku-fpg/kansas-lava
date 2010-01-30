@@ -197,6 +197,24 @@ entity3 nm ins outs f  (~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
          dTy = tyRep (error "entity3" :: d)
 
 
+mapperEntity :: forall a b . (OpType a, Bounded a, Enum a, Enum b, Show a, Show b) => Var -> Var -> (a -> Maybe b) -> Signal a -> ESignal b
+mapperEntity vIn vOut f (Signal a w) = 
+	  ESignal (fmapWithFail f a)
+	$ E 
+	$ Table (vOut,oTy) (vIn,iTy,w) mapping
+   where
+	mapping = [ (fromEnum a,show a,fromEnum r, show r) | a <- [minBound..maxBound], Just r <- [f a]]
+	iTy = tyRep (error "" :: a)
+	oTy = tyRep (error "" :: a)
+
+-- because this is *bounded*, it can *become* a lookup table in VHDL.
+fullMap :: (Bounded a, OpType a, OpType b,  Enum a, Enum b, Show a, Show b) => (a -> b) -> Signal a -> Signal b
+fullMap f sig = o0 $ mapperEntity (Var "i0") (Var "o0") (Just . f) sig
+
+fullMapWithMaybe :: (Bounded a, OpType a, OpType b,  Enum a, Enum b, Show a, Show b) => (a -> Maybe b) -> Signal a -> Signal b
+fullMapWithMaybe f sig = o0 $ mapperEntity (Var "i0") (Var "o0") f sig
+
+
 {-
 entityM :: Name -> [Var] -> [Var] -> [[Ty Var]] -> (Matrix ix a -> b) -> Signal (Matrix ix a) -> Signal b
 entityM nm ins outs tyeqs f  s@(~(Signal vs1 w1))
