@@ -81,7 +81,7 @@ genFinals args = [ Assign n (sig x) | (Var n,_,x) <- args ]
 genInsts :: [(Unique,Entity BaseTy Unique)] -> [Inst]
 genInsts nodes = concat [
                mkInst i ent
-                 | (i,ent@(Entity _ _ _ _)) <- nodes ] ++
+                 | (i,ent) <- nodes ] ++
               (synchronous nodes)
 
 -- A funciton to render a Driver as a valid VHDL expression (of the appropriate type)
@@ -204,7 +204,22 @@ mkInst i (Entity (Name _ nm) outputs inputs _) =
                   [ (n,sigTyped nTy x) | (Var n,nTy,x) <- inputs ]
                 )
           ]
-
+mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) = 
+	[ Comment $ show tab
+	,  Case (sigTyped tyin d)
+			[ (show ix,Assign (sig (Port (vout) i))
+					  (ocast tyout (Lit (fromIntegral val)))
+			  )
+			| (ix,_,val,_) <- mp
+			]
+{-
+		       [ (ocast tyout (Lit (fromIntegral val)), "???") 
+		       | (ix,_,val,_) <- mp
+		       ]
+--                       [(ocast fTy f, sigTyped cTy c ++ "= '0'")]
+                       (ocast tyout (Lit 0))
+-}
+        ]
 
 
 -- The 'synchronous' function generates a synchronous process for the
@@ -332,6 +347,8 @@ data Inst = Assign String String
 	  | CondAssign String
 		        [(String,String)]	-- (Val, Cond)
 			String
+	  | Case String 
+		       [(String,Inst)]	-- Match, Val
           | Comment String
           | Process [String]
 		    [Inst]
@@ -426,9 +443,14 @@ instance Pretty Inst where
 	   text "end process" <> semi)
 
   pretty (CondAssign a alts def) =
-	text a <+> text "<=" <+> (hsep $ map prettyAlt alts) <+> text def <> semi
+	text a <+> text "<=" <+> (sep $ (map prettyAlt alts ++ [text def <> semi]))
     where prettyAlt (val,cond) = text val <+> text "when" <+> parens (text cond) <+> text "else"
 
+  pretty (Case e alts) =
+	text "CASE" <+> text e <+> text "IS" $$
+	   nest 2 (sep $ map prettyAlt alts) $$
+	text "END CASE" <> semi
+      where prettyAlt (match,cmd) = text "WHEN" <+> text match <+> text "=>" <+> pretty cmd
 
 
 

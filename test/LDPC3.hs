@@ -35,6 +35,9 @@ data DecodeCntl x
 	| DecodeResult x	-- 3 + x
 	deriving (Show, Eq, Ord)
 
+instance (Ord x, Bounded x, Enum x) => Konstant (DecodeCntl x) where
+	pureD d = liftD0 $ K d (Lit (fromIntegral $ fromEnum d))
+
 allDecodeCntl :: (Bounded x, Enum x) => [DecodeCntl x]
 allDecodeCntl = 
 	 [DecodeWait, DecodeRst, DecodeRest ] ++
@@ -140,15 +143,15 @@ counter tm en@(gtg,val) def loop = now
 	brk :: Signal Bool
 	brk = pure False
 
-{-
+
 -- the controlling logic, that generates the various signal for other components to use
 controller :: Time -> Signal Bool -> Signal (DecodeCntl X4)
-controller clk en = counter clk (en,pure DecodeRst)
-	where
--}		
+controller clk en = counter clk (en,pureD DecodeRst) (pureD DecodeWait) (fullMap incDecodeCntrl)
+
+	
 
 test = counter clock (with "en" $ [False,False,False,False,True,False] ++ cycle [False] ,pure DecodeRst)
- 	            (pure DecodeWait) example 
+ 	            (pureD DecodeWait) example 
 test2 clk en def = counter clk en def example
 
 

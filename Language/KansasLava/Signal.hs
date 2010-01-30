@@ -22,6 +22,79 @@ import Data.Sized.Signed as SIGNED
 import Data.Sized.Ix as X
 
 
+--------------------------------------------------------------------------------------------
+-- an obserable, konstant(sic.) value. Not a functor, applicative functor, or monad.
+data K a = K a (Driver E)
+	deriving Show
+
+deepK :: Driver E -> K a
+deepK e = K (error "shallow argument being used incorrectly") e
+
+shallowK :: a -> K a
+shallowK a = K a (error "deep argument being used incorrectly")
+
+
+apply0 :: K a -> a
+apply0 (K a _) = a 
+
+apply1 :: (K a -> K b) -> a -> b
+apply1 f a = b
+   where K b _ = f (K a (error "deep embedding problem in apply1"))
+	       
+apply2 :: (K a -> K b -> K c) -> a -> b -> c
+apply2 f a b = c
+   where K c _ = f (K a (error "deep embedding problem in apply2"))
+	           (K b (error "deep embedding problem in apply2"))
+	       
+
+-----------------------------------------------------------------------------------------------
+
+k :: (Konstant a) => a -> K a
+k = pureD
+	
+class Konstant a where
+  pureD :: (Deliver f) => a -> f a
+
+-- Not sure about liftD.
+class Deliver f where
+  liftD0 :: K a -> f a
+  liftD1 :: (K a -> K b) -> f a -> f b
+  liftD2 :: (K a -> K b -> K c) ->  f a -> f b -> f c
+
+
+instance Deliver K where
+  liftD0 a = a
+  liftD1 f a = f a
+  liftD2 f a b = f a b
+
+-----------------------------------------------------------------------------------------------
+
+instance Deliver Signal where
+  liftD0 (K a e) = Signal (pure a) e
+  liftD1 f (Signal a ea) = Signal (fmap (apply1 f) a) eb
+      where
+	K _ eb = f (K (error "liftD1, f's arg, Signal") ea)
+  liftD2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
+      where
+	K _ ec = f (K (error "liftD2, f's arg, Signal") ea)
+		   (K (error "liftD2, f's arg, Signal") eb)
+
+{-
+entity0 :: Name -> BaseTy -> Driver E
+entity0 nm ty = Port (Var "o0") $ E $ Entity nm
+					[(Var "o0",ty)] 
+					[]
+					[]
+
+entity1 :: Name -> BaseTy -> Driver E -> BaseTy -> Driver E
+entity1 nm ty1 e ty2 = Port (Var "o0") $ E $ Entity nm
+							[(Var "o0",ty2)] 
+							[(Var "i0",ty1,e)]
+							[]
+
+-}
+
+-----------------------------------------------------------------------------------------------
 -- AJG: to consider, adding AF and Functor to this type.
 
 data Signal a = Signal (Seq a) (Driver E)
