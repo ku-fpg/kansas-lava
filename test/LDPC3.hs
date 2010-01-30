@@ -19,8 +19,8 @@ type Enabled a = (Signal Bool, Signal a)
 pipeToMem :: Time -> Pipe a d -> Mem a d
 pipeToMem tm pipe memOp = undefined
 
-memToPipe :: Time -> Pipe () a -> Mem a d -> Pipe a d
-memToPipe = undefined
+memToPipe :: Time -> Enabled a -> Mem a d -> Pipe a d
+memToPipe tm en mem = undefined
 
 --memToPipe :: Enabled a -> Mem a d -> Pipe a d
 --memToPipe (
@@ -136,23 +136,34 @@ fullEnabled f s = ( fullMap (Maybe.isJust . f) s
 	          , fullMapWithMaybe f s
 	          )
 
-counter :: (OpType a) => Time -> Enabled a -> Signal a -> (Signal a -> Signal a) -> Signal a
-counter tm en@(gtg,val) def loop = now
+
+stateMachine :: (OpType a) => Time -> Enabled a -> Signal a -> (Signal a -> Signal a) -> Signal a
+stateMachine tm en@(gtg,val) def loop = now
   where
 	now = mux2 gtg val (delay tm def (loop now))
 	brk :: Signal Bool
-	brk = pure False
+	brk = pureD False
 
-
+{-
+counter :: (OpType a) => Time -> Signal a -> (Signal a -> Signal a) -> Signal a
+counter tm def loop = now
+    where
+	now = mux2 gtg val (delay tm def (loop now))
+	brk :: Signal Bool
+	brk = pureD False
+-}
 -- the controlling logic, that generates the various signal for other components to use
 controller :: Time -> Signal Bool -> Signal (DecodeCntl X4)
-controller clk en = counter clk (en,pureD DecodeRst) (pureD DecodeWait) (fullMap incDecodeCntrl)
-
+controller clk en = stateMachine clk (en,pureD DecodeRst) (pureD DecodeWait) (fullMap incDecodeCntrl)
 	
-
-test = counter clock (with "en" $ [False,False,False,False,True,False] ++ cycle [False] ,pure DecodeRst)
+test = stateMachine clock (with "en" $ [False,False,False,False,True,False] ++ cycle [False] ,pure DecodeRst)
  	            (pureD DecodeWait) example 
-test2 clk en def = counter clk en def example
+test2 clk en def = stateMachine clk en def example
+
+-- latch on the good vals, undefined until the first value has arrived.
+enabledToSignal :: (OpType a) => Time -> Enabled a -> Signal a
+enabledToSignal tm (gtg,sig) = sig'
+  where sig' = mux2 gtg sig (latch tm sig')
 
 
 {-
