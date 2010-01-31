@@ -180,7 +180,7 @@ instance OpType a => InPorts (Signal a) where
     inPorts (v:vs) = (Signal (error "InPorts (Signal a)") (Pad (Var v)),vs)
 
 instance InPorts Time where
-    inPorts vs = (Time c r,vs)
+    inPorts vs = (Time c r,vs')
        where
 	((c,r),vs') = inPorts vs
 
