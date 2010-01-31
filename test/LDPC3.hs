@@ -1,13 +1,16 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables,TypeFamilies #-}
 import Language.KansasLava hiding (head)
 
 --import Language.KansasLava.Applicative
 
 import Data.Sized.Ix
+import Data.Sized.Unsigned
+import Data.Sized.Sampled
 import Data.Sized.Arith
 import Data.Bits
 import Control.Applicative
 import Data.Maybe  as Maybe
+import Language.KansasLava.Memory
 
 -- A pipe is a segmented value, pushed through a narrow pipe
 type Pipe a d = (Enabled a,Signal d)
@@ -16,14 +19,38 @@ type Mem a d = Signal (MemOp a d) -> Signal d
 
 type Enabled a = (Signal Bool, Signal a)
 
-pipeToMem :: Time -> Pipe a d -> Mem a d
-pipeToMem tm pipe memOp = undefined
+-- Right now, you can only read or write one at a time.
+-- Fix using duel ported RAM.
 
-memToPipe :: Time -> Enabled a -> Mem a d -> Pipe a d
-memToPipe tm en mem = undefined
+pipeToMem :: (Ord a, OpType a, OpType d, Enum a, Enum d, Bounded a) => Time -> Pipe a d -> Mem a d
+pipeToMem tm pipe@((en,aSig),dSig) memOp = bram [ (x,toEnum 0) | x <- [minBound .. maxBound]] tm memOp'
+  where
+	memOp' = mux2 en (writeMem aSig dSig)  memOp 
 
---memToPipe :: Enabled a -> Mem a d -> Pipe a d
---memToPipe (
+memToPipe ::  (OpType a, OpType d) => Time -> Enabled a -> Mem a d -> Pipe a d
+memToPipe tm (en,aSig) mem = ((en, aSig) , mem (readMem aSig))
+
+test_pipe :: Pipe X4 Int
+test_pipe = ( ( with "en_pipe" $ ([False,False,False,True] ++ repeat False)
+	      , with "en_addr" $ [0,0,0,0] ++ repeat 0 
+	    )
+	    , with "en_val" $ [0..]
+	    )
+	
+test_mem :: Time -> Mem X4 Int
+test_mem tm = pipeToMem tm test_pipe 
+
+{-
+test_memOp :: 
+--memOp
+   where
+
+	memOp :: Signal (MemOp X4 Int)
+        memOp = readMem (with "memOp" $ cycle [0..0])
+-}
+
+
+
 
 
 data DecodeCntl x
@@ -35,8 +62,10 @@ data DecodeCntl x
 	| DecodeResult x	-- 3 + x
 	deriving (Show, Eq, Ord)
 
+{-
 instance (Ord x, Bounded x, Enum x) => Konstant (DecodeCntl x) where
 	pureD d = liftD0 $ K d (Lit (fromIntegral $ fromEnum d))
+-}
 
 allDecodeCntl :: (Bounded x, Enum x) => [DecodeCntl x]
 allDecodeCntl = 
@@ -131,8 +160,8 @@ getLoad  (DecodeLoad x) = Just x
 getLoad  _              = Nothing
 
 
-fullEnabled :: (Bounded a, OpType a, Enum a, Show a, OpType b, Enum b, Show b) => (a -> Maybe b) -> Signal a -> Enabled b
-fullEnabled f s = ( fullMap (Maybe.isJust . f) s
+fullEnabled :: (Bounded a, OpType a, Enum a, Show a, OpType b, Enum b, Show b) => Signal a -> (a -> Maybe b) -> Enabled b
+fullEnabled s f = ( fullMap (Maybe.isJust . f) s
 	          , fullMapWithMaybe f s
 	          )
 
@@ -153,10 +182,10 @@ counter tm def loop = now
 	brk = pureD False
 -}
 -- the controlling logic, that generates the various signal for other components to use
-controller :: Time -> Signal Bool -> Signal (DecodeCntl X4)
+controller :: (x ~ X4) => Time -> Signal Bool -> Signal (DecodeCntl x)
 controller clk en = stateMachine clk (en,pureD DecodeRst) (pureD DecodeWait) (fullMap incDecodeCntrl)
 	
-test = stateMachine clock (with "en" $ [False,False,False,False,True,False] ++ cycle [False] ,pure DecodeRst)
+test1 = stateMachine clock (with "en" $ [False,False,False,False,True,False] ++ cycle [False] ,pure DecodeRst)
  	            (pureD DecodeWait) example 
 test2 clk en def = stateMachine clk en def example
 
@@ -165,17 +194,60 @@ enabledToSignal :: (OpType a) => Time -> Enabled a -> Signal a
 enabledToSignal tm (gtg,sig) = sig'
   where sig' = mux2 gtg sig (latch tm sig')
 
-
-{-
-decode :: (a ~ Unsigned x, Size x, Num x, Enum x) 
-        => x -> 
-	  ( Signal Ctrl
-	  , Pipe x a
-	  , Pipe x a
+decode :: forall a x . 
+         (a ~ OurFloat, Size x, Num x, Enum x, x ~ X4) 
+       =>  x 
+        -> Time
+        ->
+	  ( Signal (DecodeCntl x)
+	  , Pipe x a		-- lambda (in)
+	  , Pipe x a		-- global (in, share)
 	  ) ->
-	  ( Pipe x a
-	  , Pipe x a
+	  ( Pipe x a		-- local (out, share)
+	  , Pipe x a		-- lambda (out)
 	  )
-decode x (cntl, inp, glob) = ( out, loc )
+decode x tm (cntl, inp, glob) = ( loc, out )
    where
--}
+	-- function, remember
+	in_mem = pipeToMem tm inp
+
+	out_mem = in_mem
+	
+	out_enabled = fullEnabled cntl $ \ e -> 
+			case e of
+			   DecodeResult x -> return x
+			   _ -> Nothing
+			 
+
+	out :: Pipe x a
+	out = memToPipe tm out_enabled out_mem
+	() = ()
+	loc = ( (pureD False, pureD 0), pureD 0)
+	
+type OurFloat = Sampled X8 X8
+
+test_decode_lambda_in :: (x ~ X4, a ~ OurFloat) => Pipe x a
+test_decode_lambda_in = 
+	( ( with "go" $ [ False, False, False ] ++ take 4 (repeat True) ++ repeat False
+	  , with "ix" $ [ 0, 0, 0 ] ++ [0..3] 
+	  )
+	, with "val" $ [ 0, 0, 0 ] ++ [0..3]
+	)
+
+test_decode_global_in :: (x ~ X4, a ~ OurFloat) => Pipe x a
+test_decode_global_in =
+	( ( with "go" $ [ False, False, False ] ++ take 4 (repeat False) ++ repeat False
+	  , with "ix" $ [ 0, 0, 0 ] ++ [0..3] 
+	  )
+	, with "val" $ [ 0, 0, 0 ] ++ [0..3]
+	)
+
+test_decode_control :: (x ~ X4) => Signal (DecodeCntl x)
+test_decode_control = controller clock go 
+   where
+	go = with "go" $ ([False,False,False,True] ++ repeat False)
+	
+
+test_decode = decode 0 clock ( test_decode_control, test_decode_lambda_in, test_decode_global_in )
+
+test = debugCircuit [] (decode 0)
