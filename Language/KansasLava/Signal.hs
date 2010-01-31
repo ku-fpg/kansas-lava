@@ -19,6 +19,8 @@ import Language.KansasLava.Seq as S
 import Control.Applicative
 import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED
+import Data.Sized.Sampled as SAMPLED
+import Data.Sized.Arith as Arith
 import Data.Sized.Ix as X
 
 
@@ -66,17 +68,21 @@ instance Deliver K where
   liftD1 f a = f a
   liftD2 f a b = f a b
 
-
+-----------------------------------------------------------------------------------------------
+{-
 instance Konstant Bool where
   pureD True = liftD0 $ true
   pureD False = liftD0 $ false
-
 
 true :: K Bool
 true = K True (Lit 1)
 	
 false :: K Bool
 false = K True (Lit 0)
+-}
+
+instance Enum x => Konstant x where
+  pureD n = liftD0 $ K n (Lit $ toInteger (fromEnum n))
 
 -----------------------------------------------------------------------------------------------
 
@@ -149,6 +155,16 @@ data WireType
 
 ------------------------------------------------------------------
 
+{- ideas:
+    -- About representation
+    toOp :: Integer -> a
+    fromOp :: a -> Integer
+    -- About boundedness
+    allValues :: [a]
+-}
+
+
+-- TODO: Rename as LavaRep 
 class OpType a where
     -- op generates the 'module' name for a given type
     op :: Signal a -> (String -> Name)
@@ -163,6 +179,13 @@ class OpType a where
 
     -- A 'default' Signal for a value type.
     initVal :: Signal a		-- todo, remove this
+
+
+
+
+
+
+    -- A show that gets n items of a sequence
     showSeq :: (Show a) => Int -> Seq a -> String
     showSeq n strm =
 	case strm of
@@ -217,6 +240,12 @@ instance (Enum a, Bounded a, Size a) => OpType (Unsigned a)
 instance (Enum a, Bounded a, Size a) => OpType (Signed a)
                      where op _  nm = Name "Signed" nm
                            bitTypeOf _ = S (1 + fromEnum (maxBound :: a))
+                           initVal = Signal (pure 0) $ Lit 0
+instance (Enum a, Size a, Size m) => OpType (Sampled m a)
+                     where op _  nm = Name "Sampled" nm
+				-- really is a different type than S
+				-- TODO: fix
+                           bitTypeOf _ = S (size (undefined :: a))
                            initVal = Signal (pure 0) $ Lit 0
 
 instance (OpType a, OpType b) => OpType (a,b) where
@@ -447,7 +476,6 @@ class CLONE a where
 
 instance CLONE (Signal a) where
   clone ~(Signal s _) ~(Signal _ d) = Signal s d
-
 
 -- AJG: why does this not need CLONE a?
 instance (CLONE b) => CLONE (a -> b) where
