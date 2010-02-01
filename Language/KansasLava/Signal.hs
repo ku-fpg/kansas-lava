@@ -21,6 +21,7 @@ import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED
 import Data.Sized.Ix as X
 
+import Test.QuickCheck hiding ((.&.))
 
 -- AJG: to consider, adding AF and Functor to this type.
 
@@ -38,8 +39,9 @@ instance MuRef E where
   mapDeRef f (E s) = T.traverse f s
 
 -- not sure about this, should this use the shallow part?
-instance Eq (Signal a) where
-   (Signal _ s1) == (Signal _ s2) = s1 == s2
+-- ACF: calling them equal if either embedding is equal for the moment
+instance (Eq a, Show a) => Eq (Signal a) where
+   (Signal s1 d1) == (Signal s2 d2) = (s1 == s2) || (d1 == d2)
 
 instance (Show a, OpType a) => Show (Signal a) where
     show (Signal v _) = showSeq 20 v
@@ -354,5 +356,8 @@ instance (CLONE b) => CLONE (a -> b) where
 instance (CLONE a,CLONE b) => CLONE (a,b) where
   clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
 
-
+-- For QuickCheck
+instance (Arbitrary a) => Arbitrary (Signal a) where
+    -- TODO: figure out how to actually handle the deep embedding here
+    arbitrary = Signal <$> arbitrary <*> (return (Lit 1))
 

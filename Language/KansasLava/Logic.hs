@@ -77,9 +77,11 @@ cases ((b,c):rest) def = mux2 b c (cases rest def)
 testABit :: (Bits a, OpType a) => Signal a -> Int -> Signal Bool
 testABit x y = o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] (\ x' -> testBit x' y) x
 	where inputs   = take 2 defaultInputs
+
 and2 :: Signal Bool -> Signal Bool -> Signal Bool
 and2 x y = o0 $ entity2 (Name "Bool" "and2") inputs [Var "o0"] (&&) x y
 	where inputs   = take 2 defaultInputs
+
 or2 :: Signal Bool -> Signal Bool -> Signal Bool
 or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] (||) x y
         where inputs = take 2 defaultInputs
@@ -87,6 +89,67 @@ or2 x y = o0 $ entity2 (Name "Bool" "or2") inputs [Var "o0"] (||) x y
 xor2 ::  Signal Bool -> Signal Bool -> Signal Bool
 xor2 x y = o0 $ entity2 (Name "Bool" "xor2") inputs [Var "o0"] (/=) x y
 	where inputs   = take 2 defaultInputs
+
 bitNot :: Signal Bool -> Signal Bool
 bitNot x = o0 $ entity1 (Name "Bool" "not") inputs [Var "o0"]  not x
 	where inputs   = take 1 defaultInputs
+
+-- Use QuickCheck to verify some laws of boolean algebra. This should
+-- probably be moved to it's own file somewhere.
+-- TODO: make sure our definition of equality isn't misleading us here
+--       also, not all of these currently pass... will fix another day
+prop_notNeverEqual s = bitNot s /= s
+    where types = s::(Signal Bool)
+
+prop_doubleNot s = s == (bitNot $ bitNot s)
+    where types = s::(Signal Bool)
+
+-- Identity
+prop_orIdentity s = s `or2` low == s
+    where types = s::(Signal Bool)
+
+prop_andIdentity s = s `and2` high == s
+    where types = s::(Signal Bool)
+
+-- Annihiliation
+prop_orAnni s = s `or2` high == high
+    where types = s::(Signal Bool)
+
+prop_andAnni s = s `and2` low == low
+    where types = s::(Signal Bool)
+
+-- Idempotence
+prop_orIdemp s = s `or2` s == s
+    where types = s::(Signal Bool)
+
+prop_andIdemp s = s `and2` s == s
+    where types = s::(Signal Bool)
+
+-- Absorption
+prop_absorb1 x y = x `and2` (x `or2` y) == x
+    where types = (x::(Signal Bool),y::(Signal Bool))
+
+prop_absorb2 x y = x `or2` (x `and2` y) == x
+    where types = (x::(Signal Bool),y::(Signal Bool))
+
+-- Associativity
+prop_orAssoc x y z = (x `or2` (y `or2` z)) == ((x `or2` y) `or2` z)
+    where types = (x::(Signal Bool),y::(Signal Bool),z::(Signal Bool))
+
+prop_andAssoc x y z = (x `and2` (y `and2` z)) == ((x `and2` y) `and2` z)
+    where types = (x::(Signal Bool),y::(Signal Bool),z::(Signal Bool))
+
+-- Commutivity
+prop_orComm x y = (x `or2` y) == (y `or2` x)
+    where types = (x::(Signal Bool),y::(Signal Bool))
+
+prop_andComm x y = (x `and2` y) == (y `and2` x)
+    where types = (x::(Signal Bool),y::(Signal Bool))
+
+-- Distributivity
+prop_orDistOverAnd x y z = (x `or2` (y `and2` z)) == ((x `or2` y) `and2` (x `or2` z))
+    where types = (x::(Signal Bool),y::(Signal Bool),z::(Signal Bool))
+
+prop_andDistOverOr x y z = (x `and2` (y `or2` z)) == ((x `and2` y) `or2` (x `and2` z))
+    where types = (x::(Signal Bool),y::(Signal Bool),z::(Signal Bool))
+

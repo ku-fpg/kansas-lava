@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3)
 import Data.Monoid
+import Test.QuickCheck
 
 infixr 5 :~
 
@@ -83,3 +84,21 @@ instance Traversable Seq where
   traverse f (a :~ as) = (:~) <$> traverse f a <*> traverse f as
   traverse f (Constant a) = Constant <$> traverse f a
 
+-- So we can generate arbitrary sequences for QuickCheck.
+instance (Arbitrary a) => Arbitrary (Seq a) where
+    arbitrary = sized seq
+        where
+            seq 0 = Constant <$> arbitrary
+            seq n = (:~) <$> arbitrary <*> (seq (n - 1))
+    -- TODO: shrink?
+
+-- Would be really nice if we could test Seq for equality. I'm going to add
+-- this approximation for now, but it's obviously just a hack.
+instance (Eq a, Show a) => Eq (Seq a) where
+    x == y = show x == show y
+
+-- Test whether a sequence is 'equal' to itself.
+prop_SeqEqSelf s = s == s
+    where types = s::(Seq Bool)
+
+-- What else could we assert about sequences?
