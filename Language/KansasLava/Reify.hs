@@ -9,6 +9,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Sequential(Time(..))
+import Debug.Trace
 
 --------------------------------------------------------
 -- Grab a set of drivers (the outputs), and give me a graph, please.
@@ -53,34 +54,37 @@ reifyCircuit opts circuit = do
 	     	| (var,(tys,dr)) <- zip inputNames os
              	]
              	[]
-		
+
+
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
         (gr, outputs) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
-                   case lookup out gr of
+		   let gr' = [ (nid,nd) | (nid,nd) <- gr
+				        , nid /= out 
+			     ]
+		   case lookup out gr of
                      Just (Entity (Name "Lava" "top")  _ ins _) ->
-                       return $ (gr,[(Var sink,ity, driver)
+                       return $ (gr',[(Var sink,ity, driver)
                                        | (_,ity,driver) <- ins
                                        | sink <- outputNames])
                      Just (Entity (Name _ _) outs _ _) ->
-                       return $ (gr, [(Var sink,oty, Port ovar out)
+                       return $ (gr', [(Var sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames])
 		     Just (Table (ovar,oty) _ _) ->
-		       return $ (gr, [ (Var sink,oty, Port ovar out)
+		       return $ (gr', [ (Var sink,oty, Port ovar out)
                                      | sink <- [head outputNames]
 				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
-
-
 		-- TODO: restore this
 --                (Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [ (v,vTy) | (_,Entity _ _ ins _) <- gr, (_,vTy,Pad v) <- ins]
+        let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr 
+			       , (_,vTy,Pad v) <- ins]
 		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
         return $ ReifiedCircuit { theCircuit = gr
                                 , theSrcs = nub inputs

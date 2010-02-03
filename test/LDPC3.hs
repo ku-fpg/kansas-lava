@@ -19,6 +19,8 @@ type Mem a d = Signal (MemOp a d) -> Signal d
 
 type Enabled a = (Signal Bool, Signal a)
 
+type Mem2 a d = Signal a -> Signal d
+
 -- Right now, you can only read or write one at a time.
 -- Fix using duel ported RAM.
 
@@ -49,8 +51,33 @@ test_memOp ::
         memOp = readMem (with "memOp" $ cycle [0..0])
 -}
 
+----------------------------------------------------------------------------------------
+
+pipeToMem2 :: forall a d . (OpType a, OpType d) => Time -> Pipe a d -> Mem2 a d
+pipeToMem2 (Time clk rst) ((en,addr),dat) addr2 = res
 
 
+-- o0 $ entity2 (op s1 nm) defaultInputs [Var "o0"]  f s1 s2
+
+  where 
+    res :: Signal d
+    res = Signal undefined (Port (Var "o0") $ E $ entity)
+
+    entity :: Entity BaseTy E
+    entity = 
+	Entity (Name "Mem" "mem2") 
+		[ (Var "o0",bitTypeOf res)]
+		[ (Var "clk",bitTypeOf clk,signalDriver clk)
+		, (Var "rst",bitTypeOf rst,signalDriver rst)
+		, (Var "en",bitTypeOf en,signalDriver en)
+		, (Var "addr",bitTypeOf addr,signalDriver addr)
+		, (Var "dat",bitTypeOf dat,signalDriver dat)
+		, (Var "addr2",bitTypeOf addr2,signalDriver addr2)
+		] 
+		[]
+
+memToPipe2 ::  (OpType a, OpType d) => Enabled a -> Mem2 a d -> Pipe a d
+memToPipe2 (en,aSig) mem2 = ((en, aSig) , mem2 aSig)
 
 
 data DecodeCntl x
