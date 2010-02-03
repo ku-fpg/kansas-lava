@@ -11,7 +11,6 @@ import Control.Applicative
 import Data.Sized.Matrix as M hiding (length, zipWith)
 import Data.Sized.Unsigned as U
 
-
 high :: Signal Bool
 high = Signal (pure True) $ Lit 1
 

@@ -1,34 +1,68 @@
+{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies #-}
+
 module Language.KansasLava.K where
 	
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Seq
+import Language.KansasLava.E
+import Language.KansasLava.Wire
+
 import Control.Applicative
 
--- an obserable, konstant(sic.) value. Not a functor, applicative functor, or monad.
-data K a = K a (Driver E)
-	deriving Show
+----------------------------------------------------------------------------------------------------
+
+-- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
+data K a = K (X a) (Driver E)
+
+instance Show (X a) => Show (K a) where
+	show (K x _) = show x
 
 deepK :: Driver E -> K a
 deepK e = K (error "shallow argument being used incorrectly") e
 
-shallowK :: a -> K a
-shallowK a = K a (error "deep argument being used incorrectly")
+shallowK :: (Wire a) => a -> K a
+shallowK a = K (pureX a) (error "deep argument being used incorrectly")
+
+applyK0 :: (Wire a) => K a -> Maybe a
+applyK0 (K a _) = unX a 
+
+applyK1 :: (Wire a, Wire b) => (K a -> K b) -> a -> Maybe b
+applyK1 f a = unX b
+   where K b _ = f (K (pureX a) (error "deep embedding problem in apply1"))
+
+applyK2 :: (Wire a, Wire b, Wire c) => (K a -> K b -> K c) -> a -> b -> Maybe c
+applyK2 f a b = unX c
+   where K c _ =  f (K (pureX a) (error "deep embedding problem in apply2"))
+	            (K (pureX b) (error "deep embedding problem in apply2"))
+
+----------------------------------------------------------------------------------------------------
+-- This might move into a class called '*.Classes'.
+
+class SIGNAL f where
+  liftS0 :: K a -> f a
+  liftS1 :: (K a -> K b) -> f a -> f b
+  liftS2 :: (K a -> K b -> K c) -> f a -> f b -> f c
+
+class Constant a where
+  pureS :: (SIGNAL s) => a -> s a
+
+-- | k is a constant 
+k :: (Constant a) => a -> K a
+k = pureS
+
+----------------------------------------------------------------------------------------------------
+
+instance SIGNAL K where
+  liftS0 a     = a
+  liftS1 f a   = f a
+  liftS2 f a b = f a b
+
+instance Constant Bool where
+  pureS v = liftS0 $ K (pureX v) $ Lit $ fromWireRep v
 
 
-apply0 :: K a -> a
-apply0 (K a _) = a 
-
-apply1 :: (K a -> K b) -> a -> b
-apply1 f a = b
-   where K b _ = f (K a (error "deep embedding problem in apply1"))
-	       
-apply2 :: (K a -> K b -> K c) -> a -> b -> c
-apply2 f a b = c
-   where K c _ = f (K a (error "deep embedding problem in apply2"))
-	           (K b (error "deep embedding problem in apply2"))
-	       
-
+{-
 ----------------------------------------------------------------------------------------------------
 
 newtype E = E (Entity BaseTy E)
@@ -58,28 +92,10 @@ data Signal a = Signal (Seq a) (Driver E)
 	deriving Show
 
 
-k :: (Konstant a) => a -> K a
-k = pureD
-	
-class Konstant a where
-  pureD :: (Deliver f) => a -> f a
-
-instance Konstant Bool where
-  pureD True = liftD0 $ true
-  pureD False = liftD0 $ false
 
 --k :: (Konstant a, Deliver f) => a -> f a
 --k a = liftD0 a
 
-class Deliver f where
-  liftD0 :: K a -> f a
-  liftD1 :: (K a -> K b) -> f a -> f b
-  liftD2 :: (K a -> K b -> K c) ->  f a -> f b -> f c
-
-instance Deliver K where
-  liftD0 a = a
-  liftD1 f a = f a
-  liftD2 f a b = f a b
 
 instance Deliver Signal where
   liftD0 (K a e) = Signal (pure a) (entity1 (Name "K" "k") B e B)
@@ -166,4 +182,5 @@ packetToMatrix packet =
   ReadMemory a d = Signal a -> Signal d
   WriteMemory :: Enabled (a,d) -> Signal a -> Signal d
 
+-}
 -}

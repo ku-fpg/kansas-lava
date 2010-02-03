@@ -23,7 +23,32 @@ import Data.Sized.Sampled as SAMPLED
 import Data.Sized.Arith as Arith
 import Data.Sized.Ix as X
 
+import Language.KansasLava.K
+import Language.KansasLava.E
+import Language.KansasLava.Wire
 
+-----------------------------------------------------------------------------------------------
+
+data Signal a = Signal (Seq (X a)) (Driver E)
+
+instance SIGNAL Signal where
+  liftS0 (K a e) = Signal (pure a) e
+
+instance (Show (X a)) => Show (Signal a) where
+  	show (Signal s _) = show s
+
+
+{-
+  liftS1 f (Signal a ea) = Signal (fmap (apply1 f) a) eb
+      where
+	K _ eb = f (K (error "liftD1, f's arg, Signal") ea)
+  liftS2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
+      where
+	K _ ec = f (K (error "liftD2, f's arg, Signal") ea)
+		   (K (error "liftD2, f's arg, Signal") eb)
+-}
+
+{-
 --------------------------------------------------------------------------------------------
 -- an obserable, konstant(sic.) value. Not a functor, applicative functor, or monad.
 data K a = K a (Driver E)
@@ -86,6 +111,7 @@ instance Enum x => Konstant x where
 
 -----------------------------------------------------------------------------------------------
 
+{-
 instance Deliver Signal where
   liftD0 (K a e) = Signal (pure a) e
   liftD1 f (Signal a ea) = Signal (fmap (apply1 f) a) eb
@@ -111,10 +137,11 @@ entity1 nm ty1 e ty2 = Port (Var "o0") $ E $ Entity nm
 
 -}
 
+-}
 -----------------------------------------------------------------------------------------------
 -- AJG: to consider, adding AF and Functor to this type.
 
-data Signal a = Signal (Seq a) (Driver E)
+data Signal a = Signal (Seq (X a)) (Driver E)
 -- newtype Wire = Wire (Driver E)
 
 newtype E = E (Entity BaseTy E)
@@ -131,18 +158,23 @@ instance MuRef E where
 instance Eq (Signal a) where
    (Signal _ s1) == (Signal _ s2) = s1 == s2
 
+{-
 instance (Show a, OpType a) => Show (Signal a) where
     show (Signal v _) = showSeq 20 v
 
-showSignal :: (Show a, OpType a) => Int -> Signal a -> String
+showSignal :: (Show (X a), OpType a) => Int -> Signal a -> String
 showSignal n (Signal v _) = showSeq n v
-
+-}
 instance Show E where
     show (E s) = show s
 
 instance Eq E where
    (E s1) == (E s2) = s1 == s2
 
+signalDriver :: Signal a -> Driver E
+signalDriver (Signal _ d) = d
+
+{-
 ------------------------------------------------------------------
 
 -- Should be type
@@ -163,9 +195,15 @@ data WireType
     allValues :: [a]
 -}
 
+-}
 
 -- TODO: Rename as LavaRep 
 class OpType a where
+    -- This is a structure that introduces 'X', or unknown.
+    type X a
+
+    unX :: X a -> Maybe a
+
     -- op generates the 'module' name for a given type
     op :: Signal a -> (String -> Name)
     -- bitTypeOf returns the base netlist type of signal. Good for
@@ -181,22 +219,25 @@ class OpType a where
     initVal :: Signal a		-- todo, remove this
 
 
-
-
+unX' = undefined
+unX' :: (OpType a) => X a -> Maybe a
 
 
     -- A show that gets n items of a sequence
-    showSeq :: (Show a) => Int -> Seq a -> String
-    showSeq n strm =
+--showSeq :: (OpType a, b ~ X a) => Int -> Seq b -> String
+showSeq :: forall a . (Show a, OpType a) => Int -> Seq (X a) -> String
+showSeq n strm =
 	case strm of
-	   Constant v -> showV v
-	   _ -> unwords [ showV x ++ " :~ "
+	   Constant v -> show ((unX' v) :: Maybe a)
+{-
+	   _ -> unwords [ showX x ++ " :~ "
                         | x <- take n $ toList strm
                         ] ++ "..."
+:-}
 
+{-
 
-
-
+a
 
 instance OpType Int    where op _ nm = Name "Int" nm
                              bitTypeOf _ = S 32
@@ -219,9 +260,12 @@ instance OpType Word32 where op _ nm = Name "Unsigned" nm
 instance OpType Word16 where op _ nm = Name "Unsigned" nm
                              bitTypeOf _ = U 16
                              initVal = Signal (pure 0) $ Lit 0
+-}
 instance OpType Bool where op _  nm = Name "Bool" nm
+			   type X Bool = Maybe Bool
                            bitTypeOf _ = B
-                           initVal = Signal (pure False) $ Lit 0
+                           initVal = Signal (pure $ Just $ False) $ Lit 0
+{-
 			   showSeq _ (Constant Nothing) = "?"
 			   showSeq _ (Constant (Just True)) = "high"
 			   showSeq _ (Constant (Just False)) = "low"
@@ -229,6 +273,8 @@ instance OpType Bool where op _  nm = Name "Bool" nm
 				unwords [ showV x ++ " :~ "
                         		| x <- take n $ toList other
                         		] ++ "..."
+-}
+{-
 instance OpType ()   where op _  nm = Name "()" nm
                            bitTypeOf _ = U 0
                            initVal = Signal (pure ()) $ Lit 0
@@ -484,5 +530,6 @@ instance (CLONE b) => CLONE (a -> b) where
 instance (CLONE a,CLONE b) => CLONE (a,b) where
   clone ~(a1,b1) ~(a2,b2) = (clone a1 a2,clone b1 b2)
 
+-}
 
-
+-}

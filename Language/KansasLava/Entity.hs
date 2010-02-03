@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, TypeFamilies #-}
 module Language.KansasLava.Entity where
 
 import qualified Data.Traversable as T
@@ -6,6 +6,14 @@ import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
 import Data.Dynamic
+
+import Language.KansasLava.Type
+import Data.Reify
+import qualified Data.Traversable as T
+import Language.KansasLava.Type
+import Language.KansasLava.Seq as S
+
+import Control.Applicative
 
 data Name = Name String String
     deriving (Eq, Ord)
@@ -85,3 +93,24 @@ instance Functor Driver where
     fmap _ (Pad v)       = Pad v
     fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
+
+---------------------------------------------------------------------------------------------------------
+
+newtype E = E (Entity BaseTy E)
+
+-- You want to observe
+instance MuRef E where
+  type DeRef E = Entity BaseTy
+  mapDeRef f (E s) = T.traverse f s
+
+instance Show E where
+    show (E s) = show s
+
+instance Eq E where
+   (E s1) == (E s2) = s1 == s2
+
+data E2 a = E2 a E
+
+--o0 :: E a -> Signal a
+--o0 ~(E2 v e) = Signal v (Port (Var "o0") e)
+
