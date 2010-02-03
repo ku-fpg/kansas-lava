@@ -4,6 +4,7 @@ module Language.KansasLava.VHDL.Testbench
   (mkTestbench) where
 
 import Language.KansasLava hiding (ports)
+import Language.KansasLava.VHDL.VCD(ProbeValue(..))
 import Data.List(mapAccumL)
 import Data.Bits
 
@@ -11,6 +12,8 @@ import System.Random
 import System.Environment(getEnvironment)
 import System.Directory
 import Control.Monad(liftM)
+import Data.Dynamic(fromDynamic)
+
 
 -- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
 --   circuit. Given a circuit (with a given name), this will generate a series
@@ -47,7 +50,9 @@ mkTestbench coreName fun = do
             entity coreName ++ architecture coreName inputs outputs sequentials
   stim <- vectors inputs
   writeFile (base ++ coreName ++ ".input") stim
-  writeFile (base ++ coreName ++ ".do") (doscript coreName)
+  -- Get the probes
+  waves <- genProbes coreName fun
+  writeFile (base ++ coreName ++ ".do") (doscript coreName waves)
 
 entity :: String -> String
 entity coreName = unlines
@@ -148,14 +153,14 @@ portAssigns inputs outputs = imap ++ omap
 
 
 -- Modelsim 'do' script
-doscript :: String -> String
-doscript coreName = unlines [
+doscript :: String -> [String] -> String
+doscript coreName waves = unlines $ [
   "vlib work",
   "vcom " ++ coreName ++ ".vhd",
   "vcom " ++ coreName ++ "_tb.vhd",
-  "vsim " ++ coreName ++ "_tb",
-  "add wave -r *",
-  "run -all",
+  "vsim " ++ coreName ++ "_tb"] ++
+  waves ++
+  ["run -all",
   "quit"]
 
 
@@ -189,6 +194,20 @@ vectors inputs = do
 
         types = map snd inputs
 
+-- Generating probes
+genProbes :: Ports a => String -> a -> IO [String]
+genProbes top fun = do
+    c <- reifyCircuit [] fun
+    let graph = theCircuit c
+    return (concatMap getProbe graph)
+  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs) )=
+          case lookup "simValue" attrs of
+            Just dyn -> case fromDynamic dyn of
+                          Just (ProbeValue name _) ->
+                            let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v
+                            in ["add wave -label " ++ show name ++ " " ++ sig]
+            Nothing -> []
+        getProbe _ = []
 
 test :: Signal Bool -> Signal Bool -> Signal Bool
 test = xor2

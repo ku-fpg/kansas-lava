@@ -1,8 +1,8 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ImpredicativeTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.VHDL.VCD(vcdCircuit,probe) where
+module Language.KansasLava.VHDL.VCD(vcdCircuit,probe,ProbeValue(..)) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
