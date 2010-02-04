@@ -25,7 +25,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Logic
 import Language.KansasLava.Reify
 import Language.KansasLava.Sequential
-import Language.KansasLava.Seq
+import Language.KansasLava.Seq hiding (head, tail)
 import Language.KansasLava.VHDL
 import Language.KansasLava.Dot
 import Language.KansasLava.Type

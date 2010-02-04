@@ -189,6 +189,13 @@ mkInst i (Entity (Name "Lava" "slice") [(Var "o0",_)]
   [Assign (sig (Port (Var "o0") i))
           (sig input ++ "(" ++ sig high ++ " downto " ++ sig low ++ ")")]
 
+
+mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
+                  [(Var "i0", _, input)] _) =
+  [Assign (sig (Port (Var "o0") i))
+          (sig input)]
+
+
 -- Catchall for everything else
 mkInst i (Entity (Name _ nm) outputs inputs _) =
           [ Inst ("inst" ++ show i) nm

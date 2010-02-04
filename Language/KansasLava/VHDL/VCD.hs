@@ -2,7 +2,7 @@
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..),VCDFmt) where
+module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..),VCDFmt, VCDValue(..)) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
@@ -60,11 +60,15 @@ getProbe ps nm = case lookup nm ps of
                    Nothing -> []
 
 -- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
-probe :: (VCDFmt t) => String -> Signal t -> Signal t
+probe :: forall t. (OpType t, VCDFmt t) => String -> Signal t -> Signal t
 probe probeName (Signal s d) = Signal s (addAttr d)
   where addAttr (Port v (E (Entity n outs ins _))) =
             Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
-        addAttr driver = driver
+        addAttr d@(Pad (Var v)) = 
+            (Port (Var "o0") 
+             (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]  [("simValue", (toDyn (ProbeValue probeName s)))])))
+          where ty = bitTypeOf (error "probe/oTy" :: Signal t) 
+        addAttr $ driver = error "Can't probe " ++ driver
 
 -- Below this is all implementation.
 
