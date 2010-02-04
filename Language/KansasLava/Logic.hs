@@ -8,6 +8,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Seq
 import Data.Bits
 import Control.Applicative
+import Data.Sized.Matrix as M hiding (length, zipWith)
 import Data.Sized.Unsigned as U
 
 
@@ -64,6 +65,57 @@ instance OpType a => MUX (Signal a) where
 
   mux3 _ _ _ = error "undefined method mux3 in MUX (Signal a)"
 
+instance MUX a => MUX [a] where
+  mux2 b ts es = zipWith (mux2 b) ts es
+  mux3 b a1 a2 a3 = zipWith3  (mux3 b) a1 a2 a3
+
+instance (Size ix, OpType a) => MUX (M.Matrix ix (Signal a))  where
+  mux2 b ts es = M.fromList $ zipWith (mux2 b) (M.toList ts) (M.toList es)
+  mux3 b m1 m2 m3 = M.fromList $ zipWith3 (mux3 b) (M.toList m1) (M.toList m2) (M.toList m3)
+
+
+
+-- Selects an arbitrary element of a list
+-- The selector has type, [Signal Bool]
+-- is a binary representation of the unsigned index to select,
+-- with the leftmost (first) element most significant.
+--
+-- The list is indexed: 0-based, left to right 
+-- 
+-- If (2 ** (length selector)) < (length inputlist)
+--     not all elements of the list are selectable.
+-- If (2 ** (length selector)) > (length inputlist)
+--     the output for selector "value" >= (length inputlist) is 
+--     not defined.
+anyMux :: (MUX a) => [Signal Bool] -> [a] -> a
+anyMux [s] [a0] = a0
+anyMux [s] [a0, a1] = mux2 s  a1 a0
+anyMux sel@(s:rest) as = if (aLength <= halfRange) 
+                         then anyMux sel' as
+                         else if (aLength > maxRange) 
+                              then anyMux sel as' 
+                              else anyMux'
+    where aLength = length as
+          halfRange = 2 ^ ((length sel) -1)
+          maxRange = 2 * halfRange
+          nselbits = max 1 (ceiling (logBase 2 (fromIntegral aLength)))
+          sel' = drop ((length sel) - nselbits) sel
+          as' = take  maxRange as
+          -- anyMux' knows that the number of selection bits matches range input choices
+          anyMux' = mux2 s (anyMux topSelect top) (anyMux rest bottom)
+          (bottom, top) = splitAt halfRange as
+          topLen = fromIntegral $ length top
+          nbits = max 1 (ceiling (logBase 2 topLen))
+          topSelect = drop ((length rest) - nbits) rest
+
+
+-- matrixMux allows one to select an element of the Matrix at an arbitrary index
+-- The selector has type, [Signal Bool]
+-- is a binary representation of the unsigned index to select,
+-- with the leftmost (first) element most significant.
+-- See 'anyMux' above for additional details.
+matrixMux :: (MUX a, Size ix) => [Signal Bool] -> M.Matrix ix a -> a
+matrixMux sel mat = anyMux sel (M.toList mat)
 
 cases :: (MUX cir) => [(Signal Bool,cir)] -> cir -> cir
 cases []           def = def
