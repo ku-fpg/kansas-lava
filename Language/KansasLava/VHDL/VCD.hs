@@ -193,7 +193,7 @@ instance Size ix => VCDSize (Unsigned ix) where
 
 instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
-    where width = size (undefined :: ix) - 1
+    where width = size (undefined :: ix)
 
 
 instance Size ix => VCDSize (Signed ix) where
@@ -201,7 +201,7 @@ instance Size ix => VCDSize (Signed ix) where
 
 instance (Size ix, Enum ix) =>VCDValue (Signed ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
-    where width = size (undefined :: ix) - 1
+    where width = size (undefined :: ix)
 
 
 -- This was necessary to satisfy Data.Dynamic
