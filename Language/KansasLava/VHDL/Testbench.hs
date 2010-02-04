@@ -5,7 +5,7 @@ module Language.KansasLava.VHDL.Testbench
 
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.VHDL.VCD(ProbeValue(..))
-import Data.List(mapAccumL)
+import Data.List(mapAccumL,sortBy, elemIndex,find)
 import Data.Bits
 
 import System.Random
@@ -33,19 +33,20 @@ import Data.Dynamic(fromDynamic)
 --
 --   [@name.do@] A @modelsim@ script that will compile the vhd and execute the testbench.
 mkTestbench :: Ports fun =>
-               String -- ^ The name of the function
+               [ReifyOptions] -- Options for controlling the observable-sharing reification, of dut
+            -> String -- ^ The name of the function
             -> fun    -- ^ The Lava circuit
             -> IO ()
-mkTestbench coreName fun = do
+mkTestbench ropts coreName fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
                Nothing -> "/tmp/" ++ coreName ++ "/"
                Just dir -> dir ++"/"++coreName ++ "/"
   putStrLn $ "Base directory is " ++ base
   createDirectoryIfMissing True base
-  vhdl <- vhdlCircuit [] coreName fun
+  vhdl <- vhdlCircuit ropts coreName fun
   writeFile (base ++ coreName ++ ".vhd") vhdl
-  (inputs,outputs,sequentials) <- ports fun
+  (inputs,outputs,sequentials) <- ports ropts fun
   writeFile (base ++ coreName ++ "_tb.vhd") $
             entity coreName ++ architecture coreName inputs outputs sequentials
   stim <- vectors inputs
@@ -53,6 +54,8 @@ mkTestbench coreName fun = do
   -- Get the probes
   waves <- genProbes coreName fun
   writeFile (base ++ coreName ++ ".do") (doscript coreName waves)
+
+
 
 entity :: String -> String
 entity coreName = unlines
@@ -126,15 +129,36 @@ stimulus coreName inputs outputs = unlines $ [
 
 -- Manipulating ports
 ports :: (Ports a) =>
-         a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[((Var, BaseTy), (Var, BaseTy))])
+         [ReifyOptions] -> a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[((Var, BaseTy), (Var, BaseTy))])
 
-ports fun = do
-  reified <- reifyCircuit [] fun
+ports ropts fun = do
+  reified <- reifyCircuit ropts fun
   let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy,RstTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
       clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
       resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
-  return (inputs,outputs,zip clocks resets)
+  return (sortPorts (findInputs ropts) inputs,sortPorts (findOutputs ropts) outputs,zip clocks resets)
+
+-- sortInputs
+sortPorts names ports = sortBy comp ports
+  where comp (Var a, aTy) (Var b, bTy) = 
+            case (elemIndex a names, elemIndex b names) of
+              (Just x, Just y) -> compare x y
+              (Just x, Nothing) -> LT
+              (Nothing, Just y) -> GT
+              (Nothing,Nothing) -> case (a,b) of
+                                     ('i':as, 'i':bs) -> compare (read as :: Int) (read bs)
+                                     _ -> error $ "sortInputs" ++ show a ++ show b
+                                                        
+findInputs opts = maybe [] names (find isInp opts)
+  where isInp (InputNames names) = True
+        isInp _ = False
+        names (InputNames names) = names
+findOutputs opts = maybe [] names (find isOut opts)
+  where isOut (OutputNames names) = True
+        isOut _ = False
+        names (OutputNames names) = names
+
 
 portType :: [(a, BaseTy)] -> [Char]
 portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
