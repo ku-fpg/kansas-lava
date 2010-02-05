@@ -54,6 +54,8 @@ instance SIGNAL Signal where
 	f' a b = let (K c _) = f (shallowK a) (shallowK b) 
 	         in c
 
+--  liftSL f sigs = undefined
+
 -- 	(K (error "liftD1, f's arg, Signal") ea)
 {-
   liftS2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec

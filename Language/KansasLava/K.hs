@@ -49,7 +49,7 @@ class SIGNAL f where
   liftS0 :: K a -> f a
   liftS1 :: (K a -> K b) -> f a -> f b
   liftS2 :: (K a -> K b -> K c) -> f a -> f b -> f c
-
+  liftSL :: ([K a] -> K b) -> [f a] -> f b
 
 bitTypeOf :: forall f w . (SIGNAL f, Wire w) => f w -> BaseTy
 bitTypeOf _ = wireType (error "bitTypeOf" :: w) 
@@ -70,6 +70,7 @@ instance SIGNAL K where
   liftS0 a     = a
   liftS1 f a   = f a
   liftS2 f a b = f a b
+  liftSL f xs  = f xs
 
 {-
 ----------------------------------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import Language.KansasLava.Type
 import Language.KansasLava.Entity
 import Control.Applicative
 import Control.Monad
+import Data.Sized.Arith
 import Data.Sized.Ix
 import Data.Sized.Matrix as M hiding (S)
 import Data.Word
@@ -33,8 +34,8 @@ class Wire w => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
-	fromWireRep :: w -> Matrix (WIDTH w) Bool 
 	toWireRep   :: Matrix (WIDTH w) Bool -> w
+	fromWireRep :: w -> Matrix (WIDTH w) Bool 
 
 	-- | 'w' here is a witness, not a value
 	maxWireRep :: w -> Integer
@@ -140,10 +141,19 @@ instance (Num ix, Size ix, Wire a) => Wire (Matrix ix a) where
 			a :: Matrix ix a -> a
 			a = undefined
 
-type MUL a b = a
-
 instance (Num ix, Size ix, Wire a) => RepWire (Matrix ix a) where
 	type WIDTH (Matrix ix a) = MUL ix (WIDTH a)
+	
+--	toWireRep :: Matrix (WIDTH w) Bool -> Matrix ix a
 
+--	fromWireRep :: Matrix ix a -> Matrix (WIDTH w) Bool 
+
+	-- | 'w' here is a witness, not a value
+--	maxWireRep :: w -> Integer
+	maxWireRep = undefined
+	
+	-- | how we want to present this value, in comments
+--	showWireRep :: w -> String
+	showWireRep = undefined
 	
 		
