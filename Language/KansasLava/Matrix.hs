@@ -8,16 +8,25 @@ import Data.Maybe
 
 
 import Language.KansasLava.Signal
+import Language.KansasLava.K
+import Language.KansasLava.Wire
 import Language.KansasLava.Seq as Seq
-import Language.KansasLava.Logic
+--import Language.KansasLava.Logic
 import Language.KansasLava.Type
 import Language.KansasLava.Entity
 
 
+toBoolMatrix :: (SIGNAL sig, Wire w) => sig w -> Matrix (SZ w) (sig Bool)
+toBoolMatrix = undefined
+
+
+-- toBoolMatrix :: (SIGNAL sig, Wire w) => sig (Matrix ix Bool) -> Matrix (SZ w) (sig Bool)
+-- :: ix -> K (Matrix ix Bool) -> K Bool
+
+{-
 class BitRep c where
   toBoolMatrix   :: (Size ix, Enum ix) => Signal (c ix) -> Matrix ix (Signal Bool)
-  fromBoolMatrix :: (OpType (Matrix ix Bool),Size ix, Enum ix) => Matrix ix (Signal Bool) -> Signal (c ix)
-
+  fromBoolMatrix :: (OpType (Matrix ix Bool), Size ix, Enum ix) => Matrix ix (Signal Bool) -> Signal (c ix)
 
 --
 -- To consider, these ops
@@ -110,5 +119,5 @@ instance (OpType a, Size ix) => OpType (Matrix ix a) where
   initVal = error "initVal (Matix ix a)"
 
 
-
+-}
 

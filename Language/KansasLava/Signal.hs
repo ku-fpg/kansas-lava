@@ -29,19 +29,33 @@ import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
 
-data Signal a = Signal (Seq (X a)) (Driver E)
+data Signal a = Signal (Seq (X a)) (D a)
 
-instance SIGNAL Signal where
-  liftS0 (K a e) = Signal (pure a) e
+deepSignal :: D a -> Signal a
+deepSignal d = Signal (error "incorrect use of shallow signal") d
+
+shallowSignal :: Seq (X a) -> Signal a
+shallowSignal s = Signal s (error "incorrect use of deep signal")
 
 instance (Show (X a)) => Show (Signal a) where
   	show (Signal s _) = show s
 
+instance SIGNAL Signal where
+  liftS0 (K a e) = Signal (pure a) e
 
-{-
-  liftS1 f (Signal a ea) = Signal (fmap (apply1 f) a) eb
+  liftS1 f (Signal a ea) = Signal (fmap f' a) eb
       where
-	K _ eb = f (K (error "liftD1, f's arg, Signal") ea)
+	K _ eb = f (deepK ea)
+	f' a = let (K b _) = f (shallowK a) 
+	       in b
+  liftS2 f (Signal a ea) (Signal b eb) = Signal (S.zipWith f' a b) ec
+      where
+	K _ ec = f (deepK ea) (deepK eb)
+	f' a b = let (K c _) = f (shallowK a) (shallowK b) 
+	         in c
+
+-- 	(K (error "liftD1, f's arg, Signal") ea)
+{-
   liftS2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
       where
 	K _ ec = f (K (error "liftD2, f's arg, Signal") ea)

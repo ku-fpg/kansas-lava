@@ -5,14 +5,13 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
-import Language.KansasLava.Applicative
-
+--import Language.KansasLava.Applicative
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a
 -- delay = error "delay!"
 
 -- To revisit: Should this be a -> S a -> S a ??
-
+{-
 latch :: forall a. (OpType a) => Time -> Signal a -> Signal a
 latch tm sig = delay tm def sig
   where def = initVal
@@ -125,3 +124,4 @@ switch n (Signal s1 _) (Signal s2 _)
 {-
 -}
 
+-}

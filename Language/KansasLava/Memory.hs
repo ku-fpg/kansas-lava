@@ -21,7 +21,6 @@ data MemOp a d = W a d
                | R a
                deriving (Show,Eq)
 
-
 type Memory a d = (M.Map a d, [Maybe d])
 initMem :: Ord a => Int -> [(a,d)] -> Memory a d
 initMem readLatency vals = (m, replicate readLatency Nothing)

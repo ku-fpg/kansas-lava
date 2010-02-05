@@ -7,8 +7,10 @@ import Data.List as L
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
+import Language.KansasLava.Wire
+import Language.KansasLava.K
 import Language.KansasLava.Type
-import Language.KansasLava.Sequential(Time(..))
+--import Language.KansasLava.Sequential(Time(..))
 import Debug.Trace
 
 --------------------------------------------------------
@@ -155,8 +157,11 @@ debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 class Ports a where
   ports :: [String] -> a -> [(BaseTy, Driver E)]
 
-instance OpType a => Ports (Signal a) where
-  ports _ sig@(Signal _ d) = [(bitTypeOf sig, d)]
+instance Wire a => Ports (Signal a) where
+  ports _ sig@(Signal _ (D d)) = [(bitTypeOf sig, d)]
+
+instance Wire a => Ports (K a) where
+  ports _ sig@(K _ (D d)) = [(bitTypeOf sig, d)]
 
 instance (Ports a, Ports b) => Ports (a,b) where 
   ports _ (a,b) = ports bad a ++ 
@@ -180,13 +185,18 @@ class OutPorts a where
 class InPorts a where
     inPorts :: [String] -> (a,[String])
 
-instance OpType a => InPorts (Signal a) where
-    inPorts (v:vs) = (Signal (error "InPorts (Signal a)") (Pad (Var v)),vs)
+instance Wire a => InPorts (Signal a) where
+    inPorts (v:vs) = (Signal (error "InPorts (Signal a)") (D (Pad (Var v))),vs)
 
+instance Wire a => InPorts (K a) where
+    inPorts (v:vs) = (K (error "InPorts (K a)") (D (Pad (Var v))),vs)
+
+{-
 instance InPorts Time where
     inPorts vs = (Time c r,vs')
        where
 	((c,r),vs') = inPorts vs
+-}
 
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)

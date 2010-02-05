@@ -8,6 +8,7 @@ import Control.Applicative
 import Data.Foldable
 import Data.Traversable
 
+
 instance Functor Signal where
    fmap f (Signal s _) = o0 $ ESignal (fmap f s) $ E $  e
      where e =
@@ -25,8 +26,6 @@ instance Foldable Signal where
 
 instance Traversable Signal where
  traverse f (Signal s d) = Signal <$> traverse f s <*> pure d
-
-
 
 -- Simulation only functions.
 peek :: Signal a -> [Maybe a]

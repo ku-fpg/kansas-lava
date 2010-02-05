@@ -12,6 +12,9 @@ data BaseTy
 
 	| T		-- Time
 			-- What about Float/Double, special, etc.
+	| TupleTy [BaseTy]
+	| MatrixTy Int BaseTy
+	| IntegerTy	-- holds whatever, not realizable in hw
 	deriving (Eq, Ord)
 
 
@@ -24,6 +27,7 @@ baseTypeLength RstTy = 1
 baseTypeLength (S x) = x
 baseTypeLength (U x) = x
 baseTypeLength T = 1
+baseTypeLength (TupleTy tys) = sum (map baseTypeLength tys)
 
 -- | 'baseTypeIsSigned' determines if a type has a signed representation. This is
 -- necessary for the implementation of 'isSigned' in the 'Bits' type class.
@@ -44,5 +48,6 @@ instance Show BaseTy where
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
 	show T		= "T"
+	show (TupleTy tys) = show tys
 
 

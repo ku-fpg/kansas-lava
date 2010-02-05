@@ -8,8 +8,8 @@ import Control.Applicative
 -- import Test.QuickCheck
 -- Simple examples
 
-halfAdder :: (Signal Bool,Signal Bool) -> (Signal Bool,Signal Bool)
-halfAdder (a,b) = (sum,carry)
+halfAdder :: (K Bool,K Bool) -> (K Bool,K Bool)
+halfAdder (a,b) = (sum, carry)
   where sum = a `xor2` b
         carry = a `and2` b
 
@@ -24,24 +24,26 @@ prop_shallow_bit v n = True
 
 -}
 
-fullAdder :: Signal Bool -> (Signal Bool, Signal Bool) -> (Signal Bool, Signal Bool)
+fullAdder :: K Bool -> (K Bool, K Bool) -> (K Bool, K Bool)
 fullAdder c (a,b) = (s2,c2 `xor2` c1)
   where (s1,c1) = halfAdder (a,b)
 	(s2,c2) = halfAdder (s1,c)
 
-wordAdder :: (OpType (Matrix x  Bool),
-              Size x, Enum x) => Signal Bool ->  (Signal (Unsigned x), Signal (Unsigned x)) -> (Signal (Unsigned x), Signal Bool)
+wordAdder :: (Wire (Matrix x Bool),
+              Size x, 
+	      Enum x) => Signal Bool ->  (Signal (Unsigned x), Signal (Unsigned x)) -> (Signal (Unsigned x), Signal Bool)
 wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
    where
 	m   = M.zipWith (,) (toBoolMatrix a) (toBoolMatrix b)
-	(_,res,c_out) = scanM adder (c_in,m,())
+	(res,c_out) = scanR adder (c_in,m)
 
-	adder (c,(a,b),_) = ((),r_out,c_out)
+	adder (c,(a,b)) = (r_out,c_out)
 	  where (r_out, c_out) = fullAdder c (a,b)
 
 -- to be moved into sized-types land
 -- Assumes the Matrix is not zero sized.
 -- we'll also need folds, etc.
+
 
 scanM :: (Size ix, Bounded ix, Enum ix)
       => ((left,a,right) -> (right,b,left))
@@ -59,19 +61,19 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 main = do
 	putStrLn "Testing halfAdder function"
 	putStrLn $ unlines [ show (a,b,halfAdder (a,b))
-	 			| a <- [low,high]
-			        , b <- [low,high] ]
+	 			| a <- [true,false]
+			        , b <- [true,false] ]
 	putStrLn "Testing halfAdder reify"
 	debugCircuit [] halfAdder
 
 	putStrLn "Testing fullAdder function"
 	putStrLn $ unlines [ show (a,b,c,fullAdder c (a,b))
-	 			| a <- [low,high]
-	 			, b <- [low,high]
-			        , c <- [low,high] ]
+	 			| a <- [true,false]
+	 			, b <- [true,false]
+			        , c <- [true,false] ]
 	putStrLn "Testing fullAdder reify"
 	debugCircuit [] fullAdder
-
+{-
 	putStrLn "Testing wordAdder function"
 	putStrLn $ unlines [ show (a,b,c,wordAdder a (pure b,pure c))
 	 			| a <- [low,high]
@@ -79,6 +81,5 @@ main = do
 			        , c <- [0..3] ]
 	putStrLn "Testing wordAdder reify"
 	debugCircuit [] (wordAdder :: Signal Bool ->  (Signal (Unsigned X2), Signal (Unsigned X2)) -> (Signal (Unsigned X2), Signal Bool))
-
+-}
 	--	test_shallow_bit
-

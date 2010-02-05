@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ScopedTypeVariables #-}
 
 module Language.KansasLava.K where
 	
@@ -11,18 +11,24 @@ import Language.KansasLava.Wire
 import Control.Applicative
 
 ----------------------------------------------------------------------------------------------------
-
 -- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
-data K a = K (X a) (Driver E)
+
+data K a = K (X a) (D a)
 
 instance Show (X a) => Show (K a) where
 	show (K x _) = show x
 
-deepK :: Driver E -> K a
+instance forall a . (Wire a, Eq a) => Eq (K a) where
+	(K x _) == (K y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
+
+deepK :: D a -> K a
 deepK e = K (error "shallow argument being used incorrectly") e
 
-shallowK :: (Wire a) => a -> K a
-shallowK a = K (pureX a) (error "deep argument being used incorrectly")
+shallowK :: X a -> K a
+shallowK a = K a (error "deep argument being used incorrectly")
+
+errorK ::  forall a . (Wire a) => K a 
+errorK = K (optX $ (Nothing :: Maybe a)) (error "deep argument being used incorrectly")
 
 applyK0 :: (Wire a) => K a -> Maybe a
 applyK0 (K a _) = unX a 
@@ -44,6 +50,13 @@ class SIGNAL f where
   liftS1 :: (K a -> K b) -> f a -> f b
   liftS2 :: (K a -> K b -> K c) -> f a -> f b -> f c
 
+
+bitTypeOf :: forall f w . (SIGNAL f, Wire w) => f w -> BaseTy
+bitTypeOf _ = wireType (error "bitTypeOf" :: w) 
+
+op :: forall f w . (SIGNAL f, Wire w) => f w -> String -> Name
+op _ nm = Name (wireName (error "op" :: w)) nm
+
 class Constant a where
   pureS :: (SIGNAL s) => a -> s a
 
@@ -57,10 +70,6 @@ instance SIGNAL K where
   liftS0 a     = a
   liftS1 f a   = f a
   liftS2 f a b = f a b
-
-instance Constant Bool where
-  pureS v = liftS0 $ K (pureX v) $ Lit $ fromWireRep v
-
 
 {-
 ----------------------------------------------------------------------------------------------------

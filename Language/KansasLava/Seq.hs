@@ -57,8 +57,8 @@ tail :: Seq a -> Seq a
 tail (Constant a) = (Constant a)
 tail (_ :~ as) = as
 
-zipWith' :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
-zipWith' f xs ys = pure f <*> xs <*> ys
+zipWith :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
+zipWith f xs ys = pure f <*> xs <*> ys
 
 fromList :: [a] -> Seq a
 fromList (x : xs) = x :~ fromList xs
