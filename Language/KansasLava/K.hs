@@ -75,6 +75,12 @@ instance SIGNAL K where
   liftS2 f a b = f a b
   liftSL f xs  = f xs
 
+
+
+-- NOT SURE ABOUT THIS!
+-- instance Enum a => Enum (K a) where
+--instance Constant a => Constant (K a) where
+
 {-
 ----------------------------------------------------------------------------------------------------
 

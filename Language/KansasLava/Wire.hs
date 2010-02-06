@@ -9,8 +9,12 @@ import Control.Applicative
 import Control.Monad
 import Data.Sized.Arith
 import Data.Sized.Ix
-import Data.Sized.Matrix as M hiding (S)
+import Data.Sized.Matrix hiding (S)
+import qualified Data.Sized.Matrix as M
+import Data.Sized.Unsigned as U 
 import Data.Word
+import Data.Bits
+import qualified Data.Traversable as T
 
 -- | A 'Wire a' is an 'a' value that we can push over a wire.
 class Eq w => Wire w where
@@ -35,30 +39,20 @@ class Wire w => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
-	toWireRep   :: (Size (WIDTH w)) => Matrix (WIDTH w) Bool -> w
+	toWireRep   :: (Size (WIDTH w)) => Matrix (WIDTH w) Bool -> Maybe w
 	fromWireRep :: (Size (WIDTH w)) => w -> Matrix (WIDTH w) Bool 
-
-	-- | 'w' here is a witness, not a value
-	maxWireRep :: w -> Integer
 
 	-- | how we want to present this value, in comments
 	-- The first value is the witness.
 	showRepWire :: w -> X w -> String
-
 
 liftX0 :: (Wire w1) => w1 -> X w1	
 liftX0 = pureX
 
 pureX :: (Wire w) => w -> X w
 pureX = optX . Just
-{-
-liftX1 :: forall w1 w2 . (Wire w1, Wire w2) => (w1 -> w2) -> X w1 -> X w2
-liftX1 f x1 = case unX x1 of
-		Nothing -> errX (undefined :: w2) err
-		Right v  -> pureX (f v :: w2)
-liftX2 :: (Wire w1, Wire w2, Wire w3) => (w1 -> w2 -> w3) -> X w1 -> X w2 -> X w3
-liftX2 = f x1 x2 = case
--}		
+
+-------------------------------------------------------------------------------------
 
 data WireVal a = WireUnknown | WireVal a
 
@@ -81,15 +75,7 @@ instance Show a => Show (WireVal a) where
 	show WireUnknown = "?"
 	show (WireVal a) = show a
 
-instance (Wire a, Wire b) => Wire (a,b) where
-	type X (a,b) 		= (X a, X b)
-	optX (Just (a,b)) 	= (pureX a, pureX b)
-	optX Nothing		= (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
-	unX (a,b) = do x <- unX a
-		       y <- unX b
-		       return $ (x,y)
-	wireName _ = "Tuple_2"
-	wireType ~(a,b) = TupleTy [wireType a, wireType b]
+-----------------------------------------------------------------------------------------
 
 instance Wire Bool where 
 	type X Bool 	= WireVal Bool
@@ -102,9 +88,9 @@ instance Wire Bool where
 	
 instance RepWire Bool where
 	type WIDTH Bool	= X1
-	toWireRep m  		= m ! 0
+	toWireRep m  		= return $ m ! 0
 	fromWireRep v 		= matrix [v]
-	maxWireRep _		= 1
+	showRepWire _ = show
 
 instance Wire Int where 	
 	type X Int 	= Maybe Int
@@ -116,9 +102,11 @@ instance Wire Int where
 		
 instance RepWire Int where
 	type WIDTH Int	= X32
-	
-	
-			
+	toWireRep = return . fromIntegral . U.fromMatrix
+	fromWireRep = U.toMatrix . fromIntegral 
+	showRepWire _ = show
+
+				
 instance Wire Word32 where 	
 	type X Word32 	= Maybe Word32
 	optX (Just b)	= return b
@@ -135,7 +123,27 @@ instance Wire Integer where
 	wireName _	= "Integer"
 	wireType _	= IntegerTy
 
-instance (Num ix, Size ix, Wire a) => Wire (Matrix ix a) where 
+-------------------------------------------------------------------------------------
+-- Now the containers
+
+instance (Wire a, Wire b) => Wire (a,b) where
+	type X (a,b) 		= (X a, X b)
+	optX (Just (a,b)) 	= (pureX a, pureX b)
+	optX Nothing		= (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
+	unX (a,b) = do x <- unX a
+		       y <- unX b
+		       return $ (x,y)
+	wireName _ = "Tuple_2"
+	wireType ~(a,b) = TupleTy [wireType a, wireType b]
+
+instance (RepWire a, RepWire b) => RepWire (a,b) where
+	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
+--	toWireRep m  		= return $ m ! 0
+--	fromWireRep v 		= matrix [v]
+	showRepWire (a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
+	
+
+instance (Size ix, Wire a) => Wire (Matrix ix a) where 
 	type X (Matrix ix a) = Matrix ix (X a)
 	optX (Just m)	= fmap (optX . Just) m
 	optX Nothing	= forAll $ \ ix -> optX (Nothing :: Maybe a)
@@ -149,28 +157,30 @@ instance (Num ix, Size ix, Wire a) => Wire (Matrix ix a) where
 			a = undefined
 --	showWire _ = show
 	
-instance forall a ix . (Size (WIDTH a), RepWire a, Num ix, Size ix, Wire a) => RepWire (Matrix ix a) where
+instance forall a ix . (Size (WIDTH a), RepWire a, Size ix, Wire a) => RepWire (Matrix ix a) where
 	type WIDTH (Matrix ix a) = MUL ix (WIDTH a)
 	
 --	toWireRep :: Matrix (WIDTH w) Bool -> Matrix ix a
-	toWireRep = fmap toWireRep . rows . squash 
+	toWireRep = T.traverse toWireRep
+		  . rows 
+		  . squash 
 
 --	fromWireRep :: Matrix ix a -> Matrix (WIDTH w) Bool 
+	fromWireRep = squash . joinRows . T.traverse fromWireRep 
 
-	-- | 'w' here is a witness, not a value
---	maxWireRep :: w -> Integer
-	maxWireRep = undefined
+	showRepWire _ = show . M.toList . fmap (M.S . showRepWire (undefined :: a))
+
+instance (Enum ix, Size ix) => Wire (Unsigned ix) where 
+	type X (Unsigned ix) = WireVal (Unsigned ix)
+	optX (Just b)	    = return b
+	optX Nothing	    = fail "Wire Int"
+	unX (WireVal a)     = return a
+	unX (WireUnknown)   = fail "Wire Int"
+	wireName _	    = "Unsigned"
+	wireType x   	    = U (bitSize x)
 	
-	-- | how we want to present this value, in comments
-
-
-fff :: Matrix n Bool -> Matrix n Bool
-fff = undefined
-
---------
-f :: Matrix X12 Int -> Matrix X4 (Matrix X3 Int)
-f = rows . squash
-
-g :: Matrix X4 (Matrix X3 Int) -> Matrix X12 Int
-g = squash . joinRows
-		
+instance (Enum ix, Size ix) => RepWire (Unsigned ix) where 
+	type WIDTH (Unsigned ix) = ix
+	fromWireRep a = toMatrix a
+	toWireRep = return . fromMatrix
+	showRepWire _ = show

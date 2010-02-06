@@ -49,5 +49,6 @@ instance Show BaseTy where
 	show (U i) 	= show i ++ "U"
 	show T		= "T"
 	show (TupleTy tys) = show tys
-
+	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
+	show IntegerTy	= "Integer"
 

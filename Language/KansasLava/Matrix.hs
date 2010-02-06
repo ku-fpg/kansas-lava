@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables,FlexibleInstances,FlexibleContexts,UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables,FlexibleInstances,FlexibleContexts,UndecidableInstances, TypeFamilies  #-}
 module Language.KansasLava.Matrix where
 
 import Data.Sized.Unsigned as U
@@ -8,17 +8,48 @@ import Data.Maybe
 
 
 import Language.KansasLava.Signal
+import Language.KansasLava.Utils
 import Language.KansasLava.K
 import Language.KansasLava.Wire
 import Language.KansasLava.Seq as Seq
 --import Language.KansasLava.Logic
 import Language.KansasLava.Type
 import Language.KansasLava.Entity
+import Control.Monad
 
+{-
+---projK :: K w -> K (WIDTH w) -> K (Matrix (WIDTH w) Bool)
+--projK = 
 
-toBoolMatrix :: (SIGNAL sig, Wire w) => sig w -> Matrix (SZ w) (sig Bool)
-toBoolMatrix = undefined
+mapToBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
+mapToBoolMatrix = liftS1 $ \ (K a d) -> K
+	(( optX (liftM fromWireRep ((unX a) :: Maybe w
+		    ) :: Maybe (Matrix (WIDTH w) Bool))
+	 ) :: X (Matrix (WIDTH w) Bool))	
+	(entity1 (Name "Lava" "toBoolMatrix") d)
+	
+mapFromBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig (Matrix (WIDTH w) Bool) -> sig w
+mapFromBoolMatrix = liftS1 $ \ (K a d) -> K
+	(case unX (a :: X (Matrix (WIDTH w) Bool)) :: Maybe (Matrix (WIDTH w) Bool) of
+	     Nothing -> optX (Nothing :: Maybe w)
+	     Just r0 -> optX (toWireRep r0 :: Maybe w)
+	)
+	(entity1 (Name "Lava" "fromBoolMatrix") d)
+-}	
 
+{-
+((optX $ undefined) :: X (Matrix (WIDTH w) Bool))
+		      undefined
+-}
+
+--  (K s d) -> 
+{-
+toBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), Wire w) => sig w -> Matrix (WIDTH w) (sig Bool)
+toBoolMatrix s = forAll $ \ix -> liftS1 (f ix) s
+  where
+	f :: WIDTH w -> K w -> K Bool
+	f w k = k .!. (pureS w)
+-}
 
 -- toBoolMatrix :: (SIGNAL sig, Wire w) => sig (Matrix ix Bool) -> Matrix (SZ w) (sig Bool)
 -- :: ix -> K (Matrix ix Bool) -> K Bool

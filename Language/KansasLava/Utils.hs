@@ -13,6 +13,7 @@ import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
 
 import Control.Applicative
+import Control.Monad
 import Data.Word
 import Data.Bits
 import Data.Ratio
@@ -30,6 +31,10 @@ instance Constant Word32 where
 
 instance Constant Integer where
   pureS v = liftS0 $ K (pureX v) $ D $ Lit v
+
+instance (Enum ix, Size ix) => Constant (Unsigned ix) where
+  pureS v = liftS0 $ K (pureX v) $ D $ undefined
+
 
 high, low :: Signal Bool
 high = pureS True
@@ -54,10 +59,11 @@ bitNot = liftS1 $ \ (K a ae) -> K (liftA (not) a) $ entity1 (Name "Bool" "not") 
 
 testABit :: forall sig a . (Bits a, Wire a, SIGNAL sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (K a e) -> K (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ undefined) x
-{-
-	o0 $ entity1 (Name "Bits" "testABit") inputs [Var "o0"] (\ x' -> testBit x' y) x
-	where inputs   = take 2 defaultInputs
--}
+
+-- TODO: make over SIGNAL
+(.!.) :: (Size x, Wire a, Wire x) => K (Matrix x a) -> K x -> K a
+(.!.) = fun2 "!" (!)
+
 -----------------------------------------------------------------------------------------------
 
 instance (Constant a, Show a, RepWire a, Num a) => Num (K a) where
@@ -191,14 +197,31 @@ instance (Wire a, SIGNAL sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix 
 					       )
 			        ) s
 
-	
-pairSig :: (Wire a, Wire b, SIGNAL sig) => sig a -> sig b -> sig (a,b) 
-pairSig = liftS2 $ \ (K a ae) (K b be) -> K (a,b) (entity2 (Name "Lava" "pair") ae be)
-
-fstSig :: (Wire a, Wire b, SIGNAL sig) => sig (a,b) -> sig a
-fstSig = liftS1 $ \ (K (~(a,b)) abe) -> K a (entity1 (Name "Lava" "fst") abe)
-
-sndSig :: (Wire a, Wire b, SIGNAL sig) => sig (a,b) -> sig b
-sndSig = liftS1 $ \ (K (~(a,b)) abe) -> K b (entity1 (Name "Lava" "snd") abe)
 
 -----------------------------------------------------------------------------------------------
+-- Matrix ops
+
+
+mapToBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
+mapToBoolMatrix = liftS1 $ \ (K a d) -> K
+	(( optX (liftM fromWireRep ((unX a) :: Maybe w
+		    ) :: Maybe (Matrix (WIDTH w) Bool))
+	 ) :: X (Matrix (WIDTH w) Bool))	
+	(entity1 (Name "Lava" "toBoolMatrix") d)
+
+toBoolMatrix :: forall sig w . (SIGNAL sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
+             => sig w -> Matrix (WIDTH w) (sig Bool)
+toBoolMatrix = unpack . mapToBoolMatrix 
+	
+mapFromBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig (Matrix (WIDTH w) Bool) -> sig w
+mapFromBoolMatrix = liftS1 $ \ (K a d) -> K
+	(case unX (a :: X (Matrix (WIDTH w) Bool)) :: Maybe (Matrix (WIDTH w) Bool) of
+	     Nothing -> optX (Nothing :: Maybe w)
+	     Just r0 -> optX (toWireRep r0 :: Maybe w)
+	)
+	(entity1 (Name "Lava" "fromBoolMatrix") d)
+	
+fromBoolMatrix :: forall sig w . (SIGNAL sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
+	       => Matrix (WIDTH w) (sig Bool) ->  sig w
+fromBoolMatrix = mapFromBoolMatrix . pack 
+

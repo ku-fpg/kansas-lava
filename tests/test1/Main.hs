@@ -29,9 +29,11 @@ fullAdder c (a,b) = (s2,c2 `xor2` c1)
   where (s1,c1) = halfAdder (a,b)
 	(s2,c2) = halfAdder (s1,c)
 
-wordAdder :: (Wire (Matrix x Bool),
-              Size x, 
-	      Enum x) => Signal Bool ->  (Signal (Unsigned x), Signal (Unsigned x)) -> (Signal (Unsigned x), Signal Bool)
+wordAdder :: (RepWire (Unsigned x)
+	     ,Size (WIDTH (Unsigned x))
+	     ,Integral (WIDTH (Unsigned x))	
+	     )
+	   => K Bool ->  (K (Unsigned x), K (Unsigned x)) -> (K (Unsigned x), K Bool)
 wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
    where
 	m   = M.zipWith (,) (toBoolMatrix a) (toBoolMatrix b)
@@ -73,13 +75,13 @@ main = do
 			        , c <- [true,false] ]
 	putStrLn "Testing fullAdder reify"
 	debugCircuit [] fullAdder
-{-
+
 	putStrLn "Testing wordAdder function"
-	putStrLn $ unlines [ show (a,b,c,wordAdder a (pure b,pure c))
-	 			| a <- [low,high]
-	 			, b <- [0..3] :: [U.Unsigned X2]
+	putStrLn $ unlines [ show (a,b,c,wordAdder a (pureS b,pureS c))
+	 			| a <- [true,false]
+	 			, b <- [0..3] :: [(U.Unsigned X2)]
 			        , c <- [0..3] ]
 	putStrLn "Testing wordAdder reify"
-	debugCircuit [] (wordAdder :: Signal Bool ->  (Signal (Unsigned X2), Signal (Unsigned X2)) -> (Signal (Unsigned X2), Signal Bool))
--}
+	debugCircuit [] (wordAdder :: K Bool ->  (K (Unsigned X2), K (Unsigned X2)) -> (K (Unsigned X2), K Bool))
+
 	--	test_shallow_bit
