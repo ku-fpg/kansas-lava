@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ScopedTypeVariables #-}
 
+{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
+
 module Language.KansasLava.K where
 	
 import Language.KansasLava.Entity
@@ -15,8 +18,8 @@ import Control.Applicative
 
 data K a = K (X a) (D a)
 
-instance Show (X a) => Show (K a) where
-	show (K x _) = show x
+instance forall a . (RepWire a, Show a) => Show (K a) where
+	show (K x _) = showRepWire (undefined :: a) x
 
 instance forall a . (Wire a, Eq a) => Eq (K a) where
 	(K x _) == (K y _) = (unX x :: Maybe a) == (unX y :: Maybe a)

@@ -20,6 +20,10 @@ instance Show a => Show (Seq a) where
                                 | x <- take 20 $ toList vs
                                 ] ++ "..."
 
+
+instance Eq a => Eq (Seq a) where
+   xs == ys = toList xs == toList ys
+
 {-
 showV :: (Show a) => Maybe a -> String
 showV Nothing = "?"

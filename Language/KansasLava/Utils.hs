@@ -10,6 +10,7 @@ import Language.KansasLava.Wire
 import Language.KansasLava.K
 import Language.KansasLava.Signal
 import Data.Sized.Matrix	as M
+import Data.Sized.Unsigned	as U
 
 import Control.Applicative
 import Data.Word
@@ -19,16 +20,16 @@ import Data.Ratio
 -----------------------------------------------------------------------------------------------
 
 instance Constant Bool where
---  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromWireRep v
+  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep v
 
 instance Constant Int where
---  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromIntegral v
+  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromIntegral v
 
 instance Constant Word32 where
---  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromIntegral v
+  pureS v = liftS0 $ K (pureX v) $ D $ Lit $ fromIntegral v
 
 instance Constant Integer where
---  pureS v = liftS0 $ K (pureX v) $ D $ Lit v
+  pureS v = liftS0 $ K (pureX v) $ D $ Lit v
 
 high, low :: Signal Bool
 high = pureS True
@@ -59,7 +60,7 @@ testABit x y = liftS1 (\ (K a e) -> K (optX $ liftA (flip testBit y) (unX a :: M
 -}
 -----------------------------------------------------------------------------------------------
 
-instance (Constant a, 	SIGNAL sig, Eq (sig a), Show (sig a), Num a, Wire a) => Num (sig a) where
+instance (Constant a, Show a, RepWire a, Num a) => Num (K a) where
     s1 + s2 = fun2 "+" (+) s1 s2
     s1 - s2 = fun2 "-" (-) s1 s2
     s1 * s2 = fun2 "*" (*) s1 s2
@@ -68,8 +69,17 @@ instance (Constant a, 	SIGNAL sig, Eq (sig a), Show (sig a), Num a, Wire a) => N
     signum s = fun1 "signum" (signum) s
     fromInteger n = pureS (fromInteger n)
 
-instance (Constant a, SIGNAL sig, Eq (sig Int), Show (sig Int), Eq (sig a), Show (sig a), Bits a, Wire a) 
-	=> Bits (sig a) where
+instance (Constant a, Show a, RepWire a, Num a) => Num (Signal a) where
+    (+) = liftS2 (+)
+    (-) = liftS2 (-)
+    (*) = liftS2 (*)
+    negate = liftS1 negate
+    abs = liftS1 abs
+    signum = liftS1 signum
+    fromInteger n = pureS (fromInteger n)
+
+instance (Constant a, Show a, Bits a, RepWire a) 
+	=> Bits (K a) where
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
     s1 .|. s2 = fun2 ".|." (.|.) s1 s2
     s1 `xor` s2 = fun2 "xor" (xor) s1 s2
@@ -79,12 +89,28 @@ instance (Constant a, SIGNAL sig, Eq (sig Int), Show (sig Int), Eq (sig a), Show
     bitSize s                       = baseTypeLength (bitTypeOf s)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
-instance (Constant a, SIGNAL sig, Eq (sig a), Show (sig a), Fractional a, Wire a) => Fractional (sig a) where
+instance (Constant a, Show a, Bits a, RepWire a) 
+	=> Bits (Signal a) where
+    (.&.)   = liftS2 (.&.)
+    (.|.)  = liftS2 (.|.)
+    xor    = liftS2 (xor)
+    shift s n = liftS1 (flip shift n) s
+    rotate s n = liftS1 (flip rotate n) s
+    complement = liftS1 complement
+    bitSize s                       = baseTypeLength (bitTypeOf s)
+    isSigned s                      = baseTypeIsSigned (bitTypeOf s)
+
+instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (K a) where
     s1 / s2 = fun2 "/" (/) s1 s2
-    recip s1 = fun1 "/" (recip) s1 
+    recip s1 = fun1 "recip" (recip) s1 
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
 
-
+instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Signal a) where
+    (/) = liftS2 (/)
+    recip = liftS1 recip
+    fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
+   
+	
 -----------------------------------------------------------------------------------------------
 -- And the utilties that get this done.
 
@@ -152,13 +178,18 @@ instance (Wire a, Wire b, SIGNAL sig) => Pack sig (a,b) where
 		    , liftS1 (\ (K (~(a,b)) abe) -> K b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
-instance (Wire a, SIGNAL sig, Num ix, Size ix) => Pack sig (Matrix ix a) where 
+instance (Wire a, SIGNAL sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | K m  _ <- ms ] 
 				     de = entityN (Name "Lava" "concat") [ d | K _ d <- ms ]
 				 in K sh de) (M.toList m) 
 	unpack s = forAll $ \ ix -> 
-			liftS1 (\ (K s d) -> K (s ! ix) undefined) s
+			liftS1 (\ (K s d) -> K (s ! ix) 
+					       (entity2 (Name "Lava" "index") 
+							(D $ Lit $ fromIntegral ix :: D Integer)
+							d
+					       )
+			        ) s
 
 	
 pairSig :: (Wire a, Wire b, SIGNAL sig) => sig a -> sig b -> sig (a,b) 

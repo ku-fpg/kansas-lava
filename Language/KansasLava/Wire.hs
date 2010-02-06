@@ -13,7 +13,7 @@ import Data.Sized.Matrix as M hiding (S)
 import Data.Word
 
 -- | A 'Wire a' is an 'a' value that we can push over a wire.
-class Wire w where
+class Eq w => Wire w where
 	-- | a way of adding unknown inputs to this wire.
 	type X w
 
@@ -29,19 +29,22 @@ class Wire w where
 	-- | Each wire has a known type.
     	wireType :: w -> BaseTy
 
+
 -- | "RepWire' is a wire where we know the represnetation used to encode the bits.
 class Wire w => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
-	toWireRep   :: Matrix (WIDTH w) Bool -> w
-	fromWireRep :: w -> Matrix (WIDTH w) Bool 
+	toWireRep   :: (Size (WIDTH w)) => Matrix (WIDTH w) Bool -> w
+	fromWireRep :: (Size (WIDTH w)) => w -> Matrix (WIDTH w) Bool 
 
 	-- | 'w' here is a witness, not a value
 	maxWireRep :: w -> Integer
 
 	-- | how we want to present this value, in comments
-	showWireRep :: w -> String
+	-- The first value is the witness.
+	showRepWire :: w -> X w -> String
+
 
 liftX0 :: (Wire w1) => w1 -> X w1	
 liftX0 = pureX
@@ -96,13 +99,12 @@ instance Wire Bool where
 	unX (WireUnknown) = fail "Wire Bool"
 	wireName _	= "Bool"
 	wireType _	= B
-
+	
 instance RepWire Bool where
 	type WIDTH Bool	= X1
 	toWireRep m  		= m ! 0
 	fromWireRep v 		= matrix [v]
 	maxWireRep _		= 1
-	showWireRep 		= show
 
 instance Wire Int where 	
 	type X Int 	= Maybe Int
@@ -112,6 +114,11 @@ instance Wire Int where
 	wireName _	= "Int"
 	wireType _	= S 32		-- hmm. Not really on 64 bit machines.
 		
+instance RepWire Int where
+	type WIDTH Int	= X32
+	
+	
+			
 instance Wire Word32 where 	
 	type X Word32 	= Maybe Word32
 	optX (Just b)	= return b
@@ -140,11 +147,13 @@ instance (Num ix, Size ix, Wire a) => Wire (Matrix ix a) where
 			ix = undefined
 			a :: Matrix ix a -> a
 			a = undefined
-
-instance (Num ix, Size ix, Wire a) => RepWire (Matrix ix a) where
+--	showWire _ = show
+	
+instance forall a ix . (Size (WIDTH a), RepWire a, Num ix, Size ix, Wire a) => RepWire (Matrix ix a) where
 	type WIDTH (Matrix ix a) = MUL ix (WIDTH a)
 	
 --	toWireRep :: Matrix (WIDTH w) Bool -> Matrix ix a
+	toWireRep = fmap toWireRep . rows . squash 
 
 --	fromWireRep :: Matrix ix a -> Matrix (WIDTH w) Bool 
 
@@ -153,7 +162,15 @@ instance (Num ix, Size ix, Wire a) => RepWire (Matrix ix a) where
 	maxWireRep = undefined
 	
 	-- | how we want to present this value, in comments
---	showWireRep :: w -> String
-	showWireRep = undefined
-	
+
+
+fff :: Matrix n Bool -> Matrix n Bool
+fff = undefined
+
+--------
+f :: Matrix X12 Int -> Matrix X4 (Matrix X3 Int)
+f = rows . squash
+
+g :: Matrix X4 (Matrix X3 Int) -> Matrix X12 Int
+g = squash . joinRows
 		

@@ -31,14 +31,22 @@ import Language.KansasLava.Wire
 
 data Signal a = Signal (Seq (X a)) (D a)
 
+instance forall a . (RepWire a, Show a) => Show (Signal a) where
+	show (Signal (Constant a) _) = showRepWire (undefined :: a) a
+	show (Signal vs _)
+         	= unwords [ showRepWire (undefined :: a) x ++ " :~ "
+                          | x <- take 20 $ toList vs
+                          ] ++ "..."
+
+instance forall a . (Wire a, Eq a) => Eq (Signal a) where
+	-- Silly question; never True; can be False.
+	(Signal x _) == (Signal y _) = (fmap unX x :: Seq (Maybe a)) == (fmap unX y :: Seq (Maybe a))
+
 deepSignal :: D a -> Signal a
 deepSignal d = Signal (error "incorrect use of shallow signal") d
 
 shallowSignal :: Seq (X a) -> Signal a
 shallowSignal s = Signal s (error "incorrect use of deep signal")
-
-instance (Show (X a)) => Show (Signal a) where
-  	show (Signal s _) = show s
 
 instance SIGNAL Signal where
   liftS0 (K a e) = Signal (pure a) e
