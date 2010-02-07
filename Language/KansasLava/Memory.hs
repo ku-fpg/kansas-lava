@@ -14,6 +14,10 @@ import Language.KansasLava.Sequential
 import qualified Data.Map as M
 import Control.Applicative
 
+
+
+{-
+
 -- | A 'MemOp' is either a write (with a ddress and data) or read (with
 -- | address). It is exported abstract, so 'readMem' and 'writeMem' functions
 -- | should be used to construct values.
@@ -169,4 +173,5 @@ type Unsigned16 = Unsigned X16
 baseBRAM :: Time -> Signal Unsigned16 -> Signal Unsigned16
 baseBRAM bramClk addr = bram [] bramClk writeOp
   where writeOp = writeMem addr 0
+-}
 -}
