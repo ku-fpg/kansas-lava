@@ -31,6 +31,12 @@ import Language.KansasLava.Wire
 
 data Signal a = Signal (Seq (X a)) (D a)
 
+signalValue :: Signal a -> Seq (X a)
+signalValue (Signal a d) = a
+
+signalDriver :: Signal a -> D a
+signalDriver (Signal a d) = d
+
 instance forall a . (RepWire a, Show a) => Show (Signal a) where
 	show (Signal (Constant a) _) = showRepWire (undefined :: a) a
 	show (Signal vs _)
