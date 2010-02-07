@@ -1,10 +1,33 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies #-}
 module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Seq as Seq
+import Language.KansasLava.Wire
+import Data.Sized.Ix
+
+
+type SysEnv = (Clk,Rst)
+
+newtype Clk = Clk Integer
+	deriving Eq
+newtype Rst = Rst Bool
+	deriving Eq
+	
+instance Wire Clk where
+	type X Clk = Integer		-- no way of hiding this
+
+instance RepWire Clk where
+	type WIDTH Clk = X1
+
+instance Wire Rst where
+	type X Rst = Maybe Bool
+
+instance RepWire Rst where
+	type WIDTH Rst = X1
+	
 --import Language.KansasLava.Applicative
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a
