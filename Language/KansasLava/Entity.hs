@@ -117,6 +117,9 @@ instance Eq E where
 newtype D a = D (Driver E)
 	deriving Show
 -- is this used?
+
+unD :: D a -> Driver E
+unD (D a) = a
  
 {-
 entity0 :: OpType a => Name -> [Var] -> a -> ESignal a
