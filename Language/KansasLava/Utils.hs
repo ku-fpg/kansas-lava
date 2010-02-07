@@ -130,6 +130,30 @@ fun2 :: forall a b c sig . (SIGNAL sig, Wire a, Wire b, Wire c) => String -> (a 
 fun2 nm f = liftS2 $ \ (K a ae) (K b be) -> K (optX $ liftA2 f (unX a) (unX b)) 
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
 
+table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), SIGNAL sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
+table tab = liftS1 $ \ (K a (D ae))
+				-> K (case unX (a :: X a) :: Maybe a of
+					Nothing -> optX (Nothing :: Maybe b) :: X b
+					Just v -> 
+					  case lookup v tab of
+					    Nothing -> optX (Nothing :: Maybe b) :: X b
+					    Just b -> optX (Just b :: Maybe b) :: X b
+				     ) 
+				     (D $ Port (Var "o0") 
+					$ E 
+					$ Table (Var "o0",tA)
+						(Var "i0",tB,ae)
+						[( fromIntegral $ U.fromMatrix $ fromWireRep a
+						 , showRepWire a $ optX $ Just a
+						 , fromIntegral $ U.fromMatrix $ fromWireRep b
+						 , showRepWire b $ optX $ Just b
+						 )
+						| (a,b) <- tab
+						]
+				     )
+	where tA = wireType (error "table" :: a)
+	      tB = wireType (error "table" :: b)
+
 entity0 :: forall o . (Wire o) => Name -> D o
 entity0 nm = D $ Port (Var "o0") $ E $
  	Entity nm [(Var "o0",oTy)]
@@ -197,10 +221,8 @@ instance (Wire a, SIGNAL sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix 
 					       )
 			        ) s
 
-
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
-
 
 mapToBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
 mapToBoolMatrix = liftS1 $ \ (K a d) -> K
@@ -224,4 +246,32 @@ mapFromBoolMatrix = liftS1 $ \ (K a d) -> K
 fromBoolMatrix :: forall sig w . (SIGNAL sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
 	       => Matrix (WIDTH w) (sig Bool) ->  sig w
 fromBoolMatrix = mapFromBoolMatrix . pack 
+
+-----------------------------------------------------------------------------------------------     
+-- Map Ops
+
+
+-- Assumping that the codomain is finite (beacause of RepWire), and *small* (< ~256 values).
+funMap :: forall sig a b .
+	  (SIGNAL sig, Enum (WIDTH a),
+                      Enum (WIDTH b),
+                      Size (WIDTH a),
+                      Size (WIDTH b),
+                      RepWire a,
+                      RepWire b) => (a -> Maybe b) -> sig a -> sig b
+funMap f a = table tab a
+  where
+   tab = [ (a,b)
+	 | v <- [0..(2^count)-1]	-- all possible reps
+	 , Just a <- [toWireRep $ U.toMatrix $ fromIntegral $ v]
+	 , Just b <- [f a]
+	 ]
+
+   count :: Integer
+   count = fromIntegral $ size (undefined :: WIDTH a)
+
+-----------------------------------------------------------------------------------------------     
+-- Map Ops
+
+--	K (Bool,a) -> K (Maybe a)
 

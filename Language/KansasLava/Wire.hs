@@ -12,6 +12,7 @@ import Data.Sized.Ix
 import Data.Sized.Matrix hiding (S)
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U 
+import qualified Data.Sized.Sampled as Sampled
 import Data.Word
 import Data.Bits
 import qualified Data.Traversable as T
@@ -35,10 +36,11 @@ class Eq w => Wire w where
 
 
 -- | "RepWire' is a wire where we know the represnetation used to encode the bits.
-class Wire w => RepWire w where
+class (Wire w) => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
+		-- TODO: consider using Integer here.
 	toWireRep   :: (Size (WIDTH w)) => Matrix (WIDTH w) Bool -> Maybe w
 	fromWireRep :: (Size (WIDTH w)) => w -> Matrix (WIDTH w) Bool 
 
@@ -106,7 +108,20 @@ instance RepWire Int where
 	fromWireRep = U.toMatrix . fromIntegral 
 	showRepWire _ = show
 
-				
+instance Wire Word8 where 	
+	type X Word8 	= Maybe Word8
+	optX (Just b)	= return b
+	optX Nothing	= fail "Wire Int"
+	unX a		= a
+	wireName _	= "Word8"
+	wireType _	= U 8
+		
+instance RepWire Word8 where
+	type WIDTH Word8 = X8
+	toWireRep = return . fromIntegral . U.fromMatrix
+	fromWireRep = U.toMatrix . fromIntegral 
+	showRepWire _ = show
+
 instance Wire Word32 where 	
 	type X Word32 	= Maybe Word32
 	optX (Just b)	= return b
@@ -141,7 +156,14 @@ instance (RepWire a, RepWire b) => RepWire (a,b) where
 --	toWireRep m  		= return $ m ! 0
 --	fromWireRep v 		= matrix [v]
 	showRepWire (a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
-	
+
+
+instance (Wire a) => Wire (Maybe a) where
+	type X (Maybe a) = X (Bool, a)
+	optX Nothing 	 = (optX (Nothing :: Maybe Bool), optX (Nothing :: Maybe a))
+	unX (a,b) 	 = do x <- unX (a :: X Bool) :: Maybe Bool
+			      y <- unX (b :: X a) :: Maybe a
+			      return $ if x then Just y else Nothing
 
 instance (Size ix, Wire a) => Wire (Matrix ix a) where 
 	type X (Matrix ix a) = Matrix ix (X a)
@@ -184,3 +206,23 @@ instance (Enum ix, Size ix) => RepWire (Unsigned ix) where
 	fromWireRep a = toMatrix a
 	toWireRep = return . fromMatrix
 	showRepWire _ = show
+
+instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where 
+	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
+	optX (Just b)	    = return b
+	optX Nothing	    = fail "Wire Int"
+	unX (WireVal a)     = return a
+	unX (WireUnknown)   = fail "Wire Int"
+	wireName _	    = "Sampled"
+	wireType x   	    = U (size (error "Sampled" :: ix))
+
+instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) where 
+	type WIDTH (Sampled.Sampled m ix) = ix
+	fromWireRep a = Sampled.toMatrix a
+	toWireRep = return . Sampled.fromMatrix
+	showRepWire _ = show
+
+-----------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------
