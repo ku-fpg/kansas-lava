@@ -182,6 +182,18 @@ entity2 nm (D w1) (D w2) = D $ Port (Var "o0") $ E $
          bTy = wireType (error "entity2" :: b)
          oTy = wireType (error "entity2" :: o)
 
+entity3 :: forall a b c o . (Wire a, Wire b, Wire c, Wire o) => Name -> D a -> D b -> D c -> D o
+entity3 nm (D w1) (D w2) (D w3) = D $ Port (Var "o0") $ E $
+ 	Entity nm [(Var "o0",oTy)]
+		  [(inp,ty,val) | inp <- map Var ["i0","i1","i2"]
+				| ty <- [aTy,bTy,cTy] 
+				| val <- [w1,w2,w3]
+		  ] []
+   where aTy = wireType (error "entity3" :: a)
+         bTy = wireType (error "entity3" :: b)
+         cTy = wireType (error "entity3" :: c)
+         oTy = wireType (error "entity3" :: o)
+
 entityN :: forall a b o . (Wire a, Wire o) => Name -> [D a] -> D o
 entityN nm ds = D $ Port (Var "o0") $ E $
  	Entity nm [(Var "o0",oTy)]
@@ -270,8 +282,25 @@ funMap f a = table tab a
    count :: Integer
    count = fromIntegral $ size (undefined :: WIDTH a)
 
+
+
 -----------------------------------------------------------------------------------------------     
--- Map Ops
 
---	K (Bool,a) -> K (Maybe a)
+liftS3 :: forall a b c d sig . (SIGNAL sig, Wire a, Wire b, Wire c, Wire d)
+       => (K a -> K b -> K c -> K d) -> sig a -> sig b -> sig c -> sig d
+liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
 
+-----------------------------------------------------------------------------------------------     
+
+mux2 :: forall sig a . (SIGNAL sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 i (t,e)
+	= liftS3 (\ (K i ei)
+	 	    (K t et)
+	 	    (K e ee)
+			-> K (case unX i of
+			          Nothing -> optX (Nothing :: Maybe a)
+				  Just True -> t
+				  Just False -> e
+			     ) 
+			     (entity3 (Name "Lava" "mux2") ei et ee)
+	         ) i t e
