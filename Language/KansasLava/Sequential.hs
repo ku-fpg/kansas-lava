@@ -4,6 +4,7 @@ module Language.KansasLava.Sequential where
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
+import Language.KansasLava.K
 import Language.KansasLava.Seq as Seq
 import Language.KansasLava.Wire
 import Data.Sized.Ix
@@ -32,6 +33,36 @@ instance RepWire Rst where
 sysEnv :: Signal SysEnv 
 sysEnv = shallowSignal $ Seq.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
  					    (map (optX  . Just) ([True] ++ repeat False))
+
+
+
+
+
+
+
+
+
+latch :: forall a . (Wire a) => Signal a -> Signal a
+latch dat@(Signal a ea) = res
+
+  where
+	res = Signal (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
+	
+	entity :: Entity BaseTy E
+    	entity = 
+		Entity (Name "Memory" "latch") 
+			[ (Var "o0",bitTypeOf res)]
+			[ (Var "i0",bitTypeOf dat,unD $ signalDriver dat)
+			] 
+		[]
+
+{-		
+delay :: (Wire a) => SysEnv -> K a -> Signal a -> Signal a
+delay sysEnv def line = mux2 en (latch line)
+   where
+	(_,en) = unpack sysEnv
+-}
+
 --import Language.KansasLava.Applicative
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a
