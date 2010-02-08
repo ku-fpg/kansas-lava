@@ -13,6 +13,9 @@ import Data.Bits
 import Control.Applicative
 import Data.Maybe  as Maybe
 import Language.KansasLava
+import Data.Word
+import Language.KansasLava.Seq as Seq
+
 
 
 type SZ = X4
@@ -66,10 +69,46 @@ instance RepWire DecodeCntl where
 			    _ -> Nothing	
 	showRepWire _ = show
 
+incDecodeCntrl :: DecodeCntl -> DecodeCntl
+incDecodeCntrl DecodeWait = DecodeWait
+incDecodeCntrl DecodeRst  = DecodeLoad minBound
+incDecodeCntrl (DecodeLoad n) 
+	| n < maxBound 	= DecodeLoad (succ n)
+	| otherwise	= DecodeShare minBound
+incDecodeCntrl (DecodeShare n) 
+	| n < maxBound  = DecodeShare (succ n)
+	| otherwise	= DecodeResult minBound
+incDecodeCntrl (DecodeResult n) 
+	| n < maxBound  = DecodeResult (succ n)
+	| otherwise	= DecodeWait
+incDecodeCntrl (DecodeRest) = DecodeRest
 
---				      (fromWireRep x :: Matrix (WIDTH x) Bool)) :: Matrix (WIDTH (DecodeCntl x)) Bool
-	
---
---		((M.matrix [False,False] :: Matrix X2 Bool) `M.append` pure False) :: Matrix (ADD X2 (WIDTH x)) Bool
+inc :: K DecodeCntl -> K DecodeCntl
+inc = funMap (return . incDecodeCntrl)
+
+
 
 main = print "Hello"
+
+-------------------------
+
+
+-- How to test
+pip :: Signal (Pipe Word8 Int)
+pip = shallowSignal $ Seq.fromList $ Prelude.map (optX :: Maybe (Enabled (Word8,Int)) -> X (Enabled (Word8,Int)))
+	 [ return (True,(0,99))
+	 , return (True,(1,99))
+	 , return (True,(2,99))
+	 , return (True,(3,99))
+	 , Nothing
+	 , return (True,(0,100))
+	 , return (True,(1,99))
+	 , return (True,(0,99))
+	 ] ++ repeat (optX (Nothing :: Maybe (Pipe Word8 Int)))
+
+ff :: Signal Word8
+ff = shallowSignal $ Seq.fromList $ repeat (optX (Just 0 :: Maybe Word8) :: X Word8)
+
+r :: Memory Word8 Int
+r = pipeToMemory sysEnv pip
+
