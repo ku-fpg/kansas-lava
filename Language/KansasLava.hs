@@ -5,6 +5,7 @@ module Language.KansasLava (
     module Language.KansasLava.Entity,
     module Language.KansasLava.K,
     module Language.KansasLava.Matrix,
+    module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Sequential,
     module Language.KansasLava.Seq,
@@ -21,6 +22,7 @@ import Language.KansasLava.Dot
 import Language.KansasLava.Entity
 import Language.KansasLava.K
 import Language.KansasLava.Matrix
+import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.Sequential
 import Language.KansasLava.Seq hiding (head,tail)
