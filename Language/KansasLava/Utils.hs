@@ -33,7 +33,7 @@ instance Constant Integer where
   pureS v = liftS0 $ K (pureX v) $ D $ Lit v
 
 instance (Enum ix, Size ix) => Constant (Unsigned ix) where
-  pureS v = liftS0 $ K (pureX v) $ D $ undefined
+  pureS v = liftS0 $ K (pureX v) $ D $ error "Unsigned IX"
 
 
 high, low :: Signal Bool
@@ -58,7 +58,7 @@ bitNot :: (SIGNAL sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (K a ae) -> K (liftA (not) a) $ entity1 (Name "Bool" "not") ae
 
 testABit :: forall sig a . (Bits a, Wire a, SIGNAL sig) => sig a -> Int -> sig Bool
-testABit x y = liftS1 (\ (K a e) -> K (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ undefined) x
+testABit x y = liftS1 (\ (K a e) -> K (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ error "test a bit") x
 
 -- TODO: make over SIGNAL
 (.!.) :: (Size x, Wire a, Wire x) => K (Matrix x a) -> K x -> K a

@@ -15,7 +15,6 @@ import qualified Data.Map as M
 import Control.Applicative
 
 
-
 {-
 
 -- | A 'MemOp' is either a write (with a ddress and data) or read (with

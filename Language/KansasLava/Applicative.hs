@@ -8,7 +8,6 @@ import Control.Applicative
 import Data.Foldable
 import Data.Traversable
 
-
 instance Functor Signal where
    fmap f (Signal s _) = o0 $ ESignal (fmap f s) $ E $  e
      where e =

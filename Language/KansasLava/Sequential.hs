@@ -11,11 +11,11 @@ import Data.Sized.Ix
 
 type SysEnv = (Clk,Rst)
 
-newtype Clk = Clk Integer
-	deriving Eq
-newtype Rst = Rst Bool
-	deriving Eq
-	
+type Clk = Int 	-- for now
+
+type Rst = Bool
+
+{-	
 instance Wire Clk where
 	type X Clk = Integer		-- no way of hiding this
 
@@ -27,7 +27,11 @@ instance Wire Rst where
 
 instance RepWire Rst where
 	type WIDTH Rst = X1
-	
+-}
+
+sysEnv :: Signal SysEnv 
+sysEnv = shallowSignal $ Seq.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
+ 					    (map (optX  . Just) ([True] ++ repeat False))
 --import Language.KansasLava.Applicative
 
 --delay :: (Sig sig) => sig a -> sig a -> sig a

@@ -95,10 +95,11 @@ instance RepWire Bool where
 	showRepWire _ = show
 
 instance Wire Int where 	
-	type X Int 	= Maybe Int
+	type X Int 	= WireVal Int
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Int"
-	unX a		= a
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire Int"
 	wireName _	= "Int"
 	wireType _	= S 32		-- hmm. Not really on 64 bit machines.
 		
@@ -109,10 +110,11 @@ instance RepWire Int where
 	showRepWire _ = show
 
 instance Wire Word8 where 	
-	type X Word8 	= Maybe Word8
+	type X Word8 	= WireVal Word8
 	optX (Just b)	= return b
-	optX Nothing	= fail "Wire Int"
-	unX a		= a
+	optX Nothing	= fail "Wire Word8"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire Word8"
 	wireName _	= "Word8"
 	wireType _	= U 8
 		
@@ -133,10 +135,14 @@ instance Wire Word32 where
 instance Wire Integer where 	
 	type X Integer 	= Maybe Integer
 	optX (Just b)	= return b
-	optX Nothing	= fail "Wire Int"
+	optX Nothing	= fail "Wire Integer"
 	unX a		= a
 	wireName _	= "Integer"
 	wireType _	= IntegerTy
+
+
+instance RepWire Integer where
+
 
 -------------------------------------------------------------------------------------
 -- Now the containers
@@ -155,15 +161,17 @@ instance (RepWire a, RepWire b) => RepWire (a,b) where
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
 --	toWireRep m  		= return $ m ! 0
 --	fromWireRep v 		= matrix [v]
-	showRepWire (a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
+	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
-
+-- Not for now; to consider
+{-
 instance (Wire a) => Wire (Maybe a) where
 	type X (Maybe a) = X (Bool, a)
 	optX Nothing 	 = (optX (Nothing :: Maybe Bool), optX (Nothing :: Maybe a))
 	unX (a,b) 	 = do x <- unX (a :: X Bool) :: Maybe Bool
 			      y <- unX (b :: X a) :: Maybe a
 			      return $ if x then Just y else Nothing
+-}
 
 instance (Size ix, Wire a) => Wire (Matrix ix a) where 
 	type X (Matrix ix a) = Matrix ix (X a)
@@ -224,5 +232,67 @@ instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) wh
 
 -----------------------------------------------------------------------------
 
+log2 :: Int -> Int
+log2 0 = 0
+log2 1 = 1
+log2 n = log2 (n `shiftR` 1) + 1
+
+-- Perhaps not, because what does X0 really mean over a wire, vs X1.
+{-
+instance Wire X0 where
+	type X X0 = X0		-- there is not information here
+	optX (Just x)	    = x
+	optX Nothing	    = X0
+	unX x		    = return x
+	wireName _	    = "X0"
+	wireType _	    = U 0
+-}	
+instance (Size x) => Wire (X0_ x) where
+	type X (X0_ x)	= WireVal (X0_ x)
+	optX (Just x) 	= return x
+	optX Nothing	= fail "X0_"
+	unX (WireVal a) = return a
+	unX WireUnknown = fail "X0_"
+	wireName _ 	= "X" ++ show (size (error "wireName" :: X0_ x))
+	wireType _ 	= U (log2 $ (size (error "wireType" :: X0_ x) - 1))
+	
+
+instance (Enum (WIDTH (X0_ x)), Integral (X0_ x), Size x) => RepWire (X0_ x) where
+	type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
+	toWireRep = return . fromIntegral . U.fromMatrix
+	fromWireRep = U.toMatrix . fromIntegral 
+	showRepWire _ = show
+
+instance (Size x) => Wire (X1_ x) where
+	type X (X1_ x)	= WireVal (X1_ x)
+	optX (Just x) 	= return x
+	optX Nothing	= fail "X1_"
+	unX (WireVal a) = return a
+	unX WireUnknown = fail "X1_"
+	wireName _ 	= "X" ++ show (size (error "wireName" :: X1_ x))
+	wireType _ 	= U (log2 $ (size (error "wireType" :: X1_ x) - 1))	
+
+instance (Enum (WIDTH (X1_ x)), Integral (X1_ x), Size x) => RepWire (X1_ x) where
+	type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
+	toWireRep = return . fromIntegral . U.fromMatrix
+	fromWireRep = U.toMatrix . fromIntegral 
+	showRepWire _ = show
+		
+-- Some tests
+
+test1 :: (WIDTH X1 ~ X0) => ()
+test1 = ()
+
+test2 :: (WIDTH X2 ~ X1) => ()
+test2 = ()
+
+test3 :: (WIDTH X3 ~ X2) => ()
+test3 = ()
+
+test4 :: (WIDTH X4 ~ X2) => ()
+test4 = ()
+
+test5 :: (WIDTH X5 ~ X3) => ()
+test5 = ()
 
 -----------------------------------------------------------------------------

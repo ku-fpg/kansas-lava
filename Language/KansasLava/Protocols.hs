@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp  #-}
 module Language.KansasLava.Protocols where
 	
 import Language.KansasLava.K
@@ -8,12 +8,18 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Utils
 import Language.KansasLava.Sequential
 import Language.KansasLava.Type
+import Language.KansasLava.Seq as Seq
+
+import Data.Sized.Matrix as M
+import Data.Map as Map
+import Data.Word
+import Control.Applicative
 
 type Enabled a = (Bool,a)
 
-type Pipe a b = Enabled (a,b)
+type Pipe a d = Enabled (a,d)
 
-type Memory d a = Signal d -> Signal a
+type Memory a d = Signal a -> Signal d
 
 {-
 pipeToMem2 :: forall a d . (OpType a, OpType d) => Time -> Pipe a d -> Mem2 a d
@@ -45,8 +51,8 @@ memoryToPipe enA mem = pack (en,pack (a,mem a))
    where
 	(en,a) = unpack enA
 	
--- Space leak!
-pipeToMemory :: forall a d . (RepWire a, RepWire d) => Signal SysEnv -> Signal (Pipe a d) -> Memory a d
+-- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
+pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Signal SysEnv -> Signal (Pipe a d) -> Memory a d
 pipeToMemory sysEnv pipe addr2 = res
   where
 	(clk,rst)  = unpack sysEnv
@@ -54,10 +60,43 @@ pipeToMemory sysEnv pipe addr2 = res
 	(addr,dat) = unpack pipe'
 
     	res :: Signal d
-    	res = Signal undefined (D $ Port (Var "o0") $ E $ entity)
+    	res = Signal shallowRes (D $ Port (Var "o0") $ E $ entity)
 
---	mem :: X a -> X d
---	mem = undefined
+
+	shallowRes :: Seq (X d)
+	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
+				       Nothing -> optX (Nothing :: Maybe d)
+				       Just a' -> case Map.lookup (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
+						    Nothing -> optX (Nothing :: Maybe d)
+						    Just v -> optX (Just v)
+			  ) <*> mem
+			    <*> signalValue addr2
+
+	-- This could have more fidelity, and allow you
+	-- to say only a single location is undefined
+	updates :: Seq (Maybe (Maybe (a,d)))
+	updates = pure (\ e a b -> 
+			   do en'   <- unX e :: Maybe Bool
+			      if not en' 
+				     then Nothing
+				     else do 
+			      		addr' <- unX a :: Maybe a
+			      		dat'  <- unX b :: Maybe d
+			      		return $ Just (addr',dat')
+		       ) <*> signalValue en
+			 <*> signalValue addr
+			 <*> signalValue dat
+
+	-- mem
+	mem :: Seq (Map [Bool] d)
+	mem = Map.empty :~ Map.empty :~ Seq.fromList
+		[ case u of
+		    Nothing           -> Map.empty	-- unknown again
+		    Just Nothing      -> m
+		    Just (Just (a,d)) -> Map.insert (M.toList $ (fromWireRep a :: Matrix (WIDTH a) Bool)) d m
+		| u <- Seq.toList updates 
+		| m <- Prelude.tail (Seq.toList mem)
+		]
 
     	entity :: Entity BaseTy E
     	entity = 
@@ -71,3 +110,22 @@ pipeToMemory sysEnv pipe addr2 = res
 			, (Var "addr2",bitTypeOf addr2,unD $ signalDriver addr2)
 			] 
 		[]
+
+-- How to test
+pip :: Signal (Pipe Word8 Int)
+pip = shallowSignal $ Seq.fromList $ Prelude.map (optX :: Maybe (Enabled (Word8,Int)) -> X (Enabled (Word8,Int)))
+	 [ return (True,(0,99))
+	 , return (True,(1,99))
+	 , return (True,(2,99))
+	 , return (True,(3,99))
+	 , Nothing
+	 , return (True,(0,100))
+	 , return (True,(1,99))
+	 , return (True,(0,99))
+	 ] ++ repeat (optX (Nothing :: Maybe (Pipe Word8 Int)))
+
+ff :: Signal Word8
+ff = shallowSignal $ Seq.fromList $ repeat (optX (Just 0 :: Maybe Word8) :: X Word8)
+
+r :: Memory Word8 Int
+r = pipeToMemory sysEnv pip
