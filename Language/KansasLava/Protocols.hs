@@ -110,22 +110,3 @@ pipeToMemory sysEnv pipe addr2 = res
 			, (Var "addr2",bitTypeOf addr2,unD $ signalDriver addr2)
 			] 
 		[]
-
--- How to test
-pip :: Signal (Pipe Word8 Int)
-pip = shallowSignal $ Seq.fromList $ Prelude.map (optX :: Maybe (Enabled (Word8,Int)) -> X (Enabled (Word8,Int)))
-	 [ return (True,(0,99))
-	 , return (True,(1,99))
-	 , return (True,(2,99))
-	 , return (True,(3,99))
-	 , Nothing
-	 , return (True,(0,100))
-	 , return (True,(1,99))
-	 , return (True,(0,99))
-	 ] ++ repeat (optX (Nothing :: Maybe (Pipe Word8 Int)))
-
-ff :: Signal Word8
-ff = shallowSignal $ Seq.fromList $ repeat (optX (Just 0 :: Maybe Word8) :: X Word8)
-
-r :: Memory Word8 Int
-r = pipeToMemory sysEnv pip
