@@ -17,14 +17,13 @@ import Language.KansasLava
 
 type SZ = X4
 
-
 data DecodeCntl 
 	= DecodeWait		-- 0 + 0
 	| DecodeRst		-- 0 + 1	restart
 	| DecodeRest		-- 0 + 2
-	| DecodeLoad (Unsigned SZ)		-- 1 + x
-	| DecodeShare (Unsigned SZ)	-- 2 + x
-	| DecodeResult (Unsigned SZ)	-- 3 + x
+	| DecodeLoad X4		-- 1 + x
+	| DecodeShare X4	-- 2 + x
+	| DecodeResult X4	-- 3 + x
 	deriving (Show, Eq, Ord)
 
 instance Wire DecodeCntl where
@@ -36,24 +35,37 @@ instance Wire DecodeCntl where
 	wireName _ = "DecodeCntl"
 	wireType _ = U (undefined)
 
-
-opCode :: Integer -> Unsigned X4 -> Matrix X6 Bool
+opCode :: Integer -> X4 -> Matrix (ADD X2 (WIDTH X4)) Bool
 opCode n x = 
 	(U.toMatrix (fromIntegral n)  :: Matrix X2 Bool)
 		`append`
 	(fromWireRep x)
 
-instance RepWire (DecodeCntl) where	
-	type WIDTH (DecodeCntl) = X6
 
-
-	
+instance RepWire DecodeCntl where	
+	type WIDTH DecodeCntl = ADD X2 (WIDTH X4)
 
 	-- encoding
---	fromWireRep DecodeWait     = matrix 
---	fromWireRep DecodeRst      = U.toMatrix $ fromIntegral $ 0 + 1 * 4
---	fromWireRep DecodeRest     = U.toMatrix $ fromIntegral $ 0 + 2 * 4
---	fromWireRep (DecodeLoad x) = opCode 0 (fromWireRep x)
+	fromWireRep DecodeWait       = opCode 0 0
+	fromWireRep DecodeRst        = opCode 0 1
+	fromWireRep DecodeRest       = opCode 0 2
+	fromWireRep (DecodeLoad x)   = opCode 1 x
+	fromWireRep (DecodeShare x)  = opCode 2 x
+	fromWireRep (DecodeResult x) = opCode 3 x
+
+
+	toWireRep n = do op <- toWireRep ((n `cropAt` 0) :: Matrix X2 Bool) :: Maybe X4
+			 x <- toWireRep ((n `cropAt` 2) :: Matrix X2 Bool) :: Maybe X4
+		         case (op,x) of
+			    (0,0) -> return $ DecodeWait
+			    (0,1) -> return $ DecodeRst
+			    (0,2) -> return $ DecodeRest
+			    (1,x) -> return $ DecodeLoad x
+			    (2,x) -> return $ DecodeShare x
+			    (3,x) -> return $ DecodeResult x
+			    _ -> Nothing	
+	showRepWire _ = show
+
 
 --				      (fromWireRep x :: Matrix (WIDTH x) Bool)) :: Matrix (WIDTH (DecodeCntl x)) Bool
 	
