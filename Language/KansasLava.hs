@@ -33,6 +33,6 @@ import Language.KansasLava.Wire
 --import Language.KansasLava.Logic
 --import Language.KansasLava.Conditional
 
-import Language.KansasLava.Applicative
+--import Language.KansasLava.Applicative
 --import Language.KansasLava.Memory
 
