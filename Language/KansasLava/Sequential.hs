@@ -5,7 +5,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.K
-import Language.KansasLava.Seq as Seq
+import Language.KansasLava.Stream as S
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
 import Data.Sized.Ix
@@ -32,7 +32,7 @@ instance RepWire Rst where
 -}
 
 sysEnv :: Signal SysEnv 
-sysEnv = shallowSignal $ Seq.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
+sysEnv = shallowSignal $ S.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
  					    (map (optX  . Just) ([True] ++ repeat False))
 
 latch :: forall a . (Wire a) => Signal a -> Signal a
@@ -56,7 +56,7 @@ delay sysEnv def line = mux2 en (liftS0 def,latch line)
 
 
 -- hack
-ans = delay sysEnv 99 ((shallowSignal $ Seq.fromList $ map (optX . Just) [(1::Int)..100]) :: Signal Int)
+ans = delay sysEnv 99 ((shallowSignal $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Signal Int)
 
 
 --import Language.KansasLava.Applicative

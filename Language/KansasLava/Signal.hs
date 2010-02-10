@@ -14,7 +14,7 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Seq as S
+import Language.KansasLava.Stream as S
 
 import Control.Applicative
 import Data.Sized.Unsigned as UNSIGNED

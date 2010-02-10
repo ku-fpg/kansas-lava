@@ -1,4 +1,4 @@
-module Language.KansasLava.Seq
+module Language.KansasLava.Stream
         where
 
 import Data.Traversable
