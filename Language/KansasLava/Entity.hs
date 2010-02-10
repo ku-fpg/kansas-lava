@@ -33,14 +33,6 @@ instance Show Var where
     show (Var nm)     = nm
     show (UqVar path) = "<" ++ foldr (\ p s -> "_" ++ show p ++ s) ">" path
     show NoVar = "NoVar"
-{-
--- The old defintion.
-data Entity s = Entity Name [(Var,s)]      -- an entity
-              | Port Var s                 -- projection; get a specific named port of an entity
-              | Pad Var                    -- some in-scope signal
-              | Lit Integer
-              deriving (Show, Eq, Ord)
--}
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
@@ -120,58 +112,4 @@ newtype D a = D (Driver E)
 unD :: D a -> Driver E
 unD (D a) = a
  
-{-
-entity0 :: OpType a => Name -> [Var] -> a -> ESignal a
-entity0 nm outs f
-        = ESignal (pure f)
-        $ E
-        $ Entity nm [(o,ty) | o <- outs] [] []
-  where ty = tyRep f
-
-entity1 :: forall a b . (OpType a, OpType b) =>
-           Name -> [Var] -> [Var]  -> (a -> b) -> Signal a -> ESignal b
-entity1 nm ins outs f  (~(Signal vs1 w1))
-        = ESignal (pure f <*> vs1)
-        $ E
-        $ Entity nm [(o,bTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy] | val <- [w1]] []
-   where aTy = tyRep (error "entity1" :: a)
-         bTy = tyRep (error "entity1" :: b)
-
-entity2 :: forall a b c . (OpType a, OpType b,OpType c) =>
-           Name -> [Var] -> [Var]  -> (a -> b -> c) -> Signal a -> Signal b -> ESignal c
-entity2 nm ins outs f (~(Signal vs1 w1)) ~(Signal vs2 w2)
-        = ESignal (pure f <*> vs1 <*> vs2)
-        $ E
-        $ Entity nm [(o,cTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy] | val <- [w1,w2]] []
-   where aTy = tyRep (error "entity2" :: a)
-         bTy = tyRep (error "entity2" :: b)
-         cTy = tyRep (error "entity2" :: c)
-
-entity3 :: forall a b c d . (OpType a, OpType b,OpType c,OpType d) =>
-           Name -> [Var] -> [Var]  -> (a -> b -> c -> d) -> Signal a -> Signal b -> Signal c -> ESignal d
-entity3 nm ins outs f  (~(Signal vs1 w1)) ~(Signal vs2 w2) ~(Signal vs3 w3)
-        = ESignal (pure f <*> vs1 <*> vs2 <*> vs3)
-        $ E
-        $ Entity nm [(o,dTy) | o <- outs] [(inp,ty,val) | inp <- ins | ty <- [aTy,bTy,cTy] | val <- [w1,w2,w3]] []
-   where aTy = tyRep (error "entity3" :: a)
-         bTy = tyRep (error "entity3" :: b)
-         cTy = tyRep (error "entity3" :: c)
-         dTy = tyRep (error "entity3" :: d)
-{-
-
-and2 :: D Bool -> D Bool -> D Bool
-and2 (D e1) (D e2) = D
- 	 	  $ Port (Var "o0")
- 		  $ E
-		  $ Entity (Name "K" "and") 
-			    [(Var "o0",B)] 
-			    [(Var "o0",B,e1),(Var "o1",B,e2)]
-			    []
-
--}
-
--}
-
---o0 :: E a -> Signal a
---o0 ~(E2 v e) = Signal v (Port (Var "o0") e)
 

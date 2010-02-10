@@ -8,6 +8,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
+import Language.KansasLava.Signal
 import Data.Sized.Ix
 
 

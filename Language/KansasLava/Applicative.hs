@@ -1,6 +1,6 @@
 module Language.KansasLava.Applicative where
 
-- TO REINSTATE
+-- TO REINSTATE
 {-
 import Language.KansasLava.Signal
 import Language.KansasLava.Entity

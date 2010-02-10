@@ -9,6 +9,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Type
 
 import Debug.Trace

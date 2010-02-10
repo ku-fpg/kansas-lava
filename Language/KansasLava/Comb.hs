@@ -9,7 +9,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
 
-import Control.Applicative
+-- import Control.Applicative
 
 ----------------------------------------------------------------------------------------------------
 -- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
@@ -46,32 +46,6 @@ applyComb2 f a b = unX c
 ----------------------------------------------------------------------------------------------------
 -- This might move into a class called '*.Classes'.
 
-class SIGNAL f where
-  liftS0 :: Comb a -> f a
-  liftS1 :: (Comb a -> Comb b) -> f a -> f b
-  liftS2 :: (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
-  liftSL :: ([Comb a] -> Comb b) -> [f a] -> f b
-
-bitTypeOf :: forall f w . (SIGNAL f, Wire w) => f w -> BaseTy
-bitTypeOf _ = wireType (error "bitTypeOf" :: w) 
-
-op :: forall f w . (SIGNAL f, Wire w) => f w -> String -> Name
-op _ nm = Name (wireName (error "op" :: w)) nm
-
-class Constant a where
-  pureS :: (SIGNAL s) => a -> s a
-
--- | k is a constant 
-constComb :: (Constant a) => a -> Comb a
-constComb = pureS
-
-----------------------------------------------------------------------------------------------------
-
-instance SIGNAL Comb where
-  liftS0 a     = a
-  liftS1 f a   = f a
-  liftS2 f a b = f a b
-  liftSL f xs  = f xs
 
 
 

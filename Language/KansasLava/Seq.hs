@@ -11,6 +11,7 @@ import Data.List
 import Data.Reify
 import qualified Data.Traversable as T
 import Language.KansasLava.Type
+import Language.KansasLava.Signal
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Stream as S
@@ -52,7 +53,7 @@ deepSeq d = Seq (error "incorrect use of shallow Seq") d
 shallowSeq :: Stream (X a) -> Seq a
 shallowSeq s = Seq s (error "incorrect use of deep Seq")
 
-instance SIGNAL Seq where
+instance Signal Seq where
   liftS0 (Comb a e) = Seq (pure a) e
 
   liftS1 f (Seq a ea) = Seq (fmap f' a) eb

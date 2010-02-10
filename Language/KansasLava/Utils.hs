@@ -5,6 +5,7 @@ module Language.KansasLava.Utils where
 import Language.KansasLava.Entity as E
 import Language.KansasLava.Type
 import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Data.Sized.Matrix	as M
@@ -44,22 +45,22 @@ true = pureS True
 false = pureS False
 
 -----------------------------------------------------------------------------------------------
-and2 :: (SIGNAL sig) => sig Bool -> sig Bool -> sig Bool
+and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (&&) a b) $ entity2 (Name "Bool" "and2") ae be
 
-or2 :: (SIGNAL sig) => sig Bool -> sig Bool -> sig Bool
+or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (||) a b) $ entity2 (Name "Bool" "or2") ae be
 
-xor2 :: (SIGNAL sig) => sig Bool -> sig Bool -> sig Bool
+xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Bool" "xor2") ae be
 
-bitNot :: (SIGNAL sig) => sig Bool -> sig Bool
+bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Bool" "not") ae
 
-testABit :: forall sig a . (Bits a, Wire a, SIGNAL sig) => sig a -> Int -> sig Bool
+testABit :: forall sig a . (Bits a, Wire a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a e) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ error "test a bit") x
 
--- TODO: maCombe over SIGNAL
+-- TODO: maCombe over Signal
 (.!.) :: (Size x, Wire a, Wire x) => Comb (Matrix x a) -> Comb x -> Comb a
 (.!.) = fun2 "!" (!)
 
@@ -119,17 +120,17 @@ instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq 
 -----------------------------------------------------------------------------------------------
 -- And the utilties that get this done.
 
-fun0 :: forall a sig . (SIGNAL sig, Wire a) => String -> a -> sig a
+fun0 :: forall a sig . (Signal sig, Wire a) => String -> a -> sig a
 fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Name (wireName (error "fun1" :: a)) nm)
 
-fun1 :: forall a b sig . (SIGNAL sig, Wire a, Wire b) => String -> (a -> b) -> sig a -> sig b
+fun1 :: forall a b sig . (Signal sig, Wire a, Wire b) => String -> (a -> b) -> sig a -> sig b
 fun1 nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA f (unX a)) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
 
-fun2 :: forall a b c sig . (SIGNAL sig, Wire a, Wire b, Wire c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
+fun2 :: forall a b c sig . (Signal sig, Wire a, Wire b, Wire c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b)) 
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
 
-table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), SIGNAL sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
+table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), Signal sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
 table tab = liftS1 $ \ (Comb a (D ae))
 				-> Comb (case unX (a :: X a) :: Maybe a of
 					Nothing -> optX (Nothing :: Maybe b) :: X b
@@ -206,12 +207,12 @@ entityN nm ds = D $ Port (Var "o0") $ E $
 
 
 -----------------------------------------------------------------------------------------------
-class (SIGNAL sig) => Pack sig a where
+class (Signal sig) => Pack sig a where
  type Unpacked sig a
  pack :: Unpacked sig a -> sig a
  unpack :: sig a -> Unpacked sig a
 
-instance (Wire a, Wire b, SIGNAL sig) => Pack sig (a,b) where 
+instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where 
 	type Unpacked sig (a,b) = (sig a, sig b)
 	pack ~(a,b) = liftS2 (\ ~(Comb a ae) ~(Comb b be) -> Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
 			    a b
@@ -219,7 +220,7 @@ instance (Wire a, Wire b, SIGNAL sig) => Pack sig (a,b) where
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
-instance (Wire a, SIGNAL sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
+instance (Wire a, Signal sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ] 
 				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
@@ -235,18 +236,18 @@ instance (Wire a, SIGNAL sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix 
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
 
-mapToBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
+mapToBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
 mapToBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(( optX (liftM fromWireRep ((unX a) :: Maybe w
 		    ) :: Maybe (Matrix (WIDTH w) Bool))
 	 ) :: X (Matrix (WIDTH w) Bool))	
 	(entity1 (Name "Lava" "toBoolMatrix") d)
 
-toBoolMatrix :: forall sig w . (SIGNAL sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
+toBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
              => sig w -> Matrix (WIDTH w) (sig Bool)
 toBoolMatrix = unpack . mapToBoolMatrix 
 	
-mapFromBoolMatrix :: forall sig w . (SIGNAL sig, Size (WIDTH w), RepWire w) => sig (Matrix (WIDTH w) Bool) -> sig w
+mapFromBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig (Matrix (WIDTH w) Bool) -> sig w
 mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(case unX (a :: X (Matrix (WIDTH w) Bool)) :: Maybe (Matrix (WIDTH w) Bool) of
 	     Nothing -> optX (Nothing :: Maybe w)
@@ -254,7 +255,7 @@ mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	)
 	(entity1 (Name "Lava" "fromBoolMatrix") d)
 	
-fromBoolMatrix :: forall sig w . (SIGNAL sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
+fromBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), RepWire w) 
 	       => Matrix (WIDTH w) (sig Bool) ->  sig w
 fromBoolMatrix = mapFromBoolMatrix . pack 
 
@@ -265,7 +266,7 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 -- Assumping that the codomain is finite (beacause of RepWire), and *small* (< ~256 values).
 funMap :: forall sig a b .
 	  (Show a, Show b
-	  , SIGNAL sig, Enum (WIDTH a),
+	  , Signal sig, Enum (WIDTH a),
                       Enum (WIDTH b),
                       Size (WIDTH a),
                       Size (WIDTH b),
@@ -287,14 +288,14 @@ funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} ta
 
 -----------------------------------------------------------------------------------------------     
 {-
-liftS3 :: forall a b c d sig . (SIGNAL sig, Wire a, Wire b, Wire c, Wire d)
+liftS3 :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
        => (K a -> K b -> K c -> K d) -> sig a -> sig b -> sig c -> sig d
 liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
 -}
 -----------------------------------------------------------------------------------------------     
 
---mux2 :: forall sig a . (SIGNAL sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 :: forall sig a . (SIGNAL sig, sig ~ Seq, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+--mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a . (Signal sig, sig ~ Seq, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei) 
 	 	    ~(Comb t et)

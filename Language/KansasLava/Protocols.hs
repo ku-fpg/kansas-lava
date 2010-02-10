@@ -9,6 +9,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Sequential
 import Language.KansasLava.Type
 import Language.KansasLava.Stream as Stream
+import Language.KansasLava.Signal
 
 import Data.Sized.Matrix as M
 import Data.Map as Map
