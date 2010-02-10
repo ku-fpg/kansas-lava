@@ -68,6 +68,14 @@ instance SIGNAL Signal where
 	f' a b = let (K c _) = f (shallowK a) (shallowK b) 
 	         in c
 
+
+liftS3 :: (K a -> K b -> K c -> K d) -> Signal a -> Signal b -> Signal c -> Signal d
+liftS3 f ~(Signal a ea) ~(Signal b eb) ~(Signal c ec) = Signal (pure f' <*> a <*> b <*> c) ex
+      where
+	K _ ex = f (deepK ea) (deepK eb) (deepK ec)
+	f' a b c = let ~(K x _) = f (shallowK a) (shallowK b) (shallowK c)
+	           in x
+
 --  liftSL f sigs = undefined
 
 -- 	(K (error "liftD1, f's arg, Signal") ea)

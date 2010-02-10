@@ -17,6 +17,7 @@ import Control.Monad
 import Data.Word
 import Data.Bits
 import Data.Ratio
+import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 
@@ -214,7 +215,7 @@ class (SIGNAL sig) => Pack sig a where
 
 instance (Wire a, Wire b, SIGNAL sig) => Pack sig (a,b) where 
 	type Unpacked sig (a,b) = (sig a, sig b)
-	pack (a,b) = liftS2 (\ (K a ae) (K b be) -> K (a,b) (entity2 (Name "Lava" "pair") ae be))
+	pack ~(a,b) = liftS2 (\ ~(K a ae) ~(K b be) -> K (a,b) (entity2 (Name "Lava" "pair") ae be))
 			    a b
 	unpack ab = ( liftS1 (\ (K (~(a,b)) abe) -> K a (entity1 (Name "Lava" "fst") abe)) ab
 		    , liftS1 (\ (K (~(a,b)) abe) -> K b (entity1 (Name "Lava" "snd") abe)) ab
@@ -265,16 +266,18 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 
 -- Assumping that the codomain is finite (beacause of RepWire), and *small* (< ~256 values).
 funMap :: forall sig a b .
-	  (SIGNAL sig, Enum (WIDTH a),
+	  (Show a, Show b
+	  , SIGNAL sig, Enum (WIDTH a),
                       Enum (WIDTH b),
                       Size (WIDTH a),
                       Size (WIDTH b),
                       RepWire a,
                       RepWire b) => (a -> Maybe b) -> sig a -> sig b
-funMap f a = table tab a
+funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} tab) a
   where
    tab = [ (a,b)
 	 | v <- [0..(2^count)-1]	-- all possible reps
+--	 , trace (show v) False
 	 , Just a <- [toWireRep $ U.toMatrix $ fromIntegral $ v]
 	 , Just b <- [f a]
 	 ]
@@ -285,22 +288,24 @@ funMap f a = table tab a
 
 
 -----------------------------------------------------------------------------------------------     
-
+{-
 liftS3 :: forall a b c d sig . (SIGNAL sig, Wire a, Wire b, Wire c, Wire d)
        => (K a -> K b -> K c -> K d) -> sig a -> sig b -> sig c -> sig d
 liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
-
+-}
 -----------------------------------------------------------------------------------------------     
 
-mux2 :: forall sig a . (SIGNAL sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+--mux2 :: forall sig a . (SIGNAL sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a . (SIGNAL sig, sig ~ Signal, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
-	= liftS3 (\ (K i ei)
-	 	    (K t et)
-	 	    (K e ee)
-			-> K (case unX i of
+	= liftS3 (\ ~(K i ei) 
+	 	    ~(K t et)
+	 	    ~(K e ee)
+			-> K (case unX i :: Maybe Bool of
 			          Nothing -> optX (Nothing :: Maybe a)
 				  Just True -> t
 				  Just False -> e
 			     ) 
-			     (entity3 (Name "Lava" "mux2") ei et ee)
+			     undefined
+--			     (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
