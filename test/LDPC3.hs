@@ -1,5 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables,TypeFamilies, UndecidableInstances #-}
-import Language.KansasLava hiding (head)
+{-# LANGUAGE ScopedTypeVariables,TypeFamilies, UndecidableInstances, FlexibleContexts #-}
+import Language.KansasLava -- hiding (head)
 
 --import Language.KansasLava.Applicative
 
@@ -14,7 +14,7 @@ import Control.Applicative
 import Data.Maybe  as Maybe
 import Language.KansasLava
 import Data.Word
-import Language.KansasLava.Seq as Seq
+import Language.KansasLava.Stream as Seq
 import Debug.Trace
 
 type SZ = X4
