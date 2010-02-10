@@ -7,8 +7,9 @@ import Control.Applicative
 
 -- import Test.QuickCheck
 -- Simple examples
+-- TODO: actually test both the Comb and Seq version.
 
-halfAdder :: (K Bool,K Bool) -> (K Bool,K Bool)
+halfAdder :: (Comb Bool,Comb Bool) -> (Comb Bool,Comb Bool)
 halfAdder (a,b) = (sum, carry)
   where sum = a `xor2` b
         carry = a `and2` b
@@ -24,7 +25,7 @@ prop_shallow_bit v n = True
 
 -}
 
-fullAdder :: K Bool -> (K Bool, K Bool) -> (K Bool, K Bool)
+fullAdder :: Comb Bool -> (Comb Bool, Comb Bool) -> (Comb Bool, Comb Bool)
 fullAdder c (a,b) = (s2,c2 `xor2` c1)
   where (s1,c1) = halfAdder (a,b)
 	(s2,c2) = halfAdder (s1,c)
@@ -33,7 +34,7 @@ wordAdder :: (RepWire (Unsigned x)
 	     ,Size (WIDTH (Unsigned x))
 	     ,Integral (WIDTH (Unsigned x))	
 	     )
-	   => K Bool ->  (K (Unsigned x), K (Unsigned x)) -> (K (Unsigned x), K Bool)
+	   => Comb Bool ->  (Comb (Unsigned x), Comb (Unsigned x)) -> (Comb (Unsigned x), Comb Bool)
 wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
    where
 	m   = M.zipWith (,) (toBoolMatrix a) (toBoolMatrix b)
@@ -82,6 +83,6 @@ main = do
 	 			, b <- [0..3] :: [(U.Unsigned X2)]
 			        , c <- [0..3] ]
 	putStrLn "Testing wordAdder reify"
-	debugCircuit [] (wordAdder :: K Bool ->  (K (Unsigned X2), K (Unsigned X2)) -> (K (Unsigned X2), K Bool))
+	debugCircuit [] (wordAdder :: Comb Bool ->  (Comb (Unsigned X2), Comb (Unsigned X2)) -> (Comb (Unsigned X2), Comb Bool))
 
 	--	test_shallow_bit

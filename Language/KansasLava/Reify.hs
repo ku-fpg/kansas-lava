@@ -8,7 +8,7 @@ import Data.List as L
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Wire
-import Language.KansasLava.K
+import Language.KansasLava.Comb
 import Language.KansasLava.Type
 --import Language.KansasLava.Sequential(Time(..))
 import Debug.Trace
@@ -160,8 +160,8 @@ class Ports a where
 instance Wire a => Ports (Signal a) where
   ports _ sig@(Signal _ (D d)) = [(bitTypeOf sig, d)]
 
-instance Wire a => Ports (K a) where
-  ports _ sig@(K _ (D d)) = [(bitTypeOf sig, d)]
+instance Wire a => Ports (Comb a) where
+  ports _ sig@(Comb _ (D d)) = [(bitTypeOf sig, d)]
 
 instance (Ports a, Ports b) => Ports (a,b) where 
   ports _ (a,b) = ports bad a ++ 
@@ -188,8 +188,8 @@ class InPorts a where
 instance Wire a => InPorts (Signal a) where
     inPorts (v:vs) = (Signal (error "InPorts (Signal a)") (D (Pad (Var v))),vs)
 
-instance Wire a => InPorts (K a) where
-    inPorts (v:vs) = (K (error "InPorts (K a)") (D (Pad (Var v))),vs)
+instance Wire a => InPorts (Comb a) where
+    inPorts (v:vs) = (Comb (error "InPorts (K a)") (D (Pad (Var v))),vs)
 
 {-
 instance InPorts Time where

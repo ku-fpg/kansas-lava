@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
-module Language.KansasLava.K where
+module Language.KansasLava.Comb where
 	
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
@@ -16,43 +16,43 @@ import Control.Applicative
 ----------------------------------------------------------------------------------------------------
 -- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
 
-data K a = K (X a) (D a)
+data Comb a = Comb (X a) (D a)
 
-instance forall a . (RepWire a, Show a) => Show (K a) where
-	show (K x _) = showRepWire (undefined :: a) x
+instance forall a . (RepWire a, Show a) => Show (Comb a) where
+	show (Comb x _) = showRepWire (undefined :: a) x
 
-instance forall a . (Wire a, Eq a) => Eq (K a) where
-	(K x _) == (K y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
+instance forall a . (Wire a, Eq a) => Eq (Comb a) where
+	(Comb x _) == (Comb y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
 
-deepK :: D a -> K a
-deepK e = K (error "shallow argument being used incorrectly") e
+deepComb :: D a -> Comb a
+deepComb e = Comb (error "shallow argument being used incorrectly") e
 
-shallowK :: X a -> K a
-shallowK a = K a (error "deep argument being used incorrectly")
+shallowComb :: X a -> Comb a
+shallowComb a = Comb a (error "deep argument being used incorrectly")
 
-errorK ::  forall a . (Wire a) => K a 
-errorK = K (optX $ (Nothing :: Maybe a)) (error "deep argument being used incorrectly")
+errorComb ::  forall a . (Wire a) => Comb a 
+errorComb = Comb (optX $ (Nothing :: Maybe a)) (error "deep argument being used incorrectly")
 
-applyK0 :: (Wire a) => K a -> Maybe a
-applyK0 (K a _) = unX a 
+applyComb0 :: (Wire a) => Comb a -> Maybe a
+applyComb0 (Comb a _) = unX a 
 
-applyK1 :: (Wire a, Wire b) => (K a -> K b) -> a -> Maybe b
-applyK1 f a = unX b
-   where K b _ = f (K (pureX a) (error "deep embedding problem in apply1"))
+applyComb1 :: (Wire a, Wire b) => (Comb a -> Comb b) -> a -> Maybe b
+applyComb1 f a = unX b
+   where Comb b _ = f (Comb (pureX a) (error "deep embedding problem in apply1"))
 
-applyK2 :: (Wire a, Wire b, Wire c) => (K a -> K b -> K c) -> a -> b -> Maybe c
-applyK2 f a b = unX c
-   where K c _ =  f (K (pureX a) (error "deep embedding problem in apply2"))
-	            (K (pureX b) (error "deep embedding problem in apply2"))
+applyComb2 :: (Wire a, Wire b, Wire c) => (Comb a -> Comb b -> Comb c) -> a -> b -> Maybe c
+applyComb2 f a b = unX c
+   where Comb c _ = f (Comb (pureX a) (error "deep embedding problem in apply2"))
+	              (Comb (pureX b) (error "deep embedding problem in apply2"))
 
 ----------------------------------------------------------------------------------------------------
 -- This might move into a class called '*.Classes'.
 
 class SIGNAL f where
-  liftS0 :: K a -> f a
-  liftS1 :: (K a -> K b) -> f a -> f b
-  liftS2 :: (K a -> K b -> K c) -> f a -> f b -> f c
-  liftSL :: ([K a] -> K b) -> [f a] -> f b
+  liftS0 :: Comb a -> f a
+  liftS1 :: (Comb a -> Comb b) -> f a -> f b
+  liftS2 :: (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
+  liftSL :: ([Comb a] -> Comb b) -> [f a] -> f b
 
 bitTypeOf :: forall f w . (SIGNAL f, Wire w) => f w -> BaseTy
 bitTypeOf _ = wireType (error "bitTypeOf" :: w) 
@@ -64,12 +64,12 @@ class Constant a where
   pureS :: (SIGNAL s) => a -> s a
 
 -- | k is a constant 
-k :: (Constant a) => a -> K a
-k = pureS
+constComb :: (Constant a) => a -> Comb a
+constComb = pureS
 
 ----------------------------------------------------------------------------------------------------
 
-instance SIGNAL K where
+instance SIGNAL Comb where
   liftS0 a     = a
   liftS1 f a   = f a
   liftS2 f a b = f a b

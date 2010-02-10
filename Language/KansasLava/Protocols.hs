@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp  #-}
 module Language.KansasLava.Protocols where
 	
-import Language.KansasLava.K
+import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Wire
 import Language.KansasLava.Signal

@@ -23,7 +23,7 @@ import Data.Sized.Sampled as SAMPLED
 import Data.Sized.Arith as Arith
 import Data.Sized.Ix as X
 
-import Language.KansasLava.K
+import Language.KansasLava.Comb
 import Language.KansasLava.E
 import Language.KansasLava.Wire
 
@@ -55,35 +55,35 @@ shallowSignal :: Stream (X a) -> Signal a
 shallowSignal s = Signal s (error "incorrect use of deep signal")
 
 instance SIGNAL Signal where
-  liftS0 (K a e) = Signal (pure a) e
+  liftS0 (Comb a e) = Signal (pure a) e
 
   liftS1 f (Signal a ea) = Signal (fmap f' a) eb
       where
-	K _ eb = f (deepK ea)
-	f' a = let (K b _) = f (shallowK a) 
+	Comb _ eb = f (deepComb ea)
+	f' a = let (Comb b _) = f (shallowComb a) 
 	       in b
   liftS2 f (Signal a ea) (Signal b eb) = Signal (S.zipWith f' a b) ec
       where
-	K _ ec = f (deepK ea) (deepK eb)
-	f' a b = let (K c _) = f (shallowK a) (shallowK b) 
+	Comb _ ec = f (deepComb ea) (deepComb eb)
+	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b) 
 	         in c
 
 
-liftS3 :: (K a -> K b -> K c -> K d) -> Signal a -> Signal b -> Signal c -> Signal d
+liftS3 :: (Comb a -> Comb b -> Comb c -> Comb d) -> Signal a -> Signal b -> Signal c -> Signal d
 liftS3 f ~(Signal a ea) ~(Signal b eb) ~(Signal c ec) = Signal (pure f' <*> a <*> b <*> c) ex
       where
-	K _ ex = f (deepK ea) (deepK eb) (deepK ec)
-	f' a b c = let ~(K x _) = f (shallowK a) (shallowK b) (shallowK c)
+	Comb _ ex = f (deepComb ea) (deepComb eb) (deepComb ec)
+	f' a b c = let ~(Comb x _) = f (shallowComb a) (shallowComb b) (shallowComb c)
 	           in x
 
 --  liftSL f sigs = undefined
 
--- 	(K (error "liftD1, f's arg, Signal") ea)
+-- 	(Comb (error "liftD1, f's arg, Signal") ea)
 {-
   liftS2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
       where
-	K _ ec = f (K (error "liftD2, f's arg, Signal") ea)
-		   (K (error "liftD2, f's arg, Signal") eb)
+	Comb _ ec = f (Comb (error "liftD2, f's arg, Signal") ea)
+		   (Comb (error "liftD2, f's arg, Signal") eb)
 -}
 
 {-

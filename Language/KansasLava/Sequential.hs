@@ -4,7 +4,7 @@ module Language.KansasLava.Sequential where
 import Language.KansasLava.Entity
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
-import Language.KansasLava.K
+import Language.KansasLava.Comb
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
@@ -49,7 +49,7 @@ latch dat@(Signal a ea) = res
 			] 
 		[]
 
-delay :: (Wire a) => Signal SysEnv -> K a -> Signal a -> Signal a
+delay :: (Wire a) => Signal SysEnv -> Comb a -> Signal a -> Signal a
 delay sysEnv def line = mux2 en (liftS0 def,latch line)
    where
 	(_,en) = unpack sysEnv

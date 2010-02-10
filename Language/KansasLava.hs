@@ -2,8 +2,8 @@
 
 module Language.KansasLava (
     module Language.KansasLava.Dot,
+    module Language.KansasLava.Comb,
     module Language.KansasLava.Entity,
-    module Language.KansasLava.K,
     module Language.KansasLava.Matrix,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
@@ -19,8 +19,8 @@ module Language.KansasLava (
      ) where
 
 import Language.KansasLava.Dot
+import Language.KansasLava.Comb
 import Language.KansasLava.Entity
-import Language.KansasLava.K
 import Language.KansasLava.Matrix
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify

@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables,FlexibleInstances,FlexibleContexts,UndecidableInstances, TypeFamilies  #-}
 module Language.KansasLava.Matrix where
 
-import Data.Sized.Unsigned as U
+{-
+import Data.Sized.Unsigned as Ua
 import Data.Sized.Matrix as M
 -- import Data.List hiding (tails)
 import Data.Maybe
@@ -16,6 +17,7 @@ import Language.KansasLava.Seq as Seq
 import Language.KansasLava.Type
 import Language.KansasLava.Entity
 import Control.Monad
+-}
 
 {-
 ---projK :: K w -> K (WIDTH w) -> K (Matrix (WIDTH w) Bool)
