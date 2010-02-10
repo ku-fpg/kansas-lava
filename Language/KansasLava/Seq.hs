@@ -1,8 +1,7 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
-module Language.KansasLava.Signal where
-
+module Language.KansasLava.Seq where
 
 import Data.Word
 import Data.Int
@@ -24,53 +23,53 @@ import Data.Sized.Arith as Arith
 import Data.Sized.Ix as X
 
 import Language.KansasLava.Comb
-import Language.KansasLava.E
 import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
 
-data Signal a = Signal (Stream (X a)) (D a)
+data Seq a = Seq (Stream (X a)) (D a)
 
-signalValue :: Signal a -> Stream (X a)
-signalValue (Signal a d) = a
+seqValue :: Seq a -> Stream (X a)
+seqValue (Seq a d) = a
 
-signalDriver :: Signal a -> D a
-signalDriver (Signal a d) = d
+seqDriver :: Seq a -> D a
+seqDriver (Seq a d) = d
 
-instance forall a . (RepWire a, Show a) => Show (Signal a) where
-	show (Signal (Constant a) _) = showRepWire (undefined :: a) a
-	show (Signal vs _)
+instance forall a . (RepWire a, Show a) => Show (Seq a) where
+	show (Seq (Constant a) _) = showRepWire (undefined :: a) a
+	show (Seq vs _)
          	= unwords [ showRepWire (undefined :: a) x ++ " :~ "
                           | x <- take 20 $ toList vs
                           ] ++ "..."
 
-instance forall a . (Wire a, Eq a) => Eq (Signal a) where
+instance forall a . (Wire a, Eq a) => Eq (Seq a) where
 	-- Silly question; never True; can be False.
-	(Signal x _) == (Signal y _) = (fmap unX x :: Stream (Maybe a)) == (fmap unX y :: Stream (Maybe a))
+	(Seq x _) == (Seq y _) = (fmap unX x :: Stream (Maybe a)) == (fmap unX y :: Stream (Maybe a))
 
-deepSignal :: D a -> Signal a
-deepSignal d = Signal (error "incorrect use of shallow signal") d
+deepSeq :: D a -> Seq a
+deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
-shallowSignal :: Stream (X a) -> Signal a
-shallowSignal s = Signal s (error "incorrect use of deep signal")
+shallowSeq :: Stream (X a) -> Seq a
+shallowSeq s = Seq s (error "incorrect use of deep Seq")
 
-instance SIGNAL Signal where
-  liftS0 (Comb a e) = Signal (pure a) e
+instance SIGNAL Seq where
+  liftS0 (Comb a e) = Seq (pure a) e
 
-  liftS1 f (Signal a ea) = Signal (fmap f' a) eb
+  liftS1 f (Seq a ea) = Seq (fmap f' a) eb
       where
 	Comb _ eb = f (deepComb ea)
 	f' a = let (Comb b _) = f (shallowComb a) 
 	       in b
-  liftS2 f (Signal a ea) (Signal b eb) = Signal (S.zipWith f' a b) ec
+  -- TODO: replace with the version that uses pack/unpack.
+  liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
 	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b) 
 	         in c
 
-
-liftS3 :: (Comb a -> Comb b -> Comb c -> Comb d) -> Signal a -> Signal b -> Signal c -> Signal d
-liftS3 f ~(Signal a ea) ~(Signal b eb) ~(Signal c ec) = Signal (pure f' <*> a <*> b <*> c) ex
+-- TODO: replace with the version that uses liftS2.
+liftS3 :: (Comb a -> Comb b -> Comb c -> Comb d) -> Seq a -> Seq b -> Seq c -> Seq d
+liftS3 f ~(Seq a ea) ~(Seq b eb) ~(Seq c ec) = Seq (pure f' <*> a <*> b <*> c) ex
       where
 	Comb _ ex = f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' a b c = let ~(Comb x _) = f (shallowComb a) (shallowComb b) (shallowComb c)
@@ -78,12 +77,12 @@ liftS3 f ~(Signal a ea) ~(Signal b eb) ~(Signal c ec) = Signal (pure f' <*> a <*
 
 --  liftSL f sigs = undefined
 
--- 	(Comb (error "liftD1, f's arg, Signal") ea)
+-- 	(Comb (error "liftD1, f's arg, Seq") ea)
 {-
-  liftS2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
+  liftS2 f (Seq a ea) (Seq b eb) = Seq (liftA2 (apply2 f) a b) ec
       where
-	Comb _ ec = f (Comb (error "liftD2, f's arg, Signal") ea)
-		   (Comb (error "liftD2, f's arg, Signal") eb)
+	Comb _ ec = f (Comb (error "liftD2, f's arg, Seq") ea)
+		   (Comb (error "liftD2, f's arg, Seq") eb)
 -}
 
 {-
@@ -150,12 +149,12 @@ instance Enum x => Konstant x where
 -----------------------------------------------------------------------------------------------
 
 {-
-instance Deliver Signal where
-  liftD0 (K a e) = Signal (pure a) e
-  liftD1 f (Signal a ea) = Signal (fmap (apply1 f) a) eb
+instance Deliver Seq where
+  liftD0 (K a e) = Seq (pure a) e
+  liftD1 f (Seq a ea) = Seq (fmap (apply1 f) a) eb
       where
-	K _ eb = f (K (error "liftD1, f's arg, Signal") ea)
-  liftD2 f (Signal a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
+	K _ eb = f (K (error "liftD1, f's arg, Seq") ea)
+  liftD2 f (Seq a ea) (Signal b eb) = Signal (liftA2 (apply2 f) a b) ec
       where
 	K _ ec = f (K (error "liftD2, f's arg, Signal") ea)
 		   (K (error "liftD2, f's arg, Signal") eb)

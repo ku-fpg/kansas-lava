@@ -2,9 +2,9 @@
 module Language.KansasLava.Protocols where
 	
 import Language.KansasLava.Comb
+import Language.KansasLava.Seq
 import Language.KansasLava.Entity
 import Language.KansasLava.Wire
-import Language.KansasLava.Signal
 import Language.KansasLava.Utils
 import Language.KansasLava.Sequential
 import Language.KansasLava.Type
@@ -19,7 +19,7 @@ type Enabled a = (Bool,a)
 
 type Pipe a d = Enabled (a,d)
 
-type Memory a d = Signal a -> Signal d
+type Memory a d = Seq a -> Seq d
 
 {-
 pipeToMem2 :: forall a d . (OpType a, OpType d) => Time -> Pipe a d -> Mem2 a d
@@ -29,38 +29,38 @@ pipeToMem2 (Time clk rst) ((en,addr),dat) addr2 = res
 -- o0 $ entity2 (op s1 nm) defaultInputs [Var "o0"]  f s1 s2
 
   where 
-    res :: Signal d
-    res = Signal undefined (Port (Var "o0") $ E $ entity)
+    res :: Seq d
+    res = Seq undefined (Port (Var "o0") $ E $ entity)
 
     entity :: Entity BaseTy E
     entity = 
 	Entity (Name "Mem" "mem2") 
 		[ (Var "o0",bitTypeOf res)]
-		[ (Var "clk",bitTypeOf clk,signalDriver clk)
-		, (Var "rst",bitTypeOf rst,signalDriver rst)
-		, (Var "en",bitTypeOf en,signalDriver en)
-		, (Var "addr",bitTypeOf addr,signalDriver addr)
-		, (Var "dat",bitTypeOf dat,signalDriver dat)
-		, (Var "addr2",bitTypeOf addr2,signalDriver addr2)
+		[ (Var "clk",bitTypeOf clk,seqDriver clk)
+		, (Var "rst",bitTypeOf rst,seqDriver rst)
+		, (Var "en",bitTypeOf en,seqDriver en)
+		, (Var "addr",bitTypeOf addr,seqDriver addr)
+		, (Var "dat",bitTypeOf dat,seqDriver dat)
+		, (Var "addr2",bitTypeOf addr2,seqDriver addr2)
 		] 
 		[]
 -}
 
-memoryToPipe ::  (Wire a, Wire d) => Signal (Enabled a) -> Memory a d -> Signal (Pipe a d)
+memoryToPipe ::  (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
 memoryToPipe enA mem = pack (en,pack (a,mem a))
    where
 	(en,a) = unpack enA
 	
 -- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
-pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Signal SysEnv -> Signal (Pipe a d) -> Memory a d
+pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Seq SysEnv -> Seq (Pipe a d) -> Memory a d
 pipeToMemory sysEnv pipe addr2 = res
   where
 	(clk,rst)  = unpack sysEnv
 	(en,pipe') = unpack pipe
 	(addr,dat) = unpack pipe'
 
-    	res :: Signal d
-    	res = Signal shallowRes (D $ Port (Var "o0") $ E $ entity)
+    	res :: Seq d
+    	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
 
 
 	shallowRes :: Stream (X d)
@@ -70,7 +70,7 @@ pipeToMemory sysEnv pipe addr2 = res
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
 			  ) <*> mem
-			    <*> signalValue addr2
+			    <*> seqValue addr2
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
@@ -83,9 +83,9 @@ pipeToMemory sysEnv pipe addr2 = res
 			      		addr' <- unX a :: Maybe a
 			      		dat'  <- unX b :: Maybe d
 			      		return $ Just (addr',dat')
-		       ) <*> signalValue en
-			 <*> signalValue addr
-			 <*> signalValue dat
+		       ) <*> seqValue en
+			 <*> seqValue addr
+			 <*> seqValue dat
 
 	-- mem
 	mem :: Stream (Map [Bool] d)
@@ -102,11 +102,11 @@ pipeToMemory sysEnv pipe addr2 = res
     	entity = 
 		Entity (Name "Memory" "memory") 
 			[ (Var "o0",bitTypeOf res)]
-			[ (Var "clk",bitTypeOf clk,unD $ signalDriver clk)
-			, (Var "rst",bitTypeOf rst,unD $ signalDriver rst)
-			, (Var "en",bitTypeOf en,unD $ signalDriver en)
-			, (Var "addr",bitTypeOf addr,unD $ signalDriver addr)
-			, (Var "dat",bitTypeOf dat,unD $ signalDriver dat)
-			, (Var "addr2",bitTypeOf addr2,unD $ signalDriver addr2)
+			[ (Var "clk",bitTypeOf clk,unD $ seqDriver clk)
+			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
+			, (Var "en",bitTypeOf en,unD $ seqDriver en)
+			, (Var "addr",bitTypeOf addr,unD $ seqDriver addr)
+			, (Var "dat",bitTypeOf dat,unD $ seqDriver dat)
+			, (Var "addr2",bitTypeOf addr2,unD $ seqDriver addr2)
 			] 
 		[]

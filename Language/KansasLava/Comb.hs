@@ -7,8 +7,6 @@ module Language.KansasLava.Comb where
 	
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
-import Language.KansasLava.Seq
-import Language.KansasLava.E
 import Language.KansasLava.Wire
 
 import Control.Applicative

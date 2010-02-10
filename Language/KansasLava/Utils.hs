@@ -5,10 +5,8 @@ module Language.KansasLava.Utils where
 import Language.KansasLava.Entity as E
 import Language.KansasLava.Type
 import Language.KansasLava.Seq
-import Language.KansasLava.E
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
-import Language.KansasLava.Signal
 import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
 
@@ -37,7 +35,7 @@ instance (Enum ix, Size ix) => Constant (Unsigned ix) where
   pureS v = liftS0 $ Comb (pureX v) $ D $ error "Unsigned IX"
 
 
-high, low :: Signal Bool
+high, low :: Seq Bool
 high = pureS True
 low  = pureS False
 
@@ -76,7 +74,7 @@ instance (Constant a, Show a, RepWire a, Num a) => Num (Comb a) where
     signum s = fun1 "signum" (signum) s
     fromInteger n = pureS (fromInteger n)
 
-instance (Constant a, Show a, RepWire a, Num a) => Num (Signal a) where
+instance (Constant a, Show a, RepWire a, Num a) => Num (Seq a) where
     (+) = liftS2 (+)
     (-) = liftS2 (-)
     (*) = liftS2 (*)
@@ -97,7 +95,7 @@ instance (Constant a, Show a, Bits a, RepWire a)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
 instance (Constant a, Show a, Bits a, RepWire a) 
-	=> Bits (Signal a) where
+	=> Bits (Seq a) where
     (.&.)   = liftS2 (.&.)
     (.|.)  = liftS2 (.|.)
     xor    = liftS2 (xor)
@@ -112,7 +110,7 @@ instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb
     recip s1 = fun1 "recip" (recip) s1 
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
 
-instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Signal a) where
+instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
     (/) = liftS2 (/)
     recip = liftS1 recip
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
@@ -296,7 +294,7 @@ liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (
 -----------------------------------------------------------------------------------------------     
 
 --mux2 :: forall sig a . (SIGNAL sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 :: forall sig a . (SIGNAL sig, sig ~ Signal, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a . (SIGNAL sig, sig ~ Seq, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei) 
 	 	    ~(Comb t et)

@@ -1,5 +1,7 @@
 module Language.KansasLava.Applicative where
 
+- TO REINSTATE
+{-
 import Language.KansasLava.Signal
 import Language.KansasLava.Entity
 import Language.KansasLava.Seq as S
@@ -43,6 +45,5 @@ be :: a -> Signal a
 be e = pure e
 -- Signal (pure e) (error "improper use of be")      -- for now
 
-
-
+-}
 

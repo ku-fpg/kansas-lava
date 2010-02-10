@@ -11,7 +11,6 @@ import Language.KansasLava.Type
 import Data.Reify
 import qualified Data.Traversable as T
 import Language.KansasLava.Type
-import Language.KansasLava.Seq as S
 
 import Control.Applicative
 

@@ -2,9 +2,9 @@
 module Language.KansasLava.Sequential where
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Comb
+import Language.KansasLava.Seq
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
@@ -31,32 +31,32 @@ instance RepWire Rst where
 	type WIDTH Rst = X1
 -}
 
-sysEnv :: Signal SysEnv 
-sysEnv = shallowSignal $ S.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
+sysEnv :: Seq SysEnv 
+sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
  					    (map (optX  . Just) ([True] ++ repeat False))
 
-latch :: forall a . (Wire a) => Signal a -> Signal a
-latch dat@(Signal a ea) = res
+latch :: forall a . (Wire a) => Seq a -> Seq a
+latch dat@(Seq a ea) = res
 
   where
-	res = Signal (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
+	res = Seq (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
 	
 	entity :: Entity BaseTy E
     	entity = 
 		Entity (Name "Memory" "latch") 
 			[ (Var "o0",bitTypeOf res)]
-			[ (Var "i0",bitTypeOf dat,unD $ signalDriver dat)
+			[ (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
 			] 
 		[]
 
-delay :: (Wire a) => Signal SysEnv -> Comb a -> Signal a -> Signal a
+delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
 delay sysEnv def line = mux2 en (liftS0 def,latch line)
    where
 	(_,en) = unpack sysEnv
 
 
 -- hack
-ans = delay sysEnv 99 ((shallowSignal $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Signal Int)
+ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 
 
 --import Language.KansasLava.Applicative
@@ -66,14 +66,14 @@ ans = delay sysEnv 99 ((shallowSignal $ S.fromList $ map (optX . Just) [(1::Int)
 
 -- To revisit: Should this be a -> S a -> S a ??
 {-
-latch :: forall a. (OpType a) => Time -> Signal a -> Signal a
+latch :: forall a. (OpType a) => Time -> Seq a -> Seq a
 latch tm sig = delay tm def sig
   where def = initVal
 
 
-delay :: forall a. (OpType a) => Time -> Signal a -> Signal a -> Signal a
-delay ~(Time ~(Signal _ tm_w) ~(Signal r r_w)) ~(Signal d def) ~(Signal rest w)
-        = Signal (shallowDelay r d rest)
+delay :: forall a. (OpType a) => Time -> Seq a -> Seq a -> Seq a
+delay ~(Time ~(Seq _ tm_w) ~(Seq r r_w)) ~(Seq d def) ~(Seq rest w)
+        = Seq (shallowDelay r d rest)
         $ Port (Var "o0")
         $ E
         $ Entity (Name "Lava" "delay") [(Var "o0",aTy)]
@@ -94,15 +94,15 @@ shallowDelay sT sInit input =
 
 
 data Time = Time
-		(Signal Clk)		-- threading clock
-		(Signal Rst)		-- threading reset
+		(Seq Clk)		-- threading clock
+		(Seq Rst)		-- threading reset
 
 newtype Clk = Clk Integer
 newtype Rst = Rst Bool
 
 instance Show Time where
 	-- show (Time t r) = show (pure (,) <*> t <*> r)
-        show (Time (Signal t_s _) (Signal r_s _)) = show $ zipWith' (,) t_s r_s
+        show (Time (Seq t_s _) (Seq r_s _)) = show $ zipWith' (,) t_s r_s
 
 {-
 instance REIFY Time where
@@ -135,14 +135,14 @@ instance OpType Rst
 
 -- newtype Clk = Clk Integer	-- always running
 
-clk :: Time -> Signal Integer
+clk :: Time -> Seq Integer
 clk (Time _ _) = error "Sequential.clk" -- fmap (\ (Clk n) -> n) c
 
-rst :: Time -> Signal Bool
+rst :: Time -> Seq Bool
 rst (Time _ _) = error "Sequential.rst"  -- fmap (\ (Rst r') -> r') r
 
 {-
-time :: Time -> Signal Integer		-- simluation only
+time :: Time -> Seq Integer		-- simluation only
 time (Time t) = t
 -}
 
@@ -151,22 +151,22 @@ clock :: Time
 clock = Time (with "global_clock" $ map Clk [0..])
 	     (with "global_reset" $ map Rst (True:(repeat False)))
 
-waitFor :: (OpType a) => Int -> Signal a -> Signal a
-waitFor n ~(Signal s _) = Signal (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")
+waitFor :: (OpType a) => Int -> Seq a -> Seq a
+waitFor n ~(Seq s _) = Seq (fromList (take n (repeat Nothing) ++ toList s)) (error "bad entity")
 
 -- waitForReset ::
 
 {-
 
-	Time $ Signal clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+	Time $ Seq clock_times (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
   where clock_times = Nothing :~ Nothing :~ (Seq.fromList $ map Just $ (-1 : [0..]))
 -}
 
 {-
 reset :: Time
-reset = Time $ Signal (pure (-1)) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
+reset = Time $ Seq (pure (-1)) (Port (Var "o0") $ E $ Entity (Name "Lava" "clock") [] [] [[TyVar $ Var "o0",BaseTy T]])
 
-switch :: Int -> Signal a -> Signal a -> Signal a
+switch :: Int -> Seq a -> Seq a -> Signal a
 switch n (Signal s1 _) (Signal s2 _)
   = Signal (pure (\ s1 s2 i -> if i < n then s1 else s2)
 		<*> s1
