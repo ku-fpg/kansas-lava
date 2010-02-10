@@ -8,7 +8,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Utils
 import Language.KansasLava.Sequential
 import Language.KansasLava.Type
-import Language.KansasLava.Stream as Seq
+import Language.KansasLava.Stream as Stream
 
 import Data.Sized.Matrix as M
 import Data.Map as Map
@@ -63,7 +63,7 @@ pipeToMemory sysEnv pipe addr2 = res
     	res = Signal shallowRes (D $ Port (Var "o0") $ E $ entity)
 
 
-	shallowRes :: Seq (X d)
+	shallowRes :: Stream (X d)
 	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
 				       Nothing -> optX (Nothing :: Maybe d)
 				       Just a' -> case Map.lookup (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
@@ -74,7 +74,7 @@ pipeToMemory sysEnv pipe addr2 = res
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
-	updates :: Seq (Maybe (Maybe (a,d)))
+	updates :: Stream (Maybe (Maybe (a,d)))
 	updates = pure (\ e a b -> 
 			   do en'   <- unX e :: Maybe Bool
 			      if not en' 
@@ -88,14 +88,14 @@ pipeToMemory sysEnv pipe addr2 = res
 			 <*> signalValue dat
 
 	-- mem
-	mem :: Seq (Map [Bool] d)
-	mem = Map.empty :~ Map.empty :~ Seq.fromList
+	mem :: Stream (Map [Bool] d)
+	mem = Map.empty :~ Map.empty :~ Stream.fromList
 		[ case u of
 		    Nothing           -> Map.empty	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) -> Map.insert (M.toList $ (fromWireRep a :: Matrix (WIDTH a) Bool)) d m
-		| u <- Seq.toList updates 
-		| m <- Prelude.tail (Seq.toList mem)
+		| u <- Stream.toList updates 
+		| m <- Prelude.tail (Stream.toList mem)
 		]
 
     	entity :: Entity BaseTy E

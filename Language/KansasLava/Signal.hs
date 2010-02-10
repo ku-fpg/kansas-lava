@@ -29,9 +29,9 @@ import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
 
-data Signal a = Signal (Seq (X a)) (D a)
+data Signal a = Signal (Stream (X a)) (D a)
 
-signalValue :: Signal a -> Seq (X a)
+signalValue :: Signal a -> Stream (X a)
 signalValue (Signal a d) = a
 
 signalDriver :: Signal a -> D a
@@ -46,12 +46,12 @@ instance forall a . (RepWire a, Show a) => Show (Signal a) where
 
 instance forall a . (Wire a, Eq a) => Eq (Signal a) where
 	-- Silly question; never True; can be False.
-	(Signal x _) == (Signal y _) = (fmap unX x :: Seq (Maybe a)) == (fmap unX y :: Seq (Maybe a))
+	(Signal x _) == (Signal y _) = (fmap unX x :: Stream (Maybe a)) == (fmap unX y :: Stream (Maybe a))
 
 deepSignal :: D a -> Signal a
 deepSignal d = Signal (error "incorrect use of shallow signal") d
 
-shallowSignal :: Seq (X a) -> Signal a
+shallowSignal :: Stream (X a) -> Signal a
 shallowSignal s = Signal s (error "incorrect use of deep signal")
 
 instance SIGNAL Signal where
@@ -179,13 +179,13 @@ entity1 nm ty1 e ty2 = Port (Var "o0") $ E $ Entity nm
 -----------------------------------------------------------------------------------------------
 -- AJG: to consider, adding AF and Functor to this type.
 
-data Signal a = Signal (Seq (X a)) (Driver E)
+data Signal a = Signal (Stream (X a)) (Driver E)
 -- newtype Wire = Wire (Driver E)
 
 newtype E = E (Entity BaseTy E)
 
 -- internal, special use only (when defining entities, for example).
-data ESignal a = ESignal (Seq a) E
+data ESignal a = ESignal (Stream a) E
 
 -- You want to observe
 instance MuRef E where
@@ -198,10 +198,10 @@ instance Eq (Signal a) where
 
 {-
 instance (Show a, OpType a) => Show (Signal a) where
-    show (Signal v _) = showSeq 20 v
+    show (Signal v _) = showStream 20 v
 
 showSignal :: (Show (X a), OpType a) => Int -> Signal a -> String
-showSignal n (Signal v _) = showSeq n v
+showSignal n (Signal v _) = showStream n v
 -}
 instance Show E where
     show (E s) = show s
@@ -261,10 +261,10 @@ unX' = undefined
 unX' :: (OpType a) => X a -> Maybe a
 
 
-    -- A show that gets n items of a sequence
---showSeq :: (OpType a, b ~ X a) => Int -> Seq b -> String
-showSeq :: forall a . (Show a, OpType a) => Int -> Seq (X a) -> String
-showSeq n strm =
+    -- A show that gets n items of a Streamuence
+--showStream :: (OpType a, b ~ X a) => Int -> Stream b -> String
+showStream :: forall a . (Show a, OpType a) => Int -> Stream (X a) -> String
+showStream n strm =
 	case strm of
 	   Constant v -> show ((unX' v) :: Maybe a)
 {-
@@ -304,10 +304,10 @@ instance OpType Bool where op _  nm = Name "Bool" nm
                            bitTypeOf _ = B
                            initVal = Signal (pure $ Just $ False) $ Lit 0
 {-
-			   showSeq _ (Constant Nothing) = "?"
-			   showSeq _ (Constant (Just True)) = "high"
-			   showSeq _ (Constant (Just False)) = "low"
-			   showSeq n other =
+			   showStream _ (Constant Nothing) = "?"
+			   showStream _ (Constant (Just True)) = "high"
+			   showStream _ (Constant (Just False)) = "low"
+			   showStream n other =
 				unwords [ showV x ++ " :~ "
                         		| x <- take n $ toList other
                         		] ++ "..."

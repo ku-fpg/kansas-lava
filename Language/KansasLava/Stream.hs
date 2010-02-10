@@ -1,5 +1,4 @@
-module Language.KansasLava.Stream
-        where
+module Language.KansasLava.Stream where
 
 import Data.Traversable
 import qualified Data.Foldable as F
@@ -11,17 +10,19 @@ import Data.Monoid
 infixr 5 :~
 
 -- A clocked sequence of values, which can be undefined (Nothing),  or have a specific value.
-data Seq a = a :~ Seq a
+data Stream a = a :~ Stream a
            | Constant a
 
-instance Show a => Show (Seq a) where
-   show (Constant v) = show v
-   show vs           = unwords [ show x ++ " :~ "
-                                | x <- take 20 $ toList vs
+instance Show a => Show (Stream a) where
+   show = showStream 20
+
+showStream :: Show a => Int -> Stream a -> String
+showStream _ (Constant v) = show v
+showStream i vs           = unwords [ show x ++ " :~ "
+                                | x <- take i $ toList vs
                                 ] ++ "..."
 
-
-instance Eq a => Eq (Seq a) where
+instance Eq a => Eq (Stream a) where
    xs == ys = toList xs == toList ys
 
 {-
@@ -31,62 +32,66 @@ showV (Just v) = show v
 -}
         -- Just a :~ pure a
 
-instance Applicative Seq where
+instance Applicative Stream where
         pure a = Constant a
         (Constant h1) <*> (h2 :~ t2)    = (h1 $ h2) :~ (Constant h1 <*> t2)
         (h1 :~ t1) <*> (Constant h2)    = (h1 $ h2) :~ (t1 <*> Constant h2)
         (h1 :~ t1) <*> (h2 :~ t2)       = (h1 $ h2) :~ (t1 <*> t2)
         (Constant h1) <*> (Constant h2) = Constant (h1 $ h2)
---undefinedSeq :: Seq a
---undefinedSeq = Constant Nothing
+--undefinedStream :: Stream a
+--undefinedStream = Constant Nothing
 
 
-instance Functor Seq where
+instance Functor Stream where
    fmap f (a :~ as) = f a :~ fmap f as
    fmap f (Constant a) = Constant $ f a
 
 {-
-fmapWithFail :: (a -> Maybe b) -> Seq a -> Seq b
+fmapWithFail :: (a -> Maybe b) -> Stream a -> Stream b
 fmapWithFail f (Nothing :~ as) = Nothing :~ fmapWithFail f as
 fmapWithFail f (Just a :~ as) = f a :~ fmapWithFail f as
 fmapWithFail f (Constant Nothing) =  Constant Nothing
 fmapWithFail f (Constant (Just a)) = Constant (f a)
 -}
 
-head :: Seq a -> a
+head :: Stream a -> a
 head (Constant a) = a
 head (a :~ _) = a
 
-tail :: Seq a -> Seq a
+tail :: Stream a -> Stream a
 tail (Constant a) = (Constant a)
 tail (_ :~ as) = as
 
-zipWith :: (a -> b -> c) -> Seq a -> Seq b -> Seq c
+zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
 zipWith f xs ys = pure f <*> xs <*> ys
 
-fromList :: [a] -> Seq a
+fromList :: [a] -> Stream a
 fromList (x : xs) = x :~ fromList xs
-fromList []       = error "Seq.fromList"
+fromList []       = error "Stream.fromList"
 
-toList :: Seq a -> [a]
+toList :: Stream a -> [a]
 toList (x :~ xs) = x : toList xs
 toList (Constant x) = repeat x
 
--- unlike using <*>, etc, this allows the unchosen Seq to be undefined at this time.
-seqMux :: Seq Bool -> Seq a -> Seq a -> Seq a
-seqMux sB sT sF =
+{-
+-- To revisit (perhaps this was why we had our mux example pausing?
+
+-- unlike using <*>, etc, this allows the unchosen Stream to be undefined at this time.
+streamMux :: Stream Bool -> Stream a -> Stream a -> Stream a
+streamMux sB sT sF =
 	fromList [ case b of
 		    True  -> t
 		    False -> f
 	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF)
 	         ]
+-}
 
-instance F.Foldable Seq where
+instance F.Foldable Stream where
   foldMap f (a :~ as) = f a `mappend` F.foldMap f as
-  foldMap _ _ = error "Foldable.foldMap(Seq)"
+  foldMap _ _ = error "Foldable.foldMap(Stream)"
 
 
-instance Traversable Seq where
+instance Traversable Stream where
   traverse f (a :~ as) = (:~) <$> f a <*> traverse f as
   traverse f (Constant a) = Constant <$> f a
 
