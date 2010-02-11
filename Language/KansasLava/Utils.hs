@@ -288,15 +288,15 @@ funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} ta
 
 
 -----------------------------------------------------------------------------------------------     
-{-
+
 liftS3 :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
-       => (K a -> K b -> K c -> K d) -> sig a -> sig b -> sig c -> sig d
+       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
--}
+
 -----------------------------------------------------------------------------------------------     
 
 --mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 :: forall sig a . (Signal sig, sig ~ Seq, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei) 
 	 	    ~(Comb t et)
@@ -306,11 +306,10 @@ mux2 i (t,e)
 				  Just True -> t
 				  Just False -> e
 			     ) 
-			     undefined
---			     (entity3 (Name "Lava" "mux2") ei et ee)
+			     (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
----------------------------------------------------------------------
 
+---------------------------------------------------------------------
 
 boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn = 

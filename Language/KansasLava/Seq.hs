@@ -67,7 +67,7 @@ instance Signal Seq where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
 	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b) 
 	         in c
-
+{-
 -- TODO: replace with the version that uses liftS2.
 liftS3 :: (Comb a -> Comb b -> Comb c -> Comb d) -> Seq a -> Seq b -> Seq c -> Seq d
 liftS3 f ~(Seq a ea) ~(Seq b eb) ~(Seq c ec) = Seq (pure f' <*> a <*> b <*> c) ex
@@ -75,6 +75,7 @@ liftS3 f ~(Seq a ea) ~(Seq b eb) ~(Seq c ec) = Seq (pure f' <*> a <*> b <*> c) e
 	Comb _ ex = f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' a b c = let ~(Comb x _) = f (shallowComb a) (shallowComb b) (shallowComb c)
 	           in x
+-}
 
 --  liftSL f sigs = undefined
 
