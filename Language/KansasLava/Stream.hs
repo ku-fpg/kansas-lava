@@ -4,7 +4,7 @@ import Data.Traversable
 import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
-import Prelude hiding (zipWith,zipWith3)
+import Prelude hiding (zipWith)
 import Data.Monoid
 
 infixr 5 :~
