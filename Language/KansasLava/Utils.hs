@@ -308,3 +308,23 @@ mux2 i (t,e)
 			     undefined
 --			     (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
+---------------------------------------------------------------------
+
+
+boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
+boolOp nm fn = 
+	liftS2 $ \ (Comb a ea) (Comb b eb) ->
+		    Comb (optX $ do a' <- unX a :: Maybe a
+			            b' <- unX b :: Maybe a
+			            return $ a' `fn` b')
+		      (entity2 (Name "Bool" nm) ea eb)
+
+(.==.) :: forall a sig . (Wire a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
+(.==.) = boolOp ".==." (==)
+
+(.>=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>=.) = boolOp ".>=." (>=)
+
+(.<.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<.) = boolOp ".<." (<)
+
