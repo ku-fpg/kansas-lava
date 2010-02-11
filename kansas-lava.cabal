@@ -1,5 +1,5 @@
 Name:               kansas-lava
-Version:            0.2.0.0
+Version:            0.2.1.20100210
 Synopsis:           Kansas Lava is a locally grown version of Lava,
 		    in the spirit of Chalmers Lava, and Xilinx Lava.
 		    .
@@ -26,23 +26,20 @@ Library
                  directory, random
   Exposed-modules:
        Language.KansasLava
-       Language.KansasLava.Entity
-       Language.KansasLava.Logic
-       Language.KansasLava.Reify
-       Language.KansasLava.Signal
-       Language.KansasLava.Seq
-       Language.KansasLava.Sequential
-       Language.KansasLava.VHDL
-       Language.KansasLava.VHDL.Testbench
-       Language.KansasLava.VHDL.VCD
        Language.KansasLava.Dot
-       Language.KansasLava.Conditional
-       Language.KansasLava.Matrix
-       Language.KansasLava.Memory
-  Other-modules:
-       Language.KansasLava.Applicative
+       Language.KansasLava.Comb
+       Language.KansasLava.Entity
+       Language.KansasLava.Protocols
+       Language.KansasLava.Reify
+       Language.KansasLava.Seq
+       Language.KansasLava.Signal
+       Language.KansasLava.Stream
+       Language.KansasLava.Simulate
        Language.KansasLava.Type
-
+       Language.KansasLava.Utils
+       Language.KansasLava.VHDL
+       Language.KansasLava.Wire
+  Other-modules:
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types

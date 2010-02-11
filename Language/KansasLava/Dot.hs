@@ -50,13 +50,23 @@ writeDotCircuit opts filename circuit = do
 			       		 ]
 
 
-	nds <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
+	nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
 							      [ (n,(v,ty)) | (v,ty) <- outs] )
 	 		                 , ("shape","record")
 			       		 , ("style","rounded")
 			       		 ]
-			     return (n,nd)
+			      return (n,nd)
 		        | (n,Entity nm outs ins _) <- nodes ]
+
+	nds1 <- sequence [ do nd <- node [ ("label",mkLabel "TABLE"
+	 						       [ (n,(vin,tyin)) ]
+							       [ (n,(vout,tyout)) ])
+	 		                 , ("shape","record")
+			       		 , ("style","rounded")
+			       		 ]
+			      return (n,nd)
+		        | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
+	let nds = nds0 ++ nds1
 
 	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
 	 		                 , ("shape","record")
@@ -88,6 +98,9 @@ writeDotCircuit opts filename circuit = do
 	sequence [ drawEdge dr (findNd (Uq n)) v
 	       	 | (n,Entity _ _ ins _) <- nodes
 		 , (v,_,dr) <- ins
+		 ]
+	sequence [ drawEdge dr (findNd (Uq n)) v
+	       	 | (n,Table _ (v,_,dr) _) <- nodes
 		 ]
 
 	return ()

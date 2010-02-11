@@ -6,9 +6,13 @@ import Data.List as L
 
 
 import Language.KansasLava.Entity
+import Language.KansasLava.Wire
+import Language.KansasLava.Comb
+import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
-import Language.KansasLava.Sequential(Time(..))
+
+import Debug.Trace
 
 --------------------------------------------------------
 -- Grab a set of drivers (the outputs), and give me a graph, please.
@@ -44,71 +48,51 @@ reifyCircuit opts circuit = do
 	let outputNames = head $
 		[ nms | OutputNames nms <- opts ] ++ [[ "o" ++ show i | i <- [0..]]]
 
+	let os = ports inputNames circuit
 
-        let (ty,o) = ports inputNames circuit
+	let o = Port (Var "o0")
+            	$ E
+            	$ Entity (Name "Lava" "top") [(Var "o0",B)]	-- not really a Bit
+             	[ (Var var,tys, dr) 
+	     	| (var,(tys,dr)) <- zip inputNames os
+             	]
+             	[]
+
 
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
         (gr, outputs) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
-                   case lookup out gr of
+		   let gr' = [ (nid,nd) | (nid,nd) <- gr
+				        , nid /= out 
+			     ]
+		   case lookup out gr of
                      Just (Entity (Name "Lava" "top")  _ ins _) ->
-                       return $ (gr,[(Var sink,ity, driver)
+                       return $ (gr',[(Var sink,ity, driver)
                                        | (_,ity,driver) <- ins
                                        | sink <- outputNames])
                      Just (Entity (Name _ _) outs _ _) ->
-                       return $ (gr, [(Var sink,oty, Port ovar out)
+                       return $ (gr', [(Var sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames])
+		     Just (Table (ovar,oty) _ _) ->
+		       return $ (gr', [ (Var sink,oty, Port ovar out)
+                                     | sink <- [head outputNames]
+				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
-
-
-
-
-                (Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
+		-- TODO: restore this
+--                (Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [(v,vTy) | (_,Entity _ _ ins _) <- gr, (_,vTy,Pad v) <- ins]
+        let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr 
+			       , (_,vTy,Pad v) <- ins]
+		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
         return $ ReifiedCircuit { theCircuit = gr
                                 , theSrcs = nub inputs
                                 , theSinks = outputs
                                 }
--- Some more type class magic.
-{-
-entity ::
-	(INPUT a, REIFY a,INPUT b) =>
-{- REIFY circuit => -} [ReifyOptions]
-	->  String -> (a -> b)  ->  (a -> b)
-entity opts nm circuit  = circuit'
-    where
-	p_root = P []
-
-	-- (a -> b) -> (a -> b)
-	circuit' inpX = result -- {- o0 $ e_entity -}
-	   where
-		(result,pinsY) = generated' e_entity (P [1,2])
-		e_entity =
-        	    E
-        	  $ Entity (Name "#AUTO" "ABC")
-			 [ Var (show ps)
-			 | (_,ps) <- pinsY
-			 ]
-			 [ (Var ("i" ++ show n),dr)
-			 | (n,(ty,dr)) <- zip [0..] pinsX
-			 ]
-			 ([ [fmap undefined ty,TyVar v] | (ty,Port v _) <- pinsX ] ++
-			  [ [fmap undefined ty,TyVar (Var $ show ps)] | (ty,ps) <- pinsY ])
-		(insX,pinsX) = capture' p_root inpX
--}
-{-
-entity :: (REIFY b, CLONE b) => [ReifyOptions] ->String -> b -> b
-entity opts nm circuit = clone circuit deep
-  where
-	deep = wrapCircuit [] [] circuit
--}
-
 
 showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
 showReifiedCircuit opt c = do
@@ -128,10 +112,19 @@ showReifiedCircuit opt c = do
 		| (var,ty,dr) <- theSinks rCir
 		]
 	let circuit = unlines
-		[ "(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
-			++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
-		| (uq,Entity nm outs ins _) <- theCircuit rCir
+		[ case e of
+		    Entity nm outs ins _	 ->
+			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+		    Table (v0,ty0) (v1,ty1,dr) mapping ->
+			"(" ++ show uq ++ ") TABLE \n" 
+			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
+			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
+			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2 
+				       | (i,e1,o,e2) <- mapping 
+				       ]
+		| (uq,e) <- theCircuit rCir
 		]
 
 	let msg = bar
@@ -157,80 +150,64 @@ showReifiedCircuit opt c = do
 debugCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO ()
 debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 
-
-
 -- | The 'Ports' class generates input pads for a function type, so that the
 -- function can be Reified. The result of the circuit, as a driver, as well as
 -- the result's type, are returned. I _think_ this takes the place of the REIFY
 -- typeclass, but I'm not really sure.
 
 class Ports a where
-  ports :: [String] -> a -> (BaseTy, Driver E)
+  ports :: [String] -> a -> [(BaseTy, Driver E)]
 
-instance OpType a => Ports (Signal a) where
-  ports _ sig@(Signal _ d) =  (bitTypeOf sig, d)
+instance Wire a => Ports (Seq a) where
+  ports _ sig@(Seq _ (D d)) = [(bitTypeOf sig, d)]
 
-instance (OpType a, OpType b) => Ports (Signal a, Signal b) where
-  ports _ (aSig@(Signal _ da), bSig@(Signal _ db)) =
-            (U size,
-               Port (Var "o0")
-            $ E
-            $ Entity (Name "Lava" "top") [(Var "o0",U size)]
-             [(Var "i0", aTy, da),
-              (Var "i1",bTy, db)
-             ] [])
-    where aTy = bitTypeOf aSig
-          bTy = bitTypeOf bSig
-          size = baseTypeLength aTy  + baseTypeLength bTy
+instance Wire a => Ports (Comb a) where
+  ports _ sig@(Comb _ (D d)) = [(bitTypeOf sig, d)]
 
-instance (OpType a, OpType b, OpType c) => Ports (Signal a, Signal b, Signal c) where
-  ports _ (aSig@(Signal _ da), bSig@(Signal _ db),  cSig@(Signal _ dc)) =
-            (U size,
-               Port (Var "o0")
-            $ E
-            $ Entity (Name "Lava" "top") [(Var "o0",U size)]
-             [(Var "i0", aTy, da),
-              (Var "i1",bTy, db),
-              (Var "i2",cTy, dc)
-             ] [])
-    where aTy = bitTypeOf aSig
-          bTy = bitTypeOf bSig
-          cTy = bitTypeOf cSig
-          size = baseTypeLength aTy  + baseTypeLength bTy + baseTypeLength cTy
+instance (Ports a, Ports b) => Ports (a,b) where 
+  ports _ (a,b) = ports bad a ++ 
+		  ports bad b 
+     where bad = error "bad using of arguments in Reify"
 
-instance (OpType a, OpType b, OpType c, OpType d) => Ports (Signal a, Signal b, Signal c, Signal d) where
-  ports _ (aSig@(Signal _ da), bSig@(Signal _ db),  cSig@(Signal _ dc),   dSig@(Signal _ dd)) =
-            (U size,
-               Port (Var "o0")
-            $ E
-            $ Entity (Name "Lava" "top") [(Var "o0",U size)]
-             [(Var "i0", aTy, da),
-              (Var "i1",bTy, db),
-              (Var "i2",cTy, dc),
-              (Var "i2",dTy, dd)
-             ] [])
-    where aTy = bitTypeOf aSig
-          bTy = bitTypeOf bSig
-          cTy = bitTypeOf cSig
-          dTy = bitTypeOf dSig
-          size = baseTypeLength aTy  + baseTypeLength bTy + baseTypeLength cTy + baseTypeLength dTy
+instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where 
+  ports _ (a,b,c)
+ 		 = ports bad a ++ 
+		   ports bad b ++
+		   ports bad c
+     where bad = error "bad using of arguments in Reify"
 
+instance (InPorts a, Ports b) => Ports (a -> b) where
+  ports vs f = ports vs' $ f a
+     where (a,vs') = inPorts vs    
 
+class OutPorts a where
+    outPorts :: a ->  [(Var, BaseTy, Driver E)]
 
-instance (OpType a, Ports b) => Ports (Signal a -> b) where
-  ports (v:vs) f = ports vs $ f (Signal (error "Ports(Signal a -> b)") (Pad (Var v)))
-  ports _ _ = error "Ports.ports (Signal a -> b)"
+class InPorts a where
+    inPorts :: [String] -> (a,[String])
 
-instance Ports b => Ports (Time -> b) where
-  ports vs f = ports vs $ f'
-    where f' c r = f (Time c r)
+instance Wire a => InPorts (Seq a) where
+    inPorts (v:vs) = (Seq (error "InPorts (Seq a)") (D (Pad (Var v))),vs)
 
-instance (OpType a, OpType b, Ports c) => Ports ((Signal a, Signal b) -> c) where
-  ports vs f = ports vs (curry f)
+instance Wire a => InPorts (Comb a) where
+    inPorts (v:vs) = (Comb (error "InPorts (Comb a)") (D (Pad (Var v))),vs)
 
+{-
+instance InPorts Time where
+    inPorts vs = (Time c r,vs')
+       where
+	((c,r),vs') = inPorts vs
+-}
 
-instance (OpType a, OpType b, OpType c, Ports d) => Ports ((Signal a, Signal b, Signal c) -> d) where
-  ports vs f = ports vs (curry3 f)
-     where curry3 f a b c = f (a,b,c)
+instance (InPorts a, InPorts b) => InPorts (a,b) where
+    inPorts vs0 = ((a,b),vs2)
+	 where
+		(a,vs1) = inPorts vs0
+		(b,vs2) = inPorts vs1
 
-
+instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
+    inPorts vs0 = ((a,b,c),vs3)
+	 where
+		(a,vs1) = inPorts vs0
+		(b,vs2) = inPorts vs1
+		(c,vs3) = inPorts vs2

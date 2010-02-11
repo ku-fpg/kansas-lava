@@ -2,11 +2,13 @@
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.VHDL.VCD(vcdCircuit,probe,ProbeValue(..)) where
+module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..),VCDFmt, VCDValue(..)) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
+import Data.Sized.Signed
 import Data.Sized.Ix
+import Data.Sized.Arith(X1_,X0_)
 
 import Data.Char
 import Data.Bits
@@ -22,7 +24,7 @@ import Data.Char
 --   so that we can use observable sharing but in reality the circuit must not
 --   be a function type.
 vcdCircuit :: (Ports a) =>
-              String   -- ^ The name of the
+              String   -- ^ The name of theoutput file
            -> Int  -- ^ The maximum number of clock ticks
            -> a        -- ^ The Lava circuit.
            -> IO ()
@@ -37,13 +39,36 @@ vcdCircuit circuitName end circuit = do
     writeFile (circuitName ++ ".vcd") vcd
     return ()
 
+-- | 'probeCircuit' takes a something that can be reified and
+-- | generates an association list of the values for the probes in
+-- | that circuit.
+probeCircuit :: (Ports a) =>
+           a        -- ^ The Lava circuit.
+           -> IO [(String,Dynamic)]
+probeCircuit circuit = do
+    rc <- reifyCircuit [] circuit
+    let evts = [(n,toDyn v) | (_,Entity _ _ _ attrs) <- theCircuit rc,
+                Just val <- [lookup "simValue" attrs],
+                Just pv@(ProbeValue n v) <- [fromDynamic val]]
+    return evts
+
+-- | 'getProbe' takes a association list of probe values and a probe
+-- | name, and returns the trace (as a list) from the probe.
+getProbe :: forall a . Typeable a => [(String,Dynamic)] -> String ->  [Maybe a]
+getProbe ps nm = case lookup nm ps of
+                   Just val -> toList (fromDyn val (error "getProbe" :: Seq a))
+                   Nothing -> []
+
 -- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
-probe :: (VCDSize t, VCDValue t) => String -> Signal t -> Signal t
+probe :: forall t. (OpType t, VCDFmt t) => String -> Signal t -> Signal t
 probe probeName (Signal s d) = Signal s (addAttr d)
   where addAttr (Port v (E (Entity n outs ins _))) =
             Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
-        addAttr driver = driver
-
+        addAttr d@(Pad (Var v)) = 
+            (Port (Var "o0") 
+             (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]  [("simValue", (toDyn (ProbeValue probeName s)))])))
+          where ty = bitTypeOf (error "probe/oTy" :: Signal t) 
+        addAttr $ driver = error "Can't probe " ++ driver
 
 -- Below this is all implementation.
 
@@ -52,7 +77,7 @@ type TaggedEvents = [(TimeTag,VCDVal)]
 
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
-taggedEvent :: (VCDSize t, VCDValue t, Ord a, Num a) =>
+taggedEvent :: (VCDFmt t, Ord a, Num a) =>
                a -> Seq t -> [(a, VCDVal)]
 taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
   where taggedEvent' time old (new :~ as)
@@ -125,10 +150,10 @@ class Eq a => VCDValue a where
 class VCDSize a where
   vcdSize :: a -> Int
 
-class (VCDValue a, VCDSize a) => VCDFmt a
+class (Typeable a, VCDValue a, VCDSize a) => VCDFmt a
 
 instance VCDFmt a => VCDValue (Maybe a) where
-  vcdFmt Nothing = replicate (vcdSize (undefined :: a)) 'X'
+  vcdFmt Nothing = 'b':(replicate (vcdSize (undefined :: a)) 'X')
   vcdFmt (Just a) = vcdFmt a
 
 instance VCDSize a => VCDSize (Maybe a) where
@@ -142,7 +167,7 @@ instance VCDValue Bool where
 instance VCDSize Bool where
   vcdSize _ = 1
 
-instance (VCDSize a, VCDValue a) => VCDFmt a
+instance (Typeable a,VCDSize a, VCDValue a) => VCDFmt a
 instance Show VCDVal where
   show (VCDVal x) = vcdFmt x
 
@@ -167,9 +192,17 @@ instance Size ix => VCDSize (Unsigned ix) where
   vcdSize _ = size (undefined :: ix)
 
 instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
-  vcdFmt v = 'b':(concatMap vcdFmt [testBit val i | i <- reverse [0..width-1]])
-    where val = toInteger v
-          width = size (undefined :: ix) - 1
+  vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
+    where width = size (undefined :: ix)
+
+
+instance Size ix => VCDSize (Signed ix) where
+  vcdSize _ = size (undefined :: ix)
+
+instance (Size ix, Enum ix) =>VCDValue (Signed ix) where
+  vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
+    where width = size (undefined :: ix)
+
 
 -- This was necessary to satisfy Data.Dynamic
 deriving instance Typeable1 Seq
@@ -204,3 +237,11 @@ plus x y = x' + y'
         y' = probe "y" y
 
 -}
+
+
+deriving instance Typeable X0
+deriving instance Typeable1 X1_
+deriving instance Typeable1 X0_
+deriving instance Typeable1 Signed
+
+
