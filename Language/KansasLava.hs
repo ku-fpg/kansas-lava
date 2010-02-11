@@ -8,7 +8,6 @@ module Language.KansasLava (
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
-    module Language.KansasLava.Sequential,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Stream,
     module Language.KansasLava.Type,
@@ -26,7 +25,6 @@ import Language.KansasLava.Matrix
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
-import Language.KansasLava.Sequential
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream hiding (head,tail)
 import Language.KansasLava.Type

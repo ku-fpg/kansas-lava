@@ -5,6 +5,7 @@ module Language.KansasLava.Utils where
 import Language.KansasLava.Entity as E
 import Language.KansasLava.Type
 import Language.KansasLava.Seq
+import Language.KansasLava.Stream  as S
 import Language.KansasLava.Signal
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
@@ -327,4 +328,40 @@ boolOp nm fn =
 
 (.<.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
+
+-------------------------------------------------------------------------------
+
+-- Perhaps should be in its own module.
+
+type SysEnv = (Clk,Rst)
+type Clk = Int 	-- for now
+type Rst = Bool
+
+
+sysEnv :: Seq SysEnv 
+sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
+ 					    (map (optX  . Just) ([True] ++ repeat False))
+
+latch :: forall a . (Wire a) => Seq a -> Seq a
+latch dat@(Seq a ea) = res
+
+  where
+	res = Seq (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
+	
+	entity :: Entity BaseTy E
+    	entity = 
+		Entity (Name "Memory" "latch") 
+			[ (Var "o0",bitTypeOf res)]
+			[ (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
+			] 
+		[]
+
+delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
+delay sysEnv def line = mux2 en (liftS0 def,latch line)
+   where
+	(_,en) = unpack sysEnv
+
+
+-- hack
+ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 
