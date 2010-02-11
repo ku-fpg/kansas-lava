@@ -4,12 +4,12 @@ module Language.KansasLava (
     module Language.KansasLava.Dot,
     module Language.KansasLava.Comb,
     module Language.KansasLava.Entity,
-    module Language.KansasLava.Matrix,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Stream,
+    module Language.KansasLava.Simulate,
     module Language.KansasLava.Type,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
@@ -21,11 +21,11 @@ module Language.KansasLava (
 import Language.KansasLava.Dot
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
-import Language.KansasLava.Matrix
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
+import Language.KansasLava.Simulate
 import Language.KansasLava.Stream hiding (head,tail)
 import Language.KansasLava.Type
 import Language.KansasLava.Utils

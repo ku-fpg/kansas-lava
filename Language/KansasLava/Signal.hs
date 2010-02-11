@@ -6,6 +6,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
+import Control.Applicative
 
 
 class Signal f where
@@ -35,3 +36,6 @@ instance Signal Comb where
 
 constComb :: (Constant a) => a -> Comb a
 constComb = pureS
+
+--------------------------------------------------------------------------------
+
