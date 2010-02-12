@@ -118,121 +118,6 @@ instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq 
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
    
 	
------------------------------------------------------------------------------------------------
--- And the utilties that get this done.
-
-fun0 :: forall a sig . (Signal sig, Wire a) => String -> a -> sig a
-fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Name (wireName (error "fun1" :: a)) nm)
-
-fun1 :: forall a b sig . (Signal sig, Wire a, Wire b) => String -> (a -> b) -> sig a -> sig b
-fun1 nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA f (unX a)) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
-
-fun2 :: forall a b c sig . (Signal sig, Wire a, Wire b, Wire c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
-fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b)) 
-	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
-
-table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), Signal sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
-table tab = liftS1 $ \ (Comb a (D ae))
-				-> Comb (case unX (a :: X a) :: Maybe a of
-					Nothing -> optX (Nothing :: Maybe b) :: X b
-					Just v -> 
-					  case lookup v tab of
-					    Nothing -> optX (Nothing :: Maybe b) :: X b
-					    Just b -> optX (Just b :: Maybe b) :: X b
-				     ) 
-				     (D $ Port (Var "o0") 
-					$ E 
-					$ Table (Var "o0",tA)
-						(Var "i0",tB,ae)
-						[( fromIntegral $ U.fromMatrix $ fromWireRep a
-						 , showRepWire a $ optX $ Just a
-						 , fromIntegral $ U.fromMatrix $ fromWireRep b
-						 , showRepWire b $ optX $ Just b
-						 )
-						| (a,b) <- tab
-						]
-				     )
-	where tA = wireType (error "table" :: a)
-	      tB = wireType (error "table" :: b)
-
-entity0 :: forall o . (Wire o) => Name -> D o
-entity0 nm = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  []
-		  []
-   where oTy = wireType (error "entity0" :: o)
-
-entity1 :: forall a o . (Wire a, Wire o) => Name -> D a -> D o
-entity1 nm (D w1) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1"] 
-				| ty <- [aTy] 
-				| val <- [w1]
-		  ] []
-   where aTy = wireType (error "entity1" :: a)
-         oTy = wireType (error "entity1" :: o)
-
-entity2 :: forall a b o . (Wire a, Wire b, Wire o) => Name -> D a -> D b -> D o
-entity2 nm (D w1) (D w2) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1"]
-				| ty <- [aTy,bTy] 
-				| val <- [w1,w2]
-		  ] []
-   where aTy = wireType (error "entity2" :: a)
-         bTy = wireType (error "entity2" :: b)
-         oTy = wireType (error "entity2" :: o)
-
-entity3 :: forall a b c o . (Wire a, Wire b, Wire c, Wire o) => Name -> D a -> D b -> D c -> D o
-entity3 nm (D w1) (D w2) (D w3) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1","i2"]
-				| ty <- [aTy,bTy,cTy] 
-				| val <- [w1,w2,w3]
-		  ] []
-   where aTy = wireType (error "entity3" :: a)
-         bTy = wireType (error "entity3" :: b)
-         cTy = wireType (error "entity3" :: c)
-         oTy = wireType (error "entity3" :: o)
-
-entityN :: forall a b o . (Wire a, Wire o) => Name -> [D a] -> D o
-entityN nm ds = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i" ++ show n | n <- [0..]]
-				| ty <- repeat aTy
-				| val <- [w | D w <- ds]
-		  ] []
-   where aTy = wireType (error "entity2" :: a)
-         oTy = wireType (error "entity2" :: o)
-
-
-
------------------------------------------------------------------------------------------------
-class (Signal sig) => Pack sig a where
- type Unpacked sig a
- pack :: Unpacked sig a -> sig a
- unpack :: sig a -> Unpacked sig a
-
-instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where 
-	type Unpacked sig (a,b) = (sig a, sig b)
-	pack ~(a,b) = liftS2 (\ ~(Comb a ae) ~(Comb b be) -> Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
-			    a b
-	unpack ab = ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
-		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
-		    )
-
-instance (Wire a, Signal sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
-	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
-	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ] 
-				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
-				 in Comb sh de) (M.toList m) 
-	unpack s = forAll $ \ ix -> 
-			liftS1 (\ (Comb s d) -> Comb (s ! ix) 
-					       (entity2 (Name "Lava" "index") 
-							(D $ Lit $ fromIntegral ix :: D Integer)
-							d
-					       )
-			        ) s
 
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
@@ -289,15 +174,9 @@ funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} ta
 
 -----------------------------------------------------------------------------------------------     
 
-liftS3 :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
-       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
-
------------------------------------------------------------------------------------------------     
-
 --mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 i (t,e)
+mux2 i ~(t,e)
 	= liftS3 (\ ~(Comb i ei) 
 	 	    ~(Comb t et)
 	 	    ~(Comb e ee)
@@ -355,12 +234,13 @@ latch dat@(Seq a ea) = res
 			] 
 		[]
 
+{-
 delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
 delay sysEnv def line = mux2 en (liftS0 def,latch line)
    where
 	(_,en) = unpack sysEnv
-
+-}
 
 -- hack
-ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
+--ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 

@@ -4,7 +4,6 @@
 module Language.KansasLava.Wire where
 
 import Language.KansasLava.Type
-import Language.KansasLava.Entity
 import Control.Applicative
 import Control.Monad
 import Data.Sized.Arith
@@ -140,9 +139,8 @@ instance Wire Integer where
 	wireName _	= "Integer"
 	wireType _	= IntegerTy
 
-
 instance RepWire Integer where
-
+	showRepWire _	= show
 
 -------------------------------------------------------------------------------------
 -- Now the containers
