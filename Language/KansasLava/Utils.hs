@@ -174,7 +174,6 @@ funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} ta
 
 -----------------------------------------------------------------------------------------------     
 
---mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i ~(t,e)
 	= liftS3 (\ ~(Comb i ei) 
@@ -188,7 +187,33 @@ mux2 i ~(t,e)
 			     (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
 
----------------------------------------------------------------------
+
+class MUX a where
+	wideMux2 :: Comb Bool -> (a, a) -> a
+	
+instance (Wire a) => MUX (Comb a) where
+	wideMux2 = mux2
+
+{-
+instance (Wire a) => MUX (Seq a) where
+	wideMux2 b = mux2 (liftS0 b)
+-}
+
+instance (MUX a, MUX b) => MUX (a,b) where
+	wideMux2 b ((x0,y0),(x1,y1)) = (wideMux2 b (x0,x1), wideMux2 b (y0,y1))
+
+instance (MUX a) => MUX [a] where
+	wideMux2 b (as0,as1) = Prelude.zipWith (\ a0 a1 -> wideMux2 b (a0,a1)) as0 as1
+
+
+{-
+-- A varient of mux that works over 
+-- Perhaps a bad idea?
+choose :: forall sig a . (Pack sig a, Wire a) => sig Bool -> Unpacked sig a -> Unpacked sig a ->  Unpacked sig a
+choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
+-}
+
+-------------------------------------------------------------------------------------------------
 
 boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn = 

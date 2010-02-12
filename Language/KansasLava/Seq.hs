@@ -61,8 +61,8 @@ instance Signal Seq where
 	f' a = let ~(Comb b _) = f (shallowComb a) 
 	       in b
 
-  -- We can not replace this with a version that uses packing, because 
-  -- *this* function is used by the pack/unpack stuff.
+  -- We can not replace this with a version that uses packing,
+  -- because *this* function is used by the pack/unpack stuff.
   liftS2 f ~(Seq a ea) ~(Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
