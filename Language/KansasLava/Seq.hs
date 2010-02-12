@@ -37,7 +37,6 @@ seqDriver :: Seq a -> D a
 seqDriver (Seq a d) = d
 
 instance forall a . (RepWire a, Show a) => Show (Seq a) where
-	show (Seq (Constant a) _) = showRepWire (undefined :: a) a
 	show (Seq vs _)
          	= unwords [ showRepWire (undefined :: a) x ++ " :~ "
                           | x <- take 20 $ toList vs
@@ -45,8 +44,8 @@ instance forall a . (RepWire a, Show a) => Show (Seq a) where
 
 instance forall a . (Wire a, Eq a) => Eq (Seq a) where
 	-- Silly question; never True; can be False.
-	(Seq x _) == (Seq y _) = (fmap unX x :: Stream (Maybe a)) == (fmap unX y :: Stream (Maybe a))
-
+	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
+	
 deepSeq :: D a -> Seq a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
