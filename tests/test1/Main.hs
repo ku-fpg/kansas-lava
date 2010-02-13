@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies, ScopedTypeVariables, ParallelListComp
+ #-}
 import Language.KansasLava
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
@@ -61,28 +62,47 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 	trd3 (_,_,c) = c
 
 
+
+test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a 
+test_mux_1 sig = a
+	where a = mux2 high (sig ,latch a)
+
+
+testAllTruth:: (Testable a) => String -> a -> IO ()
+testAllTruth nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showAllTT $ truthTable fn
+	
+testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
+testSomeTruth n nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showSomeTT n $ truthTable fn	
+	
+testReify :: (Ports a) => String -> a -> IO ()
+testReify nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " reify"
+	putStrLn $ "======="
+	debugCircuit [] fn
+
 main = do
-	putStrLn "Testing halfAdder function"
-	putStrLn $ unlines [ show (a,b,halfAdder (a,b))
-	 			| a <- [true,false]
-			        , b <- [true,false] ]
-	putStrLn "Testing halfAdder reify"
-	debugCircuit [] halfAdder
+	let tst :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
+	    tst a b = halfAdder (a,b)
+	testAllTruth "halfAdder" tst
+	testReify "halfAdder" tst	
+	
+	let tst :: Comb Bool -> Comb U1 -> Comb U1 -> Comb U1
+	    tst a b c = mux2 a (b,c)
+	testAllTruth "mux2" tst
+	testReify "mux2" tst		
 
-	putStrLn "Testing fullAdder function"
-	putStrLn $ unlines [ show (a,b,c,fullAdder c (a,b))
-	 			| a <- [true,false]
-	 			, b <- [true,false]
-			        , c <- [true,false] ]
-	putStrLn "Testing fullAdder reify"
-	debugCircuit [] fullAdder
-
-	putStrLn "Testing wordAdder function"
-	putStrLn $ unlines [ show (a,b,c,wordAdder a (pureS b,pureS c))
-	 			| a <- [true,false]
-	 			, b <- [0..3] :: [(U.Unsigned X2)]
-			        , c <- [0..3] ]
-	putStrLn "Testing wordAdder reify"
-	debugCircuit [] (wordAdder :: Comb Bool ->  (Comb (Unsigned X2), Comb (Unsigned X2)) -> (Comb (Unsigned X2), Comb Bool))
-
-	--	test_shallow_bit
+	let tst :: Comb Bool -> Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
+	    tst a b c = fullAdder a (b,c)
+	testAllTruth "fullAdder" tst
+	testReify "fullAdder" tst	
+	
+	let tst :: Comb Bool -> Comb U2 -> Comb U2 -> (Comb U2,Comb Bool)
+	    tst a b c = wordAdder a (b,c)
+	testAllTruth "wordAdder" tst
+	testReify "wordAdder" tst		

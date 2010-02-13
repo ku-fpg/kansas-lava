@@ -100,12 +100,20 @@ asciiTTL (TupleTT ttls)	     = List.transpose [ tl | [tl] <- map asciiTTL ttls ]
 	-- TupleTT is a hack, and  we NEED to restrict the [xx] using types.
 
 instance Show TT where
-	show (TT ttls) = unlines (formatTT 20 ttls)
+	show tt = showSomeTT 20 tt
+
+showAllTT :: TT -> String
+showAllTT (TT ttls) = unlines (formatTT maxBound ttls)
+
+showSomeTT :: Int -> TT -> String
+showSomeTT n (TT ttls) = unlines (take n $ formatTT n ttls)
+
 
 -- | formatTT build an ASCII truth table from a list of TTL (truth table lines).
+-- The argument is lookahead for layout.
 formatTT :: Int -> [TTL] -> [String]
 formatTT n ttls = 
-	take n [ concat [ "  " ++ ljustify n r | (r,n) <- zip rs mx ] | rs <- rss ] 
+	[ concat [ "  " ++ ljustify n r | (r,n) <- zip rs mx ] | rs <- rss ] 
     where
 	ljustify n str = str ++ take (n - Prelude.length str) (repeat ' ')
 	rss = concatMap asciiTTL ttls
