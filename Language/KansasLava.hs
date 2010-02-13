@@ -10,6 +10,7 @@ module Language.KansasLava (
     module Language.KansasLava.Signal,
     module Language.KansasLava.Stream,
     module Language.KansasLava.Simulate,
+    module Language.KansasLava.Test,
     module Language.KansasLava.Type,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
@@ -27,6 +28,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Simulate
 import Language.KansasLava.Stream hiding (head,tail,zipWith)
+import Language.KansasLava.Test
 import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
