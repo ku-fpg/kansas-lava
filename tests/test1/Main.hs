@@ -106,3 +106,16 @@ main = do
 	    tst a b c = wordAdder a (b,c)
 	testAllTruth "wordAdder" tst
 	testReify "wordAdder" tst		
+
+
+	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
+	    tst = delay
+	
+	testSomeTruth 50 "delay" $
+		let env = takeThenSeq 7 sysEnv env
+		    def = 1
+		    inp = toSeq $ cycle [0..3]
+		 in example tst .*. env .*. def .*. inp
+	testReify "delay" tst		
+
+
