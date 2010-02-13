@@ -134,7 +134,7 @@ tt5 = truthTable (example (delay :: Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4)
 			.*. def
 			.*. inp)
 	where
-		env = sysEnv
+		env = takeThenSeq 7 sysEnv env
 		def = 1
 		inp = toSeq $ cycle [0..3]
 

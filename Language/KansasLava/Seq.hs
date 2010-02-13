@@ -82,6 +82,9 @@ toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
 toSeqX :: forall a . (Wire a) => [X a] -> Seq a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
+takeThenSeq :: Int -> Seq a -> Seq a -> Seq a
+takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++  (S.toList (seqValue sq2))))
+
 encSeq :: (Wire a) =>  (Char -> Maybe a) -> String -> Seq a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
 
