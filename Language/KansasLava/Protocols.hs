@@ -14,6 +14,7 @@ import Data.Sized.Matrix as M
 import Data.Map as Map
 import Data.Word
 import Control.Applicative
+import Data.Maybe  as Maybe
 
 type Enabled a = (Bool,a)
 
@@ -110,3 +111,7 @@ pipeToMemory sysEnv pipe addr2 = res
 			, (Var "addr2",bitTypeOf addr2,unD $ seqDriver addr2)
 			] 
 		[]
+
+fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b) 
+	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
+fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
