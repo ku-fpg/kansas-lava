@@ -58,6 +58,10 @@ instance (RepWire a) => Testable (Comb a) where
 
 instance (Testable a, Testable b) => Testable (a,b) where
 	truthTable (a,b) = TT [ TupleTT [x,y] | (x,y) <- zip (unTT $ truthTable a) (unTT $ truthTable b)]
+instance (Testable a, Testable b, Testable c) => Testable (a,b,c) where
+	truthTable (a,b,c) = TT [ TupleTT [x,y,z] | (x,y,z) <- zip3 (unTT $ truthTable a)
+								  (unTT $ truthTable b) 
+								  (unTT $ truthTable c)]
 
 instance (Testable b) => Testable (Example b) where
 	truthTable (Example fn (ExampleArg arg:args)) 
