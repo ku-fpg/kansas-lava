@@ -16,6 +16,12 @@ import Language.KansasLava.Wire
 
 data Comb a = Comb (X a) (D a)
 
+combValue :: Comb a -> X a
+combValue (Comb a d) = a
+
+combDriver :: Comb a -> D a
+combDriver (Comb a d) = d
+
 instance forall a . (RepWire a, Show a) => Show (Comb a) where
 	show (Comb x _) = showRepWire (undefined :: a) x
 
