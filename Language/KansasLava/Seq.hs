@@ -76,6 +76,12 @@ instance Signal Seq where
 toSeq :: (Wire a) => [a] -> Seq a
 toSeq xs = shallowSeq (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
+toSeq' :: (Wire a) => [Maybe a] -> Seq a
+toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
+
+toSeqX :: forall a . (Wire a) => [X a] -> Seq a
+toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
+
 encSeq :: (Wire a) =>  (Char -> Maybe a) -> String -> Seq a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
 
@@ -85,3 +91,8 @@ encSeqBool = encSeq enc
 	      enc 'L' = return False
 	      enc  _   = Nothing
 
+showStreamList :: forall a . (RepWire a) => Seq a -> [String]
+showStreamList ss = 
+	[ showRepWire (undefined :: a) x
+	| x <- toList (seqValue ss)
+	]
