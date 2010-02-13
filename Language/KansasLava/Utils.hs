@@ -11,6 +11,8 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
+import Data.Sized.Arith
+import qualified Data.Sized.Sampled	as Sam
 
 import Control.Applicative
 import Control.Monad
@@ -30,12 +32,23 @@ instance Constant Int where
 instance Constant Word32 where
   pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
 
+instance (Size x, Enum y, Size y) => Constant (Sam.Sampled x y) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral 123456	-- TODO
+
+instance (Size x, Integral x) => Constant (X0_ x) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
+
+instance (Size x, Integral x) => Constant (X1_ x) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
+
 instance Constant Integer where
   pureS v = liftS0 $ Comb (pureX v) $ D $ Lit v
 
 instance (Enum ix, Size ix) => Constant (Unsigned ix) where
   pureS v = liftS0 $ Comb (pureX v) $ D $ error "Unsigned IX"
 
+instance (Constant a, Constant b, Wire a, Wire b) => Constant (a,b) where
+  pureS (a,b) = pack (pureS a, pureS b)
 
 high, low :: Seq Bool
 high = pureS True
@@ -259,12 +272,12 @@ latch dat@(Seq a ea) = res
 			] 
 		[]
 
-{-
+
 delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
 delay sysEnv def line = mux2 en (liftS0 def,latch line)
    where
 	(_,en) = unpack sysEnv
--}
+
 
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
