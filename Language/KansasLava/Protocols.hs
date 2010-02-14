@@ -31,7 +31,7 @@ toEnabledSeq xs = toSeqX [ case x of
 			 ]
 
 memoryToPipe ::  (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe enA mem = pack (en,pack (a,mem a))
+memoryToPipe enA mem = pack (latch (latch en),pack (latch (latch a),mem a))
    where
 	(en,a) = unpack enA
 	
