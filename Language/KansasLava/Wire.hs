@@ -188,9 +188,9 @@ instance (Size ix, Wire a) => Wire (Matrix ix a) where
 	wireType m	= MatrixTy (size (ix m)) (wireType (a m))
 		where
 			ix :: Matrix ix a -> ix
-			ix = undefined
+			ix = error "ix/Matrix"
 			a :: Matrix ix a -> a
-			a = undefined
+			a = error "a/Matrix"
 --	showWire _ = show
 	
 instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t), RepWire a, Size ix, Wire a) => RepWire (Matrix ix a) where
@@ -204,7 +204,7 @@ instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t),
 --	fromWireRep :: Matrix ix a -> Matrix (WIDTH w) Bool 
 	fromWireRep = squash . joinRows . T.traverse fromWireRep 
 
-	showRepWire _ = show . M.toList . fmap (M.S . showRepWire (undefined :: a))
+	showRepWire _ = show . M.toList . fmap (M.S . showRepWire (error "show/Matrix" :: a))
 
 instance (Enum ix, Size ix) => Wire (Unsigned ix) where 
 	type X (Unsigned ix) = WireVal (Unsigned ix)
