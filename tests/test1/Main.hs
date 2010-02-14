@@ -129,8 +129,38 @@ main = do
 			    , txt <- ["A","B","C"]
 			    ] 
 					
-		    addr = toSeq $ cycle [ 0..3 ]
+		    addr = toSeq' $ cycle (map Just [ 0..3 ] ++ [Nothing])
 		 in example tst .*. env .*. pipe .*. addr
+		
+	let tst ::Seq SysEnv -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
+	    tst = pipeToMemory
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    ([ return ((),ALPHA (show val))
+			     | val <- [0..3]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ repeat ()
+		 in example tst .*. env .*. pipe .*. addr		
+
+	let tst ::Seq SysEnv -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
+	    tst = pipeToMemory
+
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    ([ return (odd val,ALPHA (show val))
+			     | val <- [0..3]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. pipe .*. addr		
+
 
 	return ()
 

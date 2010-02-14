@@ -68,7 +68,7 @@ pipeToMemory sysEnv pipe addr2 = res
 	updates = pure (\ e a b -> 
 			   do en'   <- unX e :: Maybe Bool
 			      if not en' 
-				     then Nothing
+				     then return Nothing
 				     else do 
 			      		addr' <- unX a :: Maybe a
 			      		dat'  <- unX b :: Maybe d
