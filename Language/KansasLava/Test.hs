@@ -85,12 +85,6 @@ instance (Enum (WIDTH w), Size (WIDTH w), RepWire w, Testable b) => Testable (Co
 		args0 = [ toWireRep rep | rep <- allWireReps ]
 		args = map optX (args0 ++ [Nothing])
 
-allWireReps :: forall width . (Enum width, Size width) => [Matrix width Bool]
-allWireReps = [U.toMatrix count | count <- counts ]
-   where
-	counts :: [Unsigned width]
-	counts = [0..2^(fromIntegral sz)-1]
-	sz = size (error "allWireRep" :: width)
 
 -----------------------------------------------------------------------------------------------------
 --- ASCII pretty printers
