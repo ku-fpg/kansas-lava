@@ -66,29 +66,6 @@ fun2 :: forall a b c sig . (Signal sig, Wire a, Wire b, Wire c) => String -> (a 
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b)) 
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
 
-table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), Signal sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
-table tab = liftS1 $ \ (Comb a (D ae))
-				-> Comb (case unX (a :: X a) :: Maybe a of
-					Nothing -> optX (Nothing :: Maybe b) :: X b
-					Just v -> 
-					  case lookup v tab of
-					    Nothing -> optX (Nothing :: Maybe b) :: X b
-					    Just b -> optX (Just b :: Maybe b) :: X b
-				     ) 
-				     (D $ Port (Var "o0") 
-					$ E 
-					$ Table (Var "o0",tA)
-						(Var "i0",tB,ae)
-						[( fromIntegral $ U.fromMatrix $ fromWireRep a
-						 , showRepWire a $ optX $ Just a
-						 , fromIntegral $ U.fromMatrix $ fromWireRep b
-						 , showRepWire b $ optX $ Just b
-						 )
-						| (a,b) <- tab
-						]
-				     )
-	where tA = wireType (error "table" :: a)
-	      tB = wireType (error "table" :: b)
 
 -----------------------------------------------------------------------------------------------
 

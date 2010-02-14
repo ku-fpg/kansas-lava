@@ -162,26 +162,38 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 -- Map Ops
 
 
--- Assumping that the codomain is finite (beacause of RepWire), and *small* (< ~256 values).
-funMap :: forall sig a b .
-	  (Show a, Show b
-	  , Signal sig, Enum (WIDTH a),
-                      Enum (WIDTH b),
-                      Size (WIDTH a),
-                      Size (WIDTH b),
-                      RepWire a,
-                      RepWire b) => (a -> Maybe b) -> sig a -> sig b
-funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} tab) a
-  where
-   tab = [ (a,b)
-	 | v <- [0..(2^count)-1]	-- all possible reps
---	 , trace (show v) False
-	 , Just a <- [toWireRep $ U.toMatrix $ fromIntegral $ v]
-	 , Just b <- [f a]
-	 ]
+-- Assumping that the domain is finite (beacause of RepWire), and *small* (say, < ~256 values).
 
-   count :: Integer
-   count = fromIntegral $ size (undefined :: WIDTH a)
+funMap :: forall sig a b . (Signal sig, RepWire a, RepWire b) => (a -> Maybe b) -> sig a -> sig b
+funMap fn = liftS1 $ \ (Comb a (D ae))
+			-> Comb (case unX (a :: X a) :: Maybe a of
+				   Nothing -> optX (Nothing :: Maybe b) :: X b
+				   Just v -> optX (fn v :: Maybe b) :: X b)
+				     (D $ Port (Var "o0") 
+					$ E 
+					$ Table (Var "o0",tA)
+						(Var "i0",tB,ae)
+						tab
+				     )
+	where tA = wireType (error "table" :: a)
+	      tB = wireType (error "table" :: b)
+	      all_a_bitRep :: [Matrix (WIDTH a) Bool]
+	      all_a_bitRep = allWireReps
+	
+	      tab = [ ( fromIntegral $ U.fromMatrix $ w_a
+		      , showRepWire (undefined "table" :: a) $ optX $ Just a
+		      , fromIntegral $ U.fromMatrix $ w_b
+		      , showRepWire (undefined "table" :: b) $ optX $ Just b
+		      )
+		    | w_a <- all_a_bitRep
+		    , a <- case toWireRep $ w_a :: Maybe a of
+				 Nothing -> []
+				 Just a -> [a]
+		    , b <- case fn a of
+			     Nothing -> []
+			     Just b -> [b]
+		    , let w_b = fromWireRep b
+		    ]
 
 
 
