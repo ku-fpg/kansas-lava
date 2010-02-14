@@ -24,36 +24,6 @@ import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 
-instance Constant Bool where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep v
-
-instance Constant Int where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
-
-instance Constant Word32 where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
-
-instance (Size x, Enum y, Size y) => Constant (Sam.Sampled x y) where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral 123456	-- TODO
-
-instance (Size x, Integral x) => Constant (X0_ x) where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
-
-instance (Size x, Integral x) => Constant (X1_ x) where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
-
-instance Constant Integer where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit v
-
-instance (Enum ix, Size ix) => Constant (Unsigned ix) where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ error "Unsigned IX"
-
-instance (Enum ix, Size ix) => Constant (Signed ix) where
-  pureS v = liftS0 $ Comb (pureX v) $ D $ error "Signed IX"
-
-instance (Constant a, Constant b, Wire a, Wire b) => Constant (a,b) where
-  pureS (a,b) = pack (pureS a, pureS b)
-
 high, low :: Seq Bool
 high = pureS True
 low  = pureS False
@@ -84,7 +54,7 @@ testABit x y = liftS1 (\ (Comb a e) -> Comb (optX $ liftA (flip testBit y) (unX 
 
 -----------------------------------------------------------------------------------------------
 
-instance (Constant a, Show a, RepWire a, Num a) => Num (Comb a) where
+instance (Show a, RepWire a, Num a) => Num (Comb a) where
     s1 + s2 = fun2 "+" (+) s1 s2
     s1 - s2 = fun2 "-" (-) s1 s2
     s1 * s2 = fun2 "*" (*) s1 s2
@@ -93,7 +63,7 @@ instance (Constant a, Show a, RepWire a, Num a) => Num (Comb a) where
     signum s = fun1 "signum" (signum) s
     fromInteger n = pureS (fromInteger n)
 
-instance (Constant a, Show a, RepWire a, Num a) => Num (Seq a) where
+instance (Show a, RepWire a, Num a) => Num (Seq a) where
     (+) = liftS2 (+)
     (-) = liftS2 (-)
     (*) = liftS2 (*)
@@ -102,7 +72,7 @@ instance (Constant a, Show a, RepWire a, Num a) => Num (Seq a) where
     signum = liftS1 signum
     fromInteger n = pureS (fromInteger n)
 
-instance (Constant a, Show a, Bits a, RepWire a) 
+instance (Show a, Bits a, RepWire a) 
 	=> Bits (Comb a) where
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
     s1 .|. s2 = fun2 ".|." (.|.) s1 s2
@@ -113,7 +83,7 @@ instance (Constant a, Show a, Bits a, RepWire a)
     bitSize s                       = baseTypeLength (bitTypeOf s)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
-instance (Constant a, Show a, Bits a, RepWire a) 
+instance (Show a, Bits a, RepWire a) 
 	=> Bits (Seq a) where
     (.&.)   = liftS2 (.&.)
     (.|.)  = liftS2 (.|.)
@@ -124,12 +94,12 @@ instance (Constant a, Show a, Bits a, RepWire a)
     bitSize s                       = baseTypeLength (bitTypeOf s)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
-instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
+instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2
     recip s1 = fun1 "recip" (recip) s1 
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
 
-instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
+instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
     (/) = liftS2 (/)
     recip = liftS1 recip
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
