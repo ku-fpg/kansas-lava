@@ -35,7 +35,7 @@ class Eq w => Wire w where
 
 
 -- | "RepWire' is a wire where we know the represnetation used to encode the bits.
-class (Wire w, Size (WIDTH w), Enum (WIDTH w)) => RepWire w where
+class (Wire w, Size (WIDTH w)) => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
@@ -46,6 +46,13 @@ class (Wire w, Size (WIDTH w), Enum (WIDTH w)) => RepWire w where
 	-- | how we want to present this value, in comments
 	-- The first value is the witness.
 	showRepWire :: w -> X w -> String
+
+allWireReps :: forall width . (Size width) => [Matrix width Bool]
+allWireReps = [U.toMatrix count | count <- counts ]
+   where
+	counts :: [Unsigned width]
+	counts = [0..2^(fromIntegral sz)-1]
+	sz = size (error "allWireRep" :: width)
 
 liftX0 :: (Wire w1) => w1 -> X w1	
 liftX0 = pureX
@@ -206,7 +213,7 @@ instance (Enum ix, Size ix) => Wire (Unsigned ix) where
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Int"
 	wireName _	    = "Unsigned"
-	wireType x   	    = U (bitSize x)
+	wireType x   	    = U (size (error "Wire/Unsigned" :: ix))
 	
 instance (Enum ix, Size ix) => RepWire (Unsigned ix) where 
 	type WIDTH (Unsigned ix) = ix
