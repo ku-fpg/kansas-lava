@@ -107,7 +107,6 @@ main = do
 	testAllTruth "wordAdder" tst
 	testReify "wordAdder" tst		
 
-
 	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
 	    tst = delay
 	
@@ -117,5 +116,24 @@ main = do
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
 	testReify "delay" tst		
+
+	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
+	    tst = pipeToMemory
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    [ return (val,ALPHA (txt ++ "_" ++ show val))
+			    | val <- [0..3]
+			    , txt <- ["A","B","C"]
+			    ] 
+					
+		    addr = toSeq $ cycle [ 0..3 ]
+		 in example tst .*. env .*. pipe .*. addr
+
+	return ()
+
+
 
 
