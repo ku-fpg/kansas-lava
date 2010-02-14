@@ -130,8 +130,6 @@ instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq 
     recip = liftS1 recip
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
    
-	
-
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
 
@@ -219,10 +217,6 @@ class MUX a where
 instance (Wire a) => MUX (Comb a) where
 	wideMux2 = mux2
 
-{-
-instance (Wire a) => MUX (Seq a) where
-	wideMux2 b = mux2 (liftS0 b)
--}
 
 instance (MUX a, MUX b) => MUX (a,b) where
 	wideMux2 b ((x0,y0),(x1,y1)) = (wideMux2 b (x0,x1), wideMux2 b (y0,y1))
