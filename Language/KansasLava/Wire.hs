@@ -300,5 +300,31 @@ test4 = ()
 
 test5 :: (WIDTH X5 ~ X3) => ()
 test5 = ()
+-----------------------------------------------------------------------------------------
+
+-- Wire used in simulation *only*, to show ideas.
+data ALPHA = ALPHA String
+	deriving (Eq, Ord)
+	
+instance Show ALPHA where
+	show (ALPHA str) = str
+
+instance Wire ALPHA where 
+	type X ALPHA 	= WireVal ALPHA
+	optX (Just b) 	= return b
+	optX Nothing	= fail "Wire ALPHA"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire ALPHA"
+	wireName _	= "ABC"
+	wireType _	= U 0
+
+instance RepWire ALPHA where
+	type WIDTH ALPHA	= X0
+	toWireRep m  		= return $ ALPHA ""
+	fromWireRep v 		= matrix []
+	showRepWire _ = show
+
+
+
 
 -----------------------------------------------------------------------------
