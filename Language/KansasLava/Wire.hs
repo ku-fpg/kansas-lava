@@ -129,6 +129,21 @@ instance RepWire Word8 where
 	toWireRep = return . fromIntegral . U.fromMatrix
 	fromWireRep = U.toMatrix . fromIntegral 
 	showRepWire _ = show
+	
+instance Wire () where 	
+	type X () 	= WireVal ()
+	optX (Just b)	= return b
+	optX Nothing	= fail "Wire ()"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire ()"
+	wireName _	= "Unit"
+	wireType _	= U 1
+		
+instance RepWire () where
+	type WIDTH () = X1	-- should really be X0
+	toWireRep _ = return ()
+	fromWireRep () = M.matrix [True]
+	showRepWire _ = show	
 
 instance Wire Word32 where 	
 	type X Word32 	= Maybe Word32
