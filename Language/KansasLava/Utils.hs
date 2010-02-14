@@ -232,6 +232,41 @@ choose :: forall sig a . (Pack sig a, Wire a) => sig Bool -> Unpacked sig a -> U
 choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
 -}
 
+
+
+-- Selects an arbitrary element of a list
+-- The selector has type, [sig Bool]
+-- is a binary representation of the unsigned index to select,
+-- with the leftmost (first) element most significant.
+--
+-- The list is indexed: 0-based, left to right
+--
+-- If (2 ** (length selector)) < (length inputlist)
+--     not all elements of the list are selectable.
+-- If (2 ** (length selector)) > (length inputlist)
+--     the output for selector "value" >= (length inputlist) is
+--     not defined.                                                                                                          
+muxList :: forall sig a . (Signal sig, Wire a) =>[sig Bool] -> [sig a] -> sig a
+muxList [s] [a0] = a0
+muxList [s] [a0, a1] = mux2 s  (a1,a0)
+muxList sel@(s:rest) as = if (aLength <= halfRange)
+                          then muxList sel' as
+                          else if (aLength > maxRange)
+                               then muxList sel as'
+                               else muxList'
+    where aLength = Prelude.length as
+          halfRange = 2 ^ ((Prelude.length sel) -1)
+          maxRange = 2 * halfRange
+          nselbits = max 1 (ceiling (logBase 2 (fromIntegral aLength)))
+          sel' = drop ((Prelude.length sel) - nselbits) sel
+          as' = take  maxRange as
+          -- muxList' knows that the number of selection bits matches range input choices                                          
+          muxList' = mux2 s ((muxList topSelect top), (muxList rest bottom))
+          (bottom, top) = splitAt halfRange as
+          topLen = fromIntegral $ Prelude.length top
+          nbits = max 1 (ceiling (logBase 2 topLen))
+          topSelect = drop ((Prelude.length rest) - nbits) rest
+
 -------------------------------------------------------------------------------------------------
 
 boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
@@ -248,8 +283,14 @@ boolOp nm fn =
 (.>=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 
+(.<=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<=.) = boolOp ".<=." (<=)
+
 (.<.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
+
+(.>.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>.) = boolOp ".>." (>)
 
 -------------------------------------------------------------------------------
 
