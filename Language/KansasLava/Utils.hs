@@ -11,6 +11,7 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
+import Data.Sized.Signed
 import Data.Sized.Arith
 import qualified Data.Sized.Sampled	as Sam
 
@@ -46,6 +47,9 @@ instance Constant Integer where
 
 instance (Enum ix, Size ix) => Constant (Unsigned ix) where
   pureS v = liftS0 $ Comb (pureX v) $ D $ error "Unsigned IX"
+
+instance (Enum ix, Size ix) => Constant (Signed ix) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ error "Signed IX"
 
 instance (Constant a, Constant b, Wire a, Wire b) => Constant (a,b) where
   pureS (a,b) = pack (pureS a, pureS b)

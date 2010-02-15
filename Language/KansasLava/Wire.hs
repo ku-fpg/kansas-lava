@@ -11,6 +11,7 @@ import Data.Sized.Ix
 import Data.Sized.Matrix hiding (S)
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U 
+import Data.Sized.Signed as SS 
 import qualified Data.Sized.Sampled as Sampled
 import Data.Word
 import Data.Bits
@@ -232,8 +233,23 @@ instance (Enum ix, Size ix) => Wire (Unsigned ix) where
 	
 instance (Enum ix, Size ix) => RepWire (Unsigned ix) where 
 	type WIDTH (Unsigned ix) = ix
-	fromWireRep a = toMatrix a
-	toWireRep = return . fromMatrix
+	fromWireRep a = U.toMatrix a
+	toWireRep = return . U.fromMatrix
+	showRepWire _ = show
+
+instance (Enum ix, Size ix) => Wire (Signed ix) where 
+	type X (Signed ix) = WireVal (Signed ix)
+	optX (Just b)	    = return b
+	optX Nothing	    = fail "Wire Int"
+	unX (WireVal a)     = return a
+	unX (WireUnknown)   = fail "Wire Int"
+	wireName _	    = "Signed"
+	wireType x   	    = S (size (error "Wire/Signed" :: ix))
+	
+instance (Enum ix, Size ix) => RepWire (Signed ix) where 
+	type WIDTH (Signed ix) = ix
+	fromWireRep a = SS.toMatrix a
+	toWireRep = return . SS.fromMatrix
 	showRepWire _ = show
 
 instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where 
