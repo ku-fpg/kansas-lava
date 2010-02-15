@@ -24,8 +24,12 @@ bitTypeOf _ = wireType (error "bitTypeOf" :: w)
 op :: forall f w . (Signal f, Wire w) => f w -> String -> Name
 op _ nm = Name (wireName (error "op" :: w)) nm
 
-class Constant a where
-  pureS :: (Signal s) => a -> s a
+--class Constant a where
+--  pureS :: (Signal s) => a -> s a
+
+pureS :: (Signal s, RepWire a) => a -> s a
+pureS a = liftS0 (constComb a)
+
 
 -- | k is a constant 
 
@@ -45,8 +49,8 @@ class (Signal sig) => Pack sig a where
 
 --------------------------------------------------------------------------------
 
-constComb :: (Constant a) => a -> Comb a
-constComb = pureS
+constComb :: (RepWire a) => a -> Comb a
+constComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
 --------------------------------------------------------------------------------
 

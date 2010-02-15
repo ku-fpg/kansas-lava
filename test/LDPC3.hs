@@ -5,7 +5,8 @@ import Language.KansasLava -- hiding (head)
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned
-import Data.Sized.Sampled
+import Data.Sized.Sampled as S
+import qualified Data.Sized.Signed as Signed
 import Data.Sized.Arith
 import Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
@@ -17,15 +18,19 @@ import Data.Word
 import Language.KansasLava.Stream as Seq
 import Debug.Trace
 import qualified Data.List as List
+import qualified Data.Map as Map
 
 type SZ = X4
+type FLOAT = Sampled X8 X8
 
 data DecodeCntl 
 	= DecodeWait		-- 0 + 0
 	| DecodeRst		-- 0 + 1	restart
 	| DecodeRest		-- 0 + 2
 	| DecodeLoad SZ		-- 1 + x
+	| DecodePostLoad X4	-- wait 2 cycles
 	| DecodeShare SZ	-- 2 + x
+	| DecodePostShare X4	-- wait 2 cycles
 	| DecodeResult SZ	-- 3 + x
 	deriving (Show, Eq, Ord)
 
@@ -38,50 +43,67 @@ instance Wire DecodeCntl where
 	wireName _ = "DecodeCntl"
 	wireType _ = U 4 -- TODO: derving this
 
-opCode :: Integer -> X4 -> Matrix (ADD X2 (WIDTH X4)) Bool
+
+opCode :: Integer -> X4 -> Matrix (ADD X4 (WIDTH X4)) Bool
 opCode n x = 
-	(U.toMatrix (fromIntegral n)  :: Matrix X2 Bool)
+	(U.toMatrix (fromIntegral n)  :: Matrix X4 Bool)
 		`append`
 	(fromWireRep x)
 
-
 instance RepWire DecodeCntl where	
-	type WIDTH DecodeCntl = ADD X2 (WIDTH X4)
+	type WIDTH DecodeCntl = ADD X4 (WIDTH X4)
 
 	-- encoding
 	fromWireRep DecodeWait       = opCode 0 0
 	fromWireRep DecodeRst        = opCode 0 1
 	fromWireRep DecodeRest       = opCode 0 2
 	fromWireRep (DecodeLoad x)   = opCode 1 x
-	fromWireRep (DecodeShare x)  = opCode 2 x
-	fromWireRep (DecodeResult x) = opCode 3 x
+	fromWireRep (DecodePostLoad x)  = opCode 2 x
+	fromWireRep (DecodeShare x)     = opCode 3 x
+	fromWireRep (DecodePostShare x)  = opCode 4 x
+	fromWireRep (DecodeResult x)     = opCode 5 x
 
-
-	toWireRep n = do op <- toWireRep ((n `cropAt` 0) :: Matrix X2 Bool) :: Maybe X4
-			 x <- toWireRep ((n `cropAt` 2) :: Matrix X2 Bool) :: Maybe X4
+	toWireRep n = do op <- toWireRep ((n `cropAt` 0) :: Matrix X4 Bool) :: Maybe X16
+			 x <- toWireRep ((n `cropAt` 4) :: Matrix X2 Bool) :: Maybe X4
 		         case (op,x) of
 			    (0,0) -> return $ DecodeWait
 			    (0,1) -> return $ DecodeRst
 			    (0,2) -> return $ DecodeRest
 			    (1,x) -> return $ DecodeLoad x
-			    (2,x) -> return $ DecodeShare x
-			    (3,x) -> return $ DecodeResult x
+			    (2,x) -> return $ DecodePostLoad x
+			    (3,x) -> return $ DecodeShare x
+			    (4,x) -> return $ DecodePostShare x
+			    (5,x) -> return $ DecodeResult x
 			    _ -> Nothing	
 	showRepWire _ = show
 
-incDecodeCntrl :: DecodeCntl -> DecodeCntl
-incDecodeCntrl DecodeWait = DecodeWait
-incDecodeCntrl DecodeRst  = DecodeLoad minBound
-incDecodeCntrl (DecodeLoad n) 
-	| n < maxBound 	= DecodeLoad (succ n)
-	| otherwise	= DecodeShare minBound
-incDecodeCntrl (DecodeShare n) 
-	| n < maxBound  = DecodeShare (succ n)
-	| otherwise	= DecodeResult minBound
-incDecodeCntrl (DecodeResult n) 
-	| n < maxBound  = DecodeResult (succ n)
-	| otherwise	= DecodeWait
-incDecodeCntrl (DecodeRest) = DecodeRest
+stateBuilder :: (Ord a, Show a) => [[a]] -> a -> a
+stateBuilder transs = \ x -> 
+	case Map.lookup x mp of
+	  Nothing -> error $ "Can not find transition for " ++ show x
+	  Just x' -> x'
+  where mp = Map.fromList [ (x,y) | trans <- transs, (x,y) <- zip trans (List.tail trans) ]
+
+incDecodeCntrlLists :: [[DecodeCntl]]
+incDecodeCntrlLists =
+	[ [DecodeWait,DecodeWait]
+	, [DecodeRst] 
+	    ++ [DecodeLoad x | x <- [0..maxBound]]
+	    ++ [DecodePostLoad x | x <- [1,0]]
+	    ++ [DecodeShare x | x <- [0..maxBound]]	
+	    ++ [DecodePostShare x | x <- [1,0]]			
+	    ++ [DecodeResult x | x <- [0..maxBound]]	
+	    ++ [DecodeWait]
+	]
+
+
+incDecodeCntrl = stateBuilder incDecodeCntrlLists
+
+-- Slow down the control signal, using 'Wait' as the default
+delayCntlSeq :: Int -> Seq SysEnv -> Seq DecodeCntl -> Seq DecodeCntl
+delayCntlSeq 0 e s = s
+delayCntlSeq n e s = delay e (pureS DecodeWait) s
+
 
 inc :: Comb DecodeCntl -> Comb DecodeCntl
 inc = funMap (return . incDecodeCntrl)
@@ -121,6 +143,17 @@ decode tm (cntl, inp, glob) = ( loc, out, okay)
 
 	out_mem = in_mem
 
+{-	-- The ne memory cells 
+	ne_mem = pipeToMemory tm act_enabled 
+-}	
+
+	act_enabled = fullEnabled cntl $ \ e ->
+			case e of
+			   DecodeShare x -> return x
+			   _ -> Nothing
+
+	-- -(lam ! j) + (ne ! (m,j))
+
 	okay = high
 	
 	in_enabled = fullEnabled cntl $ \ e -> 
@@ -139,7 +172,24 @@ decode tm (cntl, inp, glob) = ( loc, out, okay)
 
 	loc :: Seq (Pipe x a)
 	loc = pureS ( False, (0,0))
-
+{-
+ ne' = forAll $ \ (m,n) -> 
+		if a_rref ! (m,n) == 1
+                then - 0.75 * (foldr1 metric [-(lam ! j) + (ne ! (m,j))
+--		then - 2 * atanh (product [ - tanh (((lam ! j) - (ne ! (m,j))) / 2)
+			                  | j <- X.all
+					  , a_rref ! (m,j) == 1
+					  , j /= n
+			                  ])
+		else 0
+		
+--	    lam' :: Matrix y a
+	    lam' = forAll $ \ n ->
+		(orig_lam ! n)  + sum [ ne' ! (m,n) 
+					   | m <-  X.all
+					   , a_rref ! (m,n) == 1
+					   ]
+-}					
 type OurFloat = Sampled X8 X8
 
 main = print "Hello"
@@ -150,19 +200,13 @@ testDecode = truthTable
    where
 	decode' e c i g = decode e (c,i,g)
 	cntr = stateMachine (incDecodeCntrl) boot
-	inp  = toSeq'
-	 [ return (True,(0,1))
-	 , return (True,(1,2))
-	 , return (True,(2,3))
-	 , return (True,(3,4))
-	 , Nothing
-	 , Nothing
-	 , Nothing
-	 , Nothing
-	 , Nothing
-	 , Nothing
-	 , Nothing
-	 ] 
+	inp  = toEnabledSeq $ 
+	 [ return $ (0,1)
+	 , return $ (1,2)
+	 , return $ (2,3)
+	 , return $ (3,4)
+ 	 ] ++ repeat Nothing
+
 	glob = pureS (False, (0,0))
 	
 
@@ -184,179 +228,40 @@ ff = toSeq (repeat 0)
 r :: Memory Word8 Int
 r = pipeToMemory sysEnv pip
 
-{-
--- Testing ideas
-data FN b = forall a . (RepWire a) => FN (Seq a -> b) (Seq a)
 
-data FN' b = forall a . (RepWire a) => FN' b (Seq a)
+------------------------------------------------------------
 
-data FN2 b = FN2 b [FNA]
-	deriving Show
+-- This is the "inner loop", so we want to be able to 
+-- hand generate good code here.
 
-data FNA = forall a . (Show a, RepWire a) => FNA (Seq a)
+-- I am far from convinsed by this *function* (aka the math)
+-- is correct, but will do as a placeholder till we can get it correct.
+-- We were taking about needing to store two values, for example,
+-- which has no bering here.
 
-----------------------------------------------------------------------------------
-data Example a = Example a [ExampleArg]
+metric :: (Signal sig) => Maybe (sig FLOAT) -> Maybe (sig FLOAT) -> Maybe (sig FLOAT)
+metric Nothing (Just s2) = return s2
+metric (Just s1) Nothing = return s1
+metric Nothing   Nothing = Nothing
+metric (Just s1) (Just s2) = return $ liftS2 metricComb s1 s2
 
-data ExampleArg = forall a . (Show a, RepWire a) => ExampleArg (Seq a)
-
---pureEF :: a -> Example a
---(<*>) :: Example (a -> b) -> Example a -> Example b
-
-example :: a -> Example a
-example a = Example a []
-
-class TestArg a where
-	testArg :: a -> [ExampleArg]
-
-instance (Show a, RepWire a) => TestArg (Seq a) where
-	testArg a = [ExampleArg a]
-
-infixl 2 .*.
-
-(.*.) :: TestArg a => Example (a -> b) -> a -> Example b
-(.*.) (Example f args) arg = Example (f arg) (args ++ testArg arg)
-
-test =  example xor2 .*. low .*. high
-
-class Testable a where
-	truthTable :: a -> [TTL]
+metricComb :: Comb FLOAT -> Comb FLOAT -> Comb FLOAT 
+metricComb (Comb ox xe) (Comb oy ye) =
+			Comb ((optX :: Maybe FLOAT -> X FLOAT) $
+			      (do x <- unX ox :: Maybe FLOAT
+			 	  y <- unX oy :: Maybe FLOAT
+				  return $ signum(x) * signum(y) * (min (abs x) (abs y))))
+	     		(entity2 (Name "LDPC" "metric") xe ye)
 	
 
-instance (RepWire a) => Testable (Seq a) where
-	truthTable sq = [ ResV  v | v <- showStreamList sq ]
-	
-instance (RepWire a) => Testable (Comb a) where
-	truthTable c =  [ ResV $ showRepWire (undefined :: a) (combValue c) ]
+--- BAD
 
-instance (Testable b) => Testable (Example b) where
-	truthTable (Example fn (ExampleArg arg:args)) 
-		= [ SeqValue s t | (s,t) <- zip ss tt ]
-	   where
-		ss = showStreamList arg
-		tt = truthTable (Example fn args)
-	truthTable (Example fn [])
-		= truthTable fn
+type S16 = Signed.Signed X16
 
-instance (Enum (WIDTH w), Size (WIDTH w), RepWire w, Testable b) => Testable (Comb w -> b) where
-	truthTable fn = [ CombValue (showRepWire (undefined :: w) a)
-				    (truthTable (fn (shallowComb a)))
-		 	| a <- args
-		        ]
-            where
-		reps :: [Matrix (WIDTH w) Bool]
-		reps = allWireReps
-		args0 :: [Maybe w]
-		args0 = [ toWireRep rep | rep <- allWireReps ]
-		args = map optX (args0 ++ [Nothing])
-		
-		-- map optX [Just True, Just False, Nothing ]
-{-
-		 case (truthTable args, truthTable (fn arg)) of
-		    (ResLine vals, ResLine res) -> SeqLine [ (v,ResLine [r])
-					                   | (v,r) <- zip vals res
-						           ]
-		    _ -> error "XX"
--}
-allWireReps :: forall width . (Enum width, Size width) => [Matrix width Bool]
-allWireReps = [U.toMatrix count | count <- counts ]
-   where
-	counts :: [Unsigned width]
-	counts = [0..2^(fromIntegral sz)-1]
-	sz = size (error "allWireRep" :: width)
-		
+bar :: Seq S16
+bar = cm
+    where cm  = delay sysEnv  0 cm'
+          cm' = cm + 2
 
-
-data TTL = CombValue String [TTL]
-	 | SeqValue  String TTL
-	 | ResV      String		-- what about multiple results?
-	deriving Show
-
-
-{-
-showTT :: TTL -> String
-showTT (CombLine xs) = "CombLine " ++ show xs
-showTT (SeqLine xs)  = "SeqLine " ++ show (take 10 xs)
-showTT (ResLine xs)  = show xs
--}
-----------------------------------------------------------------------------------
-
-instance Show FNA where
-	show (FNA x) = show x
-
-fn :: fn -> FN2 fn
-fn f = FN2 f []
-
---infixl `app`
-app' :: (RepWire a, Show a) => FN2 (Seq a -> b) -> Seq a -> FN2 b
-app' (FN2 f args) arg = FN2 (f arg) (args ++ [FNA arg])
-
-{-
-class APP a where
-	app :: FNX a b -> Seq a -> FN2 b
--}
---test = fn xor2 `app` low `app` high
-
-data FNC a b = FNC (Comb a -> b) [X a]
-
-ex = FN bitNot (toSeq [True,False,True,False,True])
-ex2 = FNC bitNot (map ( optX . Just ) [True,False,True,False,True])
-ex3 = FN xor2 (toSeq [True,False,True,False,True])
-
---ex2 = FN (FN xor2 (toSeq [True,False,True,False,True]))
---		  (toSeq [False,True,True,False])
-
-
-
-{-
-generateTT :: FN Bool Bool -> TT
-generateTT (FN fn arg) = List.transpose [ argS, resS ]
-  where
-	argS = showStreamList arg
-	resS = showStreamList (fn arg)
--}
-{-
-class Testable a where
-	truthTable :: a -> TT
-
-instance (RepWire a) => Testable (Seq a) where
-	truthTable sq = ResLine  $ showStreamList sq
-	
-instance (RepWire a) => Testable (Comb a) where
-	truthTable c = ResLine [showRepWire (undefined :: a) (combValue c)]
-
-instance (RepWire a, Testable b) => Testable (FNC a b) where
-	truthTable (FNC fn args) = CombLine
- 		 [ (showRepWire (undefined :: a) a, truthTable (fn (shallowComb a)))
-		 | a <- args
-		 ]		
-
-instance (Testable b) => Testable (FN b) where
-	truthTable (FN fn arg) = 
-		 case (truthTable arg, truthTable (fn arg)) of
-		    (ResLine vals, ResLine res) -> SeqLine [ (v,ResLine [r])
-					                   | (v,r) <- zip vals res
-						           ]
-		    _ -> error "XX"
-
-{-
-	truthTable (FNC fn args) = resTT
-          where resTT = 
-		 [ a ++ res
-		 | a <- args
-		 , 
-		 | (a,res) <- zip (truthTable arg)
-				  (truthTable (fn arg))
-		 ]		
-		
--}		
-
-instance (Testable b) => Testable (Comb Bool -> b) where
-	truthTable fn = truthTable (FNC fn args)
-            where
-		args = map optX [Just True, Just False, Nothing ]
--}
-
--}
 
 	
