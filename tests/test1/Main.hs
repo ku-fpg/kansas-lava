@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TypeFamilies, ScopedTypeVariables, ParallelListComp
+ #-}
 import Language.KansasLava
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
@@ -61,28 +62,108 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 	trd3 (_,_,c) = c
 
 
+
+test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a 
+test_mux_1 sig = a
+	where a = mux2 high (sig ,latch a)
+
+
+testAllTruth:: (Testable a) => String -> a -> IO ()
+testAllTruth nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showAllTT $ truthTable fn
+	
+testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
+testSomeTruth n nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showSomeTT n $ truthTable fn	
+	
+testReify :: (Ports a) => String -> a -> IO ()
+testReify nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " reify"
+	putStrLn $ "======="
+	debugCircuit [] fn
+
 main = do
-	putStrLn "Testing halfAdder function"
-	putStrLn $ unlines [ show (a,b,halfAdder (a,b))
-	 			| a <- [true,false]
-			        , b <- [true,false] ]
-	putStrLn "Testing halfAdder reify"
-	debugCircuit [] halfAdder
+	let tst :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
+	    tst a b = halfAdder (a,b)
+	testAllTruth "halfAdder" tst
+	testReify "halfAdder" tst	
+	
+	let tst :: Comb Bool -> Comb U1 -> Comb U1 -> Comb U1
+	    tst a b c = mux2 a (b,c)
+	testAllTruth "mux2" tst
+	testReify "mux2" tst		
 
-	putStrLn "Testing fullAdder function"
-	putStrLn $ unlines [ show (a,b,c,fullAdder c (a,b))
-	 			| a <- [true,false]
-	 			, b <- [true,false]
-			        , c <- [true,false] ]
-	putStrLn "Testing fullAdder reify"
-	debugCircuit [] fullAdder
+	let tst :: Comb Bool -> Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
+	    tst a b c = fullAdder a (b,c)
+	testAllTruth "fullAdder" tst
+	testReify "fullAdder" tst	
+	
+	let tst :: Comb Bool -> Comb U2 -> Comb U2 -> (Comb U2,Comb Bool)
+	    tst a b c = wordAdder a (b,c)
+	testAllTruth "wordAdder" tst
+	testReify "wordAdder" tst		
 
-	putStrLn "Testing wordAdder function"
-	putStrLn $ unlines [ show (a,b,c,wordAdder a (pureS b,pureS c))
-	 			| a <- [true,false]
-	 			, b <- [0..3] :: [(U.Unsigned X2)]
-			        , c <- [0..3] ]
-	putStrLn "Testing wordAdder reify"
-	debugCircuit [] (wordAdder :: Comb Bool ->  (Comb (Unsigned X2), Comb (Unsigned X2)) -> (Comb (Unsigned X2), Comb Bool))
+	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
+	    tst = delay
+	
+	testSomeTruth 50 "delay" $
+		let env = takeThenSeq 7 sysEnv env
+		    def = 1
+		    inp = toSeq $ cycle [0..3]
+		 in example tst .*. env .*. def .*. inp
+	testReify "delay" tst		
 
-	--	test_shallow_bit
+	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
+	    tst = pipeToMemory
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    [ return (val,ALPHA (txt ++ "_" ++ show val))
+			    | val <- [0..3]
+			    , txt <- ["A","B","C"]
+			    ] 
+					
+		    addr = toSeq' $ cycle (map Just [ 0..3 ] ++ [Nothing])
+		 in example tst .*. env .*. pipe .*. addr
+		
+	let tst ::Seq SysEnv -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
+	    tst = pipeToMemory
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    ([ return ((),ALPHA (show val))
+			     | val <- [0..3]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ repeat ()
+		 in example tst .*. env .*. pipe .*. addr		
+
+	let tst ::Seq SysEnv -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
+	    tst = pipeToMemory
+
+
+	testSomeTruth 50 "pipeToMemory" $
+		let env = takeThenSeq 20 sysEnv env
+		    pipe = toEnabledSeq $ 
+			    cycle
+			    ([ return (odd val,ALPHA (show val))
+			     | val <- [0..3]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. pipe .*. addr		
+
+
+	return ()
+
+
+
+

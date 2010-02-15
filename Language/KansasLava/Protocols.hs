@@ -14,6 +14,7 @@ import Data.Sized.Matrix as M
 import Data.Map as Map
 import Data.Word
 import Control.Applicative
+import Data.Maybe  as Maybe
 
 type Enabled a = (Bool,a)
 
@@ -21,30 +22,13 @@ type Pipe a d = Enabled (a,d)
 
 type Memory a d = Seq a -> Seq d
 
-{-
-pipeToMem2 :: forall a d . (OpType a, OpType d) => Time -> Pipe a d -> Mem2 a d
-pipeToMem2 (Time clk rst) ((en,addr),dat) addr2 = res
-
-
--- o0 $ entity2 (op s1 nm) defaultInputs [Var "o0"]  f s1 s2
-
-  where 
-    res :: Seq d
-    res = Seq undefined (Port (Var "o0") $ E $ entity)
-
-    entity :: Entity BaseTy E
-    entity = 
-	Entity (Name "Mem" "mem2") 
-		[ (Var "o0",bitTypeOf res)]
-		[ (Var "clk",bitTypeOf clk,seqDriver clk)
-		, (Var "rst",bitTypeOf rst,seqDriver rst)
-		, (Var "en",bitTypeOf en,seqDriver en)
-		, (Var "addr",bitTypeOf addr,seqDriver addr)
-		, (Var "dat",bitTypeOf dat,seqDriver dat)
-		, (Var "addr2",bitTypeOf addr2,seqDriver addr2)
-		] 
-		[]
--}
+-- | Turns a list of maybe values into enabled values.
+toEnabledSeq :: forall a . (RepWire a) => [Maybe a] -> Seq (Enabled a)
+toEnabledSeq xs = toSeqX [ case x of
+			    Nothing -> (return False :: X Bool,optX (Nothing :: Maybe a)) :: X (Enabled a)
+			    Just v -> (return True, optX (Just v :: Maybe a)) :: X (Enabled a)
+			 | x <- xs 
+			 ]
 
 memoryToPipe ::  (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
 memoryToPipe enA mem = pack (en,pack (a,mem a))
@@ -61,16 +45,22 @@ pipeToMemory sysEnv pipe addr2 = res
 
     	res :: Seq d
     	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
-
-
+{-
+	shallowRes' :: Stream (X (Matrix a d))
+	shallowRes' = pure (\ m -> forAll $ \ ix -> 
+				    case Map.lookup (M.toList $ (fromWireRep ix :: Matrix (WIDTH a) Bool)) m of	
+						    Nothing -> optX (Nothing :: Maybe d)
+						    Just v -> optX (Just v)
+			  ) <*> mem
+-}
 	shallowRes :: Stream (X d)
 	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
 				       Nothing -> optX (Nothing :: Maybe d)
 				       Just a' -> case Map.lookup (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
-			  ) <*> mem
-			    <*> seqValue addr2
+			  ) <*> (Map.empty :~ Map.empty :~ mem)
+			    <*> (optX (Nothing :: Maybe a) :~ optX (Nothing :: Maybe a) :~ seqValue addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
@@ -78,7 +68,7 @@ pipeToMemory sysEnv pipe addr2 = res
 	updates = pure (\ e a b -> 
 			   do en'   <- unX e :: Maybe Bool
 			      if not en' 
-				     then Nothing
+				     then return Nothing
 				     else do 
 			      		addr' <- unX a :: Maybe a
 			      		dat'  <- unX b :: Maybe d
@@ -89,13 +79,13 @@ pipeToMemory sysEnv pipe addr2 = res
 
 	-- mem
 	mem :: Stream (Map [Bool] d)
-	mem = Map.empty :~ Map.empty :~ Stream.fromList
+	mem = Map.empty :~ Stream.fromList
 		[ case u of
 		    Nothing           -> Map.empty	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) -> Map.insert (M.toList $ (fromWireRep a :: Matrix (WIDTH a) Bool)) d m
 		| u <- Stream.toList updates 
-		| m <- Prelude.tail (Stream.toList mem)
+		| m <- Stream.toList mem
 		]
 
     	entity :: Entity BaseTy E
@@ -110,3 +100,7 @@ pipeToMemory sysEnv pipe addr2 = res
 			, (Var "addr2",bitTypeOf addr2,unD $ seqDriver addr2)
 			] 
 		[]
+
+fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b) 
+	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
+fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)

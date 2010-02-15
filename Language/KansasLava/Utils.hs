@@ -11,6 +11,9 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
+import Data.Sized.Signed
+import Data.Sized.Arith
+import qualified Data.Sized.Sampled	as Sam
 
 import Control.Applicative
 import Control.Monad
@@ -30,12 +33,26 @@ instance Constant Int where
 instance Constant Word32 where
   pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
 
+instance (Size x, Enum y, Size y) => Constant (Sam.Sampled x y) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral 123456	-- TODO
+
+instance (Size x, Integral x) => Constant (X0_ x) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
+
+instance (Size x, Integral x) => Constant (X1_ x) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ Lit $ fromIntegral v
+
 instance Constant Integer where
   pureS v = liftS0 $ Comb (pureX v) $ D $ Lit v
 
 instance (Enum ix, Size ix) => Constant (Unsigned ix) where
   pureS v = liftS0 $ Comb (pureX v) $ D $ error "Unsigned IX"
 
+instance (Enum ix, Size ix) => Constant (Signed ix) where
+  pureS v = liftS0 $ Comb (pureX v) $ D $ error "Signed IX"
+
+instance (Constant a, Constant b, Wire a, Wire b) => Constant (a,b) where
+  pureS (a,b) = pack (pureS a, pureS b)
 
 high, low :: Seq Bool
 high = pureS True
@@ -117,123 +134,6 @@ instance (Constant a, Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq 
     recip = liftS1 recip
     fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
    
-	
------------------------------------------------------------------------------------------------
--- And the utilties that get this done.
-
-fun0 :: forall a sig . (Signal sig, Wire a) => String -> a -> sig a
-fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Name (wireName (error "fun1" :: a)) nm)
-
-fun1 :: forall a b sig . (Signal sig, Wire a, Wire b) => String -> (a -> b) -> sig a -> sig b
-fun1 nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA f (unX a)) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
-
-fun2 :: forall a b c sig . (Signal sig, Wire a, Wire b, Wire c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
-fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b)) 
-	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
-
-table :: forall sig a b . (Enum (WIDTH a), Enum (WIDTH b), Size (WIDTH a), Size (WIDTH b), Signal sig, RepWire a, RepWire b) => [(a,b)] -> sig a -> sig b
-table tab = liftS1 $ \ (Comb a (D ae))
-				-> Comb (case unX (a :: X a) :: Maybe a of
-					Nothing -> optX (Nothing :: Maybe b) :: X b
-					Just v -> 
-					  case lookup v tab of
-					    Nothing -> optX (Nothing :: Maybe b) :: X b
-					    Just b -> optX (Just b :: Maybe b) :: X b
-				     ) 
-				     (D $ Port (Var "o0") 
-					$ E 
-					$ Table (Var "o0",tA)
-						(Var "i0",tB,ae)
-						[( fromIntegral $ U.fromMatrix $ fromWireRep a
-						 , showRepWire a $ optX $ Just a
-						 , fromIntegral $ U.fromMatrix $ fromWireRep b
-						 , showRepWire b $ optX $ Just b
-						 )
-						| (a,b) <- tab
-						]
-				     )
-	where tA = wireType (error "table" :: a)
-	      tB = wireType (error "table" :: b)
-
-entity0 :: forall o . (Wire o) => Name -> D o
-entity0 nm = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  []
-		  []
-   where oTy = wireType (error "entity0" :: o)
-
-entity1 :: forall a o . (Wire a, Wire o) => Name -> D a -> D o
-entity1 nm (D w1) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1"] 
-				| ty <- [aTy] 
-				| val <- [w1]
-		  ] []
-   where aTy = wireType (error "entity1" :: a)
-         oTy = wireType (error "entity1" :: o)
-
-entity2 :: forall a b o . (Wire a, Wire b, Wire o) => Name -> D a -> D b -> D o
-entity2 nm (D w1) (D w2) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1"]
-				| ty <- [aTy,bTy] 
-				| val <- [w1,w2]
-		  ] []
-   where aTy = wireType (error "entity2" :: a)
-         bTy = wireType (error "entity2" :: b)
-         oTy = wireType (error "entity2" :: o)
-
-entity3 :: forall a b c o . (Wire a, Wire b, Wire c, Wire o) => Name -> D a -> D b -> D c -> D o
-entity3 nm (D w1) (D w2) (D w3) = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1","i2"]
-				| ty <- [aTy,bTy,cTy] 
-				| val <- [w1,w2,w3]
-		  ] []
-   where aTy = wireType (error "entity3" :: a)
-         bTy = wireType (error "entity3" :: b)
-         cTy = wireType (error "entity3" :: c)
-         oTy = wireType (error "entity3" :: o)
-
-entityN :: forall a b o . (Wire a, Wire o) => Name -> [D a] -> D o
-entityN nm ds = D $ Port (Var "o0") $ E $
- 	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i" ++ show n | n <- [0..]]
-				| ty <- repeat aTy
-				| val <- [w | D w <- ds]
-		  ] []
-   where aTy = wireType (error "entity2" :: a)
-         oTy = wireType (error "entity2" :: o)
-
-
-
------------------------------------------------------------------------------------------------
-class (Signal sig) => Pack sig a where
- type Unpacked sig a
- pack :: Unpacked sig a -> sig a
- unpack :: sig a -> Unpacked sig a
-
-instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where 
-	type Unpacked sig (a,b) = (sig a, sig b)
-	pack ~(a,b) = liftS2 (\ ~(Comb a ae) ~(Comb b be) -> Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
-			    a b
-	unpack ab = ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
-		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
-		    )
-
-instance (Wire a, Signal sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
-	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
-	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ] 
-				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
-				 in Comb sh de) (M.toList m) 
-	unpack s = forAll $ \ ix -> 
-			liftS1 (\ (Comb s d) -> Comb (s ! ix) 
-					       (entity2 (Name "Lava" "index") 
-							(D $ Lit $ fromIntegral ix :: D Integer)
-							d
-					       )
-			        ) s
-
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
 
@@ -264,40 +164,45 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 -- Map Ops
 
 
--- Assumping that the codomain is finite (beacause of RepWire), and *small* (< ~256 values).
-funMap :: forall sig a b .
-	  (Show a, Show b
-	  , Signal sig, Enum (WIDTH a),
-                      Enum (WIDTH b),
-                      Size (WIDTH a),
-                      Size (WIDTH b),
-                      RepWire a,
-                      RepWire b) => (a -> Maybe b) -> sig a -> sig b
-funMap f a = {- trace (show count) $ -} table ({-trace (show $ map fst tab)-} tab) a
-  where
-   tab = [ (a,b)
-	 | v <- [0..(2^count)-1]	-- all possible reps
---	 , trace (show v) False
-	 , Just a <- [toWireRep $ U.toMatrix $ fromIntegral $ v]
-	 , Just b <- [f a]
-	 ]
+-- Assumping that the domain is finite (beacause of RepWire), and *small* (say, < ~256 values).
 
-   count :: Integer
-   count = fromIntegral $ size (undefined :: WIDTH a)
+funMap :: forall sig a b . (Signal sig, RepWire a, RepWire b) => (a -> Maybe b) -> sig a -> sig b
+funMap fn = liftS1 $ \ (Comb a (D ae))
+			-> Comb (case unX (a :: X a) :: Maybe a of
+				   Nothing -> optX (Nothing :: Maybe b) :: X b
+				   Just v -> optX (fn v :: Maybe b) :: X b)
+				     (D $ Port (Var "o0") 
+					$ E 
+					$ Table (Var "o0",tA)
+						(Var "i0",tB,ae)
+						tab
+				     )
+	where tA = wireType (error "table" :: a)
+	      tB = wireType (error "table" :: b)
+	      all_a_bitRep :: [Matrix (WIDTH a) Bool]
+	      all_a_bitRep = allWireReps
+	
+	      tab = [ ( fromIntegral $ U.fromMatrix $ w_a
+		      , showRepWire (undefined "table" :: a) $ optX $ Just a
+		      , fromIntegral $ U.fromMatrix $ w_b
+		      , showRepWire (undefined "table" :: b) $ optX $ Just b
+		      )
+		    | w_a <- all_a_bitRep
+		    , a <- case toWireRep $ w_a :: Maybe a of
+				 Nothing -> []
+				 Just a -> [a]
+		    , b <- case fn a of
+			     Nothing -> []
+			     Just b -> [b]
+		    , let w_b = fromWireRep b
+		    ]
 
 
 
 -----------------------------------------------------------------------------------------------     
-{-
-liftS3 :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
-       => (K a -> K b -> K c -> K d) -> sig a -> sig b -> sig c -> sig d
-liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
--}
------------------------------------------------------------------------------------------------     
 
---mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 :: forall sig a . (Signal sig, sig ~ Seq, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 i (t,e)
+mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 i ~(t,e)
 	= liftS3 (\ ~(Comb i ei) 
 	 	    ~(Comb t et)
 	 	    ~(Comb e ee)
@@ -306,11 +211,67 @@ mux2 i (t,e)
 				  Just True -> t
 				  Just False -> e
 			     ) 
-			     undefined
---			     (entity3 (Name "Lava" "mux2") ei et ee)
+			     (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
----------------------------------------------------------------------
 
+
+class MUX a where
+	wideMux2 :: Comb Bool -> (a, a) -> a
+	
+instance (Wire a) => MUX (Comb a) where
+	wideMux2 = mux2
+
+
+instance (MUX a, MUX b) => MUX (a,b) where
+	wideMux2 b ((x0,y0),(x1,y1)) = (wideMux2 b (x0,x1), wideMux2 b (y0,y1))
+
+instance (MUX a) => MUX [a] where
+	wideMux2 b (as0,as1) = Prelude.zipWith (\ a0 a1 -> wideMux2 b (a0,a1)) as0 as1
+
+
+{-
+-- A varient of mux that works over 
+-- Perhaps a bad idea?
+choose :: forall sig a . (Pack sig a, Wire a) => sig Bool -> Unpacked sig a -> Unpacked sig a ->  Unpacked sig a
+choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
+-}
+
+
+
+-- Selects an arbitrary element of a list
+-- The selector has type, [sig Bool]
+-- is a binary representation of the unsigned index to select,
+-- with the leftmost (first) element most significant.
+--
+-- The list is indexed: 0-based, left to right
+--
+-- If (2 ** (length selector)) < (length inputlist)
+--     not all elements of the list are selectable.
+-- If (2 ** (length selector)) > (length inputlist)
+--     the output for selector "value" >= (length inputlist) is
+--     not defined.                                                                                                          
+muxList :: forall sig a . (Signal sig, Wire a) =>[sig Bool] -> [sig a] -> sig a
+muxList [s] [a0] = a0
+muxList [s] [a0, a1] = mux2 s  (a1,a0)
+muxList sel@(s:rest) as = if (aLength <= halfRange)
+                          then muxList sel' as
+                          else if (aLength > maxRange)
+                               then muxList sel as'
+                               else muxList'
+    where aLength = Prelude.length as
+          halfRange = 2 ^ ((Prelude.length sel) -1)
+          maxRange = 2 * halfRange
+          nselbits = max 1 (ceiling (logBase 2 (fromIntegral aLength)))
+          sel' = drop ((Prelude.length sel) - nselbits) sel
+          as' = take  maxRange as
+          -- muxList' knows that the number of selection bits matches range input choices                                          
+          muxList' = mux2 s ((muxList topSelect top), (muxList rest bottom))
+          (bottom, top) = splitAt halfRange as
+          topLen = fromIntegral $ Prelude.length top
+          nbits = max 1 (ceiling (logBase 2 topLen))
+          topSelect = drop ((Prelude.length rest) - nbits) rest
+
+-------------------------------------------------------------------------------------------------
 
 boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn = 
@@ -326,8 +287,14 @@ boolOp nm fn =
 (.>=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 
+(.<=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<=.) = boolOp ".<=." (<=)
+
 (.<.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
+
+(.>.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>.) = boolOp ".>." (>)
 
 -------------------------------------------------------------------------------
 
@@ -356,6 +323,7 @@ latch dat@(Seq a ea) = res
 			] 
 		[]
 
+
 delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
 delay sysEnv def line = mux2 en (liftS0 def,latch line)
    where
@@ -363,5 +331,5 @@ delay sysEnv def line = mux2 en (liftS0 def,latch line)
 
 
 -- hack
-ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
+--ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 
