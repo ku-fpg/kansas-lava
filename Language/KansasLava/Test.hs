@@ -104,7 +104,8 @@ showAllTT :: TT -> String
 showAllTT (TT ttls) = unlines (formatTT maxBound ttls)
 
 showSomeTT :: Int -> TT -> String
-showSomeTT n (TT ttls) = unlines (take n $ formatTT n ttls)
+showSomeTT n (TT ttls) = unlines (take n $ ans) ++ if null (drop n ans) then "" else "...\n"
+	where ans =  formatTT n ttls
 
 
 -- | formatTT build an ASCII truth table from a list of TTL (truth table lines).
