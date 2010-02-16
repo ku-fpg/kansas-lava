@@ -104,3 +104,12 @@ pipeToMemory sysEnv pipe addr2 = res
 fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b) 
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
+
+enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (sig x -> sig (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe f se = pack (en, (f x))
+   where (en,x) = unpack se
+
+
+-- Used for simulation, because this actually clones the memory to allow this to work.
+memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
+memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
