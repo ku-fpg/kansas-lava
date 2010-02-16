@@ -141,8 +141,8 @@ tt5 = truthTable (example (delay :: Seq SysEnv -> Comb ALPHA -> Seq ALPHA -> Seq
 			.*. inp)
 	where
 		env = takeThenSeq 7 sysEnv env
-		def = pureS $ ALPHA "def"
-		inp = toSeq $ cycle $ map ALPHA ["a","b","c","d"]
+		def = pureS $ ALPHA "~def~"
+		inp = toSeq $ cycle $ map ALPHA ["A","B","C","D"]
 
 ------------------------------------------------------------------------
 -- Current limitations
