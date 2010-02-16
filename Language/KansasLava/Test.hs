@@ -36,7 +36,7 @@ infixl 2 .*.
 (.*.) :: TestArg a => Example (a -> b) -> a -> Example b
 (.*.) (Example f args) arg = Example (f arg) (args ++ testArg arg)
 
-test =  example xor2 .*. low .*. high
+--test = example xor2 .*. low .*. high
 
 class Testable a where
 	truthTable :: a -> TT
@@ -135,14 +135,14 @@ tt3 = truthTable ((*) :: Comb U2 -> Comb U2 -> Comb U2)
 tt4 = truthTable (halfAdder :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool))
   where halfAdder a b = (xor2 a b, and2 a b)
 
-tt5 = truthTable (example (delay :: Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4) 
+tt5 = truthTable (example (delay :: Seq SysEnv -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA) 
 			.*. env
 			.*. def
 			.*. inp)
 	where
 		env = takeThenSeq 7 sysEnv env
-		def = 1
-		inp = toSeq $ cycle [0..3]
+		def = pureS $ ALPHA "def"
+		inp = toSeq $ cycle $ map ALPHA ["a","b","c","d"]
 
 ------------------------------------------------------------------------
 -- Current limitations
