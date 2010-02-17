@@ -24,15 +24,37 @@ type SZ = X4
 type FLOAT = Sampled X8 X8
 
 data DecodeCntl 
-	= DecodeWait		-- 0 + 0
-	| DecodeRst		-- 0 + 1	restart
-	| DecodeRest		-- 0 + 2
+	= DecodeWait		-- completed, rest state
+	| DecodeRst SZ		-- reset element # of the 'ne' memory
 	| DecodeLoad SZ		-- 1 + x
 	| DecodePostLoad X4	-- wait 2 cycles
 	| DecodeShare SZ	-- 2 + x
 	| DecodePostShare X4	-- wait 2 cycles
 	| DecodeResult SZ	-- 3 + x
 	deriving (Show, Eq, Ord)
+
+-- This is our state machine rep.
+-- You always go next to your next element in your list.
+incDecodeCntrlLists :: [[DecodeCntl]]
+incDecodeCntrlLists =
+	[ [DecodeWait,DecodeWait]
+	, [DecodeRst n | n <- [0..maxBound]]
+	    ++ [DecodeLoad x | x <- [0..maxBound]]
+	    ++ [DecodePostLoad x | x <- [0..3]]
+	    ++ [DecodeShare x | x <- [0..maxBound]]	
+	    ++ [DecodePostShare x | x <- [0..3]]			
+	    ++ [DecodeResult x | x <- [0..maxBound]]	
+	    ++ [DecodeWait]
+	]
+
+-- force DecodeWait to be 0
+allDecodeCntl :: [DecodeCntl]
+allDecodeCntl = List.nub (DecodeWait : concat incDecodeCntrlLists)
+
+fromWireRepEnv :: Map.Map DecodeCntl (Matrix (WIDTH DecodeCntl) Bool)
+fromWireRepEnv = Map.fromList $ zip allDecodeCntl $ map U.toMatrix [0..]
+toWireRepEnv   :: Map.Map (Matrix (WIDTH DecodeCntl) Bool) DecodeCntl
+toWireRepEnv = Map.fromList $ map (\(a,b) -> (b,a)) $ Map.toList fromWireRepEnv
 
 instance Wire DecodeCntl where
 	type X DecodeCntl = WireVal DecodeCntl	-- choice: top level failure
@@ -43,38 +65,14 @@ instance Wire DecodeCntl where
 	wireName _ = "DecodeCntl"
 	wireType _ = U 4 -- TODO: derving this
 
-
-opCode :: Integer -> X4 -> Matrix (ADD X4 (WIDTH X4)) Bool
-opCode n x = 
-	(U.toMatrix (fromIntegral n)  :: Matrix X4 Bool)
-		`append`
-	(fromWireRep x)
-
 instance RepWire DecodeCntl where	
-	type WIDTH DecodeCntl = ADD X4 (WIDTH X4)
+	type WIDTH DecodeCntl = X5
 
-	-- encoding
-	fromWireRep DecodeWait       = opCode 0 0
-	fromWireRep DecodeRst        = opCode 0 1
-	fromWireRep DecodeRest       = opCode 0 2
-	fromWireRep (DecodeLoad x)   = opCode 1 x
-	fromWireRep (DecodePostLoad x)  = opCode 2 x
-	fromWireRep (DecodeShare x)     = opCode 3 x
-	fromWireRep (DecodePostShare x)  = opCode 4 x
-	fromWireRep (DecodeResult x)     = opCode 5 x
-
-	toWireRep n = do op <- toWireRep ((n `cropAt` 0) :: Matrix X4 Bool) :: Maybe X16
-			 x <- toWireRep ((n `cropAt` 4) :: Matrix X2 Bool) :: Maybe X4
-		         case (op,x) of
-			    (0,0) -> return $ DecodeWait
-			    (0,1) -> return $ DecodeRst
-			    (0,2) -> return $ DecodeRest
-			    (1,x) -> return $ DecodeLoad x
-			    (2,x) -> return $ DecodePostLoad x
-			    (3,x) -> return $ DecodeShare x
-			    (4,x) -> return $ DecodePostShare x
-			    (5,x) -> return $ DecodeResult x
-			    _ -> Nothing	
+-- encoding
+	fromWireRep op = case Map.lookup op fromWireRepEnv of
+			   Just m -> m
+			   Nothing -> forAll $ \ _  -> False
+	toWireRep op = Map.lookup op toWireRepEnv 
 	showRepWire _ = show
 
 stateBuilder :: (Ord a, Show a) => [[a]] -> a -> a
@@ -83,19 +81,6 @@ stateBuilder transs = \ x ->
 	  Nothing -> error $ "Can not find transition for " ++ show x
 	  Just x' -> x'
   where mp = Map.fromList [ (x,y) | trans <- transs, (x,y) <- zip trans (List.tail trans) ]
-
-incDecodeCntrlLists :: [[DecodeCntl]]
-incDecodeCntrlLists =
-	[ [DecodeWait,DecodeWait]
-	, [DecodeRst] 
-	    ++ [DecodeLoad x | x <- [0..maxBound]]
-	    ++ [DecodePostLoad x | x <- [1,0]]
-	    ++ [DecodeShare x | x <- [0..maxBound]]	
-	    ++ [DecodePostShare x | x <- [1,0]]			
-	    ++ [DecodeResult x | x <- [0..maxBound]]	
-	    ++ [DecodeWait]
-	]
-
 
 incDecodeCntrl = stateBuilder incDecodeCntrlLists
 
@@ -118,34 +103,43 @@ stateMachine fn enSig = now
 	fn' = funMap (return . fn) now
 
 boot :: Seq (Enabled DecodeCntl)
-boot = toSeqX $ (pureX True, pureX (DecodeLoad 0))
-	      : repeat (pureX False, optX (Nothing :: Maybe DecodeCntl))
-	
+boot = toEnabledSeq $ [ return $ DecodeRst 0 ] ++ repeat Nothing
 
 
+rot :: (Num x) => x -> x -> x
+rot x y = x + y
 
 decode :: forall a x . 
          (a ~ OurFloat, Size x, Num x, Enum x, x ~ X4) 
-       => Seq SysEnv
-        ->
-	  ( Seq DecodeCntl
+       => x
+       -> Seq SysEnv
+       -> ( Seq DecodeCntl
 	  , Seq (Pipe x a)		-- lambda (in)
 	  , Seq (Pipe x a)		-- global (in, share)
 	  ) ->
 	  ( Seq (Pipe x a)		-- local (out, share)
 	  , Seq (Pipe x a)		-- lambda (out)
-	  , Seq Bool			-- status
 	  )
-decode tm (cntl, inp, glob) = ( loc, out, okay)
+decode off tm (cntl, inp, glob) = ( act_sharing_pipe, memoryToPipe out_enabled out_mem )
    where
+	inp' :: Seq (Pipe x a)
+	inp' = mapEnabled (mapPacked $ \ (a0,b0) -> (a0 + pureS off,b0)) inp
+
 	in_mem :: Memory x a
-	in_mem = pipeToMemory tm inp
+	in_mem = pipeToMemory tm inp'
 
-	out_mem = in_mem
+	rst_ne :: Seq (Enabled x)
+	rst_ne = fullEnabled cntl $ \ e ->
+			case e of
+			   DecodeRst x -> return x
+			   _ -> Nothing
 
-{-	-- The ne memory cells 
-	ne_mem = pipeToMemory tm act_enabled 
--}	
+
+	-- The ne memory cells 
+	ne_mem :: Memory x a
+	ne_mem = pipeToMemory tm (enabledToPipe (\ x -> pack (x,1::Seq a)) rst_ne)
+
+--	intermedute = in_mem act_enabled - ne_mem act_enabled
 
 	act_enabled = fullEnabled cntl $ \ e ->
 			case e of
@@ -163,15 +157,24 @@ decode tm (cntl, inp, glob) = ( loc, out, okay)
 
 	out_enabled = fullEnabled cntl $ \ e -> 
 			case e of
-			   DecodeResult x -> return x
+			   DecodeResult x -> return (x - off)
 			   _ -> Nothing
 			 
 
-	out :: Seq (Pipe x a)
-	out = memoryToPipe out_enabled out_mem
+	act_inp_pipe :: Seq (Pipe x a)
+	act_inp_pipe = memoryToPipe act_enabled in_mem
 
-	loc :: Seq (Pipe x a)
-	loc = pureS ( False, (0,0))
+	act_ne_pipe :: Seq (Pipe x a)
+	act_ne_pipe = memoryToPipe act_enabled ne_mem
+	
+	act_sharing_pipe :: Seq (Pipe x a)
+	act_sharing_pipe = zipPipe (-) act_ne_pipe act_inp_pipe
+
+	-- And the output
+	
+	out_mem :: Memory x a
+	out_mem = pipeToMemory tm (zipPipe (+) glob act_inp_pipe)
+
 {-
  ne' = forAll $ \ (m,n) -> 
 		if a_rref ! (m,n) == 1
@@ -192,22 +195,36 @@ decode tm (cntl, inp, glob) = ( loc, out, okay)
 -}					
 type OurFloat = Sampled X8 X8
 
-main = print "Hello"
+
+hack :: (Wire x, RepWire v, Num v) => Seq (Enabled x) -> Seq (Pipe x v)
+hack sq = pack (en, pack (x,0))
+  where (en,x) = unpack sq
+	
+
+main = putStrLn $ showSomeTT 30 $ testDecode 
+
 
 -------------------------
 testDecode = truthTable 
 	(example decode' .*. sysEnv .*. cntr .*. inp .*. glob)
    where
-	decode' e c i g = decode e (c,i,g)
+	decode' e c i g = decode 1 e (c,i,g)
 	cntr = stateMachine (incDecodeCntrl) boot
 	inp  = toEnabledSeq $ 
+	 take 4 (repeat Nothing) ++
 	 [ return $ (0,1)
 	 , return $ (1,2)
 	 , return $ (2,3)
 	 , return $ (3,4)
  	 ] ++ repeat Nothing
 
-	glob = pureS (False, (0,0))
+	glob = toEnabledSeq $ 
+  	 take 14 (repeat Nothing) ++
+	 [ return $ (0,1)
+	 , return $ (1,2)
+	 , return $ (2,3)
+	 , return $ (3,4)
+ 	 ] ++ repeat Nothing		
 	
 
 -- How to test

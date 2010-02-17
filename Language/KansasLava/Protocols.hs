@@ -104,3 +104,43 @@ pipeToMemory sysEnv pipe addr2 = res
 fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b) 
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
+
+enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (sig x -> sig (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe f se = pack (en, (f x))
+   where (en,x) = unpack se
+
+mapEnabled :: (Wire a, Wire b, Signal sig) => (Comb a -> Comb b) -> sig (Enabled a) -> sig (Enabled b)
+mapEnabled f en = pack (en_bool,liftS1 f en_val)
+   where (en_bool,en_val) = unpack en
+
+zipEnabled :: (Wire a, Wire b, Wire c, Signal sig) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
+zipEnabled f en1 en2 = pack (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
+   where (en_bool1,en_val1) = unpack en1
+	 (en_bool2,en_val2) = unpack en2
+
+phi :: forall a sig . (Signal sig, RepWire a) => sig a -> sig a -> sig a
+phi = liftS2 $ \ (Comb a ea) (Comb b eb) -> 
+        Comb (optX
+		 $ do a' <- unX a :: Maybe a
+		      b' <- unX b :: Maybe a
+		      if fromWireRep a' == fromWireRep b' 
+			then return a'
+			else fail "phi problem")
+		(undefined)
+						  
+
+mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
+mapPacked f = pack . f . unpack 
+
+
+zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
+zipPacked f x y = pack $ f (unpack x) (unpack y)
+
+zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
+zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
+
+
+-- Used for simulation, because this actually clones the memory to allow this to work.
+memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
+memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
+

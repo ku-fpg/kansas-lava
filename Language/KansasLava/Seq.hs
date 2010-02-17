@@ -24,6 +24,7 @@ import Data.Sized.Arith as Arith
 import Data.Sized.Ix as X
 
 import Language.KansasLava.Comb
+import Data.List as List
 import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
@@ -68,6 +69,11 @@ instance Signal Seq where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
 	f' a b = let ~(Comb c _) = f (shallowComb a) (shallowComb b) 
 	         in c
+
+  liftSL f ss = Seq (S.fromList
+		    [ combValue $ f [ shallowComb x | x <- xs ]
+		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
+		    ]) (error "liftSL")
 
 ----------------------------------------------------------------------------------------------------
 
