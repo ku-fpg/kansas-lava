@@ -40,9 +40,9 @@ incDecodeCntrlLists =
 	[ [DecodeWait,DecodeWait]
 	, [DecodeRst n | n <- [0..maxBound]]
 	    ++ [DecodeLoad x | x <- [0..maxBound]]
-	    ++ [DecodePostLoad x | x <- [1,0]]
+	    ++ [DecodePostLoad x | x <- [0..3]]
 	    ++ [DecodeShare x | x <- [0..maxBound]]	
-	    ++ [DecodePostShare x | x <- [1,0]]			
+	    ++ [DecodePostShare x | x <- [0..3]]			
 	    ++ [DecodeResult x | x <- [0..maxBound]]	
 	    ++ [DecodeWait]
 	]
@@ -103,38 +103,30 @@ stateMachine fn enSig = now
 	fn' = funMap (return . fn) now
 
 boot :: Seq (Enabled DecodeCntl)
-boot = toSeqX $ (pureX True, pureX (DecodeRst 0))
-	      : repeat (pureX False, optX (Nothing :: Maybe DecodeCntl))
-	
+boot = toEnabledSeq $ [ return $ DecodeRst 0 ] ++ repeat Nothing
 
 
+rot :: (Num x) => x -> x -> x
+rot x y = x + y
 
 decode :: forall a x . 
          (a ~ OurFloat, Size x, Num x, Enum x, x ~ X4) 
-       => Seq SysEnv
-        ->
-	  ( Seq DecodeCntl
+       => x
+       -> Seq SysEnv
+       -> ( Seq DecodeCntl
 	  , Seq (Pipe x a)		-- lambda (in)
 	  , Seq (Pipe x a)		-- global (in, share)
 	  ) ->
-	   ( Seq (Matrix x a)
-	   , Seq a
-	   )
-{-	  
 	  ( Seq (Pipe x a)		-- local (out, share)
 	  , Seq (Pipe x a)		-- lambda (out)
-	  , Seq Bool			-- status
 	  )
--}
-decode tm (cntl, inp, glob) = (memoryToMatrix ne_mem,
-	--out
-	ne_mem act_val
-	--int_a
-	)
+decode off tm (cntl, inp, glob) = ( act_sharing_pipe, memoryToPipe out_enabled out_mem )
    where
-	in_mem :: Memory x a
-	in_mem = pipeToMemory tm inp
+	inp' :: Seq (Pipe x a)
+	inp' = mapEnabled (mapPacked $ \ (a0,b0) -> (a0 + pureS off,b0)) inp
 
+	in_mem :: Memory x a
+	in_mem = pipeToMemory tm inp'
 
 	rst_ne :: Seq (Enabled x)
 	rst_ne = fullEnabled cntl $ \ e ->
@@ -142,7 +134,6 @@ decode tm (cntl, inp, glob) = (memoryToMatrix ne_mem,
 			   DecodeRst x -> return x
 			   _ -> Nothing
 
-	out_mem = in_mem
 
 	-- The ne memory cells 
 	ne_mem :: Memory x a
@@ -166,22 +157,24 @@ decode tm (cntl, inp, glob) = (memoryToMatrix ne_mem,
 
 	out_enabled = fullEnabled cntl $ \ e -> 
 			case e of
-			   DecodeResult x -> return x
+			   DecodeResult x -> return (x - off)
 			   _ -> Nothing
 			 
 
-	(int_en,int_pipe) = unpack (memoryToPipe act_enabled out_mem)
-	(int_x,int_a) = unpack int_pipe
-	
-	(act_en,act_val) = unpack act_enabled
+	act_inp_pipe :: Seq (Pipe x a)
+	act_inp_pipe = memoryToPipe act_enabled in_mem
 
-	res = ne_mem act_val - int_a
-
-	out :: Seq a
-	out = res
+	act_ne_pipe :: Seq (Pipe x a)
+	act_ne_pipe = memoryToPipe act_enabled ne_mem
 	
-	loc :: Seq (Pipe x a)
-	loc = pureS ( False, (0,0))
+	act_sharing_pipe :: Seq (Pipe x a)
+	act_sharing_pipe = zipPipe (-) act_ne_pipe act_inp_pipe
+
+	-- And the output
+	
+	out_mem :: Memory x a
+	out_mem = pipeToMemory tm (zipPipe (+) glob act_inp_pipe)
+
 {-
  ne' = forAll $ \ (m,n) -> 
 		if a_rref ! (m,n) == 1
@@ -215,7 +208,7 @@ main = putStrLn $ showSomeTT 30 $ testDecode
 testDecode = truthTable 
 	(example decode' .*. sysEnv .*. cntr .*. inp .*. glob)
    where
-	decode' e c i g = decode e (c,i,g)
+	decode' e c i g = decode 1 e (c,i,g)
 	cntr = stateMachine (incDecodeCntrl) boot
 	inp  = toEnabledSeq $ 
 	 take 4 (repeat Nothing) ++
@@ -225,7 +218,13 @@ testDecode = truthTable
 	 , return $ (3,4)
  	 ] ++ repeat Nothing
 
-	glob = pureS (False, (0,0))
+	glob = toEnabledSeq $ 
+  	 take 14 (repeat Nothing) ++
+	 [ return $ (0,1)
+	 , return $ (1,2)
+	 , return $ (2,3)
+	 , return $ (3,4)
+ 	 ] ++ repeat Nothing		
 	
 
 -- How to test
