@@ -334,7 +334,7 @@ data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
 data OpFix = Prefix | Infix | PostFix | NoFix deriving (Show)
 
 data Inst = Assign String String
-v          -- a <= b;
+          -- a <= b;
           | BuiltinInst OpFix String String [String] (Maybe String) -- output,opname, [in1,in2],conv
           -- a <= conv (op (b));
 --          | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
