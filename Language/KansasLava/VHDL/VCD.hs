@@ -56,18 +56,19 @@ probeCircuit circuit = do
 -- | name, and returns the trace (as a list) from the probe.
 getProbe :: forall a . Typeable a => [(String,Dynamic)] -> String ->  [Maybe a]
 getProbe ps nm = case lookup nm ps of
-                   Just val -> toList (fromDyn val (error "getProbe" :: Seq a))
+                   Just val -> toList (fromDyn val (error "getProbe" :: Stream (Maybe a)))
                    Nothing -> []
 
 -- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
-probe :: forall t. (OpType t, VCDFmt t) => String -> Signal t -> Signal t
-probe probeName (Signal s d) = Signal s (addAttr d)
+probe :: forall t. (Typeable (X t), VCDSize (X t), VCDValue (X t), Wire (Stream t), VCDFmt t) =>
+         String -> Seq t -> Seq t
+probe probeName (Seq s (D d)) = Seq s (D (addAttr d))
   where addAttr (Port v (E (Entity n outs ins _))) =
             Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
-        addAttr d@(Pad (Var v)) = 
-            (Port (Var "o0") 
+        addAttr d@(Pad (Var v)) =
+            (Port (Var "o0")
              (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]  [("simValue", (toDyn (ProbeValue probeName s)))])))
-          where ty = bitTypeOf (error "probe/oTy" :: Signal t) 
+          where ty = wireType (error "probe/oTy" :: Stream t)
         addAttr $ driver = error "Can't probe " ++ driver
 
 -- Below this is all implementation.
@@ -78,16 +79,12 @@ type TaggedEvents = [(TimeTag,VCDVal)]
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
 taggedEvent :: (VCDFmt t, Ord a, Num a) =>
-               a -> Seq t -> [(a, VCDVal)]
+               a -> Stream t -> [(a, VCDVal)]
 taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
   where taggedEvent' time old (new :~ as)
                      | time >= maxTime = []
                      | old == new = taggedEvent' (time + 1) old as
                      | otherwise  = (time,VCDVal new):(taggedEvent' (time + 1) new as)
-        taggedEvent' time old (Constant new)
-                     | old == new = []
-                     | otherwise  = [(time,VCDVal new)]
-taggedEvent _ (Constant x) = [(0,VCDVal x)]
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
@@ -180,18 +177,18 @@ instance VCDValue VCDVal where
 
 data VCDVal = forall a. VCDFmt a => VCDVal a
 
-data ProbeValue = forall a. VCDFmt a => ProbeValue String (Seq a) deriving Typeable
+data ProbeValue = forall a. VCDFmt a => ProbeValue String (Stream a) deriving Typeable
 
 instance  VCDSize ProbeValue where
   vcdSize (ProbeValue _ v) = vcdSize v
 
-instance VCDSize a => VCDSize (Seq a) where
+instance VCDSize a => VCDSize (Stream a) where
   vcdSize _ = vcdSize (undefined :: a)
 
 instance Size ix => VCDSize (Unsigned ix) where
   vcdSize _ = size (undefined :: ix)
 
-instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
+instance (Size ix, Enum ix, Integral ix) =>VCDValue (Unsigned ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
     where width = size (undefined :: ix)
 
@@ -199,13 +196,13 @@ instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
 instance Size ix => VCDSize (Signed ix) where
   vcdSize _ = size (undefined :: ix)
 
-instance (Size ix, Enum ix) =>VCDValue (Signed ix) where
+instance (Integral ix, Size ix, Enum ix) =>VCDValue (Signed ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
     where width = size (undefined :: ix)
 
 
 -- This was necessary to satisfy Data.Dynamic
-deriving instance Typeable1 Seq
+deriving instance Typeable1 Stream
 
 
 {-

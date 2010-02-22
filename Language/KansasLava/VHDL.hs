@@ -179,7 +179,7 @@ mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var 
           (sig input ++ "(" ++ sig idx ++ ")")]
 
 mkInst i (Entity (Name "Lava" "slice") [(Var "o0",B)]
-                  [(Var "i0", _, input),(Var "low",_,low),(Var "high",_,high)] _) 
+                  [(Var "i0", _, input),(Var "low",_,low),(Var "high",_,high)] _)
     | high == low =   [Assign (sig (Port (Var "o0") i))
               (sig input ++ "(" ++ sig high ++ ")")]
     | otherwise = error "high and low indices do not match for bit slice"
@@ -204,7 +204,7 @@ mkInst i (Entity (Name _ nm) outputs inputs _) =
                   [ (n,sigTyped nTy x) | (Var n,nTy,x) <- inputs ]
                 )
           ]
-mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) = 
+mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 	[ Comment $ show tab
 	,  Case (sigTyped tyin d)
 			[ (show ix,Assign (sig (Port (vout) i))
@@ -213,7 +213,7 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 			| (ix,_,val,_) <- mp
 			]
 {-
-		       [ (ocast tyout (Lit (fromIntegral val)), "???") 
+		       [ (ocast tyout (Lit (fromIntegral val)), "???")
 		       | (ix,_,val,_) <- mp
 		       ]
 --                       [(ocast fTy f, sigTyped cTy c ++ "= '0'")]
@@ -334,7 +334,7 @@ data VhdlStruct = VhdlEntity String [GenericDescriptor] [PortDescriptor]
 data OpFix = Prefix | Infix | PostFix | NoFix deriving (Show)
 
 data Inst = Assign String String
-          -- a <= b;
+v          -- a <= b;
           | BuiltinInst OpFix String String [String] (Maybe String) -- output,opname, [in1,in2],conv
           -- a <= conv (op (b));
 --          | BuiltinInst String String String String (Maybe String) -- a,b,op,c,conv
@@ -347,7 +347,7 @@ data Inst = Assign String String
 	  | CondAssign String
 		        [(String,String)]	-- (Val, Cond)
 			String
-	  | Case String 
+	  | Case String
 		       [(String,Inst)]	-- Match, Val
           | Comment String
           | Process [String]

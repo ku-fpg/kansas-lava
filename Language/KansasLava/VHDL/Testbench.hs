@@ -142,7 +142,7 @@ ports ropts fun = do
 
 -- sortInputs
 sortPorts names ports = sortBy comp ports
-  where comp (Var a, aTy) (Var b, bTy) = 
+  where comp (Var a, aTy) (Var b, bTy) =
             case (elemIndex a names, elemIndex b names) of
               (Just x, Just y) -> compare x y
               (Just x, Nothing) -> LT
@@ -150,7 +150,7 @@ sortPorts names ports = sortBy comp ports
               (Nothing,Nothing) -> case (a,b) of
                                      ('i':as, 'i':bs) -> compare (read as :: Int) (read bs)
                                      _ -> error $ "sortInputs" ++ show a ++ show b
-                                                        
+
 findInputs opts = maybe [] names (find isInp opts)
   where isInp (InputNames names) = True
         isInp _ = False
@@ -234,5 +234,3 @@ genProbes top fun = do
             Nothing -> []
         getProbe _ = []
 
-test :: Signal Bool -> Signal Bool -> Signal Bool
-test = xor2
