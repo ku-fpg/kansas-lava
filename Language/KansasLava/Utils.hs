@@ -303,3 +303,14 @@ delay sysEnv def line = mux2 en (liftS0 def,latch line)
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 
+
+-- For coerce operations, the boolean indicates if the coercian
+-- causes a loss of information (an error?)
+-- If the error flag is never examined, no extra hardware will be generated to
+-- compute or represent the value.
+coerceSized ::  (Enum a, Enum b) => a -> (b, Bool)
+coerceSized a  = (b, err)
+ where valA = fromEnum a
+       b = toEnum valA
+       valB = fromEnum b
+       err = not (valA == valB)
