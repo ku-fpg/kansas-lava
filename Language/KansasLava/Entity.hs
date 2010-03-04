@@ -54,14 +54,16 @@ instance Ord Dynamic where
 data Driver s = Port Var s      -- a specific port on the entity
               | Pad Var         --
 	      | PathPad [Int]	-- a unique path to a pad
-              | Lit Integer
+              | Lit Integer --
+              | BitIndex Int (Driver s)
+              | BitSlice Int Int (Driver s)
               deriving (Show, Eq, Ord)
 
 
 instance T.Traversable (Entity ty) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
-  traverse f (Table (v0,t0) (v1,t1,d) tbl) = 
+  traverse f (Table (v0,t0) (v1,t1,d) tbl) =
 	(\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
 
 instance T.Traversable Driver where
@@ -69,6 +71,8 @@ instance T.Traversable Driver where
   traverse _ (Pad v)       = pure $ Pad v
   traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
+  traverse f (BitIndex idx s) = BitIndex idx <$> T.traverse f s
+  traverse f (BitSlice hi lo s) = BitSlice hi lo <$> T.traverse f s
 
 
 instance F.Foldable (Entity ty) where
@@ -113,7 +117,7 @@ newtype D a = D (Driver E)
 
 unD :: D a -> Driver E
 unD (D a) = a
- 
+
 ---------------------------------------------------------------------------------------------------------
 
 -----------------------------------------------------------------------------------------------
@@ -130,8 +134,8 @@ entity0 nm = D $ Port (Var "o0") $ E $
 entity1 :: forall a o . (Wire a, Wire o) => Name -> D a -> D o
 entity1 nm (D w1) = D $ Port (Var "o0") $ E $
  	Entity nm [(Var "o0",oTy)]
-		  [(inp,ty,val) | inp <- map Var ["i0","i1"] 
-				| ty <- [aTy] 
+		  [(inp,ty,val) | inp <- map Var ["i0","i1"]
+				| ty <- [aTy]
 				| val <- [w1]
 		  ] []
    where aTy = wireType (error "entity1" :: a)
@@ -141,7 +145,7 @@ entity2 :: forall a b o . (Wire a, Wire b, Wire o) => Name -> D a -> D b -> D o
 entity2 nm (D w1) (D w2) = D $ Port (Var "o0") $ E $
  	Entity nm [(Var "o0",oTy)]
 		  [(inp,ty,val) | inp <- map Var ["i0","i1"]
-				| ty <- [aTy,bTy] 
+				| ty <- [aTy,bTy]
 				| val <- [w1,w2]
 		  ] []
    where aTy = wireType (error "entity2" :: a)
@@ -152,7 +156,7 @@ entity3 :: forall a b c o . (Wire a, Wire b, Wire c, Wire o) => Name -> D a -> D
 entity3 nm (D w1) (D w2) (D w3) = D $ Port (Var "o0") $ E $
  	Entity nm [(Var "o0",oTy)]
 		  [(inp,ty,val) | inp <- map Var ["i0","i1","i2"]
-				| ty <- [aTy,bTy,cTy] 
+				| ty <- [aTy,bTy,cTy]
 				| val <- [w1,w2,w3]
 		  ] []
    where aTy = wireType (error "entity3" :: a)
