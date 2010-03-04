@@ -275,38 +275,75 @@ boolOp nm fn =
 
 -- Perhaps should be in its own module.
 
-type SysEnv = (Clk,Rst)
+newtype SysEnv = SysEnv (Clk,Rst) deriving (Eq,Show)
 type Clk = Int 	-- for now
 type Rst = Bool
 
 
-sysEnv :: Seq SysEnv 
-sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
- 					    (map (optX  . Just) ([True] ++ repeat False))
+sysEnv :: Seq SysEnv
+sysEnv = shallowSeq $ S.fromList $  zip
+         (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
+ 	 (map (optX  . Just) ([True] ++ repeat False))
 
-latch :: forall a . (Wire a) => Seq a -> Seq a
-latch dat@(Seq a ea) = res
+
+delay :: forall a . (Wire a) => Seq a -> Seq a
+delay dat@(Seq a ea) = res
 
   where
 	res = Seq (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
-	
+
 	entity :: Entity BaseTy E
-    	entity = 
-		Entity (Name "Memory" "latch") 
+    	entity =
+		Entity (Name "Memory" "delay")
 			[ (Var "o0",bitTypeOf res)]
 			[ (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
-			] 
+			]
 		[]
 
 
-delay :: (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
-delay sysEnv def line = mux2 en (liftS0 def,latch line)
+register :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
+register sysEnv c@(Comb def edef) l@(Seq line eline) = res
    where
-	(_,en) = unpack sysEnv
+	(clk@(Seq _ eclk),rst@(Seq _ erst)) = unpack sysEnv
+        (Seq sres _) = mux2 rst (liftS0 c,delay l)
+	res = Seq sres (D $ Port (Var "o0") $ E $ e)
+        e =  Entity (Name "Memory" "register")
+                    [(Var "o0", bitTypeOf res)]
+                    [(Var "i0", bitTypeOf res, unD eline), (Var "rst", RstTy, unD erst), (Var "clk" , ClkTy, unD eclk)] []
+
+
 
 
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
+
+
+instance Wire SysEnv where
+	type X SysEnv 	= (X Clk, X Rst)
+        optX _ = error "Wire.SysEnv(optX)"
+        unX _ = error "Wire.SystEnv(unX)"
+	wireName _	= "SysEnv"
+	wireType _	= TupleTy [ClkTy, RstTy]
+
+instance RepWire SysEnv where
+  type WIDTH SysEnv = X2
+  toWireRep _ = error "RepWire.SysEnv(toWireRep)"
+  fromWireRep _ = error "RepWire.SysEnv(fromRepWire)"
+  showRepWire _ = error "RepWire.SysEnv(showRepWire)"
+
+
+instance (Signal sig) => Pack sig SysEnv where
+	type Unpacked sig SysEnv = (sig Clk, sig Rst)
+        pack ~(a,b) = liftS2 pf a b
+            where pf  :: Comb Clk -> Comb Rst -> Comb SysEnv
+                  pf ~(Comb a ae) ~(Comb b be) =
+                    let d = entity2 (Name "Lava" "pair") ae be
+                        s = (a,b)
+                    in (Comb s d)
+
+	unpack ab = ( liftS1 (\ (Comb ~(a,b) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
+		    , liftS1 (\ (Comb ~(a,b) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
+		    )
 
 
 -- For coerce operations, the boolean indicates if the coercian

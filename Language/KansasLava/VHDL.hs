@@ -47,6 +47,8 @@ vhdlTypes ClkTy	= "std_logic"			-- control bit
 vhdlTypes RstTy	= "std_logic"			-- control bit
 vhdlTypes (S n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
 vhdlTypes (U n) = "std_logic_vector(" ++ show (n - 1) ++ " downto 0)"
+vhdlTypes (TupleTy tys) = "std_logic_vector(" ++ show (size - 1) ++ " downto 0)"
+  where size = sum $ map baseTypeLength tys
 vhdlTypes ty = error "vhdlTypes: " ++ show ty
 
 genDecls :: [(Unique,Entity BaseTy Unique)] -> [DeclDescriptor]
@@ -299,6 +301,8 @@ sigTyped (U _) s = "unsigned(" ++ sig s ++ ")"
 sigTyped (S _) s = "signed(" ++ sig s ++ ")"
 sigTyped ClkTy s = sig s
 sigTyped RstTy s = sig s
+sigTyped (TupleTy tys) s = sig s
+
 
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
