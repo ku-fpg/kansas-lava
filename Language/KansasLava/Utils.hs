@@ -275,15 +275,70 @@ boolOp nm fn =
 
 -- Perhaps should be in its own module.
 
-newtype SysEnv = SysEnv (Clk,Rst) deriving (Eq,Show)
-type Clk = Int 	-- for now
-type Rst = Bool
+type SysEnv = (Clk,Rst)
+
+data Clk = Clk Integer 	-- a single wire, the counter is for debugging/printing only
+	deriving (Show)
+
+data Rst = Rst Bool
+	deriving (Eq,Show)
+	
+{-
+
+instance Wire Bool where 
+	type X Bool 	= WireVal Bool
+	optX (Just b) 	= return b
+	optX Nothing	= fail "Wire Bool"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire Bool"
+	wireName _	= "Bool"
+	wireType _	= B
+	
+instance RepWire Bool where
+	type WIDTH Bool	= X1
+	toWireRep m  		= return $ m ! 0
+	fromWireRep v 		= matrix [v]
+	showRepWire _ = show
 
 
-sysEnv :: Seq SysEnv
-sysEnv = shallowSeq $ S.fromList $  zip
-         (map (optX . Just :: Int -> X Int) [0..] :: [X Int])
- 	 (map (optX  . Just) ([True] ++ repeat False))
+-}
+
+instance Wire Rst where
+	type X Rst = WireVal Rst
+	optX (Just b) 	= return b
+	optX Nothing	= fail "Wire Rst"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire Rst"
+	wireName _	= "Rst"
+	wireType _	= RstTy
+
+instance RepWire Rst where
+	type WIDTH Rst	= X1
+	toWireRep m		= return $ Rst $ m ! 0
+	fromWireRep (Rst v)	= matrix [v]
+	showRepWire _ = show
+	
+instance Wire Clk where
+	type X Clk = WireVal Clk
+	optX (Just b) 	= return b
+	optX Nothing	= fail "Wire Clk"
+	unX (WireVal v)  = return v
+	unX (WireUnknown) = fail "Wire Clk"
+	wireName _	= "Clk"
+	wireType _	= ClkTy
+
+instance RepWire Clk where
+	type WIDTH Clk	= X0
+	toWireRep m		= return $ Clk 0	-- hu?
+	fromWireRep (Clk _)	= matrix []
+	showRepWire _ = show
+
+instance Eq Clk where
+	_ == _ = False
+
+sysEnv :: Seq SysEnv 
+sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
+ 					    (map (optX  . Just) ([Rst True] ++ repeat (Rst False)))
 
 
 delay :: forall a . (Wire a) => Seq a -> Seq a
@@ -304,20 +359,27 @@ delay dat@(Seq a ea) = res
 register :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
 register sysEnv c@(Comb def edef) l@(Seq line eline) = res
    where
-	(clk@(Seq _ eclk),rst@(Seq _ erst)) = unpack sysEnv
-        (Seq sres _) = mux2 rst (liftS0 c,delay l)
-	res = Seq sres (D $ Port (Var "o0") $ E $ e)
-        e =  Entity (Name "Memory" "register")
+	(clk,rst) = unpack sysEnv
+	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
+	sres = S.zipWith (\ i v -> 
+				case unX i :: Maybe Rst of
+				   Nothing -> optX (Nothing :: Maybe a)
+				   Just (Rst True) -> def
+				   Just (Rst False) -> v
+			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)
+		
+        entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
-                    [(Var "def", bitTypeOf res, unD edef), (Var "i0", bitTypeOf res, unD eline), (Var "rst", RstTy, unD erst), (Var "clk" , ClkTy, unD eclk)] []
-
-
+                    [(Var "def", bitTypeOf res, unD $ edef),
+		     (Var "i0", bitTypeOf res, unD eline), 
+		     (Var "rst", RstTy, unD $ seqDriver $ rst), 
+		     (Var "clk" , ClkTy, unD $ seqDriver $ clk)] []
 
 
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
 
-
+{-
 instance Wire SysEnv where
 	type X SysEnv 	= (X Clk, X Rst)
         optX _ = error "Wire.SysEnv(optX)"
@@ -345,7 +407,7 @@ instance (Signal sig) => Pack sig SysEnv where
           ( liftS1 (\ (Comb ~(a,b) abe) -> Comb a (D$ BitIndex 1 (unD abe))) ab
 	  , liftS1 (\ (Comb ~(a,b) abe) -> Comb b (D $ BitIndex 0 (unD abe))) ab
 	  )
-
+-}
 
 -- For coerce operations, the boolean indicates if the coercian
 -- causes a loss of information (an error?)

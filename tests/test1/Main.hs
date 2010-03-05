@@ -65,7 +65,7 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 
 test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a 
 test_mux_1 sig = a
-	where a = mux2 high (sig ,latch a)
+	where a = mux2 high (sig ,delay a)
 
 
 testAllTruth:: (Testable a) => String -> a -> IO ()
@@ -108,14 +108,14 @@ main = do
 	testReify "wordAdder" tst		
 
 	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
-	    tst = delay
+	    tst = register
 	
-	testSomeTruth 50 "delay" $
+	testSomeTruth 50 "register" $
 		let env = takeThenSeq 7 sysEnv env
 		    def = 1
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
-	testReify "delay" tst		
+	testReify "register" tst		
 
 	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
