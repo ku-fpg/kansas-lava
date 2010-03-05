@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp  #-}
 module Language.KansasLava.Protocols where
-	
+
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Entity
@@ -27,14 +27,14 @@ toEnabledSeq :: forall a . (RepWire a) => [Maybe a] -> Seq (Enabled a)
 toEnabledSeq xs = toSeqX [ case x of
 			    Nothing -> (return False :: X Bool,optX (Nothing :: Maybe a)) :: X (Enabled a)
 			    Just v -> (return True, optX (Just v :: Maybe a)) :: X (Enabled a)
-			 | x <- xs 
+			 | x <- xs
 			 ]
 
 memoryToPipe ::  (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe enA mem = pack (latch (latch en),pack (latch (latch a),mem a))
+memoryToPipe enA mem = pack (delay (delay en),pack (delay (delay a),mem a))
    where
 	(en,a) = unpack enA
-	
+
 -- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
 pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Seq SysEnv -> Seq (Pipe a d) -> Memory a d
 pipeToMemory sysEnv pipe addr2 = res
@@ -47,8 +47,8 @@ pipeToMemory sysEnv pipe addr2 = res
     	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
 {-
 	shallowRes' :: Stream (X (Matrix a d))
-	shallowRes' = pure (\ m -> forAll $ \ ix -> 
-				    case Map.lookup (M.toList $ (fromWireRep ix :: Matrix (WIDTH a) Bool)) m of	
+	shallowRes' = pure (\ m -> forAll $ \ ix ->
+				    case Map.lookup (M.toList $ (fromWireRep ix :: Matrix (WIDTH a) Bool)) m of
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
 			  ) <*> mem
@@ -65,11 +65,11 @@ pipeToMemory sysEnv pipe addr2 = res
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
 	updates :: Stream (Maybe (Maybe (a,d)))
-	updates = pure (\ e a b -> 
+	updates = pure (\ e a b ->
 			   do en'   <- unX e :: Maybe Bool
-			      if not en' 
+			      if not en'
 				     then return Nothing
-				     else do 
+				     else do
 			      		addr' <- unX a :: Maybe a
 			      		dat'  <- unX b :: Maybe d
 			      		return $ Just (addr',dat')
@@ -84,13 +84,13 @@ pipeToMemory sysEnv pipe addr2 = res
 		    Nothing           -> Map.empty	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) -> Map.insert (M.toList $ (fromWireRep a :: Matrix (WIDTH a) Bool)) d m
-		| u <- Stream.toList updates 
+		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
 
     	entity :: Entity BaseTy E
-    	entity = 
-		Entity (Name "Memory" "memory") 
+    	entity =
+		Entity (Name "Memory" "memory")
 			[ (Var "o0",bitTypeOf res)]
 			[ (Var "clk",bitTypeOf clk,unD $ seqDriver clk)
 			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
@@ -98,10 +98,10 @@ pipeToMemory sysEnv pipe addr2 = res
 			, (Var "addr",bitTypeOf addr,unD $ seqDriver addr)
 			, (Var "dat",bitTypeOf dat,unD $ seqDriver dat)
 			, (Var "addr2",bitTypeOf addr2,unD $ seqDriver addr2)
-			] 
+			]
 		[]
 
-fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b) 
+fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
 
@@ -119,18 +119,18 @@ zipEnabled f en1 en2 = pack (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
 	 (en_bool2,en_val2) = unpack en2
 
 phi :: forall a sig . (Signal sig, RepWire a) => sig a -> sig a -> sig a
-phi = liftS2 $ \ (Comb a ea) (Comb b eb) -> 
+phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
         Comb (optX
 		 $ do a' <- unX a :: Maybe a
 		      b' <- unX b :: Maybe a
-		      if fromWireRep a' == fromWireRep b' 
+		      if fromWireRep a' == fromWireRep b'
 			then return a'
 			else fail "phi problem")
 		(undefined)
-						  
+
 
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
-mapPacked f = pack . f . unpack 
+mapPacked f = pack . f . unpack
 
 
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c

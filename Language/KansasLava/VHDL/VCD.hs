@@ -54,21 +54,29 @@ probeCircuit circuit = do
 
 -- | 'getProbe' takes a association list of probe values and a probe
 -- | name, and returns the trace (as a list) from the probe.
-getProbe :: forall a . Typeable a => [(String,Dynamic)] -> String ->  [Maybe a]
+getProbe :: forall a . Typeable a => [(String,Dynamic)] -> String ->  [a]
 getProbe ps nm = case lookup nm ps of
-                   Just val -> toList (fromDyn val (error "getProbe" :: Seq a))
+                   Just val -> toList (fromDyn val (error "getProbe" :: Stream a))
                    Nothing -> []
 
 -- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
-probe :: forall t. (OpType t, VCDFmt t) => String -> Signal t -> Signal t
-probe probeName (Signal s d) = Signal s (addAttr d)
+-- probe :: forall t. (Typeable (X t), VCDSize (X t), VCDValue (X t), Wire (Stream t), VCDFmt t) =>
+--          String -> Seq t -> Seq t
+probe :: forall t. (Typeable (X t), VCDSize (X t), VCDValue (X t), Wire t) => String -> Seq t -> Seq t
+probe probeName (Seq s (D d)) = Seq s (D (addAttr d))
   where addAttr (Port v (E (Entity n outs ins _))) =
             Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
-        addAttr d@(Pad (Var v)) = 
-            (Port (Var "o0") 
+        addAttr d@(Pad (Var v)) =
+            (Port (Var "o0")
              (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]  [("simValue", (toDyn (ProbeValue probeName s)))])))
-          where ty = bitTypeOf (error "probe/oTy" :: Signal t) 
-        addAttr $ driver = error "Can't probe " ++ driver
+          where ty = wireType (error "probe/oTy" :: t)
+
+        addAttr d@(Lit x) =
+          (Port (Var "o0")
+            (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
+                         [("simValue", (toDyn (ProbeValue probeName (fromList (repeat x)))))])))
+          where ty = wireType (error "probe/oTy" :: t)
+        addAttr  driver = error $ "Can't probe " ++ show driver
 
 -- Below this is all implementation.
 
@@ -78,16 +86,12 @@ type TaggedEvents = [(TimeTag,VCDVal)]
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
 taggedEvent :: (VCDFmt t, Ord a, Num a) =>
-               a -> Seq t -> [(a, VCDVal)]
+               a -> Stream t -> [(a, VCDVal)]
 taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
   where taggedEvent' time old (new :~ as)
                      | time >= maxTime = []
                      | old == new = taggedEvent' (time + 1) old as
                      | otherwise  = (time,VCDVal new):(taggedEvent' (time + 1) new as)
-        taggedEvent' time old (Constant new)
-                     | old == new = []
-                     | otherwise  = [(time,VCDVal new)]
-taggedEvent _ (Constant x) = [(0,VCDVal x)]
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
@@ -152,11 +156,11 @@ class VCDSize a where
 
 class (Typeable a, VCDValue a, VCDSize a) => VCDFmt a
 
-instance VCDFmt a => VCDValue (Maybe a) where
-  vcdFmt Nothing = 'b':(replicate (vcdSize (undefined :: a)) 'X')
-  vcdFmt (Just a) = vcdFmt a
+instance (Eq (WireVal a), VCDFmt a) => VCDValue (WireVal a) where
+  vcdFmt WireUnknown = 'b':(replicate (vcdSize (undefined :: a)) 'X')
+  vcdFmt (WireVal a) = vcdFmt a
 
-instance VCDSize a => VCDSize (Maybe a) where
+instance VCDSize a => VCDSize (WireVal a) where
   vcdSize _ = vcdSize (undefined :: a)
 
 
@@ -180,18 +184,18 @@ instance VCDValue VCDVal where
 
 data VCDVal = forall a. VCDFmt a => VCDVal a
 
-data ProbeValue = forall a. VCDFmt a => ProbeValue String (Seq a) deriving Typeable
+data ProbeValue = forall a. VCDFmt a => ProbeValue String (Stream a) deriving Typeable
 
 instance  VCDSize ProbeValue where
   vcdSize (ProbeValue _ v) = vcdSize v
 
-instance VCDSize a => VCDSize (Seq a) where
+instance VCDSize a => VCDSize (Stream a) where
   vcdSize _ = vcdSize (undefined :: a)
 
 instance Size ix => VCDSize (Unsigned ix) where
   vcdSize _ = size (undefined :: ix)
 
-instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
+instance (Size ix, Enum ix, Integral ix) =>VCDValue (Unsigned ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
     where width = size (undefined :: ix)
 
@@ -199,13 +203,19 @@ instance (Size ix, Enum ix) =>VCDValue (Unsigned ix) where
 instance Size ix => VCDSize (Signed ix) where
   vcdSize _ = size (undefined :: ix)
 
-instance (Size ix, Enum ix) =>VCDValue (Signed ix) where
+instance (Integral ix, Size ix, Enum ix) =>VCDValue (Signed ix) where
   vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
     where width = size (undefined :: ix)
 
 
+instance VCDValue Integer where
+  vcdFmt v = vcdFmt ((fromIntegral v) :: Signed X32)
+
+instance VCDSize Integer where
+  vcdSize _ = 32
+
 -- This was necessary to satisfy Data.Dynamic
-deriving instance Typeable1 Seq
+deriving instance Typeable1 Stream
 
 
 {-
@@ -244,4 +254,6 @@ deriving instance Typeable1 X1_
 deriving instance Typeable1 X0_
 deriving instance Typeable1 Signed
 
+deriving instance Typeable1 WireVal
+deriving instance Eq a => Eq (WireVal a)
 

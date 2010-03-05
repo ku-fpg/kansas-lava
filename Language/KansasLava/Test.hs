@@ -2,7 +2,7 @@
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
 module Language.KansasLava.Test where
-	
+
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
@@ -60,11 +60,11 @@ instance (Testable a, Testable b) => Testable (a,b) where
 	truthTable (a,b) = TT [ TupleTT [x,y] | (x,y) <- zip (unTT $ truthTable a) (unTT $ truthTable b)]
 instance (Testable a, Testable b, Testable c) => Testable (a,b,c) where
 	truthTable (a,b,c) = TT [ TupleTT [x,y,z] | (x,y,z) <- zip3 (unTT $ truthTable a)
-								  (unTT $ truthTable b) 
+								  (unTT $ truthTable b)
 								  (unTT $ truthTable c)]
 
 instance (Testable b) => Testable (Example b) where
-	truthTable (Example fn (ExampleArg arg:args)) 
+	truthTable (Example fn (ExampleArg arg:args))
 		= TT [ SeqValue s t | (s,t) <- zip ss tt ]
 	   where
 		ss = showStreamList arg
@@ -89,12 +89,12 @@ instance (Enum (WIDTH w), Size (WIDTH w), RepWire w, Testable b) => Testable (Co
 -----------------------------------------------------------------------------------------------------
 --- ASCII pretty printers
 -- Other printers should live in a seperate package, I expect.
-			
+
 asciiTTL :: TTL -> [[String]]
 asciiTTL (CombValue nm rest) = [ nm : rs | rss <- map asciiTTL (unTT rest), rs <- rss ]
 asciiTTL (SeqValue nm lns)   = [ nm : rs | rs <- asciiTTL lns ]
 asciiTTL (ResV str)          = [[ str ]]
-asciiTTL (TupleTT ttls)	     = List.transpose [ tl | [tl] <- map asciiTTL ttls ]	
+asciiTTL (TupleTT ttls)	     = List.transpose [ tl | [tl] <- map asciiTTL ttls ]
 	-- TupleTT is a hack, and  we NEED to restrict the [xx] using types.
 
 instance Show TT where
@@ -111,8 +111,8 @@ showSomeTT n (TT ttls) = unlines (take n $ ans) ++ if null (drop n ans) then "" 
 -- | formatTT build an ASCII truth table from a list of TTL (truth table lines).
 -- The argument is lookahead for layout.
 formatTT :: Int -> [TTL] -> [String]
-formatTT n ttls = 
-	[ concat [ "  " ++ ljustify n r | (r,n) <- zip rs mx ] | rs <- rss ] 
+formatTT n ttls =
+	[ concat [ "  " ++ ljustify n r | (r,n) <- zip rs mx ] | rs <- rss ]
     where
 	ljustify n str = str ++ take (n - Prelude.length str) (repeat ' ')
 	rss = concatMap asciiTTL ttls
@@ -122,7 +122,7 @@ formatTT n ttls =
 --- Examples of use
 
 tt1 = truthTable (xor2 :: Comb Bool -> Comb Bool -> Comb Bool)
-tt2 = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool) 
+tt2 = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool)
 			.*. in1
 			.*. in2)
 	where
@@ -136,7 +136,7 @@ tt3 = truthTable ((*) :: Comb U2 -> Comb U2 -> Comb U2)
 tt4 = truthTable (halfAdder :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool))
   where halfAdder a b = (xor2 a b, and2 a b)
 
-tt5 = truthTable (example (delay :: Seq SysEnv -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA) 
+tt5 = truthTable (example (register :: Seq SysEnv -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA)
 			.*. env
 			.*. def
 			.*. inp)
