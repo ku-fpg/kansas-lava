@@ -48,6 +48,11 @@ bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Bool" "
 testABit :: forall sig a . (Bits a, Wire a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a e) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ error "test a bit") x
 
+
+isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
+isPositive a = bitNot $ testABit a  msb
+    where msb = bitSize a - 1
+
 -- TODO: maCombe over Signal
 (.!.) :: (Size x, Wire a, Wire x) => Comb (Matrix x a) -> Comb x -> Comb a
 (.!.) = fun2 "!" (!)
