@@ -54,7 +54,7 @@ netlistCircuit opts name circuit = do
             [ (nm,sizedRange ty) | (Var nm,ty,_) <- sinks]
 
   let mod = Module name inports outports ( genDecls nodes ++   genInsts nodes ++ genFinals sinks)
-      mod' = inlineModule mod
+      -- mod' = inlineModule mod
 
   return mod
 
@@ -288,9 +288,7 @@ mkInst i (Entity (Name _ nm) outputs inputs _) =
                 [ (n,cast nTy  (sigExpr x)) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
           ]
-mkInst _ e@(Entity _ _ _ _) = error $ show e
-
-
+-- mkInst _ e@(Entity _ _ _ _) = error $ show e
 
 
 {-
@@ -328,8 +326,8 @@ lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps 
 
 
 
-synchProc (clk,rst) [] = []
-synchProc (clk,rst) es =
+regProc (clk,rst) [] = []
+regProc (clk,rst) es =
  [ProcessDecl
   [(Event (sigExpr clk) PosEdge,
           (If (isHigh (sigExpr rst))
@@ -340,55 +338,33 @@ synchProc (clk,rst) es =
         defaultDriverType e = lookupInputType "def" e
         driver e = sigExprNext $  lookupInput "i0" e
 
+bramProc (clk,rst) [] = []
+bramProc (clk,rst) es =
+  [ProcessDecl
+   [(Event (sigExpr clk) PosEdge,
+           statements
+             [If (isHigh (we e))
+                   (Assign (writeIndexed i e) (dat e))
+                   (Just (Assign (outName i) (readIndexed i e))) | (i,e) <- es])]]
+    where outName i = sigExpr (Port (Var "o0") i)
+          driver e = sigExprNext $  lookupInput "i0" e
+          we e = sigExpr $ lookupInput "we" e
+          addr e = sigExpr $ lookupInput "ain" e
+          dat e = unsigned $ sigExpr $ lookupInput "din" e
+          -- FIXME: This is a hack, to get around not having dynamically
+          -- indexed exprs.
+          writeIndexed i e = ExprVar $
+                         ("sig_" ++ show i ++ "ram") ++
+                         "(unsigned(" ++ show (addr e) ++"))"
+          readIndexed i e = ExprFunCall ("sig_" ++ show i ++ "ram") [addr e]
 
 
-{-
-  | null delays && null brams  = []
-  | otherwise = [ProcessDecl -- ([sig clk, sig rst] ++  inputs ++ bramWE ++  bramData)
-                 [ (Event clk PosEdge,
-        	    (Seq (if null delays
-                          then []
-                          else
-                             [If (isHigh rst)
-        	                   (Seq (zipWith Assign outputs inits))
-                                   (Just (Seq (zipWith Assign outputs inputs)))
-                             ] ++
-                     [If (isHigh (ExprVar we))
-                           (Seq [Assign (ExprVar target) (ExprVar dat),
-                                 Assign (ExprVar o) zeros])
-                            (Just (Assign (ExprVar o) (ExprVar target)))
-                              | we <- bramWE
-                              | o <- bramOuts
-                              | target <- bramTargets
-                              | dat <- bramData
-                     ])))]]
--}
-
-synchronous nodes
-   | M.null synchs = error "No synch nodes"
-   | otherwise = concatMap (uncurry synchProc) $ M.toList synchs
+synchronous nodes  = (concatMap (uncurry regProc) $ M.toList regs) ++
+                     (concatMap (uncurry bramProc) $ M.toList brams)
   where -- Handling registers
-        synchs = getSynchs ["register", "delay"] nodes
+        regs = getSynchs ["register", "delay"] nodes
+        brams = getSynchs ["BRAM"] nodes
 
-
- {-
-   FIXME: Add in the support for this stuff.
-        -- Handling BRAMS
-        brams = [(i,e) | (i,e@(Entity (Name "Lava" "BRAM") _ _ _)) <- nodes]
-        bramOuts =[sig (Port (Var "o0") i) | (i,_) <- brams]
-        bramSigs = [(sig (Port (Var n) i) ++ "_ram")
-                      | (i,Entity _ [(Var n,_)] _ _) <- nodes]
-        bramAddr = ["conv_integer(" ++ sig (inputDriver "ain" e) ++ ")"
-                   | (_,e) <- brams]
-        bramData = [sig (inputDriver "din" e)
-                   | (_,e) <- brams]
-        bramWE = [sig (inputDriver "we" e)
-                   | (_,e) <- brams]
-        bramTargets = [s ++ "(" ++ a ++ ")" |  s <- bramSigs | a <- bramAddr]
-
--}
-
--- Utility functions
 
 -- Grab all of the synchronous elements (listed in 'nms') and return a map keyed
 -- on clk input, with the value including a list of associated entities.
@@ -400,6 +376,7 @@ getSynchs nms  ents = M.fromListWith (++) synchs
                       Nothing -> error "getSynchs: Can't find a signal"
 
 
+-- Utility functions
 
 sigName :: Show t => String -> t -> String
 sigName v d = "sig_" ++  show d ++ "_" ++ v
