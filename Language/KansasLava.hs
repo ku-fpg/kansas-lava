@@ -4,6 +4,7 @@ module Language.KansasLava (
     module Language.KansasLava.Dot,
     module Language.KansasLava.Comb,
     module Language.KansasLava.Entity,
+    module Language.KansasLava.Opt,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
@@ -22,6 +23,7 @@ module Language.KansasLava (
 import Language.KansasLava.Dot
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Opt
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq

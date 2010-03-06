@@ -30,6 +30,7 @@ Library
        Language.KansasLava.Comb
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
+       Language.KansasLava.Opt
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
        Language.KansasLava.Seq

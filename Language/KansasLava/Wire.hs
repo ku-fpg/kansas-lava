@@ -189,16 +189,26 @@ instance (Wire a, Wire b) => Wire (a,b) where
 
 
 	wireType ~(a,b) = TupleTy [wireType a, wireType b]
-	wireCapture (D d) = [ (wireType (error "wireCapture (a,)" :: a),d)
-			    , (wireType (error "wireCapture (,b)" :: b),d)
+	wireCapture (D d) = [ (wireType (error "wireCapture (a,)" :: a),Port (Var "o0") $ E $ eFst)
+			    , (wireType (error "wireCapture (,b)" :: b),Port (Var "o0") $ E $ eSnd)
 			    ]
+           where
+		eFst = Entity (Name "Lava" "fst") 
+			      [(Var "o0",wireType (error "wireGenerate (a,)" :: a))]
+			      [(Var "i0",wireType (error "wireGenerate (a,b)" :: (a,b)),d)]
+			      []
+		eSnd = Entity (Name "Lava" "snd") 
+			      [(Var "o0",wireType (error "wireGenerate (,b)" :: b))]
+			      [(Var "i0",wireType (error "wireGenerate (a,b)" :: (a,b)),d)]
+			      []
 
-	wireGenerate (v1:v2:vs) = (D (Port (Var "o0") $ E eFst),vs)
+
+	wireGenerate (v1:v2:vs) = (D (Port (Var "o0") $ E ePair),vs)
 	   where
-		eFst = Entity (Name "Lava" "pair")
+		ePair = Entity (Name "Lava" "pair")
 			      [(Var "o0",wireType (error "wireGenerate (a,b)" :: (a,b)))]
 			      [(Var "i0",wireType (error "wireGenerate (a,)" :: a),Pad (Var v1))
-			      ,(Var "i0",wireType (error "wireGenerate (,b)" :: b),Pad (Var v2))
+			      ,(Var "i1",wireType (error "wireGenerate (,b)" :: b),Pad (Var v2))
 			      ]
 			      []
 

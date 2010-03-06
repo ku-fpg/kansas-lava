@@ -93,25 +93,30 @@ reifyCircuit opts circuit = do
                                 , theSrcs = nub inputs
                                 , theSinks = outputs
                                 }
-
 showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
 showReifiedCircuit opt c = do
 	rCir <- reifyCircuit opt c
-	let bar = (replicate 78 '-') ++ "\n"
-        let showDriver :: Driver Unique -> BaseTy -> String
-            showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
-            showDriver (Lit x) ty = show x ++ ":" ++ show ty
-            showDriver (Pad x) ty = show x ++ ":" ++ show ty
-            showDriver l _ = error $ "showDriver" ++ show l
-	let inputs = unlines
+	return $ show rCir
+
+
+instance Show ReifiedCircuit where
+   show rCir = msg
+     where
+	bar = (replicate 78 '-') ++ "\n"
+        showDriver :: Driver Unique -> BaseTy -> String
+        showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
+        showDriver (Lit x) ty = show x ++ ":" ++ show ty
+        showDriver (Pad x) ty = show x ++ ":" ++ show ty
+        showDriver l _ = error $ "showDriver" ++ show l
+	inputs = unlines
 		[ show var ++ " : " ++ show ty
 		| (var,ty) <- theSrcs rCir
 		]
-	let outputs = unlines
+	outputs = unlines
 		[ show var   ++ " <- " ++ showDriver dr ty
 		| (var,ty,dr) <- theSinks rCir
 		]
-	let circuit = unlines
+	circuit = unlines
 		[ case e of
 		    Entity nm outs ins _	 ->
 			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
@@ -127,7 +132,7 @@ showReifiedCircuit opt c = do
 		| (uq,e) <- theCircuit rCir
 		]
 
-	let msg = bar
+	msg = bar
 		++ "-- Inputs                                                                   --\n"
 		++ bar
 		++ inputs
@@ -144,8 +149,6 @@ showReifiedCircuit opt c = do
 		++ bar
 		++ circuit
 		++ bar
-
-	return $ msg
 
 debugCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO ()
 debugCircuit opt c = showReifiedCircuit opt c >>= putStr
