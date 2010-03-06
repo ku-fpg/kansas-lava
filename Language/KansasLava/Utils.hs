@@ -14,6 +14,7 @@ import Data.Sized.Unsigned	as U
 import Data.Sized.Signed
 import Data.Sized.Arith
 import qualified Data.Sized.Sampled	as Sam
+import Language.KansasLava.Entity.Utils
 
 import Control.Applicative
 import Control.Monad

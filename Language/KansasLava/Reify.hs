@@ -159,10 +159,10 @@ class Ports a where
   ports :: [String] -> a -> [(BaseTy, Driver E)]
 
 instance Wire a => Ports (Seq a) where
-  ports _ sig@(Seq _ (D d)) = [(bitTypeOf sig, d)]
+  ports _ sig = wireCapture (seqDriver sig)
 
 instance Wire a => Ports (Comb a) where
-  ports _ sig@(Comb _ (D d)) = [(bitTypeOf sig, d)]
+  ports _ sig = wireCapture (combDriver sig)
 
 instance (Ports a, Ports b) => Ports (a,b) where 
   ports _ (a,b) = ports bad a ++ 
@@ -187,10 +187,12 @@ class InPorts a where
     inPorts :: [String] -> (a,[String])
 
 instance Wire a => InPorts (Seq a) where
-    inPorts (v:vs) = (Seq (error "InPorts (Seq a)") (D (Pad (Var v))),vs)
+    inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
+      where (d,vs') = wireGenerate vs
 
 instance Wire a => InPorts (Comb a) where
-    inPorts (v:vs) = (Comb (error "InPorts (Comb a)") (D (Pad (Var v))),vs)
+    inPorts vs = (Comb (error "InPorts (Comb a)") d,vs')
+      where (d,vs') = wireGenerate vs
 
 {-
 instance InPorts Time where
