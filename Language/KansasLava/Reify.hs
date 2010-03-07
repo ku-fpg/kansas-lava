@@ -11,36 +11,16 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
+import Language.KansasLava.Circuit
+import Language.KansasLava.Opt
 
 import Debug.Trace
-
---------------------------------------------------------
--- Grab a set of drivers (the outputs), and give me a graph, please.
-
-data Uq = Uq Unique | Sink | Source
-	deriving (Eq,Ord,Show)
-
-data ReifiedCircuit = ReifiedCircuit
-	{ theCircuit :: [(Unique,Entity BaseTy Unique)]
-		-- ^ This the main graph. There is no actual node for the source or sink.
-	, theSrcs    :: [(Var,BaseTy)]
-	, theSinks   :: [(Var,BaseTy,Driver Unique)]
-	-- , theTypes   :: TypeEnv
-	}
-
-
-data ReifyOptions
-	= InputNames [String]
-	| OutputNames [String]
-	| DebugReify		-- show debugging output of the reification stage
-	deriving (Eq, Show)
 
 
 -- | reifyCircuit does reification and type inference.
 -- reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
 -- ([(Unique,Entity (Ty Var) Unique)],[(Var,Driver Unique)])
 reifyCircuit :: (Ports a) => [ReifyOptions] -> a -> IO ReifiedCircuit
-
 reifyCircuit opts circuit = do
         -- GenSym for input/output pad names
 	let inputNames = head $
@@ -89,10 +69,13 @@ reifyCircuit opts circuit = do
         let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr 
 			       , (_,vTy,Pad v) <- ins]
 		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
-        return $ ReifiedCircuit { theCircuit = gr
-                                , theSrcs = nub inputs
-                                , theSinks = outputs
-                                }
+        let rCit = ReifiedCircuit { theCircuit = gr
+                                  , theSrcs = nub inputs
+                                  , theSinks = outputs
+                                  }
+        if OptimizeReify `elem` opts then return (optimize rCit) else return rCit
+
+
 showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
 showReifiedCircuit opt c = do
 	rCir <- reifyCircuit opt c
@@ -216,3 +199,26 @@ instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
 		(a,vs1) = inPorts vs0
 		(b,vs2) = inPorts vs1
 		(c,vs3) = inPorts vs2
+
+
+---------------------------------------
+
+showOptReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
+showOptReifiedCircuit opt c = do
+	rCir <- reifyCircuit opt c
+	let loop n cs@((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take 3 cs ] = do
+		 putStrLn $ "## Answer " ++ show n ++ " ##############################"
+		 print c
+		 return c
+	    loop n ((nm,Opt c v):cs) = do
+		print $ "Round " ++ show n ++ " (" ++ show v ++ " " ++ nm ++ ")"
+		print c
+		loop (succ n) cs
+
+	let opts = cycle [ ("opt",optimizeReifiedCircuit)
+		       	 , ("copy",copyElimReifiedCircuit)
+			 , ("dce",dceReifiedCircuit)
+			 ]
+
+	rCir' <- loop 0 (("init",Opt rCir 0) : optimizeReifiedCircuits opts rCir)
+	return $ show rCir'

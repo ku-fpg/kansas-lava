@@ -167,3 +167,9 @@ main = do
 
 
 
+t1 :: Seq (Int,Bool) -> Seq (Bool,Int)
+t1 inp = pack (y,x)
+  where (x,y) = unpack inp
+
+t2 = wordAdder :: Comb Bool -> (Comb U3, Comb U3) -> (Comb U3,Comb Bool)
+t3 = pipeToMemory :: Seq SysEnv -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4

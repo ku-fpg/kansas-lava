@@ -28,6 +28,7 @@ Library
        Language.KansasLava
        Language.KansasLava.Dot
        Language.KansasLava.Comb
+       Language.KansasLava.Circuit
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
        Language.KansasLava.Opt

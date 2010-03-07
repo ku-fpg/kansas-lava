@@ -203,12 +203,14 @@ instance (Wire a, Wire b) => Wire (a,b) where
 			      []
 
 
-	wireGenerate (v1:v2:vs) = (D (Port (Var "o0") $ E ePair),vs)
+	wireGenerate vs0 = (D (Port (Var "o0") $ E ePair),vs2)
 	   where
+		(D p1,vs1) = wireGenerate vs0 :: (D a,[String])
+		(D p2,vs2) = wireGenerate vs1 :: (D b,[String])
 		ePair = Entity (Name "Lava" "pair")
 			      [(Var "o0",wireType (error "wireGenerate (a,b)" :: (a,b)))]
-			      [(Var "i0",wireType (error "wireGenerate (a,)" :: a),Pad (Var v1))
-			      ,(Var "i1",wireType (error "wireGenerate (,b)" :: b),Pad (Var v2))
+			      [(Var "i0",wireType (error "wireGenerate (a,)" :: a),p1)
+			      ,(Var "i1",wireType (error "wireGenerate (,b)" :: b),p2)
 			      ]
 			      []
 

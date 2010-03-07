@@ -6,7 +6,9 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
-import Language.KansasLava.Reify
+import Language.KansasLava.Circuit
+
+
 import Data.List
 
 import Debug.Trace
@@ -38,7 +40,6 @@ instance Monad Opt where
     (Opt a n) >>= k = case k a of
 	 		Opt r m -> Opt r (n + m)
 
-
 ----------------------------------------------------------------------
 
 -- copy elimination
@@ -54,16 +55,34 @@ copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamin
 		        Port p u -> case lookup (u,p) renamings of
 				      Just other -> other
 				      Nothing    -> Port p u
+
 		    )
 		  | (v,t,d) <- theSinks rCir
 		  ]
+	      , theCircuit = 
+		 [ (u,case e of
+			Entity nm outs ins tags -> Entity nm outs (map fixInPort ins) tags
+			Table in' out' table -> Table in' (fixInPort out') table
+		   )
+		 | (u,e) <- env0
+		 ]
 	      }
 
 	renamings = [ ((u,o),other)
 		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(i,tI,other)] []) <- env0
 		    , tO == tI	-- should always be, anyway
 		    ]
+
+	fixInPort (i,t,Port p u) = 
+			    (i,t, case lookup (u,p) renamings of
+				     Just other -> other
+				     Nothing    -> Port p u)
+	fixInPort (i,t,o) = (i,t,o)
 	
+
+-- We assume, for now, that we cse if possible. This will not always be so.
+-- cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
+--
 
 dceReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
 dceReifiedCircuit rCir = if optCount == 0
@@ -111,32 +130,19 @@ optimizeReifiedCircuit rCir = if optCount == 0
 
 	rCir' = rCir { theCircuit = optCir }
 
-optimizeReifiedCircuits :: ReifiedCircuit -> [(Int,ReifiedCircuit)]
-optimizeReifiedCircuits c = 
-	case optimize c of
-	     Opt r 0 -> []
-	     Opt r n -> (n,r) : optimizeReifiedCircuits r
+optimizeReifiedCircuits :: [(String,ReifiedCircuit -> Opt ReifiedCircuit)] -> ReifiedCircuit -> [(String,Opt ReifiedCircuit)]
+optimizeReifiedCircuits ((nm,fn):fns) c = (nm,opt) : optimizeReifiedCircuits fns c'
+	where opt@(Opt c' n) = fn c
+
+
+-- Assumes reaching a fixpoint.
+optimize :: ReifiedCircuit -> ReifiedCircuit
+optimize rCir = loop (("init",Opt rCir 0) : optimizeReifiedCircuits (cycle opts) rCir)
    where
-	-- strange form, but does work, and allows easy reordering
-	optimize c = return c
-	    >>= optimizeReifiedCircuit
-	    >>= copyElimReifiedCircuit
-	    >>= dceReifiedCircuit
-
-
-
-showOptReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
-showOptReifiedCircuit opt c = do
-	rCir <- reifyCircuit opt c
-	let optCirs = optimizeReifiedCircuits
-	let loop n [c] = do
-		 putStrLn $ "## Answer " ++ show n ++ " ##############################"
-		 print c
-		 return c
-	    loop n (c:cs) = do
-		print $ "Round " ++ show n
-		print rCir
-		loop (succ n) cs
-
-	(_,rCir') <- loop 0 (optimizeReifiedCircuits rCir)
-	return $ show rCir'
+	loop cs@((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] = c
+	loop ((nm,Opt c v):cs) = loop cs
+	
+	opts = [ ("opt",optimizeReifiedCircuit)
+	       , ("copy",copyElimReifiedCircuit)
+	       , ("dce",dceReifiedCircuit)
+	       ]

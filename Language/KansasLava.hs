@@ -3,6 +3,7 @@
 module Language.KansasLava (
     module Language.KansasLava.Dot,
     module Language.KansasLava.Comb,
+    module Language.KansasLava.Circuit,
     module Language.KansasLava.Entity,
     module Language.KansasLava.Opt,
     module Language.KansasLava.Protocols,
@@ -22,6 +23,7 @@ module Language.KansasLava (
 
 import Language.KansasLava.Dot
 import Language.KansasLava.Comb
+import Language.KansasLava.Circuit
 import Language.KansasLava.Entity
 import Language.KansasLava.Opt
 import Language.KansasLava.Protocols
