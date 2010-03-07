@@ -19,7 +19,7 @@ import Data.Sized.Unsigned
 import Data.Reify.Graph
 
 import Text.PrettyPrint
-import Data.List(intersperse,find)
+import Data.List(intersperse,find,mapAccumL)
 import Data.Maybe(fromJust)
 import qualified Data.Map as M
 
@@ -250,21 +250,12 @@ mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var 
   where (ExprVar iname) = sigExpr input
 
 
-mkInst i (Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
-  [NetAssign  (sigName "o0" i)
-          (ExprSlice iname (ExprNum high) (ExprNum low))]
-  where high = fromIntegral $ baseTypeLength pTy - 1
-        low = fromIntegral $ high - fromIntegral (baseTypeLength target)
-        target = tys !! 0
-        ExprVar iname = sigExpr input
+mkInst i e@(Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
+  [NetAssign  (sigName "o0" i) (prodSlices input tys !! 0)]
 
-mkInst i (Entity (Name "Lava" "snd") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
-  [NetAssign  (sigName "o0" i)
-          (ExprSlice inpName (ExprNum high) (ExprNum low))]
-  where high = fromIntegral $ baseTypeLength target - 1
-        low =  0
-        target = tys !! 1
-        ExprVar inpName = sigExpr input
+
+mkInst i e@(Entity (Name "Lava" "snd") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
+  [NetAssign  (sigName "o0" i) (prodSlices input tys !! 1)]
 
 mkInst i (Entity (Name "Lava" "pair") [(Var "o0",_)]
                    [(Var "i0", _, i0),(Var "i1", _, i1)] _)  =
@@ -311,19 +302,19 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 -}
 
 
+
+
+
+
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
 -- synchronous :: [(Unique, Entity BaseTy Unique)] -> [Inst]
 
-
-lookupInput i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
-                                      Just (_,_,d) -> d
-                                      Nothing -> error "lookupInput: Can't find input"
-
-lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
-                                          Just (_,ty,_) -> ty
-                                          Nothing -> error "lookupInputType: Can't find input"
-
+synchronous nodes  = (concatMap (uncurry regProc) $ M.toList regs) ++
+                     (concatMap (uncurry bramProc) $ M.toList brams)
+  where -- Handling registers
+        regs = getSynchs ["register", "delay"] nodes
+        brams = getSynchs ["BRAM"] nodes
 
 
 regProc (clk,rst) [] = []
@@ -358,12 +349,6 @@ bramProc (clk,rst) es =
                          "(unsigned(" ++ show (addr e) ++"))"
           readIndexed i e = ExprFunCall ("sig_" ++ show i ++ "ram") [addr e]
 
-
-synchronous nodes  = (concatMap (uncurry regProc) $ M.toList regs) ++
-                     (concatMap (uncurry bramProc) $ M.toList brams)
-  where -- Handling registers
-        regs = getSynchs ["register", "delay"] nodes
-        brams = getSynchs ["BRAM"] nodes
 
 
 -- Grab all of the synchronous elements (listed in 'nms') and return a map keyed
@@ -425,6 +410,26 @@ sizedRange B = Nothing
 sizedRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
   where size = baseTypeLength ty
         ran = Just $ Range (ExprNum (fromIntegral size - 1)) (ExprNum 0)
+
+
+
+prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
+prodSlices d tys = snd $ mapAccumL f size tys
+  where ExprVar v = sigExpr d
+        size = fromIntegral $ sum (map baseTypeLength tys) - 1
+        f i B = (i-1,ExprIndex v (ExprNum i))
+        f i ty = let w = fromIntegral $ baseTypeLength ty
+                     next = i - w
+                 in (next, ExprSlice v (ExprNum i) (ExprNum (next + 1)))
+lookupInput i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
+                                      Just (_,_,d) -> d
+                                      Nothing -> error "lookupInput: Can't find input"
+
+lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
+                                          Just (_,ty,_) -> ty
+                                          Nothing -> error "lookupInputType: Can't find input"
+
+
 
 
 delay' :: KL.Seq SysEnv -> KL.Seq U8 -> KL.Seq U8
