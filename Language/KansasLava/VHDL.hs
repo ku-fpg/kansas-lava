@@ -4,7 +4,8 @@ module Language.KansasLava.VHDL(vhdlCircuit) where
 
 
 -- import qualified Language.KansasLava.Entity as E
-import Language.KansasLava.Reify(reifyCircuit,Ports,ReifyOptions,ReifiedCircuit(..))
+import Language.KansasLava.Reify(reifyCircuit,Ports)
+import Language.KansasLava.Circuit(ReifyOptions(..),ReifiedCircuit(..))
 import Language.KansasLava.Entity hiding (name)
 
 

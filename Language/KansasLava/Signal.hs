@@ -6,6 +6,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
+import Language.KansasLava.Entity.Utils
 import Control.Applicative
 
 import Data.Sized.Ix

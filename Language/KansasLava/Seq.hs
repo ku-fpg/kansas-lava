@@ -53,6 +53,9 @@ deepSeq d = Seq (error "incorrect use of shallow Seq") d
 shallowSeq :: Stream (X a) -> Seq a
 shallowSeq s = Seq s (error "incorrect use of deep Seq")
 
+errorSeq ::  forall a . (Wire a) => Seq a 
+errorSeq = liftS0 errorComb
+
 instance Signal Seq where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
@@ -73,7 +76,9 @@ instance Signal Seq where
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
 		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
-		    ]) (error "liftSL")
+		    ]) 
+		    (combDriver (f (map (deepComb . seqDriver) ss)))
+
 
 ----------------------------------------------------------------------------------------------------
 

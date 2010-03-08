@@ -15,12 +15,21 @@ import Data.Map as Map
 import Data.Word
 import Control.Applicative
 import Data.Maybe  as Maybe
+import Data.Sized.Unsigned (Unsigned,U1)
 
 type Enabled a = (Bool,a)
 
 type Pipe a d = Enabled (a,d)
 
 type Memory a d = Seq a -> Seq d
+
+
+
+enabledRegister :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq (Enabled a) -> Seq a
+enabledRegister sysEnv c inp = res
+   where 
+	(en,v) = unpack inp
+	res    = register sysEnv c (mux2 en (v,res))
 
 -- | Turns a list of maybe values into enabled values.
 toEnabledSeq :: forall a . (RepWire a) => [Maybe a] -> Seq (Enabled a)
@@ -128,10 +137,8 @@ phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			else fail "phi problem")
 		(undefined)
 
-
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
-
 
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
@@ -139,8 +146,60 @@ zipPacked f x y = pack $ f (unpack x) (unpack y)
 zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
-
--- Used for simulation, because this actually clones the memory to allow this to work.
+-- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
+
+shiftRegister :: (Wire d, Integral x, Size x) => Seq SysEnv -> Seq (Enabled d) -> Seq (Matrix x d)
+shiftRegister sysEnv inp = pack m
+  where
+	(en,val) = unpack inp
+	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
+	fn (v,()) = (reg,reg)
+		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
+
+unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
+unShiftRegister inp = r
+  where
+	en :: Seq Bool
+	m :: Seq (Matrix x d)
+	(en,m) = unpack inp
+	r :: Seq (Enabled d)
+	(_, r) = scanR fn (pack (low,errorSeq), unpack m)
+
+	fn (carry,inp) = ((),reg)
+	  where (en',mv) = unpack carry
+		reg = (delay (mux2 en ( pack (high,inp),
+				         pack (en',mv)
+			)))
+ 
+
+-- Should really be in Utils (but needs Protocols!)
+-- Assumes input is not too fast; double buffering would fix this.
+
+runBlock :: forall a b x . (RepWire x, Bounded x, Integral x, Size x, Wire a, Wire b) 
+	 => Seq SysEnv 
+	 -> (Seq (Matrix x a) -> Seq (Matrix x b)) 
+	 -> Seq (Enabled a) 
+	 -> Seq (Enabled b)
+runBlock sysEnv fn inp = 
+			 unShiftRegister
+		       $ addSync
+		       $ fn
+		       $ shiftRegister sysEnv inp
+   where
+	addSync a = pack (syncGo,a)
+
+	(en,_) = unpack inp
+
+	-- counting n things put into the queue
+	syncGo :: Seq Bool
+	syncGo = delay (pureS maxBound .==. syncCounter)
+
+	syncCounter :: Seq x
+	syncCounter = counter sysEnv en
+		
+counter :: (RepWire x, Num x) => Seq SysEnv -> Seq Bool -> Seq x
+counter sysEnv inc = res
+   where res = register sysEnv 0 (res + mux2 inc (1,0))
 

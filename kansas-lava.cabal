@@ -1,5 +1,5 @@
 Name:               kansas-lava
-Version:            0.2.1.20100210
+Version:            0.2.1.20100306
 Synopsis:           Kansas Lava is a locally grown version of Lava,
 		    in the spirit of Chalmers Lava, and Xilinx Lava.
 		    .
@@ -28,7 +28,10 @@ Library
        Language.KansasLava
        Language.KansasLava.Dot
        Language.KansasLava.Comb
+       Language.KansasLava.Circuit
        Language.KansasLava.Entity
+       Language.KansasLava.Entity.Utils
+       Language.KansasLava.Opt
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
        Language.KansasLava.Seq

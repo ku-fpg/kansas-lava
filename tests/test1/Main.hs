@@ -65,7 +65,7 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 
 test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a 
 test_mux_1 sig = a
-	where a = mux2 high (sig ,latch a)
+	where a = mux2 high (sig ,delay a)
 
 
 testAllTruth:: (Testable a) => String -> a -> IO ()
@@ -108,14 +108,29 @@ main = do
 	testReify "wordAdder" tst		
 
 	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
-	    tst = delay
+	    tst = register
 	
-	testSomeTruth 50 "delay" $
+	testSomeTruth 50 "register" $
 		let env = takeThenSeq 7 sysEnv env
 		    def = 1
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
-	testReify "delay" tst		
+	testReify "register" tst		
+
+	let tst ::Seq SysEnv -> Comb U4 -> Seq (Enabled U4) -> Seq U4
+	    tst = enabledRegister
+	
+	testSomeTruth 50 "enabledRegister" $
+		let env = takeThenSeq 30 sysEnv env
+		    def = 1
+		    inp = toEnabledSeq $ 
+			    (Prelude.zipWith (\ a b -> if b then Just a else Nothing)
+				 (cycle [0..3])
+			         (cycle [True,False,False])
+		            )
+			    
+		 in example tst .*. env .*. def .*. inp
+	testReify "enabledRegister" tst		
 
 	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
@@ -161,9 +176,58 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. pipe .*. addr		
 
+	let tst ::Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
+	    tst = shiftRegister
+
+	testSomeTruth 200 "shiftRegister" $
+		let env = takeThenSeq 180 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return (ALPHA (show val))
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. inp		
+		
+	let tst :: Seq (Enabled (Matrix X4 ALPHA)) -> Seq (Enabled ALPHA)
+	    tst = unShiftRegister
+
+	testSomeTruth 200 "unShiftRegister" $
+		let env = takeThenSeq 180 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return (matrix (map (ALPHA . show) [val,val+1,val+2,val+3]))
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. inp				
+		
+	let --tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst sysEnv = runBlock sysEnv (mapPacked fn)
+	      where
+		fn :: Matrix X4 (Seq ALPHA) -> Matrix X4 (Seq (ALPHA,X4))
+		fn m = forAll $ \ i -> pack (m ! (i :: X4),pureS i)
+
+	testSomeTruth 200 "runBlock" $
+		let env = takeThenSeq 180 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return $ (ALPHA . show) val
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. inp						
 
 	return ()
 
 
+t1 :: Seq (Int,Bool) -> Seq (Bool,Int)
+t1 inp = pack (y,x)
+  where (x,y) = unpack inp
 
-
+t2 = wordAdder :: Comb Bool -> (Comb U3, Comb U3) -> (Comb U3,Comb Bool)
+t3 = pipeToMemory :: Seq SysEnv -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4

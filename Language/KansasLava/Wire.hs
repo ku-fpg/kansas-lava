@@ -4,6 +4,7 @@
 module Language.KansasLava.Wire where
 
 import Language.KansasLava.Type
+import Language.KansasLava.Entity
 import Control.Applicative
 import Control.Monad
 import Data.Sized.Arith
@@ -34,6 +35,13 @@ class Eq w => Wire w where
 	-- | Each wire has a known type.
     	wireType :: w -> BaseTy
 
+	wireCapture :: D w -> [(BaseTy, Driver E)]
+	wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
+
+	wireGenerate :: [String] -> (D w,[String])
+	wireGenerate (v:vs) = (D (Pad (Var v)),vs)
+
+-- D w -> 
 
 -- | "RepWire' is a wire where we know the represnetation used to encode the bits.
 class (Wire w, Size (WIDTH w)) => RepWire w where
@@ -47,6 +55,7 @@ class (Wire w, Size (WIDTH w)) => RepWire w where
 	-- | how we want to present this value, in comments
 	-- The first value is the witness.
 	showRepWire :: w -> X w -> String
+
 
 allWireReps :: forall width . (Size width) => [Matrix width Bool]
 allWireReps = [U.toMatrix count | count <- counts ]
@@ -177,7 +186,35 @@ instance (Wire a, Wire b) => Wire (a,b) where
 		       y <- unX b
 		       return $ (x,y)
 	wireName _ = "Tuple_2"
+
+
 	wireType ~(a,b) = TupleTy [wireType a, wireType b]
+	wireCapture (D d) = [ (wireType (error "wireCapture (a,)" :: a),Port (Var "o0") $ E $ eFst)
+			    , (wireType (error "wireCapture (,b)" :: b),Port (Var "o0") $ E $ eSnd)
+			    ]
+           where
+		eFst = Entity (Name "Lava" "fst") 
+			      [(Var "o0",wireType (error "wireGenerate (a,)" :: a))]
+			      [(Var "i0",wireType (error "wireGenerate (a,b)" :: (a,b)),d)]
+			      []
+		eSnd = Entity (Name "Lava" "snd") 
+			      [(Var "o0",wireType (error "wireGenerate (,b)" :: b))]
+			      [(Var "i0",wireType (error "wireGenerate (a,b)" :: (a,b)),d)]
+			      []
+
+
+	wireGenerate vs0 = (D (Port (Var "o0") $ E ePair),vs2)
+	   where
+		(D p1,vs1) = wireGenerate vs0 :: (D a,[String])
+		(D p2,vs2) = wireGenerate vs1 :: (D b,[String])
+		ePair = Entity (Name "Lava" "pair")
+			      [(Var "o0",wireType (error "wireGenerate (a,b)" :: (a,b)))]
+			      [(Var "i0",wireType (error "wireGenerate (a,)" :: a),p1)
+			      ,(Var "i1",wireType (error "wireGenerate (,b)" :: b),p2)
+			      ]
+			      []
+
+
 
 instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => RepWire (a,b) where
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)

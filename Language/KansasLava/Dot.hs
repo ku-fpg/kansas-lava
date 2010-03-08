@@ -5,6 +5,8 @@ module Language.KansasLava.Dot
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Reify
+import Language.KansasLava.Circuit
+
 import Text.Dot
 
 -- | The 'writeDot' function converts a Lava circuit into a graphviz output. The
