@@ -176,12 +176,11 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. pipe .*. addr		
 
-{-
 	let tst ::Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
-	    tst = memoryToMatrix
+	    tst = shiftRegister
 
-	testSomeTruth 50 "memoryToMatrix" $
-		let env = takeThenSeq 20 sysEnv env
+	testSomeTruth 200 "shiftRegister" $
+		let env = takeThenSeq 180 sysEnv env
 		    inp = toEnabledSeq $ 
 			    cycle
 			    ([ return (ALPHA (show val))
@@ -190,11 +189,8 @@ main = do
 					
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. inp		
--}
 
 	return ()
-
-
 
 
 t1 :: Seq (Int,Bool) -> Seq (Bool,Int)

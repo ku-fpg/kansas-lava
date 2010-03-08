@@ -149,12 +149,18 @@ zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
-{----- 
 shiftRegister :: (Wire d, Integral x, Size x) => Seq SysEnv -> Seq (Enabled d) -> Seq (Matrix x d)
-shiftRegister sysEnv inp = 
-	where
-		(m, _) = scanR fn (_, m)
+shiftRegister sysEnv inp = pack m
+  where
+	(en,val) = unpack inp
+	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
+	fn (v,()) = (reg,reg)
+		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
+
+{-
+scanR :: (Size ix, Bounded ix, Enum ix)
+      => ((left,a) -> (b,left))
+      -> (left, Matrix ix a)
+      -> (Matrix ix b,left)
 -}
-
-
 
