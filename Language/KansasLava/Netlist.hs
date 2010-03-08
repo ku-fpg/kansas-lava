@@ -358,7 +358,7 @@ getSynchs nms  ents = M.fromListWith (++) synchs
         synchs = [((getInput "clk" is,getInput "rst" is),[e])  | e@(i,Entity (Name "Memory" n) _ is _) <- ents, n `elem` nms]
         getInput nm is = case find (\(Var c,_,_) -> c == nm) is of
                       Just (Var _,_,d) -> d
-                      Nothing -> error "getSynchs: Can't find a signal"
+                      Nothing -> error $ "getSynchs: Can't find a signal " ++ show (nm,is,ents)
 
 
 -- Utility functions
@@ -397,6 +397,7 @@ sigTyped (U _) s = unsigned (sigExpr s)
 sigTyped (S _) s = signed (sigExpr s)
 sigTyped ClkTy s = sigExpr s
 sigTyped RstTy s = sigExpr s
+sigTyped (TupleTy tys) s = unsigned (sigExpr s)
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
 
@@ -423,7 +424,7 @@ prodSlices d tys = snd $ mapAccumL f size tys
                  in (next, ExprSlice v (ExprNum i) (ExprNum (next + 1)))
 lookupInput i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
                                       Just (_,_,d) -> d
-                                      Nothing -> error "lookupInput: Can't find input"
+                                      Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
 lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty

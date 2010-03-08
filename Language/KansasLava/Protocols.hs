@@ -39,9 +39,11 @@ toEnabledSeq xs = toSeqX [ case x of
 			 | x <- xs
 			 ]
 
-memoryToPipe ::  (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe enA mem = pack (delay (delay en),pack (delay (delay a),mem a))
+memoryToPipe ::  forall a d . (Wire a, Wire d) => Seq SysEnv -> Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
+memoryToPipe sysEnv enA mem = pack (del (del en),pack (del (del a),mem a))
    where
+	del :: (Wire x) => Seq x -> Seq x
+	del = delay sysEnv
 	(en,a) = unpack enA
 
 -- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
@@ -158,8 +160,8 @@ shiftRegister sysEnv inp = pack m
 	fn (v,()) = (reg,reg)
 		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
 
-unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
-unShiftRegister inp = r
+unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq SysEnv -> Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
+unShiftRegister sysEnv inp = r
   where
 	en :: Seq Bool
 	m :: Seq (Matrix x d)
@@ -169,7 +171,8 @@ unShiftRegister inp = r
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry
-		reg = (delay (mux2 en ( pack (high,inp),
+		reg = (delay sysEnv
+		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))
  
@@ -177,15 +180,14 @@ unShiftRegister inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x . (RepWire x, Bounded x, Integral x, Size x, Wire a, Wire b) 
+runBlock :: forall a b x y . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Wire a, Wire b) 
 	 => Seq SysEnv 
-	 -> (Seq (Matrix x a) -> Seq (Matrix x b)) 
+	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
 	 -> Seq (Enabled a) 
 	 -> Seq (Enabled b)
-runBlock sysEnv fn inp = 
-			 unShiftRegister
+runBlock sysEnv fn inp = unShiftRegister sysEnv
 		       $ addSync
-		       $ fn
+		       $ liftS1 fn
 		       $ shiftRegister sysEnv inp
    where
 	addSync a = pack (syncGo,a)
@@ -194,7 +196,7 @@ runBlock sysEnv fn inp =
 
 	-- counting n things put into the queue
 	syncGo :: Seq Bool
-	syncGo = delay (pureS maxBound .==. syncCounter)
+	syncGo = delay sysEnv (pureS maxBound .==. syncCounter)
 
 	syncCounter :: Seq x
 	syncCounter = counter sysEnv en
