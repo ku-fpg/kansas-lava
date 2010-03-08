@@ -31,6 +31,7 @@ Library
        Language.KansasLava.Circuit
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
+       Language.KansasLava.Netlist
        Language.KansasLava.Opt
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
