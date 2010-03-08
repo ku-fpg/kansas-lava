@@ -26,6 +26,13 @@ optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)] []
 	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
 	       | o0' == o0'' -> return $ replaceWith env o0 (i2',t2,p2)
 	    _ -> Nothing	
+optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)] []) =
+	case (env u0,env u1) of
+	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)] []
+	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] []
+	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 -> 
+			return $ replaceWith env o0 (Var "o0",tO,p1)
+	    _ -> Nothing
 optimizeEntity env _ = Nothing
 
 replaceWith env o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
