@@ -79,12 +79,25 @@ instance (Enum (WIDTH w), Size (WIDTH w), RepWire w, Testable b) => Testable (Co
 		 	| a <- args
 		        ]
             where
-		reps :: [Matrix (WIDTH w) Bool]
-		reps = allWireReps
 		args0 :: [Maybe w]
 		args0 = [ toWireRep rep | rep <- allWireReps ]
 		args = map optX (args0 ++ [Nothing])
 
+instance (Enum (WIDTH w), Size (WIDTH w), RepWire w,
+          Enum (WIDTH x), Size (WIDTH x), RepWire x,
+          Testable b) => Testable ((Comb w, Comb x) -> b) where
+	truthTable fn = TT 
+			[ CombValue ("(" ++ (showRepWire (undefined :: w) a) ++ "," ++
+                                            (showRepWire (undefined :: x) b) ++ ")")
+				    (truthTable (fn (shallowComb a, shallowComb b)))
+		 	| a <- aArgs, b <- bArgs ]
+            where
+		args0 :: [Maybe w]
+		args0 = [ toWireRep rep | rep <- allWireReps ]
+		aArgs = map optX (args0 ++ [Nothing])
+		args1 :: [Maybe x]
+		args1 = [ toWireRep rep | rep <- allWireReps ]
+		bArgs = map optX (args1 ++ [Nothing])
 
 -----------------------------------------------------------------------------------------------------
 --- ASCII pretty printers
