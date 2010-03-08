@@ -117,6 +117,21 @@ main = do
 		 in example tst .*. env .*. def .*. inp
 	testReify "register" tst		
 
+	let tst ::Seq SysEnv -> Comb U4 -> Seq (Enabled U4) -> Seq U4
+	    tst = enabledRegister
+	
+	testSomeTruth 50 "enabledRegister" $
+		let env = takeThenSeq 30 sysEnv env
+		    def = 1
+		    inp = toEnabledSeq $ 
+			    (Prelude.zipWith (\ a b -> if b then Just a else Nothing)
+				 (cycle [0..3])
+			         (cycle [True,False,False])
+		            )
+			    
+		 in example tst .*. env .*. def .*. inp
+	testReify "enabledRegister" tst		
+
 	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
 
@@ -161,6 +176,21 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. pipe .*. addr		
 
+{-
+	let tst ::Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
+	    tst = memoryToMatrix
+
+	testSomeTruth 50 "memoryToMatrix" $
+		let env = takeThenSeq 20 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return (ALPHA (show val))
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. inp		
+-}
 
 	return ()
 

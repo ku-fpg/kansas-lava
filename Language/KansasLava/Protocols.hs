@@ -22,6 +22,14 @@ type Pipe a d = Enabled (a,d)
 
 type Memory a d = Seq a -> Seq d
 
+
+
+enabledRegister :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq (Enabled a) -> Seq a
+enabledRegister sysEnv c inp = res
+   where 
+	(en,v) = unpack inp
+	res    = register sysEnv c (mux2 en (v,res))
+
 -- | Turns a list of maybe values into enabled values.
 toEnabledSeq :: forall a . (RepWire a) => [Maybe a] -> Seq (Enabled a)
 toEnabledSeq xs = toSeqX [ case x of
@@ -128,10 +136,8 @@ phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			else fail "phi problem")
 		(undefined)
 
-
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
-
 
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
@@ -139,8 +145,16 @@ zipPacked f x y = pack $ f (unpack x) (unpack y)
 zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
-
--- Used for simulation, because this actually clones the memory to allow this to work.
+-- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
+
+{----- 
+shiftRegister :: (Wire d, Integral x, Size x) => Seq SysEnv -> Seq (Enabled d) -> Seq (Matrix x d)
+shiftRegister sysEnv inp = 
+	where
+		(m, _) = scanR fn (_, m)
+-}
+
+
 
