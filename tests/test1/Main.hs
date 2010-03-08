@@ -189,6 +189,38 @@ main = do
 					
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. inp		
+		
+	let tst :: Seq (Enabled (Matrix X4 ALPHA)) -> Seq (Enabled ALPHA)
+	    tst = unShiftRegister
+
+	testSomeTruth 200 "unShiftRegister" $
+		let env = takeThenSeq 180 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return (matrix (map (ALPHA . show) [val,val+1,val+2,val+3]))
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. inp				
+		
+	let --tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst sysEnv = runBlock sysEnv (mapPacked fn)
+	      where
+		fn :: Matrix X4 (Seq ALPHA) -> Matrix X4 (Seq (ALPHA,X4))
+		fn m = forAll $ \ i -> pack (m ! (i :: X4),pureS i)
+
+	testSomeTruth 200 "runBlock" $
+		let env = takeThenSeq 180 sysEnv env
+		    inp = toEnabledSeq $ 
+			    cycle
+			    ([ return $ (ALPHA . show) val
+			     | val <- [0..7]
+			     ] ++ take 5 (repeat Nothing))
+					
+		    addr = toSeq $ cycle [True,False]
+		 in example tst .*. env .*. inp						
 
 	return ()
 
