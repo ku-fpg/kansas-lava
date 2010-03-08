@@ -73,7 +73,9 @@ instance Signal Seq where
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
 		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
-		    ]) (error "liftSL")
+		    ]) 
+		    (combDriver (f (map (deepComb . seqDriver) ss)))
+
 
 ----------------------------------------------------------------------------------------------------
 
