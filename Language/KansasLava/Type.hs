@@ -28,6 +28,8 @@ baseTypeLength (S x) = x
 baseTypeLength (U x) = x
 baseTypeLength T = 1
 baseTypeLength (TupleTy tys) = sum (map baseTypeLength tys)
+baseTypeLength (MatrixTy i ty) = i * baseTypeLength ty
+baseTypeLength other = error $ show ("baseTypeLength",other)
 
 -- | 'baseTypeIsSigned' determines if a type has a signed representation. This is
 -- necessary for the implementation of 'isSigned' in the 'Bits' type class.

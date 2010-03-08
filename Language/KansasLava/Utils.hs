@@ -342,17 +342,22 @@ sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Clk -> X Clk) (map C
  					    (map (optX  . Just) ([Rst True] ++ repeat (Rst False)))
 
 
-delay :: forall a . (Wire a) => Seq a -> Seq a
-delay dat@(Seq a ea) = res
+delay :: forall a . (Wire a) => Seq SysEnv -> Seq a -> Seq a
+delay sysEnv dat@(Seq a ea) = res
 
   where
+	(clk,rst) = unpack sysEnv
+	
 	res = Seq (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
 
 	entity :: Entity BaseTy E
     	entity =
 		Entity (Name "Memory" "delay")
 			[ (Var "o0",bitTypeOf res)]
-			[ (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
+			[ (Var "def", bitTypeOf res, Lit 0)
+			, (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
+			, (Var "rst", RstTy, unD $ seqDriver $ rst)
+		     	, (Var "clk" , ClkTy, unD $ seqDriver $ clk)
 			]
 		[]
 
