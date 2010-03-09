@@ -408,6 +408,8 @@ zeros = ExprString "(others => '0')"
 
 
 sizedRange B = Nothing
+sizedRange ClkTy = Nothing
+sizedRange RstTy = Nothing
 sizedRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
   where size = baseTypeLength ty
         ran = Just $ Range (ExprNum (fromIntegral size - 1)) (ExprNum 0)
