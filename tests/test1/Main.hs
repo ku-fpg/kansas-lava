@@ -107,21 +107,21 @@ main = do
 	testAllTruth "wordAdder" tst
 	testReify "wordAdder" tst		
 
-	let tst ::Seq SysEnv -> Comb U4 -> Seq U4 -> Seq U4
+	let tst ::Rst -> Comb U4 -> Seq U4 -> Seq U4
 	    tst = register
 	
 	testSomeTruth 50 "register" $
-		let env = takeThenSeq 7 sysEnv env
+		let env = takeThenSeq 7 shallowRst env
 		    def = 1
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
 	testReify "register" tst		
 
-	let tst ::Seq SysEnv -> Comb U4 -> Seq (Enabled U4) -> Seq U4
+	let tst ::Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4
 	    tst = enabledRegister
 	
 	testSomeTruth 50 "enabledRegister" $
-		let env = takeThenSeq 30 sysEnv env
+		let env = takeThenSeq 30 shallowRst env
 		    def = 1
 		    inp = toEnabledSeq $ 
 			    (Prelude.zipWith (\ a b -> if b then Just a else Nothing)
@@ -132,11 +132,11 @@ main = do
 		 in example tst .*. env .*. def .*. inp
 	testReify "enabledRegister" tst		
 
-	let tst ::Seq SysEnv -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
+	let tst ::Rst -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 sysEnv env
+		let env = takeThenSeq 20 shallowRst env
 		    pipe = toEnabledSeq $ 
 			    cycle
 			    [ return (val,ALPHA (txt ++ "_" ++ show val))
@@ -147,11 +147,11 @@ main = do
 		    addr = toSeq' $ cycle (map Just [ 0..3 ] ++ [Nothing])
 		 in example tst .*. env .*. pipe .*. addr
 		
-	let tst ::Seq SysEnv -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
+	let tst ::Rst -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 sysEnv env
+		let env = takeThenSeq 20 shallowRst env
 		    pipe = toEnabledSeq $ 
 			    cycle
 			    ([ return ((),ALPHA (show val))
@@ -161,12 +161,12 @@ main = do
 		    addr = toSeq $ repeat ()
 		 in example tst .*. env .*. pipe .*. addr		
 
-	let tst ::Seq SysEnv -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
+	let tst ::Rst -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
 	    tst = pipeToMemory
 
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 sysEnv env
+		let env = takeThenSeq 20 shallowRst env
 		    pipe = toEnabledSeq $ 
 			    cycle
 			    ([ return (odd val,ALPHA (show val))
@@ -176,11 +176,11 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. pipe .*. addr		
 
-	let tst ::Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
+	let tst ::Rst -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
 	    tst = shiftRegister
 
 	testSomeTruth 200 "shiftRegister" $
-		let env = takeThenSeq 180 sysEnv env
+		let env = takeThenSeq 180 shallowRst env
 		    inp = toEnabledSeq $ 
 			    cycle
 			    ([ return (ALPHA (show val))
@@ -194,7 +194,7 @@ main = do
 	    tst = unShiftRegister
 
 	testSomeTruth 200 "unShiftRegister" $
-		let env = takeThenSeq 180 sysEnv env
+		let env = takeThenSeq 180 shallowRst env
 		    inp = toEnabledSeq $ 
 			    cycle
 			    ([ return (matrix (map (ALPHA . show) [val,val+1,val+2,val+3]))
@@ -204,15 +204,15 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. inp				
 		
-	let --tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
-	    tst :: Seq SysEnv -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
-	    tst sysEnv = runBlock sysEnv (mapPacked fn)
+	let --tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst shallowRst = runBlock shallowRst (mapPacked fn)
 	      where
-		fn :: Matrix X4 (Seq ALPHA) -> Matrix X4 (Seq (ALPHA,X4))
+		fn :: Matrix X4 (Comb ALPHA) -> Matrix X4 (Comb (ALPHA,X4))
 		fn m = forAll $ \ i -> pack (m ! (i :: X4),pureS i)
 
 	testSomeTruth 200 "runBlock" $
-		let env = takeThenSeq 180 sysEnv env
+		let env = takeThenSeq 180 shallowRst env
 		    inp = toEnabledSeq $ 
 			    cycle
 			    ([ return $ (ALPHA . show) val
@@ -230,4 +230,4 @@ t1 inp = pack (y,x)
   where (x,y) = unpack inp
 
 t2 = wordAdder :: Comb Bool -> (Comb U3, Comb U3) -> (Comb U3,Comb Bool)
-t3 = pipeToMemory :: Seq SysEnv -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4
+t3 = pipeToMemory :: Rst -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4
