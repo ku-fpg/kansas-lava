@@ -149,12 +149,12 @@ tt3 = truthTable ((*) :: Comb U2 -> Comb U2 -> Comb U2)
 tt4 = truthTable (halfAdder :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool))
   where halfAdder a b = (xor2 a b, and2 a b)
 
-tt5 = truthTable (example (register :: Seq SysEnv -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA)
+tt5 = truthTable (example (register :: Rst -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA)
 			.*. env
 			.*. def
 			.*. inp)
 	where
-		env = takeThenSeq 7 sysEnv env
+		env = takeThenSeq 7 shallowRst env
 		def = pureS $ ALPHA "~def~"
 		inp = toSeq $ cycle $ map ALPHA ["A","B","C","D"]
 

@@ -35,7 +35,7 @@ shallowComb :: X a -> Comb a
 shallowComb a = Comb a (error "deep argument being used incorrectly")
 
 errorComb ::  forall a . (Wire a) => Comb a 
-errorComb = Comb (optX $ (Nothing :: Maybe a)) (D $ Lit 0)
+errorComb = Comb (optX $ (Nothing :: Maybe a)) (D $ Lit 0)		-- perhaps add a I do not know
 
 applyComb0 :: (Wire a) => Comb a -> Maybe a
 applyComb0 (Comb a _) = unX a 

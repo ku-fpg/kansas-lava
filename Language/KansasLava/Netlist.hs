@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.Netlist(netlistCircuit,delay') where
+module Language.KansasLava.Netlist(netlistCircuit) where
 
 
 -- import Language.KansasLava hiding (Seq)
@@ -432,6 +432,5 @@ lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps 
 
 
 
-
-delay' :: KL.Seq SysEnv -> KL.Seq U8 -> KL.Seq U8
-delay' env i = register env (0 :: Comb (U8)) i
+--delay' :: KL.Seq SysEnv -> KL.Seq U8 -> KL.Seq U8
+--delay' env i = register env (0 :: Comb (U8)) i

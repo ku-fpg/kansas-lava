@@ -29,6 +29,11 @@ import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
 
+-- These are sequences of values over time.
+-- We assume edge triggered logic (checked at (typically) rising edge of clock)
+-- This clock is assumed known, based on who is consuming the list.
+-- Right now, it is global, but we think we can support multiple clocks with a bit of work.
+
 data Seq a = Seq (Stream (X a)) (D a)
 
 seqValue :: Seq a -> Stream (X a)

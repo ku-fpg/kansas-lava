@@ -276,6 +276,7 @@ boolOp nm fn =
 
 -- Perhaps should be in its own module.
 
+{-
 type SysEnv = (Clk,Rst)
 
 data Clk = Clk Integer 	-- a single wire, the counter is for debugging/printing only
@@ -283,6 +284,10 @@ data Clk = Clk Integer 	-- a single wire, the counter is for debugging/printing 
 
 data Rst = Rst Bool
 	deriving (Eq,Show)
+
+-}
+
+type Rst = Seq Bool
 	
 {-
 
@@ -301,8 +306,6 @@ instance RepWire Bool where
 	fromWireRep v 		= matrix [v]
 	showRepWire _ = show
 
-
--}
 
 instance Wire Rst where
 	type X Rst = WireVal Rst
@@ -337,49 +340,37 @@ instance RepWire Clk where
 instance Eq Clk where
 	_ == _ = False
 
-sysEnv :: Seq SysEnv 
-sysEnv = shallowSeq $ S.fromList $ zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
- 					    (map (optX  . Just) ([Rst True] ++ repeat (Rst False)))
+
+-}
 
 
-delay :: forall a . (Wire a) => Seq SysEnv -> Seq a -> Seq a
-delay sysEnv dat@(Seq a ea) = res
+-- for use only with shallow
+shallowRst :: Rst
+shallowRst = shallowSeq $ S.fromList $ (map (optX  . Just) ([True] ++ repeat False))
 
-  where
-	(clk,rst) = unpack sysEnv
-	
-	res = Seq (optX (Nothing :: Maybe a) :~ a) (D $ Port (Var "o0") $ E $ entity)
+-- zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
+ 				
 
-	entity :: Entity BaseTy E
-    	entity =
-		Entity (Name "Memory" "delay")
-			[ (Var "o0",bitTypeOf res)]
-			[ (Var "def", bitTypeOf res, Lit 0)
-			, (Var "i0",bitTypeOf dat,unD $ seqDriver dat)
-			, (Var "rst", RstTy, unD $ seqDriver $ rst)
-		     	, (Var "clk" , ClkTy, unD $ seqDriver $ clk)
-			]
-		[]
+delay :: forall a . (Wire a) => Seq a -> Seq a
+delay = register low errorComb
 
 
-register :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq a -> Seq a
-register sysEnv c@(Comb def edef) l@(Seq line eline) = res
+register :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
+register rst c@(Comb def edef) l@(Seq line eline) = res
    where
-	(clk,rst) = unpack sysEnv
 	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
 	sres = S.zipWith (\ i v -> 
-				case unX i :: Maybe Rst of
+				case unX i :: Maybe Bool of
 				   Nothing -> optX (Nothing :: Maybe a)
-				   Just (Rst True) -> def
-				   Just (Rst False) -> v
-			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)
-		
+				   Just (True) -> def
+				   Just (False) -> v
+			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)		
         entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
 		     (Var "i0", bitTypeOf res, unD eline), 
 		     (Var "rst", RstTy, unD $ seqDriver $ rst), 
-		     (Var "clk" , ClkTy, unD $ seqDriver $ clk)] []
+		     (Var "clk", ClkTy, Pad (Var "clk"))] []
 
 
 -- hack

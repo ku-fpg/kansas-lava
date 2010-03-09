@@ -25,7 +25,7 @@ type Memory a d = Seq a -> Seq d
 
 
 
-enabledRegister :: forall a. (Wire a) => Seq SysEnv -> Comb a -> Seq (Enabled a) -> Seq a
+enabledRegister :: forall a. (Wire a) => Rst -> Comb a -> Seq (Enabled a) -> Seq a
 enabledRegister sysEnv c inp = res
    where 
 	(en,v) = unpack inp
@@ -39,18 +39,15 @@ toEnabledSeq xs = toSeqX [ case x of
 			 | x <- xs
 			 ]
 
-memoryToPipe ::  forall a d . (Wire a, Wire d) => Seq SysEnv -> Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe sysEnv enA mem = pack (del (del en),pack (del (del a),mem a))
+memoryToPipe ::  forall a d . (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
+memoryToPipe enA mem = pack (delay (delay en),pack (delay (delay a),mem a))
    where
-	del :: (Wire x) => Seq x -> Seq x
-	del = delay sysEnv
 	(en,a) = unpack enA
 
 -- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
-pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Seq SysEnv -> Seq (Pipe a d) -> Memory a d
-pipeToMemory sysEnv pipe addr2 = res
+pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Rst -> Seq (Pipe a d) -> Memory a d
+pipeToMemory rst pipe addr2 = res
   where
-	(clk,rst)  = unpack sysEnv
 	(en,pipe') = unpack pipe
 	(addr,dat) = unpack pipe'
 
@@ -103,7 +100,7 @@ pipeToMemory sysEnv pipe addr2 = res
     	entity =
 		Entity (Name "Memory" "memory")
 			[ (Var "o0",bitTypeOf res)]
-			[ (Var "clk",bitTypeOf clk,unD $ seqDriver clk)
+			[ (Var "clk",ClkTy,Pad (Var "clk"))
 			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
 			, (Var "en",bitTypeOf en,unD $ seqDriver en)
 			, (Var "addr",bitTypeOf addr,unD $ seqDriver addr)
@@ -152,7 +149,7 @@ zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
-shiftRegister :: (Wire d, Integral x, Size x) => Seq SysEnv -> Seq (Enabled d) -> Seq (Matrix x d)
+shiftRegister :: (Wire d, Integral x, Size x) => Rst -> Seq (Enabled d) -> Seq (Matrix x d)
 shiftRegister sysEnv inp = pack m
   where
 	(en,val) = unpack inp
@@ -160,8 +157,8 @@ shiftRegister sysEnv inp = pack m
 	fn (v,()) = (reg,reg)
 		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
 
-unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq SysEnv -> Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
-unShiftRegister sysEnv inp = r
+unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
+unShiftRegister inp = r
   where
 	en :: Seq Bool
 	m :: Seq (Matrix x d)
@@ -171,7 +168,7 @@ unShiftRegister sysEnv inp = r
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry
-		reg = (delay sysEnv
+		reg = (delay 
 		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))
@@ -181,14 +178,14 @@ unShiftRegister sysEnv inp = r
 -- Assumes input is not too fast; double buffering would fix this.
 
 runBlock :: forall a b x y . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Wire a, Wire b) 
-	 => Seq SysEnv 
+	 => Rst 
 	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
 	 -> Seq (Enabled a) 
 	 -> Seq (Enabled b)
-runBlock sysEnv fn inp = unShiftRegister sysEnv
+runBlock rst fn inp = unShiftRegister 
 		       $ addSync
 		       $ liftS1 fn
-		       $ shiftRegister sysEnv inp
+		       $ shiftRegister rst inp
    where
 	addSync a = pack (syncGo,a)
 
@@ -196,12 +193,12 @@ runBlock sysEnv fn inp = unShiftRegister sysEnv
 
 	-- counting n things put into the queue
 	syncGo :: Seq Bool
-	syncGo = delay sysEnv (pureS maxBound .==. syncCounter)
+	syncGo = delay (pureS maxBound .==. syncCounter)
 
 	syncCounter :: Seq x
-	syncCounter = counter sysEnv en
+	syncCounter = counter rst en
 		
-counter :: (RepWire x, Num x) => Seq SysEnv -> Seq Bool -> Seq x
-counter sysEnv inc = res
-   where res = register sysEnv 0 (res + mux2 inc (1,0))
+counter :: (RepWire x, Num x) => Rst -> Seq Bool -> Seq x
+counter rst inc = res
+   where res = register rst 0 (res + mux2 inc (1,0))
 
