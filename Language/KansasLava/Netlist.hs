@@ -19,7 +19,7 @@ import Data.Sized.Unsigned
 import Data.Reify.Graph
 
 import Text.PrettyPrint
-import Data.List(intersperse,find,mapAccumL)
+import Data.List(intersperse,find,mapAccumL,nub)
 import Data.Maybe(fromJust)
 import qualified Data.Map as M
 
@@ -66,11 +66,17 @@ genDecls nodes =
                           | (i,Entity (Name mod nm) outputs _ _) <- nodes
                           , (Var n,nTy) <- outputs, not (nm `elem` ["delay","register"])
                           ] ++
-    concat [ [ NetDecl ((sigName n i) ++ "_next") (sizedRange nTy) Nothing
+    concat [ [ NetDecl (sigName n i ++ "_next") (sizedRange nTy) Nothing
              , MemDecl (sigName  n i) Nothing (sizedRange  nTy)
      	     ]
            | (i,Entity (Name "Memory" "register") [(Var n,nTy)] _ _) <- nodes
            ] ++
+    concat [ [ NetDecl ((sigName n i) ++ "_next") (sizedRange nTy) Nothing
+             , MemDecl (sigName  n i) Nothing (sizedRange  nTy)
+     	     ]
+           | (i,Entity (Name "Memory" "delay") [(Var n,nTy)] _ _) <- nodes
+           ] ++
+
     concatMap memDecl nodes
 
   where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,_)] inputs _) =
@@ -109,6 +115,10 @@ cast (U _) d = ExprFunCall "unsigned" [d]
 cast (S _) d = ExprFunCall "signed" [d]
 cast _ d = d
 
+
+assignCast (U _) d = to_std_logic_vector d
+assignCast (S _) d = to_std_logic_vector d
+assignCast _  d = d
 
 
 data OpFix = Prefix | Infix | PostFix | NoFix deriving (Show)
@@ -212,20 +222,22 @@ mkInst i e@(Entity (Name "Memory" "delay") [(Var "o0",_)]
 			[ (Var "i0",_,inp)] _) =
           [NetAssign input (sigExpr $ lookupInput "i0" e) ]
   where output = sigName "o0" i
-        input =  output ++ "_next"
+        input =  output ++ "_nextd"
+
 
 mkInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] _ _) =
           [NetAssign input (sigExpr (lookupInput "i0" e)) ]
   where output = sigName "o0" i
         input =  output ++ "_next"
 
+
 -- Muxes
 mkInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var i0,cTy,c),(Var i1 ,tTy,t),(Var i2,fTy,f)] _)
 -- FIXME: Figure out the casts
 	= [NetAssign output
                      (ExprCond cond
-                      (sigExpr f)
-                      (sigExpr t))]
+                      (assignCast fTy $ sigTyped fTy f)
+                      (assignCast tTy $ sigTyped tTy t))]
   where cond = isLow (sigTyped cTy c)
         output = (sigName "o0" i)
 
@@ -323,9 +335,11 @@ regProc (clk,rst) es =
   [(Event (sigExpr clk) PosEdge,
           (If (isHigh (sigExpr rst))
               (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
-              (Just (statements [Assign (outName i) (driver e) | (i,e) <- es]))))]]
+              (Just (statements [Assign (outName i) (nextName i)  | (i,e) <- es]))))]]
   where outName i = sigExpr (Port (Var "o0") i)
-        defaultDriver e = sigTyped (defaultDriverType e) $ lookupInput "def" e
+        nextName i = sigExprNext (Port (Var "o0") i)
+        defaultDriver e = let ty = defaultDriverType e
+                          in assignCast ty $ sigTyped ty $ lookupInput "def" e
         defaultDriverType e = lookupInputType "def" e
         driver e = sigExprNext $  lookupInput "i0" e
 
