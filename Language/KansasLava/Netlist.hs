@@ -136,13 +136,13 @@ to_std_logic_vector d = ExprFunCall "std_logic_vector" [d]
 
 
 
-mkSpecialUnary mtys ops =
-       [(Name moduleName lavaName, NetlistOp 1 (uOp netListOp to_std_logic_vector))
+mkSpecialUnary ocast mtys ops =
+       [(Name moduleName lavaName, NetlistOp 1 (uOp netListOp ocast))
          | (moduleName, ty) <- mtys
          , (lavaName,netListOp) <- ops
          ]
-mkSpecialBinary mtys ops =
-       [(Name moduleName lavaName, NetlistOp 2 (bOp netListOp to_std_logic_vector))
+mkSpecialBinary ocast mtys ops =
+       [(Name moduleName lavaName, NetlistOp 2 (bOp netListOp ocast))
          | (moduleName, ty) <- mtys
          , (lavaName,netListOp) <- ops
          ]
@@ -150,15 +150,15 @@ mkSpecialBinary mtys ops =
 
 specials :: [(Name, NetlistOperation)]
 specials =
-       (mkSpecialBinary
+       (mkSpecialBinary activeHigh
         [("Unsigned",U 0), ("Signed", S 0), ("Bool",B)]
         [(".<.",LessThan), (".>.",GreaterThan),(".==.",Equals),(".<=.",LessEqual), (".>=.",GreaterEqual) ])
        ++
-       (mkSpecialBinary
-        [("Unsigned",U 0), ("Signed", S 0), ("Bool",B)]
+       (mkSpecialBinary to_std_logic_vector
+        [("Unsigned",U 0), ("Signed", S 0)]
         [("+",Plus), ("-",Minus), (".|.",Or), (".&.",And), (".^.",Xor)])
        ++
-       (mkSpecialUnary
+       (mkSpecialUnary to_std_logic_vector
         [("Signed", S 0)] [("negate",Neg)])
 
 
