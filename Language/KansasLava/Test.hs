@@ -87,10 +87,10 @@ instance (Enum (WIDTH w), Size (WIDTH w), RepWire w,
           Enum (WIDTH x), Size (WIDTH x), RepWire x,
           Testable b) => Testable ((Comb w, Comb x) -> b) where
 	truthTable fn = TT 
-			[ CombValue ("(" ++ (showRepWire (undefined :: w) a) ++ "," ++
-                                            (showRepWire (undefined :: x) b) ++ ")")
-				    (truthTable (fn (shallowComb a, shallowComb b)))
-		 	| a <- aArgs, b <- bArgs ]
+			[ CombValue (showRepWire (undefined :: w) a)
+                        (TT [ CombValue (showRepWire (undefined :: x) b)
+                                        (truthTable (fn (shallowComb a, shallowComb b))) | b <- bArgs ])
+		 	| a <- aArgs ]
             where
 		args0 :: [Maybe w]
 		args0 = [ toWireRep rep | rep <- allWireReps ]
@@ -111,7 +111,7 @@ asciiTTL (TupleTT ttls)	     = List.transpose [ tl | [tl] <- map asciiTTL ttls ]
 	-- TupleTT is a hack, and  we NEED to restrict the [xx] using types.
 
 instance Show TT where
-	show tt = showSomeTT 20 tt
+	show tt = showSomeTT 40 tt
 
 showAllTT :: TT -> String
 showAllTT (TT ttls) = unlines (formatTT maxBound ttls)
