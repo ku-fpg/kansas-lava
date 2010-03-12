@@ -82,7 +82,7 @@ instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
-instance (Wire a, Signal sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix ix a) where 
+instance (Wire a, Signal sig, Size ix) => Pack sig (Matrix ix a) where 
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ] 
 				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
@@ -90,8 +90,9 @@ instance (Wire a, Signal sig, Integral ix, Num ix, Size ix) => Pack sig (Matrix 
 	unpack s = forAll $ \ ix -> 
 			liftS1 (\ (Comb s d) -> Comb (s ! ix) 
 					       (entity2 (Name "Lava" "index") 
-							(D $ Lit $ fromIntegral ix :: D Integer)
+							(D $ Lit $ (mx ! ix) :: D Integer)
 							d
 					       )
 			        ) s
-
+	   where mx :: (Size ix) => Matrix ix Integer
+		 mx = matrix (Prelude.zipWith (\ a b -> b) (M.indices mx) [0..])
