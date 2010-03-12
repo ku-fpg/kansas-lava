@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp, ScopedTypeVariables #-}
 module Language.KansasLava.Reify where
 
 import Data.Reify
@@ -14,6 +14,7 @@ import Language.KansasLava.Type
 import Language.KansasLava.Circuit
 import Language.KansasLava.Opt
 
+import Data.Sized.Matrix as M
 import Debug.Trace
 
 
@@ -37,7 +38,6 @@ reifyCircuit opts circuit = do
 	     	| (var,(tys,dr)) <- zip inputNames os
              	]
              	[]
-
 
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
@@ -162,6 +162,9 @@ instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
 		   ports bad c
      where bad = error "bad using of arguments in Reify"
 
+instance (Ports a,Size x) => Ports (Matrix x a) where
+ ports _ m = concatMap (ports (error "bad using of arguments in Reify")) $ M.toList m
+
 instance (InPorts a, Ports b) => Ports (a -> b) where
   ports vs f = ports vs' $ f a
      where (a,vs') = inPorts vs    
@@ -192,6 +195,20 @@ instance (InPorts a, InPorts b) => InPorts (a,b) where
 	 where
 		(a,vs1) = inPorts vs0
 		(b,vs2) = inPorts vs1
+
+instance (InPorts a, Size x) => InPorts (Matrix x a) where
+ inPorts vs0 = (M.matrix bs, vsX)
+     where	
+	sz :: Int
+	sz = size (error "sz" :: x)
+	
+	loop vs0 0 = ([], vs0)
+	loop vs0 n = (b:bs,vs2)
+	   where (b, vs1) = inPorts vs0
+		 (bs,vs2) = loop vs1 (n-1)
+
+	bs :: [a]
+	(bs,vsX) = loop vs0 sz
 
 instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
     inPorts vs0 = ((a,b,c),vs3)
