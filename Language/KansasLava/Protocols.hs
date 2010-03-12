@@ -32,7 +32,7 @@ enabledRegister sysEnv c inp = res
 	res    = register sysEnv c (mux2 en (v,res))
 
 -- | Turns a list of maybe values into enabled values.
-toEnabledSeq :: forall a . (RepWire a) => [Maybe a] -> Seq (Enabled a)
+toEnabledSeq :: forall a . (Wire a) => [Maybe a] -> Seq (Enabled a)
 toEnabledSeq xs = toSeqX [ case x of
 			    Nothing -> (return False :: X Bool,optX (Nothing :: Maybe a)) :: X (Enabled a)
 			    Just v -> (return True, optX (Just v :: Maybe a)) :: X (Enabled a)
