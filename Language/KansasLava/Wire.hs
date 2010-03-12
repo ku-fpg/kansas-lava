@@ -292,9 +292,9 @@ instance (Enum ix, Size ix) => RepWire (Signed ix) where
 instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where 
 	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
 	optX (Just b)	    = return b
-	optX Nothing	    = fail "Wire Int"
+	optX Nothing	    = fail "Wire Sampled"
 	unX (WireVal a)     = return a
-	unX (WireUnknown)   = fail "Wire Int"
+	unX (WireUnknown)   = fail "Wire Sampled"
 	wireName _	    = "Sampled"
 	wireType x   	    = U (size (error "Sampled" :: ix))
 
