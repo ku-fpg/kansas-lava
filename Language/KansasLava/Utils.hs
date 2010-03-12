@@ -103,12 +103,21 @@ instance (Show a, Bits a, RepWire a)
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2
     recip s1 = fun1 "recip" (recip) s1
-    fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
+    -- This should just fold down to the raw bits.
+    fromRational r = Comb
+		(pureX (fromRational r :: a))
+		(D $ Port (Var "o0") $ E $
+ 		 Entity (Name "Lava" "fromIntegral")
+			[(Var "o0",aTy)]
+		  	[ (Var "c0",IntegerTy,Lit $ numerator r)
+			, (Var "c1",IntegerTy,Lit $ denominator r)
+			] [])
+	 where aTy = wireType (error "fromRational" :: a)
 
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
     (/) = liftS2 (/)
     recip = liftS1 recip
-    fromRational r = fun2 "fromRational" (\ x y -> fromRational (x % y)) (pureS $ numerator r) (pureS $ denominator r)
+    fromRational = liftS0 . fromRational
 
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
@@ -248,6 +257,25 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
           topSelect = drop ((Prelude.length rest) - nbits) rest
 
 -------------------------------------------------------------------------------------------------
+
+instance (Ord a, Wire a) => Ord (Comb a) where
+  compare _ _ = error "compare not supported for Comb"
+  (<) _ _ = error "(<) not supported for Comb"
+  (>=) _ _ = error "(>=) not supported for Comb"
+  (>) _ _ = error "(>) not supported for Comb"
+  (<=)_ _ = error "(<=) not supported for Comb"
+  s1 `max` s2 = fun2 "max" max s1 s2
+  s1 `min` s2 = fun2 "min" min s1 s2
+
+	
+instance (Ord a, Wire a) => Ord (Seq a) where
+  compare _ _ = error "compare not supported for Seq"
+  (<) _ _ = error "(<) not supported for Seq"
+  (>=) _ _ = error "(>=) not supported for Seq"
+  (>) _ _ = error "(>) not supported for Seq"
+  (<=)_ _ = error "(<=) not supported for Seq"
+  max = liftS2 max
+  min = liftS2 min
 
 boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
