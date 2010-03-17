@@ -20,7 +20,8 @@ import Debug.Trace
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-type SZ = X4
+-- Fixed, right now. Will lift this later.
+type SZ    = X4
 type FLOAT = Sampled X8 X8
 
 data DecodeCntl 
@@ -85,9 +86,9 @@ stateBuilder transs = \ x ->
 incDecodeCntrl = stateBuilder incDecodeCntrlLists
 
 -- Slow down the control signal, using 'Wait' as the default
-delayCntlSeq :: Int -> Seq SysEnv -> Seq DecodeCntl -> Seq DecodeCntl
+delayCntlSeq :: Int -> Rst -> Seq DecodeCntl -> Seq DecodeCntl
 delayCntlSeq 0 e s = s
-delayCntlSeq n e s = delay e (pureS DecodeWait) s
+delayCntlSeq n e s = register e (pureS DecodeWait) s
 
 
 inc :: Comb DecodeCntl -> Comb DecodeCntl
@@ -98,7 +99,7 @@ stateMachine :: forall a . (Show a, RepWire a, Size (WIDTH a), Enum (WIDTH a), W
 stateMachine fn enSig = now
   where
 	(en,sig) = unpack enSig :: (Seq Bool, Seq a)
-	now = mux2 en (sig,latch fn')
+	now = mux2 en (sig,delay fn')
 
 	fn' = funMap (return . fn) now
 
@@ -112,7 +113,7 @@ rot x y = x + y
 decode :: forall a x . 
          (a ~ OurFloat, Size x, Num x, Enum x, x ~ X4) 
        => x
-       -> Seq SysEnv
+       -> Rst
        -> ( Seq DecodeCntl
 	  , Seq (Pipe x a)		-- lambda (in)
 	  , Seq (Pipe x a)		-- global (in, share)
@@ -206,7 +207,7 @@ main = putStrLn $ showSomeTT 30 $ testDecode
 
 -------------------------
 testDecode = truthTable 
-	(example decode' .*. sysEnv .*. cntr .*. inp .*. glob)
+	(example decode' .*. shallowRst .*. cntr .*. inp .*. glob)
    where
 	decode' e c i g = decode 1 e (c,i,g)
 	cntr = stateMachine (incDecodeCntrl) boot
@@ -243,7 +244,7 @@ ff :: Seq Word8
 ff = toSeq (repeat 0)
 
 r :: Memory Word8 Int
-r = pipeToMemory sysEnv pip
+r = pipeToMemory shallowRst pip
 
 
 ------------------------------------------------------------
@@ -277,7 +278,7 @@ type S16 = Signed.Signed X16
 
 bar :: Seq S16
 bar = cm
-    where cm  = delay sysEnv  0 cm'
+    where cm  = register shallowRst  0 cm'
           cm' = cm + 2
 
 
