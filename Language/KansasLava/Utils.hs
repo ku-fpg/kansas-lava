@@ -374,10 +374,11 @@ instance Eq Clk where
 
 -- for use only with shallow
 shallowRst :: Rst
-shallowRst = shallowSeq $ S.fromList $ (map (optX  . Just) ([True] ++ repeat False))
+shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
+                  (D $ Pad $ Var "shallowRst")
 
 -- zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
- 				
+
 
 delay :: forall a . (Wire a) => Seq a -> Seq a
 delay = register low errorComb
