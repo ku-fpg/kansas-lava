@@ -51,14 +51,14 @@ instance forall a . (RepWire a, Show a) => Show (Seq a) where
 instance forall a . (Wire a, Eq a) => Eq (Seq a) where
 	-- Silly question; never True; can be False.
 	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
-	
+
 deepSeq :: D a -> Seq a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
 shallowSeq :: Stream (X a) -> Seq a
-shallowSeq s = Seq s (error "incorrect use of deep Seq")
+shallowSeq s = Seq s (D $ Pad $ Var "incorrect use of deep Seq")
 
-errorSeq ::  forall a . (Wire a) => Seq a 
+errorSeq ::  forall a . (Wire a) => Seq a
 errorSeq = liftS0 errorComb
 
 instance Signal Seq where
