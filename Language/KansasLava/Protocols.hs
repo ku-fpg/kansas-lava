@@ -145,9 +145,17 @@ zipPacked f x y = pack $ f (unpack x) (unpack y)
 mapPipe :: (Signal sig, Wire a, Wire b, RepWire x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
-
+-- | only combines pipes when both inputs are enabled, and *assumes* the 
+-- x addresses are the same.
 zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
+
+-- 
+joinEnabled :: (Signal sig, Wire a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
+joinEnabled = liftS2 $ \ e1 e2 -> 
+			let (en1,v1) = unpack e1
+	 		    (en2,v2) = unpack e2
+	                in pack (mux2 en1 (en1,en2), mux2 en1 (v1,v2))
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
