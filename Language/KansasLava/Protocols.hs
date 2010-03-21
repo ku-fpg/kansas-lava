@@ -142,6 +142,10 @@ mapPacked f = pack . f . unpack
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
+mapPipe :: (Signal sig, Wire a, Wire b, RepWire x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
+mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
+
+
 zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
