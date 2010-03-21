@@ -115,3 +115,6 @@ showStreamList ss =
 	[ showRepWire (undefined :: a) x
 	| x <- toList (seqValue ss)
 	]
+
+fromSeq :: (Wire a) => Seq a -> [Maybe a]
+fromSeq = fmap unX . toList . seqValue
