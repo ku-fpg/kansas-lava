@@ -133,8 +133,9 @@ phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 		      b' <- unX b :: Maybe a
 		      if fromWireRep a' == fromWireRep b'
 			then return a'
-			else fail "phi problem")
-		(undefined)
+			else fail "phi problem")	-- an internal error, like an assert
+		(ea) -- pick one, they are the same
+			-- later, consider puting the phi nodes into the deep syntax
 
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
