@@ -23,7 +23,7 @@ Flag all
 Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.5, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types,
-                 directory, random, netlist, netlist-to-VHDL
+                 directory, random, netlist==0.2, netlist-to-VHDL
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Dot

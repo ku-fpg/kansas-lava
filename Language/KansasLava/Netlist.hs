@@ -291,7 +291,18 @@ mkInst i (Entity (Name _ nm) outputs inputs _) =
                 [ (n,cast nTy  (sigExpr x)) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
           ]
--- mkInst _ e@(Entity _ _ _ _) = error $ show e
+
+-- TODO: Table should have a default, for space reasons
+mkInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
+	[ NetAssign (sigName vout i)
+		(ExprCase (cast tyin (sigExpr d))
+			[ ([ExprNum $ fromIntegral ix],ExprNum $ fromIntegral val)
+			| (ix,_,val,_) <- mp
+			]
+			Nothing
+		)
+	]
+
 
 
 {-
