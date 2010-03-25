@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.Netlist(netlistCircuit) where
+module Language.KansasLava.Netlist(netlistCircuit, NetlistOption(..) ) where
 
 
 -- import Language.KansasLava hiding (Seq)
@@ -34,6 +34,13 @@ import Language.Netlist.GenVHDL
 
 
 
+data NetlistOption = LoadEnable | AsynchResets deriving (Eq, Show, Ord)
+type NetlistOptions = [NetlistOption]
+
+addEnabled opts = LoadEnable `elem` opts
+asynchResets opts = AsynchResets `elem` opts
+
+
 -- | The 'netlistCircuit' function converts a Lava circuit into a VHDL
 --   entity/architecture pair. The circuit type must implement the 'Ports'
 --   class.  If the circuit type is a function, the function arguments will be
@@ -41,19 +48,22 @@ import Language.Netlist.GenVHDL
 --   (or ports, if it is a compound type).
 netlistCircuit :: (Ports o) =>
                [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+            -> NetlistOptions -- ^ Options for controlling netlist generation
             -> String         -- ^ The name of the generated entity.
             -> o              -- ^ The Lava circuit.
             -> IO Module
-netlistCircuit opts name circuit = do
+netlistCircuit opts nlOpts name circuit = do
   (ReifiedCircuit nodes srcs sinks) <- reifyCircuit opts circuit
 
+  let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
   let inports = -- need size info for each input, to declare length of std_logic_vector
-            [ (nm,sizedRange ty) | (Var nm, ty) <- srcs]
+            loadEnable ++ [ (nm,sizedRange ty) | (Var nm, ty) <- srcs]
               -- need size info for each output, to declare length of std_logic_vector
+
   let  outports =
             [ (nm,sizedRange ty) | (Var nm,ty,_) <- sinks]
 
-  let mod = Module name inports outports ( genDecls nodes ++   genInsts nodes ++ genFinals sinks)
+  let mod = Module name inports outports ( genDecls nodes ++   genInsts nlOpts nodes ++ genFinals sinks)
       -- mod' = inlineModule mod
 
   return mod
@@ -91,10 +101,10 @@ genDecls nodes =
 genFinals args = [ NetAssign  n (sigExpr x) | (Var n,_,x) <- args ]
 
 -- genInsts :: [(Unique,Entity BaseTy Unique)] -> [Inst]
-genInsts nodes = concat [
+genInsts nlOpts nodes = concat [
                mkInst i ent
                  | (i,ent) <- nodes ] ++
-              (synchronous nodes)
+              (synchronous nlOpts nodes)
 
 -- A funciton to render a Driver as a valid VHDL expression (of the appropriate type)
 type SigToVhdl = BaseTy -> Driver Unique -> String
@@ -333,26 +343,38 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 -- delay elements
 -- synchronous :: [(Unique, Entity BaseTy Unique)] -> [Inst]
 
-synchronous nodes  = (concatMap (uncurry regProc) $ M.toList regs) ++
-                     (concatMap (uncurry bramProc) $ M.toList brams)
+synchronous nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ M.toList regs) ++
+                            (concatMap (uncurry bramProc ) $ M.toList brams)
   where -- Handling registers
         regs = getSynchs ["register", "delay"] nodes
         brams = getSynchs ["BRAM"] nodes
 
 
-regProc (clk,rst) [] = []
-regProc (clk,rst) es =
- [ProcessDecl
-  [(Event (sigExpr clk) PosEdge,
-          (If (isHigh (sigExpr rst))
-              (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
-              (Just (statements [Assign (outName i) (nextName i)  | (i,e) <- es]))))]]
+regProc _ (clk,rst) [] = []
+regProc nlOpts (clk,rst) es
+  | asynchResets nlOpts =
+    [ProcessDecl
+     [(Event (sigExpr rst) PosEdge,
+               (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])),
+      (Event (sigExpr clk) PosEdge,
+              regNext)]]
+  | otherwise =
+    [ProcessDecl
+     [(Event (sigExpr clk) PosEdge,
+               (If (isHigh (sigExpr rst))
+                     (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
+                     (Just regNext)))]]
+
   where outName i = sigExpr (Port (Var "o0") i)
         nextName i = sigExprNext (Port (Var "o0") i)
         defaultDriver e = let ty = defaultDriverType e
                           in assignCast ty $ sigTyped ty $ lookupInput "def" e
         defaultDriverType e = lookupInputType "def" e
         driver e = sigExprNext $  lookupInput "i0" e
+        regAssigns = statements [Assign (outName i) (nextName i)  | (i,e) <- es]
+        regNext
+          | addEnabled nlOpts = If (isHigh (ExprVar "enable")) regAssigns Nothing
+          | otherwise = regAssigns
 
 bramProc (clk,rst) [] = []
 bramProc (clk,rst) es =

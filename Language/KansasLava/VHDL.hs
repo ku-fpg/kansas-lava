@@ -22,11 +22,12 @@ import Language.Netlist.GenVHDL
 --   (or ports, if it is a compound type).
 vhdlCircuit :: (Ports o) =>
                [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+            -> [NetlistOption] -- ^ Options for controlling the netlist generation.
             -> String         -- ^ The name of the generated entity.
             -> o              -- ^ The Lava circuit.
             -> IO String
-vhdlCircuit opts name circuit = do
-  mod <- netlistCircuit opts name circuit
+vhdlCircuit opts nlOpts name circuit = do
+  mod <- netlistCircuit opts nlOpts name circuit
   return $  render $ genVHDL  mod
 
 
