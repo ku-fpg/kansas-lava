@@ -5,6 +5,7 @@ module Language.KansasLava.VHDL.Testbench
 
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.VHDL.VCD(ProbeValue(..))
+import Language.KansasLava.Netlist(NetlistOption(..))
 import Data.List(mapAccumL,sortBy, elemIndex,find)
 import Data.Bits
 
@@ -34,17 +35,18 @@ import Data.Dynamic(fromDynamic)
 --   [@name.do@] A @modelsim@ script that will compile the vhd and execute the testbench.
 mkTestbench :: Ports fun =>
                [ReifyOptions] -- Options for controlling the observable-sharing reification, of dut
+            -> [NetlistOption] -- Options for controlling the netlist generation
             -> String -- ^ The name of the function
             -> fun    -- ^ The Lava circuit
             -> IO ()
-mkTestbench ropts coreName fun = do
+mkTestbench ropts nlopts coreName fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
                Nothing -> "/tmp/" ++ coreName ++ "/"
                Just dir -> dir ++"/"++coreName ++ "/"
   putStrLn $ "Base directory is " ++ base
   createDirectoryIfMissing True base
-  vhdl <- vhdlCircuit ropts coreName fun
+  vhdl <- vhdlCircuit ropts nlopts coreName fun
   writeFile (base ++ coreName ++ ".vhd") vhdl
   (inputs,outputs,sequentials) <- ports ropts fun
   writeFile (base ++ coreName ++ "_tb.vhd") $
