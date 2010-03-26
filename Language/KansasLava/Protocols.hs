@@ -17,13 +17,11 @@ import Control.Applicative
 import Data.Maybe  as Maybe
 import Data.Sized.Unsigned (Unsigned,U1)
 
-type Enabled a = (Bool,a)
+type Enabled a = Maybe a
 
 type Pipe a d = Enabled (a,d)
 
 type Memory a d = Seq a -> Seq d
-
-
 
 enabledRegister :: forall a. (Wire a) => Rst -> Comb a -> Seq (Enabled a) -> Seq a
 enabledRegister sysEnv c inp = res
@@ -33,9 +31,7 @@ enabledRegister sysEnv c inp = res
 
 -- | Turns a list of maybe values into enabled values.
 toEnabledSeq :: forall a . (Wire a) => [Maybe a] -> Seq (Enabled a)
-toEnabledSeq xs = toSeqX [ case x of
-			    Nothing -> (return False :: X Bool,optX (Nothing :: Maybe a)) :: X (Enabled a)
-			    Just v -> (return True, optX (Just v :: Maybe a)) :: X (Enabled a)
+toEnabledSeq xs = toSeqX [ optX (Just x)
 			 | x <- xs
 			 ]
 
@@ -109,6 +105,7 @@ pipeToMemory rst pipe addr2 = res
 			]
 		[]
 
+
 fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
@@ -151,12 +148,14 @@ mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
+
 -- 
 joinEnabled :: (Signal sig, Wire a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
 joinEnabled = liftS2 $ \ e1 e2 -> 
 			let (en1,v1) = unpack e1
 	 		    (en2,v2) = unpack e2
 	                in pack (mux2 en1 (en1,en2), mux2 en1 (v1,v2))
+
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
 memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
@@ -169,6 +168,7 @@ shiftRegister sysEnv inp = pack m
 	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
 	fn (v,()) = (reg,reg)
 		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
+
 
 unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
 unShiftRegister inp = r
@@ -185,7 +185,8 @@ unShiftRegister inp = r
 		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))
- 
+
+
 
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.

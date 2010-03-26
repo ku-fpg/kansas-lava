@@ -17,6 +17,7 @@ import qualified Data.Sized.Sampled as Sampled
 import Data.Word
 import Data.Bits
 import qualified Data.Traversable as T
+import qualified Data.Maybe as Maybe
 
 -- | A 'Wire a' is an 'a' value that we can push over a wire.
 class Eq w => Wire w where
@@ -214,13 +215,31 @@ instance (Wire a, Wire b) => Wire (a,b) where
 			      ]
 			      []
 
-
-
 instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => RepWire (a,b) where
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
 --	toWireRep m  		= return $ m ! 0
 --	fromWireRep v 		= matrix [v]
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
+
+
+instance (Wire a) => Wire (Maybe a) where
+	-- not completely sure about this representation
+	type X (Maybe a) = (X Bool, X a)
+	optX b		= ( pureX $ Maybe.isJust b, optX $ Maybe.fromJust b )
+	unX (a,b) 	= case unX a :: Maybe Bool of
+			    Nothing    -> Nothing
+			    Just True  -> Just $ unX b 
+			    Just False -> Just Nothing
+	wireName _	= "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
+	wireType _	= TupleTy [ B, wireType (error "witness" :: a)] 
+
+instance (RepWire a, Size (ADD X1 (WIDTH a))) => RepWire (Maybe a) where
+	type WIDTH (Maybe a) = WIDTH (Bool,a)
+--	toWireRep = return . fromIntegral . U.fromMatrix
+--	fromWireRep = U.toMatrix . fromIntegral 
+	showRepWire w (WireUnknown,a) = "?"
+	showRepWire w (WireVal True,a) = "Just " ++ showRepWire (error "witness" :: a) a
+	showRepWire w (WireVal False,a) = "Nothing"
 
 -- Not for now; to consider
 {-
