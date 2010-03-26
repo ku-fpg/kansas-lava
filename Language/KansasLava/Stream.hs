@@ -35,14 +35,14 @@ instance Applicative Stream where
         pure a = a :~ pure a
 --        (Constant h1) <*> (h2 :~ t2)    = (h1 $ h2) :~ (Constant h1 <*> t2)
 --        (h1 :~ t1) <*> (Constant h2)    = (h1 $ h2) :~ (t1 <*> Constant h2)
-        (h1 :~ t1) <*> (h2 :~ t2)       = (h1 $ h2) :~ (t1 <*> t2)
+        ~(h1 :~ t1) <*> ~(h2 :~ t2)       = (h1 $ h2) :~ (t1 <*> t2)
 --        (Constant h1) <*> (Constant h2) = Constant (h1 $ h2)
 --undefinedStream :: Stream a
 --undefinedStream = Constant Nothing
 
 
 instance Functor Stream where
-   fmap f (a :~ as) = f a :~ fmap f as
+   fmap f ~(a :~ as) = f a :~ fmap f as
 --   fmap f (Constant a) = Constant $ f a
 
 {-
@@ -62,14 +62,14 @@ tail :: Stream a -> Stream a
 tail (_ :~ as) = as
 
 zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
-zipWith f xs ys = pure f <*> xs <*> ys
+zipWith f ~(x :~ xs) ~(y :~ ys) = f x y :~ zipWith f xs ys
 
 fromList :: [a] -> Stream a
 fromList (x : xs) = x :~ fromList xs
 fromList []       = error "Stream.fromList"
 
 toList :: Stream a -> [a]
-toList (x :~ xs) = x : toList xs
+toList ~(x :~ xs) = x : toList xs
 --toList (Constant x) = repeat x
 
 {-
@@ -86,11 +86,11 @@ streamMux sB sT sF =
 -}
 
 instance F.Foldable Stream where
-  foldMap f (a :~ as) = f a `mappend` F.foldMap f as
+  foldMap f ~(a :~ as) = f a `mappend` F.foldMap f as
   foldMap _ _ = error "Foldable.foldMap(Stream)"
 
 
 instance Traversable Stream where
-  traverse f (a :~ as) = (:~) <$> f a <*> traverse f as
+  traverse f ~(a :~ as) = (:~) <$> f a <*> traverse f as
 --  traverse f (Constant a) = Constant <$> f a
 
