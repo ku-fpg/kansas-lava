@@ -158,8 +158,8 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 				   Just v -> optX (fn v :: Maybe b) :: X b)
 				     (D $ Port (Var "o0")
 					$ E
-					$ Table (Var "o0",tA)
-						(Var "i0",tB,ae)
+					$ Table (Var "o0",tB)
+						(Var "i0",tA,ae)
 						tab
 				     )
 	where tA = wireType (error "table" :: a)

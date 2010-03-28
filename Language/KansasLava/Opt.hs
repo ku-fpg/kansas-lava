@@ -105,6 +105,7 @@ dceReifiedCircuit rCir = if optCount == 0
 	allNames = nub (concat
 		       [ case e of
 			  Entity nm _ outs _ -> concatMap outFrees outs
+			  Table _ out _ -> outFrees out
 		       | (u,e) <- theCircuit rCir
 		       ] ++ concatMap outFrees (theSinks rCir)
 		       )
