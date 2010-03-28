@@ -221,11 +221,15 @@ instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => 
 --	fromWireRep v 		= matrix [v]
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
-
 instance (Wire a) => Wire (Maybe a) where
 	-- not completely sure about this representation
 	type X (Maybe a) = (X Bool, X a)
-	optX b		= ( pureX $ Maybe.isJust b, optX $ Maybe.fromJust b )
+	optX b		= ( case b of
+			      Nothing -> optX (Nothing :: Maybe Bool)
+			      Just Nothing   -> optX (Just False :: Maybe Bool)
+			      Just (Just {}) -> optX (Just True :: Maybe Bool)
+			  , optX $ Maybe.fromJust b 
+			  )
 	unX (a,b) 	= case unX a :: Maybe Bool of
 			    Nothing    -> Nothing
 			    Just True  -> Just $ unX b 
