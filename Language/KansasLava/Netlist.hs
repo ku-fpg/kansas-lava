@@ -89,13 +89,11 @@ genDecls nodes =
 
     concatMap memDecl nodes
 
-  where memDecl (i,Entity (Name "Lava" "BRAM") [(Var n,_)] inputs _) =
-          let Just (_,aTy,_) = find (\(Var v,_,_) -> v == "ain") inputs
-              Just (_,dTy,_) = find (\(Var v,_,_) -> v == "din") inputs
+  where memDecl (i,Entity (Name "Memory" "BRAM") [(Var n,_)] inputs _) =
+          let Just (_,aTy,_) = find (\(Var v,_,_) -> v == "wAddr") inputs
+              Just (_,dTy,_) = find (\(Var v,_,_) -> v == "wData") inputs
           in [ MemDecl (sigName n i) (sizedRange aTy) (sizedRange dTy)  ]
         memDecl _ = []
-
-
 
 -- genFinals :: [(Var,BaseTy,Driver Unique)] -> [Inst]
 genFinals args = [ NetAssign  n (sigExpr x) | (Var n,_,x) <- args ]
@@ -171,8 +169,12 @@ mkSpecialBinary ocast mtys ops =
 specials :: [(Name, NetlistOperation)]
 specials =
        (mkSpecialBinary activeHigh
-        [("Unsigned",U 0), ("Signed", S 0), ("Bool",B)]
-        [(".<.",LessThan), (".>.",GreaterThan),(".==.",Equals),(".<=.",LessEqual), (".>=.",GreaterEqual) ])
+        [("Unsigned",U 0), ("Signed", S 0), ("X32",S 5), ("Bool",B)]	-- Ugly solution to X32 issue
+        [(".<.",LessThan), (".>.",GreaterThan),(".==.",Equals),(".<=.",LessEqual), (".>=.",GreaterEqual)])
+       ++
+       (mkSpecialBinary id	-- TODO: review 
+        [ ("Bool",B)]
+        [ ("xor2",Xor), ("or2", Or), ("and2", And) ])
        ++
        (mkSpecialBinary to_std_logic_vector
         [("Unsigned",U 0), ("Signed", S 0)]
@@ -265,7 +267,8 @@ mkInst  i (Entity (Name "Lava" "concat") [(Var "o0",_)] inps _) =
 -- the input drivers via theSinks.
 mkInst _ (Entity (Name "Lava" "top") _ _ _) = []
 
-mkInst  _ (Entity (Name "Lava" "BRAM") _ _ _) = []
+-- This gets generated seperately by the sync. finder
+mkInst  _ (Entity (Name "Memory" "BRAM") _ _ _) = []
 
 mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var "index",_,idx)] _) =
     [NetAssign (sigName  "o0" i) (ExprIndex iname (sigExpr idx))]
@@ -285,9 +288,6 @@ mkInst i (Entity (Name "Lava" "pair") [(Var "o0",_)]
           (ExprConcat [sigExpr i0, sigExpr i1])]
 
 
-
-
-
 mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
                   [(Var "i0", _, input)] _) =
   [NetAssign (sigName "o0" i)
@@ -295,8 +295,9 @@ mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
 
 
 -- Catchall for everything else
-mkInst i (Entity (Name _ nm) outputs inputs _) =
-          [ InstDecl nm ("inst" ++ show i)
+mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
+	trace (show ("mkInst",n)) $ 
+          [ InstDecl (mod_nm ++ "." ++ cleanupName nm) ("inst" ++ show i)
                 []
                 [ (n,cast nTy  (sigExpr x)) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
@@ -309,7 +310,7 @@ mkInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
 			[ ([ExprNum $ fromIntegral ix],ExprNum $ fromIntegral val)
 			| (ix,_,val,_) <- mp
 			]
-			Nothing
+			(Just $ ExprNum $ 0)
 		)
 	]
 
@@ -337,7 +338,11 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 
 
 
-
+cleanupName :: String -> String
+cleanupName "+" = "addition"
+cleanupName "-" = "subtraction"
+cleanupName "*" = "multiplication"
+cleanupName other = other
 
 -- The 'synchronous' function generates a synchronous process for the
 -- delay elements
@@ -381,20 +386,26 @@ bramProc (clk,rst) es =
   [ProcessDecl
    [(Event (sigExpr clk) PosEdge,
            statements
-             [If (isHigh (we e))
-                   (Assign (writeIndexed i e) (dat e))
-                   (Just (Assign (outName i) (readIndexed i e))) | (i,e) <- es])]]
+             [ If (isHigh (wEn e))
+                   (Assign (writeIndexed i e) (wData e))
+                   Nothing
+		-- TODO: will need extra delay
+	     , Assign (outName i) (readIndexed i e)
+	     ])
+   | (i,e) <- es ]]	
     where outName i = sigExpr (Port (Var "o0") i)
-          driver e = sigExprNext $  lookupInput "i0" e
-          we e = sigExpr $ lookupInput "we" e
-          addr e = sigExpr $ lookupInput "ain" e
-          dat e = unsigned $ sigExpr $ lookupInput "din" e
+          ramName i = "sig_" ++ show i ++ "_o0_ram"
+--          driver e = sigExprNext $  lookupInput "i0" e
+          wEn e = sigExpr $ lookupInput "wEn" e
+          wAddr e = sigExpr $ lookupInput "wAddr" e
+          rAddr e = sigExpr $ lookupInput "rAddr" e
+          wData e = sigExpr $ lookupInput "wData" e
           -- FIXME: This is a hack, to get around not having dynamically
           -- indexed exprs.
-          writeIndexed i e = ExprVar $
-                         ("sig_" ++ show i ++ "ram") ++
-                         "(unsigned(" ++ show (addr e) ++"))"
-          readIndexed i e = ExprFunCall ("sig_" ++ show i ++ "ram") [addr e]
+          writeIndexed i e = ExprIndex 
+                         (ramName i) 
+			 (conv_integer (wAddr e))
+          readIndexed i e = ExprIndex (ramName i) (conv_integer (rAddr e))
 
 
 
@@ -433,6 +444,9 @@ to_unsigned x w = ExprFunCall "to_unsigned" [x, w]
 unsigned x = ExprFunCall "unsigned" [x]
 to_signed x w = ExprFunCall "to_signed" [x, w]
 signed x = ExprFunCall "signed" [x]
+
+
+conv_integer x = ExprFunCall "conv_integer" [x]
 
 
 sigTyped :: BaseTy -> Driver Unique -> Expr

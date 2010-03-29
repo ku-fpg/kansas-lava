@@ -94,14 +94,14 @@ pipeToMemory rst pipe addr2 = res
 
     	entity :: Entity BaseTy E
     	entity =
-		Entity (Name "Memory" "memory")
+		Entity (Name "Memory" "BRAM")
 			[ (Var "o0",bitTypeOf res)]
 			[ (Var "clk",ClkTy,Pad (Var "clk"))
 			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
-			, (Var "en",bitTypeOf en,unD $ seqDriver en)
-			, (Var "addr",bitTypeOf addr,unD $ seqDriver addr)
-			, (Var "dat",bitTypeOf dat,unD $ seqDriver dat)
-			, (Var "addr2",bitTypeOf addr2,unD $ seqDriver addr2)
+			, (Var "wEn",bitTypeOf en,unD $ seqDriver en)
+			, (Var "wAddr",bitTypeOf addr,unD $ seqDriver addr)
+			, (Var "wData",bitTypeOf dat,unD $ seqDriver dat)
+			, (Var "rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
 			]
 		[]
 
