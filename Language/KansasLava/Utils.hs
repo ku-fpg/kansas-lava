@@ -104,14 +104,17 @@ instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2
     recip s1 = fun1 "recip" (recip) s1
     -- This should just fold down to the raw bits.
-    fromRational r = Comb
+    fromRational r = constComb (fromRational r :: a)
+{-
+	Comb
 		(pureX (fromRational r :: a))
 		(D $ Port (Var "o0") $ E $
- 		 Entity (Name "Lava" "fromIntegral")
+ 		 Entity (Name "Lava" "fromRational")
 			[(Var "o0",aTy)]
 		  	[ (Var "c0",IntegerTy,Lit $ numerator r)
 			, (Var "c1",IntegerTy,Lit $ denominator r)
 			] [])
+-}
 	 where aTy = wireType (error "fromRational" :: a)
 
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
