@@ -44,6 +44,7 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Wire
+       Language.KansasLava.VHDL.Testbench
   Other-modules:
 
 -- hack for now
