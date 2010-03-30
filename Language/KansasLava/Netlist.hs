@@ -294,9 +294,9 @@ mkInst i e@(Entity (Name "Lava" "snd") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy t
   [NetAssign  (sigName "o0" i) (prodSlices input tys !! 1)]
 
 mkInst i (Entity (Name "Lava" "pair") [(Var "o0",_)]
-                   [(Var "i0", _, i0),(Var "i1", _, i1)] _)  =
+                   [(Var "i0", ty0, i0),(Var "i1", ty1, i1)] _)  =
   [NetAssign  (sigName "o0" i)
-          (ExprConcat [sigExpr i0, sigExpr i1])]
+          (ExprConcat [ asStdLogic ty0 i0,  asStdLogic ty1 i1])]
 
 
 mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
@@ -316,7 +316,7 @@ mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n)) $ 
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
                 []
-                [ (n,sigTyped nTy x) | (Var n,nTy,x) <- inputs ]
+                [ (n,asStdLogic nTy x) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
           ]
 
@@ -352,8 +352,8 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
         ]
 -}
 
-
-
+asStdLogic :: BaseTy -> Driver Unique -> Expr
+asStdLogic ty e = assignCast ty $ sigTyped ty e
 
 cleanupName :: String -> String
 cleanupName "+" = "addition"
