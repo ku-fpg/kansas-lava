@@ -217,7 +217,10 @@ vectors inputs = do
         stim ClkTy = return $ toBits 1 (0 :: Int)
         stim RstTy = return $ toBits 1 (0 :: Int)
         stim T     = error "vectors.stim T not supported"
-
+	stim (TupleTy tys) = do
+		ss <- mapM stim tys
+		return $ concat ss
+	stim other = error $"other, unknown type : " ++ show other
 
         types = map snd inputs
 
