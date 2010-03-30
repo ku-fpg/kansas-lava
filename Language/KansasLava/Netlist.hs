@@ -92,7 +92,7 @@ genDecls nodes =
   where memDecl (i,Entity (Name "Memory" "BRAM") [(Var n,_)] inputs _) =
           let Just (_,aTy,_) = find (\(Var v,_,_) -> v == "wAddr") inputs
               Just (_,dTy,_) = find (\(Var v,_,_) -> v == "wData") inputs
-          in [ MemDecl (sigName n i) (sizedRange aTy) (sizedRange dTy)  ]
+          in [ MemDecl (sigName n i) (memRange aTy) (sizedRange dTy)  ]
         memDecl _ = []
 
 -- genFinals :: [(Var,BaseTy,Driver Unique)] -> [Inst]
@@ -475,6 +475,11 @@ sizedRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
   where size = baseTypeLength ty
         ran = Just $ Range (ExprNum (fromIntegral size - 1)) (ExprNum 0)
 
+
+-- like sizedRange, but allowing 2^n elements (for building memories)
+memRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
+  where size = baseTypeLength ty
+        ran = Just $ Range (ExprNum (2^(fromIntegral size) - 1)) (ExprNum 0)
 
 
 prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
