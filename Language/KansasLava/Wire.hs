@@ -376,7 +376,7 @@ instance (Size (WIDTH (X1_ x)), Enum (WIDTH (X1_ x)), Integral (X1_ x), Size x) 
 	showRepWire _ = show
 		
 -- Some tests
-
+{-
 test1 :: (WIDTH X1 ~ X0) => ()
 test1 = ()
 
@@ -391,6 +391,7 @@ test4 = ()
 
 test5 :: (WIDTH X5 ~ X3) => ()
 test5 = ()
+-}
 -----------------------------------------------------------------------------------------
 
 -- Wire used in simulation *only*, to show ideas.
