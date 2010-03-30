@@ -309,11 +309,11 @@ mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 -- TODO: Table should have a default, for space reasons
 mkInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
 	[ NetAssign (sigName vout i)
-		(ExprCase (cast tyin (sigExpr d))
-			[ ([ExprNum $ fromIntegral ix],ExprNum $ fromIntegral val)
+		(ExprCase (sigExpr d) -- (cast tyin (sigExpr d))
+			[ ([toBinary tyin ix],toBinary tyout val)
 			| (ix,_,val,_) <- mp
 			]
-			(Just $ ExprNum $ 0)
+			(Just $ toBinary tyout 0)
 		)
 	]
 
@@ -465,6 +465,14 @@ sigTyped (TupleTy tys) s = unsigned (sigExpr s)
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
 
+-- Make a constant vhdl signal, in binary format.
+toBinary :: BaseTy -> Integer -> Expr
+toBinary B         n = ExprBit (fromInteger n)
+toBinary (U width) n = ExprLit width n
+toBinary (S width) n = ExprLit width n
+toBinary other n = error $ show ("toBinary",other,n)
+
+
 isHigh d = (ExprBinary Equals d (ExprBit 1))
 isLow d = (ExprBinary Equals d (ExprBit 0))
 allLow ty = ExprLit (baseTypeLength ty) 0
@@ -483,6 +491,8 @@ sizedRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
 memRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
   where size = baseTypeLength ty
         ran = Just $ Range (ExprNum (2^(fromIntegral size) - 1)) (ExprNum 0)
+
+
 
 
 prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
