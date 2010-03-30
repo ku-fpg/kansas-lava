@@ -76,6 +76,9 @@ genDecls nodes =
                           | (i,Entity (Name mod nm) outputs _ _) <- nodes
                           , (Var n,nTy) <- outputs, not (nm `elem` ["delay","register"])
                           ] ++
+    [ NetDecl (sigName n i) (sizedRange nTy) Nothing
+                          | (i,Table (Var n,nTy) _ _) <- nodes
+                          ] ++
     concat [ [ NetDecl (sigName n i ++ "_next") (sizedRange nTy) Nothing
              , MemDecl (sigName  n i) Nothing (sizedRange  nTy)
      	     ]
