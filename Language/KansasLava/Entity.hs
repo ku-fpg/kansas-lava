@@ -36,7 +36,7 @@ instance Show Var where
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
-		 | Table (Var,ty) (Var,ty,Driver s) [(Int,String,Int,String)]
+		 | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
 
