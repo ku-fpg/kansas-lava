@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.Netlist(netlistCircuit, NetlistOption(..) ) where
+module Language.KansasLava.Netlist where -- (netlistCircuit, NetlistOption(..) ) where
 
 
 -- import Language.KansasLava hiding (Seq)
@@ -127,17 +127,19 @@ cast (S _) d = ExprFunCall "signed" [d]
 cast _ d = d
 
 
-assignCast (U _) d = to_std_logic_vector d
-assignCast (S _) d = to_std_logic_vector d
+-- IEEE numerical to std_logic[_vector] format
+--assignCast ty (Lit x) = toBinary ty x
+assignCast (U _) d         = to_std_logic_vector d
+assignCast (S _) d         = to_std_logic_vector d
+assignCast (TupleTy {}) d  = to_std_logic_vector d
 assignCast _  d = d
-
 
 data OpFix = Prefix | Infix | PostFix | NoFix deriving (Show)
 data VhdlOperation =
      VHDLOp OpFix String (BaseTy -> Maybe String) [SigToVhdl]
 
 data NetlistOperation =
-   NetlistOp Int ([(BaseTy,Expr)] -> Expr)
+   NetlistOp Int ([(BaseTy,Driver Unique)] -> Expr)
 
 
 -- the static list, specials, describes entities
@@ -145,10 +147,10 @@ data NetlistOperation =
 --
 
 bOp op ocast [(lty,l), (rty,r)] =
-  ocast (ExprBinary op (cast lty l) (cast rty r))
+  ocast (ExprBinary op (sigTyped lty l) (sigTyped rty r))
 
 uOp op ocast [(lty,l)] =
-  ocast (ExprUnary op (cast lty l))
+  ocast (ExprUnary op (sigTyped lty l))
 
 uOp op _ args = error $ show op ++ show args
 
@@ -162,6 +164,12 @@ mkSpecialUnary ocast mtys ops =
          | (moduleName, ty) <- mtys
          , (lavaName,netListOp) <- ops
          ]
+{- mkSpecialBinary
+  :: (Expr -> Expr)
+     -> [(String, t)]
+     -> [(String, BinaryOp)]
+     -> [(Name, NetlistOperation)]
+-}
 mkSpecialBinary ocast mtys ops =
        [(Name moduleName lavaName, NetlistOp 2 (bOp netListOp ocast))
          | (moduleName, ty) <- mtys
@@ -230,7 +238,7 @@ mkInst :: Unique -> Entity BaseTy Unique -> [Decl]
 mkInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
-                  (f [(inTy, (sigExpr driver))  | (_,inTy,driver) <- ins])]
+                  (f [(inTy, driver)  | (_,inTy,driver) <- ins])]
 
 -- Delay Circuits
 mkInst i e@(Entity (Name "Memory" "delay") [(Var "o0",_)]
@@ -296,13 +304,19 @@ mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
   [NetAssign (sigName "o0" i)
           (sigExpr input)]
 
+-- Hack for April fools
+mkInst i (Entity n@(Name "X32" "+") outputs inputs dyn) =
+	mkInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
+mkInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
+	mkInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
+	
 
 -- Catchall for everything else
 mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n)) $ 
-          [ InstDecl (mod_nm ++ "." ++ cleanupName nm) ("inst" ++ show i)
+          [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
                 []
-                [ (n,cast nTy  (sigExpr x)) | (Var n,nTy,x) <- inputs ]
+                [ (n,sigTyped nTy x) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
           ]
 
@@ -369,7 +383,10 @@ regProc nlOpts (clk,rst) es
   | otherwise =
     [ProcessDecl
      [(Event (sigExpr clk) PosEdge,
-               (If (isHigh (sigExpr rst))
+               (If (case rst of
+		     Lit 0 -> ExprVar "false"
+		     Lit 1 -> error "opps, bad delay code"
+	 	     _ -> isHigh (sigTyped B rst))
                      (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
                      (Just regNext)))]]
 
@@ -456,6 +473,7 @@ sigTyped :: BaseTy -> Driver Unique -> Expr
 sigTyped (U width) d@(Lit n) = to_unsigned (sigExpr d) (ExprNum $ fromIntegral width)
 sigTyped (S width) d@(Lit n) = to_signed (sigExpr d) (ExprNum $ fromIntegral width)
 sigTyped B         (Lit b) = ExprBit (fromInteger b)
+sigTyped ty@(TupleTy tys) d@(Lit b) = to_unsigned (sigExpr d) (ExprNum $ fromIntegral $ baseTypeLength ty)
 sigTyped B     s = sigExpr s
 sigTyped (U _) s = unsigned (sigExpr s)
 sigTyped (S _) s = signed (sigExpr s)
@@ -470,6 +488,7 @@ toBinary :: BaseTy -> Integer -> Expr
 toBinary B         n = ExprBit (fromInteger n)
 toBinary (U width) n = ExprLit width n
 toBinary (S width) n = ExprLit width n
+toBinary ty@(TupleTy {}) n = ExprLit (baseTypeLength ty) n
 toBinary other n = error $ show ("toBinary",other,n)
 
 
