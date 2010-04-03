@@ -21,6 +21,7 @@ import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED
 import Data.Sized.Sampled as SAMPLED
 import Data.Sized.Arith as Arith
+import qualified Data.Sized.Matrix as M
 import Data.Sized.Ix as X
 
 import Language.KansasLava.Comb
@@ -118,3 +119,27 @@ showStreamList ss =
 
 fromSeq :: (Wire a) => Seq a -> [Maybe a]
 fromSeq = fmap unX . toList . seqValue
+
+fromSeqX :: (Wire a) => Seq a -> [X a]
+fromSeqX = toList . seqValue
+
+-----------------------------------------------------------------------------------
+
+writeBitfile :: forall a . (RepWire a) => String -> Int -> Seq a -> IO ()
+writeBitfile filename count ss = do
+	let showX b = case unX b of
+			Nothing -> 'X'
+			Just True -> '1'
+			Just False -> '0'
+	print ()
+	let witness :: a
+	    witness = error "witness for writeBitfile"
+	writeFile filename 
+	      $ unlines 
+	      $ take count
+	      $ [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))
+			++ " -- " ++ showRepWire witness i
+		
+		| i <- fromSeqX (ss :: Seq a)
+       	        ]
+

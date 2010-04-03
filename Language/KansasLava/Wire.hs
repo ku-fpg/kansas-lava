@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances  #-}
 
 module Language.KansasLava.Wire where
 
@@ -50,13 +50,26 @@ class (Wire w, Size (WIDTH w)) => RepWire w where
 	type WIDTH w
 
 		-- TODO: consider using Integer here.
-	toWireRep   :: {- (Size (WIDTH w)) => -} Matrix (WIDTH w) Bool -> Maybe w
-	fromWireRep :: {- (Size (WIDTH w)) => -} w -> Matrix (WIDTH w) Bool 
+		-- NOTE: no way of having 'X' inside the Bool values ; consider.
+	toWireRep   :: Matrix (WIDTH w) Bool -> Maybe w
+	fromWireRep :: w -> Matrix (WIDTH w) Bool
+
+	toWireXRep :: w -> Matrix (WIDTH w) (X Bool) -> X w
+	toWireXRep wt m = optX (toWireRep (fmap (noFail :: X Bool -> Bool) m :: Matrix (WIDTH w) Bool) :: Maybe w)
+		where noFail :: X Bool -> Bool
+		      noFail x = case unX x of
+				   Nothing -> error "toWireXRep: non value"
+				   Just v -> v
+							
+	-- need to pass in witness
+	fromWireXRep :: w -> X w -> Matrix (WIDTH w) (X Bool)
+	fromWireXRep _wt w = case unX w :: Maybe w of
+			   Nothing -> (forAll $ \ _ -> optX (Nothing :: Maybe Bool) :: X Bool) :: Matrix (WIDTH w) (X Bool)
+			   Just v -> fmap pureX (fromWireRep v)
 
 	-- | how we want to present this value, in comments
 	-- The first value is the witness.
 	showRepWire :: w -> X w -> String
-
 
 allWireReps :: forall width . (Size width) => [Matrix width Bool]
 allWireReps = [U.toMatrix count | count <- counts ]
@@ -65,11 +78,25 @@ allWireReps = [U.toMatrix count | count <- counts ]
 	counts = [0..2^(fromIntegral sz)-1]
 	sz = size (error "allWireRep" :: width)
 
+allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
+allOkayRep m | okay      = return (fmap (\ (WireVal a) -> a) m)
+	     | otherwise = Nothing
+	where okay = and (map (\ x -> case x of
+					   WireUnknown -> False
+					   _ -> True) (M.toList m))
+
+-- toWriteRep' :: (Size w) => (Matrix w Bool -> a) -> Matrix w (
+
 liftX0 :: (Wire w1) => w1 -> X w1	
 liftX0 = pureX
 
 pureX :: (Wire w) => w -> X w
 pureX = optX . Just
+
+-- Not possible to use!
+--failX :: forall w . (Wire w) => X w
+--failX = optX (Nothing :: Maybe w)
+
 
 -------------------------------------------------------------------------------------
 
@@ -107,8 +134,8 @@ instance Wire Bool where
 	
 instance RepWire Bool where
 	type WIDTH Bool	= X1
-	toWireRep m  		= return $ m ! 0
-	fromWireRep v 		= matrix [v]
+	toWireRep m	= return $ m ! 0
+	fromWireRep v 	= matrix [v]
 	showRepWire _ = show
 
 instance Wire Int where 	
@@ -120,6 +147,7 @@ instance Wire Int where
 	wireName _	= "Int"
 	wireType _	= S 32		-- hmm. Not really on 64 bit machines.
 		
+
 instance RepWire Int where
 	type WIDTH Int	= X32
 	toWireRep = return . fromIntegral . U.fromMatrix
@@ -218,7 +246,9 @@ instance (Wire a, Wire b) => Wire (a,b) where
 instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => RepWire (a,b) where
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
 --	toWireRep m  		= return $ m ! 0
---	fromWireRep v 		= matrix [v]
+	fromWireRep (a,b) 	= M.matrix (M.toList (fromWireRep a) ++ M.toList (fromWireRep b))
+	fromWireXRep w (a,b)    = M.matrix (M.toList (fromWireXRep (error "witness" :: a) a) ++ 
+					    M.toList (fromWireXRep (error "witness" :: b) b))
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
 instance (Wire a) => Wire (Maybe a) where
@@ -237,23 +267,23 @@ instance (Wire a) => Wire (Maybe a) where
 	wireName _	= "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
 	wireType _	= TupleTy [ B, wireType (error "witness" :: a)] 
 
+
+--instance Size (ADD X1 a) => Size a where
+
 instance (RepWire a, Size (ADD X1 (WIDTH a))) => RepWire (Maybe a) where
 	type WIDTH (Maybe a) = WIDTH (Bool,a)
 --	toWireRep = return . fromIntegral . U.fromMatrix
---	fromWireRep = U.toMatrix . fromIntegral 
+	fromWireRep Nothing  = M.matrix $ take sz $ repeat False
+	    where sz = 1 + size (error "witness" :: (WIDTH a)) 
+	fromWireRep (Just a) = M.matrix (True : M.toList (fromWireRep a))
+
+	fromWireXRep w (en,val) = M.matrix (M.toList (fromWireXRep (error "witness" :: Bool) en) ++ 
+					    M.toList (fromWireXRep (error "witness" :: a) val))
+
 	showRepWire w (WireUnknown,a) = "?"
 	showRepWire w (WireVal True,a) = "Just " ++ showRepWire (error "witness" :: a) a
 	showRepWire w (WireVal False,a) = "Nothing"
 
--- Not for now; to consider
-{-
-instance (Wire a) => Wire (Maybe a) where
-	type X (Maybe a) = X (Bool, a)
-	optX Nothing 	 = (optX (Nothing :: Maybe Bool), optX (Nothing :: Maybe a))
-	unX (a,b) 	 = do x <- unX (a :: X Bool) :: Maybe Bool
-			      y <- unX (b :: X a) :: Maybe a
-			      return $ if x then Just y else Nothing
--}
 
 instance (Size ix, Wire a) => Wire (Matrix ix a) where 
 	type X (Matrix ix a) = Matrix ix (X a)
@@ -416,7 +446,6 @@ instance RepWire ALPHA where
 	fromWireRep v 		= matrix []
 	showRepWire _ = show
 
-
-
-
 -----------------------------------------------------------------------------
+
+
