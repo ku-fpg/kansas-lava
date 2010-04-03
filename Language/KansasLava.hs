@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables #-}
 
 module Language.KansasLava (
     module Language.KansasLava.Dot,
@@ -20,6 +20,9 @@ module Language.KansasLava (
     module Language.KansasLava.Wire,
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
+	-- hacks
+	examine, dumpBitTrace
+	
      ) where
 
 import Language.KansasLava.Dot
@@ -40,9 +43,38 @@ import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 import Language.KansasLava.Wire
 
---import Language.KansasLava.Logic
---import Language.KansasLava.Conditional
 
---import Language.KansasLava.Applicative
---import Language.KansasLava.Memory
 
+-- Location of Temp Hacks
+
+import System.IO.Unsafe
+import Control.Concurrent
+import Control.Concurrent.Chan
+
+{-# NOINLINE eChan #-}
+eChan :: Chan (String -> Int -> Int -> IO ())
+eChan = unsafePerformIO $ newChan
+
+{-# NOINLINE examine #-}
+examine :: forall a b . (RepWire a, RepWire b) => String -> (Seq a -> Seq b) -> (Seq a -> Seq b)
+examine nm fn arg = unsafePerformIO $ do
+	let res = fn arg
+	writeChan eChan (\ path n depth -> writeBitfilePair (path  ++ nm ++ "_" ++ show n) depth (pack (arg,res) :: Seq (a,b)))
+	return $ res
+
+dumpBitTrace :: String -> Int -> IO ()
+dumpBitTrace path depth = do
+	let loop n = do
+		ok <- isEmptyChan eChan
+		if ok then return () else do
+			f <- readChan eChan
+			f path n depth
+			loop (succ n)
+	loop 0
+
+-- pretty pointless without examine. Could be inlined.
+writeBitfilePair :: forall a b . (RepWire a, RepWire b) => String -> Int -> Seq (a,b) -> IO ()
+writeBitfilePair nm count fn = do
+	let (inp,outp) = unpack fn
+	writeBitfile (nm ++ ".inp.bits") count inp
+	writeBitfile (nm ++ ".out.bits") count outp
