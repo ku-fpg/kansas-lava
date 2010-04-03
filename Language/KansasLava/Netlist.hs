@@ -293,10 +293,12 @@ mkInst i e@(Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy t
 mkInst i e@(Entity (Name "Lava" "snd") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
   [NetAssign  (sigName "o0" i) (prodSlices input tys !! 1)]
 
+-- VHDL bits are (by Lava convention) MSB to LSB, so the first element
+-- of a pair comes first on the *right* hand side.
 mkInst i (Entity (Name "Lava" "pair") [(Var "o0",_)]
                    [(Var "i0", ty0, i0),(Var "i1", ty1, i1)] _)  =
   [NetAssign  (sigName "o0" i)
-          (ExprConcat [ asStdLogic ty0 i0,  asStdLogic ty1 i1])]
+          (ExprConcat [ asStdLogic ty1 i1,  asStdLogic ty0 i0])]
 
 
 mkInst i (Entity (Name "probe" _) [(Var "o0",_)]
@@ -353,7 +355,8 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 -}
 
 asStdLogic :: BaseTy -> Driver Unique -> Expr
-asStdLogic ty e = assignCast ty $ sigTyped ty e
+asStdLogic ty (Lit i) = assignCast ty $ sigTyped ty (Lit i)
+asStdLogic ty e = sigExpr e		-- hmm?
 
 cleanupName :: String -> String
 cleanupName "+" = "addition"
@@ -513,9 +516,10 @@ memRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
 
 
 
-
+-- The BaseTy here goes from left to right, but we use it right to left.
+-- So [B,U4] => <XXXX:4 to 1><X:0>, because of the convension ordering in our generated VHDL.
 prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
-prodSlices d tys = snd $ mapAccumL f size tys
+prodSlices d tys = snd $ mapAccumL f size $ reverse tys
   where ExprVar v = sigExpr d
         size = fromIntegral $ sum (map baseTypeLength tys) - 1
         f i B = (i-1,ExprIndex v (ExprNum i))
