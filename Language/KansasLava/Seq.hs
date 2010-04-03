@@ -131,7 +131,6 @@ writeBitfile filename count ss = do
 			Nothing -> 'X'
 			Just True -> '1'
 			Just False -> '0'
-	print ()
 	let witness :: a
 	    witness = error "witness for writeBitfile"
 	writeFile filename 
