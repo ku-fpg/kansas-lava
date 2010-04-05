@@ -408,14 +408,17 @@ bramProc (clk,rst) [] = []
 bramProc (clk,rst) es =
   [ProcessDecl
    [(Event (sigExpr clk) PosEdge,
-           statements
-             [ If (isHigh (wEn e))
+           (statements $ concat
+             [ [ If (isHigh (wEn e))
                    (Assign (writeIndexed i e) (wData e))
                    Nothing
 		-- TODO: will need extra delay
-	     , Assign (outName i) (readIndexed i e)
-	     ])
-   | (i,e) <- es ]]	
+	       , Assign (outName i) (readIndexed i e)
+	       ]
+	     | (i,e) <- es 
+	     ]
+	   ))]
+  ]
     where outName i = sigExpr (Port (Var "o0") i)
           ramName i = "sig_" ++ show i ++ "_o0_ram"
 --          driver e = sigExprNext $  lookupInput "i0" e
@@ -469,6 +472,7 @@ to_signed x w = ExprFunCall "to_signed" [x, w]
 signed x = ExprFunCall "signed" [x]
 
 
+conv_integer e@(ExprNum v) = e	-- YAH
 conv_integer x = ExprFunCall "conv_integer" [x]
 
 
