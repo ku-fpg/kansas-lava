@@ -518,8 +518,9 @@ memRange ty = ran -- trace ("sizedRange: " ++ show ty ++ " " ++ show ran) ran
 
 -- The BaseTy here goes from left to right, but we use it right to left.
 -- So [B,U4] => <XXXX:4 to 1><X:0>, because of the convension ordering in our generated VHDL.
+-- Notice the result list is in the same order as the argument list.
 prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
-prodSlices d tys = snd $ mapAccumL f size $ reverse tys
+prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
   where ExprVar v = sigExpr d
         size = fromIntegral $ sum (map baseTypeLength tys) - 1
         f i B = (i-1,ExprIndex v (ExprNum i))
