@@ -92,8 +92,8 @@ dut :: String -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> String
 dut coreName inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ coreName,
  "port map ("] ++
- portAssigns inputs outputs ++
- ["\t" ++ c ++ " => clk" | (Var c,_) <- sequentials] ++
+ ["\t" ++ c ++ " => clk," | (Var c,_) <- sequentials] ++
+ (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
  [");"]
 
 -- TODO: add clock speed argument
