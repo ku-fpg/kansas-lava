@@ -63,8 +63,8 @@ pipeToMemory rst pipe addr2 = res
 				       Just a' -> case Map.lookup (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
-			  ) <*> (Map.empty :~ Map.empty :~ mem)
-			    <*> (optX (Nothing :: Maybe a) :~ optX (Nothing :: Maybe a) :~ seqValue addr2)
+			  ) <*> (Map.empty :~ mem)
+			    <*> (optX (Nothing :: Maybe a) :~ seqValue addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
