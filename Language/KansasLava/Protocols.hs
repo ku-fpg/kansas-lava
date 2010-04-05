@@ -36,7 +36,7 @@ toEnabledSeq xs = toSeqX [ optX (Just x)
 			 ]
 
 memoryToPipe ::  forall a d . (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe enA mem = pack (delay (delay en),pack (delay (delay a),mem a))
+memoryToPipe enA mem = pack (delay en,pack ((delay a),mem a))
    where
 	(en,a) = unpack enA
 
