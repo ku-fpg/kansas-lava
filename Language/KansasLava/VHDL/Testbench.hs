@@ -180,12 +180,12 @@ portLen pts = sum (map (baseTypeLength .snd) pts)
 
 portAssigns :: [(Var, BaseTy)]-> [(Var, BaseTy)] -> [String]
 portAssigns inputs outputs = imap ++ omap
-  where assign sig idx (n,1) =
+  where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
-        assign sig idx (n,k) =
+        assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
-        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
+        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- inputs]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- outputs]
 
 
 
