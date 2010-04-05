@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification #-}
+{-# LANGUAGE StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
 
 
 import Language.KansasLava
@@ -13,6 +13,7 @@ import Data.Bits
 
 import Data.Sized.Arith as A
 import Data.Sized.Matrix as M
+import Data.Sized.Sampled as S
 
 import Data.Sized.Signed as S
 import Data.Sized.Unsigned as U
@@ -46,13 +47,14 @@ numberOfCycles = 50
 
 dumpDir = "examine/"
 
+type FLOAT = Sampled X32 X32 
+
 testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
 	-- Hack to speed up the generation of our tests
-  | nm /= "signedArithX" = putStrLn $ "Ignoring " ++ show nm
-
+  | nm /= "XXXX" = putStrLn $ "Ignoring " ++ show nm
   | otherwise = do
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
@@ -144,3 +146,14 @@ main = do
 			  .*. toSeq (cycle [0,1])
 		)
 
+
+
+
+
+	-- Testing Sampled
+	
+	testSome "arithmeticSampled32X"
+		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq FLOAT))) :: Seq FLOAT -> Seq FLOAT -> Seq (Matrix X2 FLOAT))
+		(\ f -> f .*. (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
+			  .*. (toSeq [-3.2,-3.15..10] :: Seq (Sampled X32 X32))
+		)
