@@ -55,22 +55,53 @@ deriving instance Typeable1 Seq
 deriving instance Typeable1 Unsigned
 -}
 
-test :: Seq U4 -> Seq U4
-test x = liftS1 (snd . unpack)  . examine "map" fut . liftS1 (\ v -> pack (true, pack (v,v*v))) $ x
 
-fut :: Seq (Pipe U4 U4) -> Seq (Enabled U4)
-fut s = pack (e,a `xor` d)
+testAllTruth:: (Testable a) => String -> a -> IO ()
+testAllTruth nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showAllTT $ truthTable fn
+	
+testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
+testSomeTruth n nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " function"
+	putStrLn $ "======="
+	putStrLn $ showSomeTT n $ truthTable fn	
+	
+testReify :: (Ports a) => String -> a -> IO ()
+testReify nm fn = do
+	putStrLn $ "Testing " ++ nm ++ " reify"
+	putStrLn $ "======="
+	debugCircuit [] fn
+
+
+main = do
+	let tst ::Rst -> Comb U4 -> Seq U4 -> Seq U4
+	    tst = register
+	testSomeTruth 50 "register" $
+		let env = takeThenSeq 7 shallowRst env
+		    def = 1
+		    inp = toSeq $ cycle [0..3]
+		 in example (examine "register" tst) .*. env .*. def .*. inp
+
+	testReify "register" tst		
+	dumpBitTrace "exam/" 20
+
+	mkTestbench [] [] "register" tst
+
+--	print (test (toSeq [1..15]))
+--	dumpBitTrace "exam/" 20
+
+--test :: Seq U4 -> Seq U4
+--test x = liftS1 (snd . unpack)  . examine "map" fut . liftS1 (\ v -> pack (true, pack (v,v*v))) $ x
+
+-- device under test
+dut :: Seq (Pipe U4 U4) -> Seq (Enabled U4)
+dut s = pack (e,a `xor` d)
   where	(e,p) = unpack s
 	(a,d) = unpack p
 
-fib n = if n < 2 then 1 else fib (n-1)+fib(n-2)
+{-
+ - 1. run test, with observations on.
 
-main :: IO ()
-main = do
-	print (test (toSeq [1..15]))
-
-	mkTestbench [] [] "XX" fut
-
-	dumpBitTrace "exam/" 20
-
-	
+-}
