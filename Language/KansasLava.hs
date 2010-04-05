@@ -21,7 +21,7 @@ module Language.KansasLava (
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
 	-- hacks
-	examine, dumpBitTrace
+	examine, dumpBitTrace, Examine(..),
 	
      ) where
 
