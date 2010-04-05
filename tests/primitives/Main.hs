@@ -53,9 +53,7 @@ testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
-	-- Hack to speed up the generation of our tests
-  | nm /= "XXXX" = putStrLn $ "Ignoring " ++ show nm
-  | otherwise = do
+  | nm `elem` ["boolPrims2X"] = do
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
   	createDirectoryIfMissing True (dumpDir ++ nm ++ "/")	-- this should move into dumpBitTrace
@@ -66,6 +64,9 @@ testSome nm tst f
 --	system $ "cp " ++ dumpDir ++ nm ++ "*.info " ++ dumpDir ++ nm 
 
 	return ()	
+  -- Hack to speed up the generation of our tests
+  | otherwise = putStrLn $ "Ignoring " ++ show nm
+
 
 main = do
 	Posix.setEnv "LAVA_SIM_PATH" dumpDir True
@@ -87,6 +88,11 @@ main = do
 	    sinp2 = toSeq $ cycle $ reverse [0..15]
 	    sinp3 :: Seq S5
 	    sinp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
+
+	    binp :: Seq Bool
+	    binp  = toSeq $ cycle [True, False]
+	    binp2 :: Seq Bool
+	    binp2 = toSeq $ cycle [True, True, False, False]
 
 	    step n (x:xs) = x : (step n $ drop (n - 1) xs)
 
@@ -113,13 +119,27 @@ main = do
 		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
 
 	testSome "signedArithX"
-		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X2 S5))
+		((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X3 S5))
 		(\ f -> f .*. sinp .*. sinp3)
 
 	testSome "unsignedArithX"
-		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X2 U4))
+		((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X3 U4))
 		(\ f -> f .*. inp .*. inp3)
 
+	testSome "boolPrimsX"
+		((\ a b -> pack (matrix [a `and2` b, a `or2` b, a `xor2` b, bitNot a] :: Matrix X4 (Seq Bool))) :: Seq Bool -> Seq Bool -> Seq (Matrix X4 Bool))
+		(\ f -> f .*. binp .*. binp2)
+
+	testSome "boolPrims2X"
+		((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq U4 -> Seq U4 -> Seq (Matrix X5 Bool))
+		(\ f -> f .*. inp .*. inp3)
+
+{-	This doesn't have a deep embedding defined, and takes an Int,
+ 	which requires an instance of Examine (Int -> Seq Bool)
+ 		testSome "testABitX"
+		((\ a i -> testABit a i) :: Seq U8 -> Int -> Seq Bool)
+		(\ f -> f .*. (toSeq $ cycle $ [0..255]) .*. 8)
+-}
 	testSome "enabledRegisterX"
 		(enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
 		(\ f -> f .*. env .*. 10 .*. eInp)
