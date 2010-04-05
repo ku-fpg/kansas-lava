@@ -136,7 +136,9 @@ instance RepWire Bool where
 	type WIDTH Bool	= X1
 	toWireRep m	= return $ m ! 0
 	fromWireRep v 	= matrix [v]
-	showRepWire _ = show
+	showRepWire _ (WireUnknown) = "?"
+	showRepWire _ (WireVal True) = "T"
+	showRepWire _ (WireVal False) = "F"
 
 instance Wire Int where 	
 	type X Int 	= WireVal Int
