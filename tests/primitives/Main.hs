@@ -50,7 +50,7 @@ testSome
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
 	-- Hack to speed up the generation of our tests
-  | nm /= "pipeToMemoryX" = putStrLn $ "Ignoring " ++ show nm
+  | nm /= "arithmeticX" = putStrLn $ "Ignoring " ++ show nm
 
   | otherwise = do
 	testReify nm tst		
@@ -75,6 +75,10 @@ main = do
 	    inp  = toSeq $ cycle [0..15]
 	    inp2 :: Seq U4
 	    inp2 = toSeq $ cycle $ reverse [0..15]
+	    inp3 :: Seq U4
+	    inp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
+
+	    step n (x:xs) = x : (step n $ drop (n - 1) xs)
 
 	    eInp :: Seq (Enabled U4)
 	    eInp = toEnabledSeq 
@@ -97,6 +101,10 @@ main = do
 	testSome "muxX" 
 		((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
 		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
+
+	testSome "arithmeticX"
+		((\ a b -> pack (matrix [a + b] :: Matrix X1 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X1 U4))
+		(\ f -> f .*. inp .*. inp3)
 
 	testSome "enabledRegisterX"
 		(enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
