@@ -259,8 +259,8 @@ mkInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var i0,cTy,c),(Var i1 ,tTy,t),
 -- FIXME: Figure out the casts
 	= [NetAssign output
                      (ExprCond cond
-                      (assignCast fTy $ sigTyped fTy f)
-                      (assignCast tTy $ sigTyped tTy t))]
+                      (asStdLogic fTy f)
+                      (asStdLogic tTy t))]
   where cond = isLow (sigTyped cTy c)
         output = (sigName "o0" i)
 
@@ -356,7 +356,7 @@ mkInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 
 asStdLogic :: BaseTy -> Driver Unique -> Expr
 asStdLogic ty (Lit i) = assignCast ty $ sigTyped ty (Lit i)
-asStdLogic ty e = sigExpr e		-- hmm?
+asStdLogic ty e       = sigExpr e		-- hmm?
 
 cleanupName :: String -> String
 cleanupName "+" = "addition"
