@@ -18,6 +18,12 @@ import Data.Sized.Unsigned as U
 
 import Language.KansasLava.VHDL.Testbench
 
+import System.Environment
+import System.Directory
+import System.Cmd
+
+import qualified System.Posix.Env as Posix
+
 -- Lots of tests for primitives
 
 testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
@@ -30,27 +36,64 @@ testReify :: (Ports a) => String -> a -> IO ()
 testReify nm fn = do
 	putStrLn $ "Testing " ++ nm ++ " reify"
 	putStrLn $ "======="
-	debugCircuit [] fn
+	debugCircuit [OptimizeReify] fn
 
 
-testSome nm tst = do
-	return ()
-	
+numberOfCycles :: Int
+numberOfCycles = 50
+
+
+dumpDir = "examine/"
+
+testSome
+  :: (Ports a, Testable a1, Examine a) 
+  => String -> a -> (Example a -> a1) -> IO ()
+testSome nm tst f = do
+	testReify nm tst		
+	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
+  	createDirectoryIfMissing True (dumpDir ++ nm ++ "/")	-- this should move into dumpBitTrace
+	dumpBitTrace (dumpDir ++ nm ++ "/") numberOfCycles
+	mkTestbench [OptimizeReify] [] nm tst	-- inc optimizations?
+
+--	system $ "cp " ++ dumpDir ++ nm ++ "*.bits " ++ dumpDir ++ nm 
+--	system $ "cp " ++ dumpDir ++ nm ++ "*.info " ++ dumpDir ++ nm 
+
+	return ()	
 
 main = do
+	Posix.setEnv "LAVA_SIM_PATH" dumpDir True
+  	createDirectoryIfMissing True dumpDir
 
-	let tst ::Rst -> Comb U4 -> Seq U4 -> Seq U4
-	    tst = register
+	let env = takeThenSeq 7 shallowRst env
+	    inp :: Seq U4
+	    inp  = toSeq $ cycle [0..15]
+	    inp2 :: Seq U4
+	    inp2 = toSeq $ cycle $ reverse [0..15]
 
-	testReify "register" tst		
+	    eInp :: Seq (Enabled U4)
+	    eInp = toEnabledSeq 
+		 $ Prelude.zipWith (\ a b -> if b then Just a else Nothing)
+	 		           (cycle [0..15]) 
+				   (cycle [False,True,False,False,True])
 
-	testSomeTruth 50 "register" $
-		let env = takeThenSeq 7 shallowRst env
-		    def = 1
-		    inp = toSeq $ cycle [0..3]
-		 in example (examine "registerX" tst) .*. env .*. def .*. inp
+	let nop x = return ()
 
-	dumpBitTrace "exam/" 50
+	-- And the tests (comment them out wiht nop)
 
-	mkTestbench [] [] "registerX" tst
+	nop $ testSome "regX" 
+		(register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
+		(\ reg -> reg .*. env .*. 10 .*. inp)
+		
+	nop $ testSome "delayX" 
+		(delay :: Seq U4 -> Seq U4)
+		(\ f -> f .*. inp)
+		
+	nop $ testSome "muxX" 
+		((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
+		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
+
+	nop $ testSome "enabledRegisterX"
+		(enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
+		(\ f -> f .*. env .*. 10 .*. eInp)
+
 
