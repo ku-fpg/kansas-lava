@@ -14,6 +14,7 @@ import Data.Bits
 import Data.Sized.Arith as A
 import Data.Sized.Matrix as M
 
+import Data.Sized.Signed as S
 import Data.Sized.Unsigned as U
 
 import Language.KansasLava.VHDL.Testbench
@@ -50,7 +51,7 @@ testSome
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
 	-- Hack to speed up the generation of our tests
-  | nm /= "arithmeticX" = putStrLn $ "Ignoring " ++ show nm
+  | nm /= "signedArithX" = putStrLn $ "Ignoring " ++ show nm
 
   | otherwise = do
 	testReify nm tst		
@@ -78,6 +79,13 @@ main = do
 	    inp3 :: Seq U4
 	    inp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
 
+	    sinp :: Seq S5
+	    sinp  = toSeq $ cycle [0..15]
+	    sinp2 :: Seq S5
+	    sinp2 = toSeq $ cycle $ reverse [0..15]
+	    sinp3 :: Seq S5
+	    sinp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
+
 	    step n (x:xs) = x : (step n $ drop (n - 1) xs)
 
 	    eInp :: Seq (Enabled U4)
@@ -102,7 +110,11 @@ main = do
 		((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
 		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
 
-	testSome "arithmeticX"
+	testSome "signedArithX"
+		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X2 S5))
+		(\ f -> f .*. sinp .*. sinp3)
+
+	testSome "unsignedArithX"
 		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X2 U4))
 		(\ f -> f .*. inp .*. inp3)
 
