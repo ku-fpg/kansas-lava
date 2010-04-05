@@ -125,12 +125,52 @@ fromSeqX = toList . seqValue
 
 -----------------------------------------------------------------------------------
 
-writeBitfile :: forall a . (RepWire a) => String -> Int -> Seq a -> IO ()
-writeBitfile filename count ss = do
-	let showX b = case unX b of
+-- Monomorphic box round wires.
+data IsRepWire = forall a . (RepWire a) => IsRepWire (Seq a)
+
+-- The raw data
+showBitfile :: [IsRepWire] -> [String]
+showBitfile streams = 
+	      [ concat bits 
+	      | bits <- bitss
+	      ]
+	where	bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
+
+
+showBitfileInfo :: [IsRepWire] -> [String]
+showBitfileInfo streams = 
+	      [  "(" ++ show n ++ ") " ++ joinWith " -> " 
+		 [ v ++ "/" ++ b
+	         | (b,v) <- zip bits vals
+	         ]
+	      | (n,bits,vals) <- zip3 [0..] bitss valss
+	      ]
+	where
+		joinWith _ [] = []
+		joinWith sep xs = foldr1 (\ a b -> a ++ sep ++ b) xs
+		bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
+		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
+
+showSeqBits :: forall a . (RepWire a) => Seq a -> [String]
+showSeqBits ss = [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))
+		 | i <- fromSeqX (ss :: Seq a)
+       	         ]
+       where showX b = case unX b of
 			Nothing -> 'X'
 			Just True -> '1'
 			Just False -> '0'
+             witness = error "witness" :: a
+
+showSeqVals :: forall a . (RepWire a) => Seq a -> [String]
+showSeqVals ss = [ showRepWire witness i
+	 	 | i <- fromSeqX (ss :: Seq a)
+       	         ]
+
+     where witness = error "witness" :: a
+
+
+{-
+
 	let witness :: a
 	    witness = error "witness for writeBitfile"
 	writeFile filename 
@@ -142,3 +182,4 @@ writeBitfile filename count ss = do
 		| i <- fromSeqX (ss :: Seq a)
        	        ]
 
+-}

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GADTs, FlexibleContexts #-}
 
 module Language.KansasLava (
     module Language.KansasLava.Dot,
@@ -50,16 +50,65 @@ import Language.KansasLava.Wire
 import System.IO.Unsafe
 import Control.Concurrent
 import Control.Concurrent.Chan
+import Data.Sized.Arith
+import Data.Sized.Ix
 
 {-# NOINLINE eChan #-}
 eChan :: Chan (String -> Int -> Int -> IO ())
 eChan = unsafePerformIO $ newChan
+{-
+	examine :: (RepWire a) => String -> (Seq a -> b) -> (Seq a -> b)
 
-{-# NOINLINE examine #-}
-examine :: forall a b . (RepWire a, RepWire b) => String -> (Seq a -> Seq b) -> (Seq a -> Seq b)
-examine nm fn arg = unsafePerformIO $ do
-	let res = fn arg
-	writeChan eChan (\ path n depth -> writeBitfilePair (path  ++ nm ++ "_" ++ show n) depth (pack (arg,res) :: Seq (a,b)))
+instance (RepWire a) => Examine (Seq a) where
+	examine = examine1
+
+instance (t ~ (ADD (WIDTH a) (WIDTH b)), Size t, Enum t, RepWire a, RepWire b) => Examine (Seq b -> Seq c) where
+	examine = examine2
+
+examine2 :: forall a b c t . (t ~ (ADD (WIDTH a) (WIDTH b)), Size t, Enum t, RepWire a, RepWire b, RepWire c) 
+	=> String -> (Seq a -> Seq b -> Seq c) -> (Seq a -> Seq b -> Seq c)
+examine2 nm fn a1 a2 = examine1 nm fn' (pack (a1,a2))
+   where fn' :: Seq (a,b) -> Seq c
+	 fn' v = fn a b
+		where (a,b) = unpack v
+
+class Examine a where
+	examine = examine0
+-}
+
+-- TODO: Combine with the Ports stuff
+class Examine a where
+	examine' :: String -> [IsRepWire] -> a -> a
+	
+instance (RepWire a) => Examine (Seq a) where
+	examine' = examine0
+
+instance (RepWire a, Examine b) => Examine (Seq a -> b) where
+	examine' nm args f a = examine' nm (args ++ [IsRepWire a]) (f a)
+	
+instance (RepWire a, Examine b) => Examine (Comb a -> b) where
+	examine' nm args f a = examine' nm (args ++ [IsRepWire $ liftS0 a]) (f a)	
+		
+-- If you are reifying things, then this should not be used. It does no harm,
+-- but will generate failing 'examine' traces.
+
+examine :: Examine a => String -> a -> a
+examine nm a = examine' nm [] a
+
+{-# NOINLINE examine0 #-}
+examine0 :: forall a b . (RepWire b) => String -> [IsRepWire] -> Seq b -> Seq b
+examine0 nm args res = unsafePerformIO $ do
+	writeChan eChan $ \ path n count -> do
+			writeFile (path ++ nm ++ "_" ++ show n ++ ".bits")
+				$ unlines
+				$ take count
+				$ showBitfile
+				$  (args ++ [IsRepWire res])
+			writeFile (path ++ nm ++ "_" ++ show n ++ ".info")
+				$ unlines
+				$ take count
+				$ showBitfileInfo
+				$ (args ++ [IsRepWire res])
 	return $ res
 
 dumpBitTrace :: String -> Int -> IO ()
@@ -71,10 +120,3 @@ dumpBitTrace path depth = do
 			f path n depth
 			loop (succ n)
 	loop 0
-
--- pretty pointless without examine. Could be inlined.
-writeBitfilePair :: forall a b . (RepWire a, RepWire b) => String -> Int -> Seq (a,b) -> IO ()
-writeBitfilePair nm count fn = do
-	let (inp,outp) = unpack fn
-	writeBitfile (nm ++ ".inp.bits") count inp
-	writeBitfile (nm ++ ".out.bits") count outp
