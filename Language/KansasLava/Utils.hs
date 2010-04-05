@@ -384,11 +384,14 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 
 
 delay :: forall a . (Wire a) => Seq a -> Seq a
-delay = register low errorComb
+delay = register' low errorComb
 
 
 register :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
-register rst c@(Comb def edef) l@(Seq line eline) = res
+register rst def v = mux2 rst (liftS0 def,delay v)
+
+register' :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
+register' rst c@(Comb def edef) l@(Seq line eline) = res
    where
 	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
 	sres = S.zipWith (\ i v -> 
