@@ -306,11 +306,15 @@ instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t),
 	
 --	toWireRep :: Matrix (WIDTH w) Bool -> Matrix ix a
 	toWireRep = T.traverse toWireRep
-		  . rows 
+		  . columns 
 		  . squash 
 
 --	fromWireRep :: Matrix ix a -> Matrix (WIDTH w) Bool 
-	fromWireRep = squash . joinRows . T.traverse fromWireRep 
+	fromWireRep = squash . joinColumns . T.traverse fromWireRep 
+
+--	fromWireRep :: Matrix ix (X a) -> Matrix (WIDTH w) (X Bool)
+	fromWireXRep w = squash . joinColumns . T.traverse (fromWireXRep (error "witness" :: a))
+
 
 	showRepWire _ = show . M.toList . fmap (M.S . showRepWire (error "show/Matrix" :: a))
 
