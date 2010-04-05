@@ -72,7 +72,7 @@ entity coreName = unlines
    "end entity " ++ coreName ++ "_tb;"
   ]
 
-architecture :: String  -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [((Var, t), (Var, t1))] -> String
+architecture :: String  -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> String
 architecture coreName inputs outputs sequentials = unlines $
   ["architecture sim of " ++ coreName ++ "_tb is"] ++
    signals ++
@@ -84,63 +84,73 @@ architecture coreName inputs outputs sequentials = unlines $
          "signal clk, rst : std_logic;",
          "constant input_size : integer := 16;",
          "constant output_size : integer := 16;",
-         "signal input : " ++ portType inputs ++ ":= (others => '0');",
-         "signal output : " ++ portType outputs ++ ";"
+         "signal input : " ++ portType (inputs ++ outputs) ++ ":= (others => '0');",
+         "signal output : " ++ portType (inputs ++ outputs) ++ ";"
           ]
 
-dut :: String -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [((Var, t), (Var, t1))] -> String
+dut :: String -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> String
 dut coreName inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ coreName,
  "port map ("] ++
  portAssigns inputs outputs ++
- ["\t" ++ c ++ " => clk, " ++ r ++ "=> rst" | ((Var c,_),(Var r, _)) <- sequentials] ++
+ ["\t" ++ c ++ " => clk" | (Var c,_) <- sequentials] ++
  [");"]
 
-stimulus :: String -> [(a, BaseTy)] -> [(a1, BaseTy)] -> String
+-- TODO: add clock speed argument
+stimulus :: String -> [(a, BaseTy)] -> [(a, BaseTy)] -> String
 stimulus coreName inputs outputs = unlines $ [
   "runtest: process  is",
   "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ coreName ++ ".input\";",
   "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ coreName ++ ".output\";",
   "\tVARIABLE line_in,line_out  : LINE;",
-  "\tvariable input_var : " ++ portType inputs ++ ";",
-  "\tvariable output_var : " ++ portType outputs ++ ";",
+  "\tvariable input_var : " ++ portType (inputs ++ outputs) ++ ";",
+  "\tvariable output_var : " ++ portType (inputs ++ outputs) ++ ";",
 
   "begin",
+
   "\tclk <= '0';",
-  "wait for 10 ns;",
-  "\trst <= '1', '0' after 10 ns;",
-  "\tclk <= '1', '0' after 10 ns;",
+  pause 5,
+  "\tclk <= '1';",
+  pause 5,
+  "\tclk <= '0';",
+  pause 5,	-- 5 cycles
   "wait for 20 ns;",
   "\twhile not endfile (" ++ inputfile ++ ") loop",
   "\t\tREADLINE(" ++ inputfile ++ ", line_in);",
   "\t\tREAD(line_in,input_var);",
-  "\t\tinput <= input_var;",
-  "\t\twait for 5 ns;",
+	-- clock start
   "\t\tclk <= '1';",
-  "\t\twait for 10 ns;",
+  pause 1,
+  "\t\tinput <= input_var;",
+  "\t\toutput(" ++ outputRange ++ ") <= input_var(" ++ outputRange ++ ");",
+  pause 4,
   "\t\tclk <= '0';",
+  pause 4,
   "\t\toutput_var := output;",
   "\t\tWRITE(line_out, output_var);",
   "\t\tWRITELINE(" ++ outputfile ++ ", line_out);",
-  "\t\twait for 5 ns;",
+  pause 1,
   "\tend loop;",
   "\twait;",
   "end process;"
                 ]
   where inputfile = coreName ++ "_input"
         outputfile = coreName ++ "_output"
+	clockSpeed = 50 -- ns
+	pause n    = "\t\twait for " ++ (show (n * clockSpeed `div` 10)) ++ " ns;"
+	outputRange = show (portLen (inputs ++ outputs) - 1) ++ " downto " ++ show (portLen outputs)
 
 -- Manipulating ports
 ports :: (Ports a) =>
-         [ReifyOptions] -> a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[((Var, BaseTy), (Var, BaseTy))])
+         [ReifyOptions] -> a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[(Var, BaseTy)])
 
 ports ropts fun = do
   reified <- reifyCircuit ropts fun
-  let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy,RstTy])]
+  let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
       clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
-      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
-  return (sortPorts (findInputs ropts) inputs,sortPorts (findOutputs ropts) outputs,zip clocks resets)
+--      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
+  return (sortPorts (findInputs ropts) inputs,sortPorts (findOutputs ropts) outputs,clocks) -- zip clocks resets)
 
 -- sortInputs
 sortPorts names ports = sortBy comp ports
@@ -174,7 +184,7 @@ portAssigns inputs outputs = imap ++ omap
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") 0 $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
+        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- inputs]
         (_,omap) = mapAccumL (assign "output") 0 $ reverse [(n,baseTypeLength ty) | (Var n,ty) <- outputs]
 
 
