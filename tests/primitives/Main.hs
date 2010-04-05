@@ -48,7 +48,11 @@ dumpDir = "examine/"
 testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
-testSome nm tst f = do
+testSome nm tst f
+	-- Hack to speed up the generation of our tests
+  | nm /= "pipeToMemoryX" = putStrLn $ "Ignoring " ++ show nm
+
+  | otherwise = do
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
   	createDirectoryIfMissing True (dumpDir ++ nm ++ "/")	-- this should move into dumpBitTrace
@@ -65,6 +69,8 @@ main = do
   	createDirectoryIfMissing True dumpDir
 
 	let env = takeThenSeq 7 shallowRst env
+	    env' = takeThenSeq 40 shallowRst env'
+
 	    inp :: Seq U4
 	    inp  = toSeq $ cycle [0..15]
 	    inp2 :: Seq U4
@@ -80,20 +86,41 @@ main = do
 
 	-- And the tests (comment them out wiht nop)
 
-	nop $ testSome "regX" 
+	testSome "regX" 
 		(register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
 		(\ reg -> reg .*. env .*. 10 .*. inp)
 		
-	nop $ testSome "delayX" 
+	testSome "delayX" 
 		(delay :: Seq U4 -> Seq U4)
 		(\ f -> f .*. inp)
 		
-	nop $ testSome "muxX" 
+	testSome "muxX" 
 		((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
 		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
 
-	nop $ testSome "enabledRegisterX"
+	testSome "enabledRegisterX"
 		(enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
 		(\ f -> f .*. env .*. 10 .*. eInp)
 
+	testSome "pipeToMemoryX"
+		((\ rst pipe -> memoryToMatrix (pipeToMemory rst pipe)) :: Rst -> Seq (Pipe X8 U4) -> Seq (Matrix X8 U4))
+		(\ f -> f .*. env' 
+			  .*. toEnabledSeq (concat
+					   [ [ return (x,y), Nothing ]
+					   | (x,y) <- cycle $ [(i:: X8,(fromIntegral i * fromIntegral i) :: U4)
+							      | i <- [0..7]
+							      ]
+					   ])
+	        )
+	testSome "pipeToMemory2X"
+		(pipeToMemory :: Rst -> Seq (Pipe X2 U4) -> Seq X2 -> Seq U4)
+		(\ f -> f .*. env' 
+			  .*. toEnabledSeq (concat
+					   [ [ return (x,y) ]
+					   | (x,y) <- cycle $ [(i:: X2, j :: U4)
+							      | (i,j) <- zip (cycle [0,0,1,1,1,0,1,1]) [0..7]
+							      ]
+					   ])
+			  .*. toSeq (cycle [0,1])
+		)
 
