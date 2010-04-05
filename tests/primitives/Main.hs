@@ -103,7 +103,7 @@ main = do
 		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
 
 	testSome "arithmeticX"
-		((\ a b -> pack (matrix [a + b] :: Matrix X1 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X1 U4))
+		((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X2 U4))
 		(\ f -> f .*. inp .*. inp3)
 
 	testSome "enabledRegisterX"
