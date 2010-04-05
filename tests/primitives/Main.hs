@@ -49,11 +49,26 @@ dumpDir = "examine/"
 
 type FLOAT = Sampled X32 X32 
 
+-- ldpc metric function (copied from [git]/hfec/src/KansasLava/Core.hs)
+metricComb :: Comb FLOAT -> Comb FLOAT -> Comb FLOAT 
+metricComb (Comb ox xe) (Comb oy ye) =
+			Comb ((optX :: Maybe FLOAT -> X FLOAT) $
+			      (do x <- unX ox :: Maybe FLOAT
+			 	  y <- unX oy :: Maybe FLOAT
+				  return $ signum(x) * signum(y) * (min (abs x) (abs y))))
+	     		(entity2 (Name "LDPC" "metric") xe ye)
+
+timesNeg0_75 :: forall a . (Fractional a, Wire a) => Comb a -> Comb a
+timesNeg0_75 (Comb a ea) = Comb (optX $ do a' <- unX a :: Maybe a
+                                           return $ a' * (-0.75))
+                                (entity1 (Name "LDPC" "timesNeg0_75") ea)
+
+
 testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
-  | nm `elem` ["boolPrims2X"] = do
+  | nm `elem` ["metricSampled32X","timesNeg0_75"] = do
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
   	createDirectoryIfMissing True (dumpDir ++ nm ++ "/")	-- this should move into dumpBitTrace
@@ -177,3 +192,15 @@ main = do
 		(\ f -> f .*. (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
 			  .*. (toSeq [-3.2,-3.15..10] :: Seq (Sampled X32 X32))
 		)
+
+        testSome "timesNeg0_75"
+		((\ a -> liftS1 (timesNeg0_75) a) :: Seq FLOAT -> Seq FLOAT)
+		(\ f -> f .*. (toSeq [-10,-9.5..10] :: Seq (Sampled X32 X32)))
+
+        testSome "metricSampled32X"
+		((\ a b -> liftS2 (metricComb) a b) :: Seq FLOAT -> Seq FLOAT -> Seq FLOAT)
+		(\ f -> f .*. (toSeq [-2.4,-2.2..5] :: Seq (Sampled X32 X32))
+			  .*. (toSeq [-3.0,-2.5..] :: Seq (Sampled X32 X32))
+		)
+
+
