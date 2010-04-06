@@ -189,7 +189,7 @@ specials =
        ++
        (mkSpecialBinary to_std_logic_vector
         [("Unsigned",U 0), ("Signed", S 0)]
-        [("+",Plus), ("-",Minus), (".|.",Or), (".&.",And), (".^.",Xor)])
+        [("+",Plus), ("-",Minus), ("*", Times), ("/", Divide), (".|.",Or), (".&.",And), (".^.",Xor)])
        ++
        (mkSpecialUnary to_std_logic_vector
         [("Signed", S 0)] [("negate",Neg)])
@@ -312,15 +312,22 @@ mkInst i (Entity n@(Name "X32" "+") outputs inputs dyn) =
 mkInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
 	mkInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
 	
+-- 
+
 
 -- Catchall for everything else
 mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n)) $ 
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
-                []
+  		[ ("width_size",ExprNum $ fromIntegral $ head [ baseTypeLength ty | (_,ty) <- outputs ])
+			| mod_nms <- ["Sampled"]
+			, mod_nm == mod_nms
+		]
                 [ (n,asStdLogic nTy x) | (Var n,nTy,x) <- inputs ]
                 [ (n,sigExpr (Port (Var n) i)) | (Var n,_) <- outputs ]
           ]
+
+-- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
 -- TODO: Table should have a default, for space reasons
 mkInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
