@@ -68,10 +68,9 @@ testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
-  | nm `elem` ["metricSampled32X","timesNeg0_75"] = do
+  | nm `elem` ["boolPrimsX", "boolPrims2X"] = do
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
-  	createDirectoryIfMissing True (dumpDir ++ nm ++ "/")	-- this should move into dumpBitTrace
 	dumpBitTrace (dumpDir ++ nm ++ "/") numberOfCycles
 	mkTestbench [OptimizeReify] [] nm tst	-- inc optimizations?
 
