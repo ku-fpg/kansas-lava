@@ -2,9 +2,11 @@
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..),VCDFmt, VCDValue(..)) where
+module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..)) where
 
 import Language.KansasLava
+import Language.KansasLava.Probes
+
 import Data.Sized.Unsigned
 import Data.Sized.Signed
 import Data.Sized.Ix
@@ -39,59 +41,43 @@ vcdCircuit circuitName end circuit = do
     writeFile (circuitName ++ ".vcd") vcd
     return ()
 
--- | 'probeCircuit' takes a something that can be reified and
--- | generates an association list of the values for the probes in
--- | that circuit.
-probeCircuit :: (Ports a) =>
-           a        -- ^ The Lava circuit.
-           -> IO [(String,Dynamic)]
-probeCircuit circuit = do
-    rc <- reifyCircuit [] circuit
-    let evts = [(n,toDyn v) | (_,Entity _ _ _ attrs) <- theCircuit rc,
-                Just val <- [lookup "simValue" attrs],
-                Just pv@(ProbeValue n v) <- [fromDynamic val]]
-    return evts
 
--- | 'getProbe' takes a association list of probe values and a probe
--- | name, and returns the trace (as a list) from the probe.
-getProbe :: forall a . Typeable a => [(String,Dynamic)] -> String ->  [a]
-getProbe ps nm = case lookup nm ps of
-                   Just val -> toList (fromDyn val (error "getProbe" :: Stream a))
-                   Nothing -> []
 
--- | 'probe' indicates a Lava 'Signal' should be logged to VCD format, with the given name.
--- probe :: forall t. (Typeable (X t), VCDSize (X t), VCDValue (X t), Wire (Stream t), VCDFmt t) =>
---          String -> Seq t -> Seq t
-probe :: forall t. (Typeable (X t), VCDSize (X t), VCDValue (X t), Wire t) => String -> Seq t -> Seq t
-probe probeName (Seq s (D d)) = Seq s (D (addAttr d))
-  where addAttr (Port v (E (Entity n outs ins _))) =
-            Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName s)))]))
-        addAttr d@(Pad (Var v)) =
-            (Port (Var "o0")
-             (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]  [("simValue", (toDyn (ProbeValue probeName s)))])))
-          where ty = wireType (error "probe/oTy" :: t)
-
-        addAttr d@(Lit x) =
-          (Port (Var "o0")
-            (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
-                         [("simValue", (toDyn (ProbeValue probeName (fromList (repeat x)))))])))
-          where ty = wireType (error "probe/oTy" :: t)
-        addAttr  driver = error $ "Can't probe " ++ show driver
 
 -- Below this is all implementation.
+
+type VCDVal = String
 
 type TimeTag = Int
 type TaggedEvents = [(TimeTag,VCDVal)]
 
+data XVal a = XVal (X a)
+xstrmHead :: XStream a -> XVal a
+xstrmHead (XStream (a :~ _)) = XVal a
+
+xstrmTail :: XStream a -> XStream a
+xstrmTail (XStream (_ :~ as)) = XStream as
+
+
+
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
-taggedEvent :: (VCDFmt t, Ord a, Num a) =>
-               a -> Stream t -> [(a, VCDVal)]
-taggedEvent maxTime (h :~ tl) = (0,VCDVal h):(taggedEvent' 1 h tl)
-  where taggedEvent' time old (new :~ as)
+taggedEvent :: forall a t. ( Ord a, Num a, RepWire t) => a -> XStream t -> [(a, VCDVal)]
+taggedEvent maxTime (XStream (h :~ tl)) = (0,showWire h):[] -- :(taggedEvent' 1 (unX h) (XStream tl))
+  where taggedEvent' :: a -> Maybe t -> XStream t -> [(a,VCDVal)]
+        taggedEvent' time old strm
                      | time >= maxTime = []
                      | old == new = taggedEvent' (time + 1) old as
-                     | otherwise  = (time,VCDVal new):(taggedEvent' (time + 1) new as)
+                     | otherwise  = (time,showWire xnew):(taggedEvent' (time + 1) new as)
+          where new :: Maybe t
+                new = unX xnew
+                hd :: XVal t
+                hd = xstrmHead strm
+                XVal xnew = hd
+
+                as :: XStream t
+                as = xstrmTail strm
+        showWire = showRepWire (error "taggedEvent:showWire" :: t)
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
@@ -117,8 +103,6 @@ taggedEvents identifiers tags = collated labeled
 
 
 
-
-
 -- format creates the actual VCD formatted dump.
 format :: TimeTag -> [(String,ProbeValue)] -> String
 format maxTime seqs = unlines $ [
@@ -131,13 +115,15 @@ format maxTime seqs = unlines $ [
           "$enddefinitions $end"] ++
          -- timestamp section
          concatMap fmtTimeStep evts
-  where decl (n,val) ident =
+  where decl (n,ProbeValue _ val) ident =
           "$var wire " ++ show (vcdSize val) ++ " " ++ ident ++ " " ++ n ++ " $end"
         fmtTimeStep (t,vals) =
           ["#" ++ show t] ++
-          [vcdFmt v++ident | (ident,v) <- vals] -- no space between value and identifier
+          [v++ident | (ident,v) <- vals] -- no space between value and identifier
         tes = [taggedEvent maxTime a | (_,ProbeValue _ a) <- seqs]
         evts = taggedEvents identifier_code tes
+        vcdSize :: forall a . RepWire a => XStream a -> Int
+        vcdSize strm = baseTypeLength $ wireType (error "vcdSize:" :: a)
 
 
 
@@ -147,113 +133,5 @@ identifier_code = res
   where chars = [(chr 33)..(chr 126)]
         ids@(_:res) = [[]]  ++ concatMap (\i -> [c:i | c <- chars]) ids
 
--- The support classes for holding values
-class Eq a => VCDValue a where
-  vcdFmt :: a -> String
 
-class VCDSize a where
-  vcdSize :: a -> Int
-
-class (Typeable a, VCDValue a, VCDSize a) => VCDFmt a
-
-instance (Eq (WireVal a), VCDFmt a) => VCDValue (WireVal a) where
-  vcdFmt WireUnknown = 'b':(replicate (vcdSize (undefined :: a)) 'X')
-  vcdFmt (WireVal a) = vcdFmt a
-
-instance VCDSize a => VCDSize (WireVal a) where
-  vcdSize _ = vcdSize (undefined :: a)
-
-
-instance VCDValue Bool where
-  vcdFmt True = "1"
-  vcdFmt False = "0"
-
-instance VCDSize Bool where
-  vcdSize _ = 1
-
-instance (Typeable a,VCDSize a, VCDValue a) => VCDFmt a
-instance Show VCDVal where
-  show (VCDVal x) = vcdFmt x
-
-instance Eq VCDVal where
-  (VCDVal _) == (VCDVal _) = False
-
-instance VCDValue VCDVal where
-  vcdFmt (VCDVal v) = vcdFmt v
-
-
-data VCDVal = forall a. VCDFmt a => VCDVal a
-
-data ProbeValue = forall a. VCDFmt a => ProbeValue String (Stream a) deriving Typeable
-
-instance  VCDSize ProbeValue where
-  vcdSize (ProbeValue _ v) = vcdSize v
-
-instance VCDSize a => VCDSize (Stream a) where
-  vcdSize _ = vcdSize (undefined :: a)
-
-instance Size ix => VCDSize (Unsigned ix) where
-  vcdSize _ = size (undefined :: ix)
-
-instance (Size ix, Enum ix, Integral ix) =>VCDValue (Unsigned ix) where
-  vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
-    where width = size (undefined :: ix)
-
-
-instance Size ix => VCDSize (Signed ix) where
-  vcdSize _ = size (undefined :: ix)
-
-instance (Integral ix, Size ix, Enum ix) =>VCDValue (Signed ix) where
-  vcdFmt v = 'b':(concatMap vcdFmt [testBit v i | i <- reverse [0..width-1]])
-    where width = size (undefined :: ix)
-
-
-instance VCDValue Integer where
-  vcdFmt v = vcdFmt ((fromIntegral v) :: Signed X32)
-
-instance VCDSize Integer where
-  vcdSize _ = 32
-
--- This was necessary to satisfy Data.Dynamic
-deriving instance Typeable1 Stream
-
-
-{-
--- Test Circuits
-halfAdder :: (Signal Bool,Signal Bool) -> (Signal Bool,Signal Bool)
-halfAdder (a,b) = (sum,carry)
-  where sum = probe "sum" $ a `xor2` b
-        carry = probe "carry" $ a `and2` b
-
-fullAdder :: Signal Bool -> (Signal Bool, Signal Bool) -> (Signal Bool, Signal Bool)
-fullAdder c (a,b) = (s2,c2 `xor2` c1)
-  where (s1,c1) = halfAdder (a,b)
-	(s2,c2) = halfAdder (s1,c)
-
-
-trajectory :: (OpType a) => Time -> [Signal a] -> Signal a
-trajectory clk l = foldr c initVal l
-  where c a as = delay clk a as
-
-
-a = trajectory clock (take 100 $ cycle [low,high,low])
-b = trajectory clock (take 100 $ cycle [high,low])
-
-ua = probe "ua" $ trajectory clock ((map fromInteger [0..100]) :: [Signal (Unsigned X8)])
-
-plus :: Signal (Unsigned X8) -> Signal (Unsigned X8) -> Signal (Unsigned X8)
-plus x y = x' + y'
-  where x' = probe "x" x
-        y' = probe "y" y
-
--}
-
-
-deriving instance Typeable X0
-deriving instance Typeable1 X1_
-deriving instance Typeable1 X0_
-deriving instance Typeable1 Signed
-
-deriving instance Typeable1 WireVal
-deriving instance Eq a => Eq (WireVal a)
 
