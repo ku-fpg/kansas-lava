@@ -194,10 +194,10 @@ doscript :: String -> [String] -> String
 doscript coreName waves = unlines $ [
   "vlib work",
   "vcom " ++ coreName ++ ".vhd",
-  "vcom " ++ coreName ++ "_tb.vhd",
-  "vsim " ++ coreName ++ "_tb"] ++
+  "vcom " ++ coreName ++ "_tb.vhd"] ++
   waves ++
-  ["run -all",
+  ["vsim " ++ coreName ++ "_tb",
+   "run -all",
   "quit"]
 
 
