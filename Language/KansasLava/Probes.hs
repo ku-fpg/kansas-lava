@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Probes(ProbeValue(..),XStream(..),probeCircuit,probe,getProbe) where
+module Language.KansasLava.Probes(ProbeValue(..),XStream(..),probeCircuit,probe,getProbe, showXStream) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
@@ -15,7 +15,7 @@ import Data.Dynamic
 import Data.Maybe
 import Data.Char
 
-
+import Debug.Trace
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
@@ -41,26 +41,40 @@ class  Probe a where
   -- probe' is used for a name supply.
   probe' :: String -> [Var] -> a -> a
 
-instance (RepWire a, Typeable a) => Probe (Seq a) where
+instance (Show a, RepWire a, Typeable a) => Probe (Seq a) where
   probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
    where strm :: XStream a
          strm = XStream s
   probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
-instance (RepWire a, Typeable a) => Probe (Comb a) where
+instance (Show a, RepWire a, Typeable a) => Probe (Comb a) where
    probe probeName c@(Comb s (D d)) = Comb s (D (addAttr probeName strm d))
      where strm :: XStream a
            strm = XStream $ fromList $ repeat s
    probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
-instance (Probe a, Probe b) => Probe (a -> b) where
+instance (Show a, Show b,
+          RepWire a, RepWire b,
+          Typeable a, Typeable b,
+          Size (ADD (WIDTH a) (WIDTH b)),
+          Enum (ADD (WIDTH a) (WIDTH b)),
+          Pack Comb (a,b)) => Probe (Comb a, Comb b) where
+   probe probeName c = val
+      where packed :: Comb (a,b)
+            packed = trace "packed" $ probe probeName $ pack c
+            val :: (Comb a, Comb b)
+            val = trace "val" $ unpack packed
+   probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
+
+
+instance (Show a, Probe a, Probe b) => Probe (a -> b) where
   -- The default behavior for probing functions is to generate fresh names.
   probe probeName f =  probe' probeName vars f
    where vars = [Var $ show i | i <- [0..]]
 
   probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
 
-addAttr :: forall a . (RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
+addAttr :: forall a . (Show a, RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
 addAttr probeName value (Port v (E (Entity n outs ins _))) =
             Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName value)))]))
 addAttr probeName value d@(Pad (Var v)) =
@@ -77,7 +91,7 @@ addAttr _ _ driver = error $ "Can't probe " ++ show driver
 
 
 
-data ProbeValue = forall a. (RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
+data ProbeValue = forall a. (Show a, RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
 
 
 data XStream a = XStream (Stream (X a)) deriving Typeable
@@ -95,6 +109,7 @@ deriving instance Eq a => Eq (WireVal a)
 -- showXStream is a utility function for printing out stream representations.
 showXStream :: forall a. RepWire a => XStream a -> Stream String
 showXStream (XStream strm) = fmap (showRepWire (undefined :: a)) strm
+
 
 -- A test circuit
 f :: Comb U8 -> Comb U8 -> Comb U8
