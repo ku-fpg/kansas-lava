@@ -1,0 +1,160 @@
+\documentclass{llncs}
+\usepackage{tikz}
+\usepackage{tikz-timing}
+%
+\begin{document}
+
+\title{Some Title Here}
+\subtitle{And Maybe a Subtitle Here}
+
+\author{Andrew Farmer \and Tristan Bull \and Garrin Kimmell \and Andy Gill}
+
+\institute{
+Information Technology and Telecommunication Center \\
+Department of Electrical Engineering and Computer Science \\
+The University of Kansas \\
+2335 Irving Hill Road \\
+Lawrence, KS 66045 \\
+\email{\{anfarmer,tbull,kimmell,andygill\}@ku.edu}}
+
+\maketitle
+
+\begin{abstract}
+Kansas Lava is a functional hardware description language implemented
+in Haskell. In the course of attempting to generate ever larger circuits
+using Kansas Lava, we have found the need to effectively test and debug
+both the simulated circuit and its hardware realization. In this paper
+we share a few of our approaches to this problem, and discuss the
+results of these efforts.
+\end{abstract}
+
+\section{What is Kansas Lava?}
+
+Kansas Lava is a domain specific language for hardware description.
+Though there have been a number of previous implementations
+of Lava, we have found the design space rich, with unexplored choices.
+We use a direct (Chalmers style) specification of circuits, and make 
+significant use of Haskell overloading of standard classes, leading to
+concise circuit descriptions. Kansas Lava supports both simulation (inside
+GHCi), and execution via VHDL, by having a dual shallow and deep
+embedding inside our Signal type. We also have a lightweight sized-type
+mechanism, allowing for MATLAB style matrix based specifications to
+be directly expressed in Kansas Lava.
+
+\section{Using QuickCheck}
+
+Early on, we tried to leverage the popular QuickCheck library to gain some
+assurances that our entities functioned correctly. We were able to, relatively
+quickly, write properties that checked our primitives to ensure they
+exhibited basic properties of boolean logic.
+
+For instance, given our implementation of boolean conjunction:
+
+\begin{verbatim}
+and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+and2 = liftS2 $ \ (Comb a ae) (Comb b be) ->
+                    Comb (liftA2 (&&) a b)
+                       $ entity2 (Name "Bool" "and2") ae be
+\end{verbatim}
+
+We were able to verify properties like the following, which shows that our
+\verb|and2| implementation is commutative:
+
+\begin{verbatim}
+prop_andComm x y = (x `and2` y) == (y `and2` x)
+    where types = (x :: Comb Bool, y :: Comb Bool)
+\end{verbatim}
+
+While this approach was quick and easy to implement, it is of
+limited use.
+
+The biggest downside is that it doesn't test the deep
+embedding at all. The instance that defines equality between
+combinatorial values only compares the shallow values. It is
+not obvious how we could define equality over the deep embedding,
+short of comparing the resulting circuit graphs for isomorphism.
+The worst case complexity of such a solution would be exponential.
+
+This is not a big issue for users of Kansas Lava, but it presents
+a problem for us, the developers. As long as users are building
+circuits out of primitives we supply, they shouldn't have to
+think about the deep embedding at all. We, on the other hand,
+need some assurance that we are generating correct VHDL.
+
+Another issue that does affect end users is generating valid test inputs. For
+a small circuit like \verb|and2| or a half adder, this is
+relatively straightforward. For a larger circuit like an LDPC
+decoder, QuickCheck's semi-random inputs are not very useful.
+
+\section{Generating Truth Tables and Waveforms}
+
+Next, we tried to visualize our circuits by generating truth tables,
+which can then be transformed into waveform diagrams. An
+example waveform for a mux can be found in Figure 1. % for some reason this returns 3?! \ref{fig:mux2}.
+
+\begin{figure}
+\label{fig:mux2}
+\centering
+\begin{tikztimingtable}
+s0 & 1.9L1.9L1.9L1.9L1.9L1.9L1.9L1.9L1.9L1.9H1.9H1.9H1.9H1.9H1.9H1.9H1.9H1.9H1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U\\
+i0 & 1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U\\
+i1 & 1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U\\
+o0 & 1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U1.9U\\
+\end{tikztimingtable}
+
+\caption{\tt mux2 :: Comb Bool $\to$ (Comb Bool, Comb Bool) $\to$ Comb Bool}
+\end{figure}
+
+This currently works for both combinatorial and sequential circuits. In the
+combinatorial case, we merely need the function that represents the circuit.
+Using the type of this function, we generate all possible values for each
+input and apply them in all possible combinations.
+
+For sequential circuits, we must supply both the function and sample input
+sequences. We wrap the function up in a data structure, and stash the arguments
+in this data structure as we apply them in succession.
+
+At this point, all that remains is to pretty print the resulting truth table.
+Currently we can output both ASCII and \LaTeX tables, as well as \LaTeX waveforms.
+% is the use of the latex logo above totally retarded?
+
+The best part of this approach is that it is easy to visualize the relationship
+between inputs and outputs. In the case of sequential circuits, it is also
+helpful to see when things happen.
+
+As can be seen above, it's also great for documentation purposes. This will
+come in handy when documenting the behavior of primitive functions for Kansas
+Lava users.
+
+It also addresses one of the issues we had with QuickCheck, in that we have
+control over the exact input that is used to test the circuit. This allows
+us to more effectively test large circuits.
+
+However, this approach once again doesn't test the deep embedding at all.
+It also requires direct examination by the user to verify that the
+simulated circuit behaved correctly for each combination of inputs, which
+is time consuming.
+
+\section{Probes}
+
+Garrin can probably describe this better than I can.
+
+Downside: Requires instrumenting code with calls to probe (although Garrin is close to
+overcoming this I think). 
+
+\section{Comparing Deep and Shallow}
+
+Describe, maybe show example or the info file or something?
+
+\subsection{The Good}
+
+Excellent for testing our VHDL generation.
+
+\subsection{The Bad}
+
+Not so useful to end users of Lava? Simulation can be time consuming?
+
+% talk about adapting probes to execution tree/algorithmic debugging idea?
+% conclusion?
+
+\end{document}
