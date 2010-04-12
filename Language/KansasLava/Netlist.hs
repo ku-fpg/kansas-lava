@@ -281,10 +281,10 @@ mkInst _ (Entity (Name "Lava" "top") _ _ _) = []
 -- This gets generated seperately by the sync. finder
 mkInst  _ (Entity (Name "Memory" "BRAM") _ _ _) = []
 
-mkInst i (Entity (Name "Lava" "index") [(Var "o0",_)] [(Var "i", _, input),(Var "index",_,idx)] _) =
-    [NetAssign (sigName  "o0" i) (ExprIndex iname (sigExpr idx))]
-  where (ExprVar iname) = sigExpr input
-
+-- really a projection. Consi
+mkInst i (Entity (Name "Lava" "index") [(Var "o0",outTy)] [(Var "i0",_, (Lit idx)),(Var "i1",MatrixTy sz eleTy,input)] _) =
+    [ NetAssign  (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
+  where tys = take sz $ repeat eleTy
 
 mkInst i e@(Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
   [NetAssign  (sigName "o0" i) (prodSlices input tys !! 0)]
