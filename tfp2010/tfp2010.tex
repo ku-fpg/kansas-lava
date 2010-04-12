@@ -5,10 +5,9 @@
 
 \begin{document}
 
-\title{Some Title Here}
-\subtitle{And Maybe a Subtitle Here}
+\title{What's the Matter with Kansas Lava?}
 
-\author{Andrew Farmer \and Tristan Bull \and Garrin Kimmell \and Andy Gill}
+\author{Andrew Farmer \and Garrin Kimmell \and Andy Gill}
 
 \institute{
 Information Technology and Telecommunication Center \\
@@ -16,20 +15,23 @@ Department of Electrical Engineering and Computer Science \\
 The University of Kansas \\
 2335 Irving Hill Road \\
 Lawrence, KS 66045 \\
-\email{\{anfarmer,tbull,kimmell,andygill\}@ku.edu}}
+\email{\{anfarmer,kimmell,andygill\}@ku.edu}}
 
 \maketitle
 
 \begin{abstract}
 Kansas Lava is a functional hardware description language implemented
-in Haskell. In the course of attempting to generate ever larger circuits
-using Kansas Lava, we have found the need to effectively test and debug
-both the simulated circuit and its hardware realization. In this paper
-we share a few of our approaches to this problem, and discuss the
-results of these efforts.
+in Haskell. In the course of attempting to generate ever larger circuits,
+we have found the need to effectively test and debug the internals of
+Kansas Lava. This includes confirming both the simulated behavior of the
+circuit and its hardware realization via generated VHDL. In
+this paper we share a few of our approaches to this problem, and discuss
+the results of these efforts.
 \end{abstract}
 
-\section{What is Kansas Lava?}
+\section{Introduction}
+
+\subsection{What is Kansas Lava?}
 
 Kansas Lava is a domain specific language for hardware description.
 Though there have been a number of previous implementations
@@ -38,27 +40,58 @@ We use a direct (Chalmers style) specification of circuits, and make
 significant use of Haskell overloading of standard classes, leading to
 concise circuit descriptions. Kansas Lava supports both simulation (inside
 GHCi), and execution via VHDL, by having a dual shallow and deep
-embedding inside our Signal type. We also have a lightweight sized-type
-mechanism, allowing for MATLAB style matrix based specifications to
-be directly expressed in Kansas Lava.
+embedding inside our Signal type. 
+
+\subsection{Techniques}
+
+In this paper we present four approaches to testing and debugging
+Lava circuits. To summarize, with applicability:
+
+\begin{table}
+\label{table:approaches}
+
+\begin{center}
+\begin{tabular}{l | c | c | c | c | c | c |}
+\cline{2-7}
+& \multicolumn{2}{|c|}{Tests}
+& \multicolumn{2}{|c|}{Circuit Type}
+& \multicolumn{2}{|c|}{Helps} \\
+\cline{2-7}
+ & Shallow & Deep & Comb & Seq & Users & Developers \\
+\hline
+\multicolumn{1}{|l|}{QuickCheck} & y & n & y & n & y & n \\
+\hline
+\multicolumn{1}{|l|}{Truth Tables} & y & n & y & y & y & n \\
+\hline
+\multicolumn{1}{|l|}{Probes} & y & y & y & y & y & y \\
+\hline
+\multicolumn{1}{|l|}{Comparing} & y & y & y & y & y & y \\
+\hline
+\end{tabular}
+
+\caption{Something}
+
+\end{center}
+\end{table}
 
 \section{Using QuickCheck}
 
-Early on, we tried to leverage the popular QuickCheck library to gain some
-assurances that our entities functioned correctly. We were able to, relatively
-quickly, write properties that checked our primitives to ensure they
-exhibited basic properties of boolean logic.
-
-For instance, given our implementation of boolean conjunction:
+A popular method of testing Haskell functions is to use the QuickCheck library.
+Since Lava circuits are Haskell functions, this is straightforward.
+For instance, given Kansas Lava's implementation of boolean conjunction and
+a suitable instance of QuickCheck's Arbitrary typeclass:
 
 \begin{verbatim}
 and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 and2 = liftS2 $ \ (Comb a ae) (Comb b be) ->
                     Comb (liftA2 (&&) a b)
                        $ entity2 (Name "Bool" "and2") ae be
+
+instance (Arbitrary a, Wire a) => Arbitrary (Comb a) where
+    arbitrary = shallowComb <$> (optX :: Maybe a -> X a) <$> arbitrary
 \end{verbatim}
 
-We were able to verify properties like the following, which shows that our
+One can verify properties like the following, which shows that the
 \verb|and2| implementation is commutative:
 
 \begin{verbatim}
@@ -66,32 +99,46 @@ prop_andComm x y = (x `and2` y) == (y `and2` x)
     where types = (x :: Comb Bool, y :: Comb Bool)
 \end{verbatim}
 
-While this approach was quick and easy to implement, it is of
+While this approach is quick and easy to implement, it is of
 limited use.
 
-The biggest downside is that it doesn't test the deep
+The most immediate problem is that equality over sequential
+inputs is effectively undefined. While two sequences can certainly
+be unequal, their unbounded nature makes it impossible to be
+certain they are truly equivalent, rather than merely having
+equivalent prefixes. We can use a hack to say, effectively, that
+the first $n$ values are 'good enough':
+
+\begin{verbatim}
+prop_andCommSeq x y = show (x `and2` y) == show (y `and2` x)
+    where types = (x :: Seq Bool, y :: Seq Bool)
+\end{verbatim}
+
+But this is less than ideal. An instance of QuickCheck's Arbitrary
+typeclass is nevertheless defined for Seqs, in case it proves
+useful for other kinds of tests.
+
+More problematic is the fact that using QuickCheck doesn't test the deep
 embedding at all. The instance that defines equality between
-combinatorial values only compares the shallow values. It is
-not obvious how we could define equality over the deep embedding,
+Comb values only compares the shallow embeddings. It is
+not obvious how to define equality over the deep embedding,
 short of comparing the resulting circuit graphs for isomorphism.
 The worst case complexity of such a solution would be exponential.
 
-This is not a big issue for users of Kansas Lava, but it presents
-a problem for us, the developers. As long as users are building
-circuits out of primitives we supply, they shouldn't have to
-think about the deep embedding at all. We, on the other hand,
-need some assurance that we are generating correct VHDL.
-
-Another issue that does affect end users is generating valid test inputs. For
-a small circuit like \verb|and2| or a half adder, this is
-relatively straightforward. For a larger circuit like an LDPC
-decoder, QuickCheck's semi-random inputs are not very useful.
+As long as end users of Kansas Lava are building circuits out
+of the supplied primitives, they shouldn't have to worry about
+the deep embedding at all, so QuickCheck may prove to be an
+effective tool for small circuits. For larger circuits that
+require non-random inputs, another solution is needed.
 
 \section{Generating Truth Tables and Waveforms}
 
-Next, we tried to visualize our circuits by generating truth tables,
-which can then be transformed into waveform diagrams. An
-example waveform for a mux can be found in Figure 1. % for some reason this returns 3?! \ref{fig:mux2}.
+An easy way to visualize the relationship between circuit inputs and
+outputs is by generating truth tables, which can then be transformed
+into waveform diagrams. For a combinatorial circuit, all possible
+values for each input are permuted and the circuit is applied to each
+permutation in turn, storing the result in a treelike structure.
+An example waveform for a mux can be found in Figure 1. % for some reason this returns 3?! \ref{fig:mux2}.
 
 \begin{figure}
 \label{fig:mux2}
@@ -106,16 +153,11 @@ o0 & 1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U1.9
 \caption{\tt mux2 :: Comb Bool $\to$ (Comb Bool, Comb Bool) $\to$ Comb Bool}
 \end{figure}
 
-This currently works for both combinatorial and sequential circuits. In the
-combinatorial case, we merely need the function that represents the circuit.
-Using the type of this function, we generate all possible values for each
-input and apply them in all possible combinations.
+This also works for sequential circuits. Using a small DSL to apply the sequential
+circuit to sample inputs, we stash both the function and its arguments
+in a data structure as they are applied in succession.
 
-For sequential circuits, we must supply both the function and sample input
-sequences. We wrap the function up in a data structure, and stash the arguments
-in this data structure as we apply them in succession.
-
-At this point, all that remains is to pretty print the resulting truth table.
+All that remains is to pretty print the resulting truth table.
 Currently we can output both ASCII and \LaTeX tables, as well as \LaTeX waveforms.
 % is the use of the latex logo above totally retarded?
 
