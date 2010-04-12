@@ -260,7 +260,10 @@ instance (Wire a) => Wire (Maybe a) where
 			      Nothing -> optX (Nothing :: Maybe Bool)
 			      Just Nothing   -> optX (Just False :: Maybe Bool)
 			      Just (Just {}) -> optX (Just True :: Maybe Bool)
-			  , optX $ Maybe.fromJust b 
+			  , case b of
+				Nothing       -> optX (Nothing :: Maybe a)
+				Just Nothing  -> optX (Nothing :: Maybe a)
+				Just (Just a) -> optX (Just a :: Maybe a)
 			  )
 	unX (a,b) 	= case unX a :: Maybe Bool of
 			    Nothing    -> Nothing
