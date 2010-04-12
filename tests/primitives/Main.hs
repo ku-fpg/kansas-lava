@@ -69,7 +69,7 @@ testSome
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
 --  | nm `elem` ["boolPrimsX", "boolPrims2X"] = do
-  | nm `elem` ["matrixOps2"] = do	
+  | nm `elem` ["matrixOps3"] = do	
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
 	dumpBitTrace (dumpDir ++ nm ++ "/") numberOfCycles
@@ -212,5 +212,8 @@ main = do
 						:: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4,Matrix X3 U3))
 		(\ f -> f .*. (pack (matrix [ inp, inp2, inp3, inp2 ])))		
 		
-		
+	testSome "matrixOps3"
+		((pack . (\ m -> (pack $ forAll $ \ i -> m ! i, pack $ forAll $ \ i -> 3, 9))  . unpack) 
+						:: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4,Matrix X3 U3,U4))
+		(\ f -> f .*. (pack (matrix [ inp, inp2, inp3, inp2 ])))		
 		

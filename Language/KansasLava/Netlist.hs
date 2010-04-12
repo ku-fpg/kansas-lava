@@ -293,12 +293,26 @@ mkInst i e@(Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy t
 mkInst i e@(Entity (Name "Lava" "snd") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
   [NetAssign  (sigName "o0" i) (prodSlices input tys !! 1)]
 
+mkInst i e@(Entity (Name "Lava" "fst3") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
+  [NetAssign  (sigName "o0" i) (prodSlices input tys !! 0)]
+
+
+mkInst i e@(Entity (Name "Lava" "snd3") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
+  [NetAssign  (sigName "o0" i) (prodSlices input tys !! 1)]
+
+mkInst i e@(Entity (Name "Lava" "thd3") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
+  [NetAssign  (sigName "o0" i) (prodSlices input tys !! 2)]
+
 -- VHDL bits are (by Lava convention) MSB to LSB, so the first element
 -- of a pair comes first on the *right* hand side.
 mkInst i (Entity (Name "Lava" "pair") [(Var "o0",_)]
                    [(Var "i0", ty0, i0),(Var "i1", ty1, i1)] _)  =
   [NetAssign  (sigName "o0" i)
           (ExprConcat [ asStdLogic ty1 i1,  asStdLogic ty0 i0])]
+mkInst i (Entity (Name "Lava" "triple") [(Var "o0",_)]
+                   [(Var "i0", ty0, i0),(Var "i1", ty1, i1),(Var "i2", ty2, i2)] _)  =
+  [NetAssign  (sigName "o0" i)
+          (ExprConcat [ asStdLogic ty2 i2, asStdLogic ty1 i1, asStdLogic ty0 i0])]
 
 
 mkInst i (Entity (Name "probe" _) [(Var "o0",_)]

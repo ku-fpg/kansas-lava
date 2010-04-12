@@ -254,6 +254,32 @@ instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => 
 					    M.toList (fromWireXRep (error "witness" :: b) b))
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
+
+instance (Wire a, Wire b, Wire c) => Wire (a,b,c) where
+	type X (a,b,c) 		= (X a, X b, X c)
+	optX (Just (a,b,c)) 	= (pureX a, pureX b,pureX c)
+	optX Nothing		= ( optX (Nothing :: Maybe a), 
+				    optX (Nothing :: Maybe b),
+				    optX (Nothing :: Maybe c) )
+	unX (a,b,c) 
+		  = do x <- unX a
+		       y <- unX b
+		       z <- unX c
+		       return $ (x,y,z)
+	wireName _ = "Tuple_3"
+
+	wireType ~(a,b,c) = TupleTy [wireType a, wireType b,wireType c]
+
+instance (t ~ ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c)), Size t, Enum t, RepWire a, RepWire b,RepWire c) => RepWire (a,b,c) where
+	type WIDTH (a,b,c)	= ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c))
+--	toWireRep m  		= return $ m ! 0
+	fromWireRep (a,b,c) 	= M.matrix (M.toList (fromWireRep a) ++ M.toList (fromWireRep b) ++ M.toList (fromWireRep c))
+	fromWireXRep w (a,b,c)  = M.matrix (M.toList (fromWireXRep (error "witness" :: a) a) ++ 
+					    M.toList (fromWireXRep (error "witness" :: b) b) ++
+					    M.toList (fromWireXRep (error "witness" :: c) c))
+	showRepWire ~(a,b,c) (x,y,z) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ "," ++ showRepWire c z ++ ")"
+
+
 instance (Wire a) => Wire (Maybe a) where
 	-- not completely sure about this representation
 	type X (Maybe a) = (X Bool, X a)

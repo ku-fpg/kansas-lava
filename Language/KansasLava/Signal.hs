@@ -112,6 +112,19 @@ instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
+instance (Wire a, Wire b, Wire c, Signal sig) => Pack sig (a,b,c) where 
+	type Unpacked sig (a,b,c) = (sig a, sig b,sig c)
+	pack ~(a,b,c) = liftS3 (\ ~(Comb a ae) ~(Comb b be) ~(Comb c ce) -> 
+				Comb (a,b,c) 
+				     (entity3 (Name "Lava" "triple") ae be ce))
+			    a b c
+	unpack abc = ( liftS1 (\ (Comb (~(a,b,c)) abce) -> Comb a (entity1 (Name "Lava" "fst3") abce)) abc
+		    , liftS1 (\ (Comb (~(a,b,c)) abce) -> Comb b (entity1 (Name "Lava" "snd3") abce)) abc
+		    , liftS1 (\ (Comb (~(a,b,c)) abce) -> Comb c (entity1 (Name "Lava" "thd3") abce)) abc
+		    )
+
+
+
 instance (Wire a, Signal sig, Size ix) => Pack sig (Matrix ix a) where 
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ] 
