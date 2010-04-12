@@ -11,6 +11,12 @@ instance (Arbitrary a, Wire a) => Arbitrary (Comb a) where
     arbitrary = shallowComb <$> (optX :: Maybe a -> X a) <$> arbitrary
     -- TODO: shrink?
 
+-- Note this isn't incredibly useful below, since Seq's don't
+-- implement equality, but maybe useful in the future.
+instance (Arbitrary a, Wire a) => Arbitrary (Seq a) where
+    arbitrary = toSeq' <$> arbitrary
+    -- TODO: shrink?
+
 -- Use QuickCheck to verify some laws of boolean algebra.
 -- TODO: Adjust these to handle '?' correctly. (absorb for instance)
 prop_notNeverEqual s = bitNot s /= s
