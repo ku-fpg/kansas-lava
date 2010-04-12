@@ -68,7 +68,8 @@ testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
 testSome nm tst f
-  | nm `elem` ["boolPrimsX", "boolPrims2X"] = do
+--  | nm `elem` ["boolPrimsX", "boolPrims2X"] = do
+  | nm `elem` ["matrixOps"] = do	
 	testReify nm tst		
 	testSomeTruth numberOfCycles nm $ f (example (examine nm tst))
 	dumpBitTrace (dumpDir ++ nm ++ "/") numberOfCycles
@@ -202,4 +203,6 @@ main = do
 			  .*. (toSeq [-3.0,-2.5..] :: Seq (Sampled X32 X32))
 		)
 
-
+	testSome "matrixOps"
+		((pack . (\ m -> forAll $ \ i -> m ! i)  . unpack) :: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4))
+		(\ f -> f .*. (pack (matrix [ inp, inp2, inp3, inp2 ])))
