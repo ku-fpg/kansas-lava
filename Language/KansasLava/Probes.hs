@@ -59,12 +59,13 @@ instance (Show a, Show b,
           Typeable a, Typeable b,
           Size (ADD (WIDTH a) (WIDTH b)),
           Enum (ADD (WIDTH a) (WIDTH b)),
-          Pack Comb (a,b)) => Probe (Comb a, Comb b) where
+          Probe (f (a,b)),
+          Pack f (a,b)) => Probe (f a, f b) where
    probe probeName c = val
-      where packed :: Comb (a,b)
-            packed = trace "packed" $ probe probeName $ pack c
-            val :: (Comb a, Comb b)
-            val = trace "val" $ unpack packed
+      where packed :: f (a,b)
+            packed =  probe probeName $ pack c
+            val :: (f a, f b)
+            val = unpack packed
    probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
 
