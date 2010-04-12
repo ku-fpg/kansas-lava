@@ -33,46 +33,72 @@ the results of these efforts.
 
 \subsection{What is Kansas Lava?}
 
-Kansas Lava is a domain specific language for hardware description.
-Though there have been a number of previous implementations
-of Lava, we have found the design space rich, with unexplored choices.
-We use a direct (Chalmers style) specification of circuits, and make
-significant use of Haskell overloading of standard classes, leading to
-concise circuit descriptions. Kansas Lava supports both simulation (inside
-GHCi), and execution via VHDL, by having a dual shallow and deep
-embedding inside our Signal type. 
+Kansas Lava is an effort to create a modern implementation of the Lava
+design pattern that allows direct (Chalmers style) specification of circuits.
+
+There are two concrete types in Kansas Lava: \verb!Seq! and \verb!Comb!, which represent
+sequential and combinatorial values, respectively. Combinatorial values exclude the
+notion of a clock, whereas sequential values are more like streams in that they
+encode a series of values over time.
+
+Both are instances of the \verb!Signal! typeclass, over which most primitives are defined.
+This allows the user to write circuits that work on both types of input, pretending
+there is a single unified type, \verb!Signal!. As an example:
+
+\begin{verbatim}
+halfAdder a b = (carry,sum)
+  where carry = and2 a b
+        sum   = xor2 a b
+\end{verbatim}
+
+Notice that the \verb!halfAdder! circuit we just defined can be used with
+both types of input values:
+
+\begin{verbatim}
+ghci> halfAdder (constComb True) (constComb True)                                            
+(T,F)
+
+ghci> let x = toSeq $ cycle [False,False,True,True]
+ghci> let y = toSeq $ cycle [False,True]
+ghci> halfAdder x y
+(F :~  F :~  F :~  T :~ ..., F :~  T :~  T :~  F :~ ...)
+\end{verbatim}
+
+Kansas Lava supports both simulation and synthesis of circuits by having a dual
+shallow and deep embedding within \verb!Signal!. The deep embedding is a
+structure of primitive entities that can be reified to a netlist, from which
+we generate VHDL for compilation.
 
 \subsection{Techniques}
 
 In this paper we present four approaches to testing and debugging
-Lava circuits. To summarize, with applicability:
+Lava circuits. We summarize them here, noting which embedding and
+circuit type can be tested, as well as the target use case.
 
-\begin{table}
-\label{table:approaches}
-
+% TODO: Make sure this is correct, and force it to inline rather than float.
 \begin{center}
+\label{table:approaches}
 \begin{tabular}{l | c | c | c | c | c | c |}
-\cline{2-7}
-& \multicolumn{2}{|c|}{Tests}
-& \multicolumn{2}{|c|}{Circuit Type}
-& \multicolumn{2}{|c|}{Helps} \\
-\cline{2-7}
- & Shallow & Deep & Comb & Seq & Users & Developers \\
+\cline{2-5}
+& \multicolumn{2}{|c|}{Embedding}
+& \multicolumn{2}{c|}{Circuit Type}
+& \multicolumn{1}{|c}{}\\
+\cline{2-6}
+ & Shallow & Deep & Comb & Seq & Use Case \\
 \hline
-\multicolumn{1}{|l|}{QuickCheck} & y & n & y & n & y & n \\
+\multicolumn{1}{|l|}{QuickCheck} & y & n & y & n & Users \\
 \hline
-\multicolumn{1}{|l|}{Truth Tables} & y & n & y & y & y & n \\
+\multicolumn{1}{|l|}{Truth Tables} & y & n & y & y & Users \\
 \hline
-\multicolumn{1}{|l|}{Probes} & y & y & y & y & y & y \\
+\multicolumn{1}{|l|}{Probes} & y & y & y & y & Both \\
 \hline
-\multicolumn{1}{|l|}{Comparing} & y & y & y & y & y & y \\
+\multicolumn{1}{|l|}{Comparing} & y & y & y & y & KL Devs \\
 \hline
 \end{tabular}
 
-\caption{Something}
+% took this out of a table \caption{Something}
 
 \end{center}
-\end{table}
 
 \section{Using QuickCheck}
 
@@ -138,7 +164,52 @@ outputs is by generating truth tables, which can then be transformed
 into waveform diagrams. For a combinatorial circuit, all possible
 values for each input are permuted and the circuit is applied to each
 permutation in turn, storing the result in a treelike structure.
+
+This also works for sequential circuits. Using a small DSL to apply the sequential
+circuit to sample inputs, we stash both the function and its arguments
+in a data structure as they are applied in succession:
+
+\begin{verbatim}
+tt = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool)
+                .*. input1
+                .*. input2)
+        where
+                input1 = encSeqBool "HLHHL"
+                input2 = encSeqBool "HH_LL"
+\end{verbatim}
+
+Implementing this is straightforward. The \verb!example! function simply
+wraps up its argument (the circuit) for the \verb!.*.! operator, which applies
+each argument in succession, storing it for later inclusion in the table. Both
+are defined thus:
+
+\begin{verbatim}
+data Example a = Example a [ExampleArg]
+
+data ExampleArg = forall a . (Show a, RepWire a) => ExampleArg (Seq a)
+
+example :: a -> Example a
+example a = Example a []
+
+infixl 2 .*.
+
+(.*.) :: TestArg a => Example (a -> b) -> a -> Example b
+(.*.) (Example f args) arg = Example (f arg) (args ++ testArg arg)
+
+class TestArg a where
+    testArg :: a -> [ExampleArg]
+
+instance (Show a, RepWire a) => TestArg (Seq a) where
+    testArg a = [ExampleArg a]
+
+instance (Show a, RepWire a) => TestArg (Comb a) where
+    testArg a = [ExampleArg (liftS0 a)]
+\end{verbatim}
+
+All that remains is to pretty print the resulting truth table.
+Currently we can output both ASCII and \LaTeX tables, as well as \LaTeX waveforms.
 An example waveform for a mux can be found in Figure 1. % for some reason this returns 3?! \ref{fig:mux2}.
+% is the use of the latex logo above totally retarded?
 
 \begin{figure}
 \label{fig:mux2}
@@ -153,37 +224,27 @@ o0 & 1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9H1.9U1.9L1.9L1.9L1.9H1.9H1.9H1.9U1.9U1.9U1.9
 \caption{\tt mux2 :: Comb Bool $\to$ (Comb Bool, Comb Bool) $\to$ Comb Bool}
 \end{figure}
 
-This also works for sequential circuits. Using a small DSL to apply the sequential
-circuit to sample inputs, we stash both the function and its arguments
-in a data structure as they are applied in succession.
-
-All that remains is to pretty print the resulting truth table.
-Currently we can output both ASCII and \LaTeX tables, as well as \LaTeX waveforms.
-% is the use of the latex logo above totally retarded?
-
-The best part of this approach is that it is easy to visualize the relationship
+Using this approach, it is easy to visualize the relationship
 between inputs and outputs. In the case of sequential circuits, it is also
-helpful to see when things happen.
-
-As can be seen above, it's also great for documentation purposes. This will
-come in handy when documenting the behavior of primitive functions for Kansas
-Lava users.
+helpful to see \emph{when} things happen. As such, we intend to use it
+extensively to document the behavior of Kansas Lava primitives for end users.
 
 It also addresses one of the issues we had with QuickCheck, in that we have
 control over the exact input that is used to test the circuit. This allows
 us to more effectively test large circuits.
 
-However, this approach once again doesn't test the deep embedding at all.
-It also requires direct examination by the user to verify that the
+However, this approach requires direct examination by the user to verify that the
 simulated circuit behaved correctly for each combination of inputs, which
-is time consuming.
+is time consuming. It also doesn't test the deep embedding or permit
+inspection of intermediate results inside the circuit. For larger circuits, this
+ability is crucial. To address this need, we created probes.
 
-\section{Circuit Instrumentation using Probes}
+\section{Circuit Instrumentation Using Probes}
 
 Testing primitive circuits using the shallow embedding of Haskell provides a
 convenient method for validating circuit behavior. However, as a Lava user
-constructs increasingly larger by composing primitive circuits, the shallow
-embedding becomes of decreasing value for understanding the interaction between
+constructs increasingly larger components by composing primitive circuits, the shallow
+embedding is of decreasing value for understanding the interaction between
 those primitive components. This is due to the embedding of circuits as Haskell
 values -- circuits are opaque Haskell functions with which it is only possible
 to observe the relationship between inputs and function output. Intermediate
@@ -203,7 +264,6 @@ fullAdder a b cin = (sum,cout)
         (sum,c2) = halfAdder cin s1
         cout = xor2 c1 c2
 \end{verbatim}
-
 
 In this example, the intermediate values \verb!s1!, \verb!c1!, and \verb!c2! are
 not exposed as outputs to the function, and are consequently not
@@ -229,19 +289,19 @@ While effective, this approach suffers in that it changes the interface to the
 circuit, which in turn necessitates a modification to all of the users of the
 circuit. Moreover, if the incorrect behavior were to be observed when defining a
 circuit which \emph{uses} the full adder, then that circuit must in turn be
-modified to propogate the debugging output of the \verb!fullAdder!  circuit.
+modified to propogate the debugging output of the \verb!fullAdder! circuit.
 
-This forces the user is forced to make a choice in how to debug, both with
+This leaves the user with two options, both with
 significant drawbacks. Either \emph{all} of the intermediate circuit outputs are
 exported (changing the circuit interfaces a single time) and then the global
 collection of intermediate values is sorted through. Alternatively, the user can
 iteratively export a subset of the intermediate values, checking for correct
 behavior, until the troublesome circuit is located.
 
-Kansas Lava provides a solution to the difficulty that sidesteps both of these
-challenges using the notion of a \emph{probe}. When using this construct,
+Kansas Lava provides a solution that sidesteps this time consuming debugging
+using the notion of a \emph{probe}. When using this construct,
 intemediate values can be observed without changing the circuit
-interface. Moreover, only those intermediate values that have probes on will be
+interface. Moreover, only those intermediate values that are probed will be
 observable, allowing probes to be inserted and removed as the circuit is
 searched to locate the source of an error.
 
@@ -252,7 +312,7 @@ function is overloaded via a type class. Instances are provided for the range of
 types representable as Kansas Lava circuits.
 
 \begin{verbatim}
-class  Probe a where
+class Probe a where
   probe :: String -> a -> a
 \end{verbatim}
 
@@ -266,8 +326,8 @@ fullAdder a b cin = (sum,cout)
         cout = xor2 (probe "c1" c1) (probe "c2" c2)
 \end{verbatim}
 
-Kansas Lava provided an additional two circuits for extracting probe
-values. First, \verb!probeCircuit! takes a circuit with probes and generates a
+Kansas Lava provides two functions for extracting probe % had circuits instead of functions, is fns right?
+values. First, \verb!probeCircuit! takes a circuit with probes and generates an
 association list of probe names and values. The \verb!getProbe! function looks
 up a probe name in this list and returns the associated value. The \verb!test!
 function, shown below, demonstrates the use of these two functions.
@@ -280,21 +340,23 @@ test = do
 \end{verbatim}
 
 Calling \verb!test! at the ghci prompt yields the following trace of outputs for
-the \texttt{s1} probe. The probe mechanism automatically lifts combinational Kansas Lava
-values into a stream of values, as the probe mechanism proves particularly
-useful when debugging sequential circuits.
+the \texttt{s1} probe. 
 
 \begin{verbatim}
 ghci> test
 "F" :~  "F" :~  ...
 \end{verbatim}
 
+The probe mechanism automatically lifts combinational Kansas Lava
+values into a stream of values, as the probe mechanism proves particularly
+useful when debugging sequential circuits.
+
 Although the above example demonstrated a way to observe intermediate Kansas
 Lava values, it doesn't necessarily shed a great deal of light on the particular
 bug in the full adder circuit, which is due to providing the wrong argument to
-the first halfAdder circuit, while we have only observed the output to that
+the first halfAdder circuit, while we have only observed the output of that
 function. To make it possible to observe both the input and output of a
-function, we can apply probe to the funciton iself:
+function, we can apply probe to the function itself:
 
 \begin{verbatim}
 fullAdder a b cin = (sum,cout)
@@ -317,9 +379,9 @@ test = do
 \end{verbatim}
 
 This modified \verb!test! function shows the traces for each of the input
-argument to the half adder, as well as the output. The \verb!probe! function
+arguments to the half adder, as well as the output. The \verb!probe! function
 generates names for each of these by simply enumerating each argument (along
-with the result) and adding the enumerated index to the given probe name, h1.
+with the result) and adding the enumerated index to the given probe name, \verb!h1!.
 
 \begin{verbatim}
 ghci> test
@@ -331,30 +393,24 @@ h1_0: "F" :~  "F" :~  ...
 \paragraph{Implementing Probe}
 
 The ability to observe intermediate Kansas Lava values is a pleasing consequence
-of maintaining both a shallow and deeply-embedded representation of Kansas Lava
-circuits. When the \verb!probe! function is invoked on circuit, the
+of maintaining both a shallow and deep embedding of Kansas Lava
+circuits. When the \verb!probe! function is invoked on the circuit, the
 shallowly-embedded value associated with the circuit is stored in the deep
 embedding. To allow any Kansas Lava value to be stored in the deep
 representation, we construct an existential type, \verb!ProbeValue!, which has a
 constraint which allows us to recover the printed representation of the
 value. One downside of this implementation decision is that we can no longer
-manipulate observed values directly, but rather as their string representations.
+manipulate observed values directly, only their string representations.
 
-Once probed values have been added to the deep embedding representation, the
+Once probed values have been added to the deep embedding representation, 
 \verb!probeCircuit! reifies the circuit using the basic Kansas Lava reification
 mechanism \cite{}, and the stored probe values are copied to an association
-list. Reificiation performed within the IO monad, hence the use of monadic \verb!do!
+list. Reificiation is performed within the IO monad, hence the use of monadic \verb!do!
 notation in the \verb!test! functions.
 
-XXXXXX: Andrew, you should extend this to talk about how we can use this to
-make sure that the shallow embedding agrees with our generated VHDL for the same
-circuit, using testbench framework.
-
-
-Garrin can probably describe this better than I can.
-
-Downside: Requires instrumenting code with calls to probe (although Garrin is close to
-overcoming this I think).
+% XXXXXX: Andrew, you should extend this to talk about how we can use this to
+% make sure that the shallow embedding agrees with our generated VHDL for the same
+% circuit, using testbench framework.
 
 \section{Comparing Deep and Shallow}
 
