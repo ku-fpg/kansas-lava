@@ -218,8 +218,8 @@ instance (Wire a, Wire b) => Wire (a,b) where
 		       return $ (x,y)
 	wireName _ = "Tuple_2"
 
-
 	wireType ~(a,b) = TupleTy [wireType a, wireType b]
+{-
 	wireCapture (D d) = [ (wireType (error "wireCapture (a,)" :: a),Port (Var "o0") $ E $ eFst)
 			    , (wireType (error "wireCapture (,b)" :: b),Port (Var "o0") $ E $ eSnd)
 			    ]
@@ -244,6 +244,7 @@ instance (Wire a, Wire b) => Wire (a,b) where
 			      ,(Var "i1",wireType (error "wireGenerate (,b)" :: b),p2)
 			      ]
 			      []
+-}
 
 instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => RepWire (a,b) where
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
