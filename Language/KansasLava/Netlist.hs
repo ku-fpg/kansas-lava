@@ -317,7 +317,7 @@ mkInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
 
 -- Catchall for everything else
 mkInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
-	trace (show ("mkInst",n)) $ 
+	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $ 
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
   		[ ("width_size",ExprNum $ fromIntegral $ head [ baseTypeLength ty | (_,ty) <- outputs ])
 			| mod_nms <- ["Sampled"]
@@ -494,6 +494,7 @@ sigTyped (S _) s = signed (sigExpr s)
 sigTyped ClkTy s = sigExpr s
 sigTyped RstTy s = sigExpr s
 sigTyped (TupleTy tys) s = unsigned (sigExpr s)
+sigTyped (IntegerTy) s = sigExpr s
 sigTyped ty s = error $ "sigtyped :" ++ show ty ++ "/" ++ show s
 
 
