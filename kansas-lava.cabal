@@ -1,5 +1,5 @@
 Name:               kansas-lava
-Version:            0.2.1.20100309
+Version:            0.2.1.20100411
 Synopsis:           Kansas Lava is a locally grown version of Lava,
 		    in the spirit of Chalmers Lava, and Xilinx Lava.
 		    .
@@ -45,6 +45,7 @@ Library
        Language.KansasLava.VHDL
        Language.KansasLava.Wire
        Language.KansasLava.VHDL.Testbench
+       Language.KansasLava.VHDL.VCD
   Other-modules:
 
 -- hack for now
