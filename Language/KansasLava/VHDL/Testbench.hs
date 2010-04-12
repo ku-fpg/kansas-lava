@@ -51,8 +51,8 @@ mkTestbench ropts nlopts coreName fun = do
   (inputs,outputs,sequentials) <- ports ropts fun
   writeFile (base ++ coreName ++ "_tb.vhd") $
             entity coreName ++ architecture coreName inputs outputs sequentials
-  stim <- vectors inputs
-  writeFile (base ++ coreName ++ ".input") stim
+--  stim <- vectors inputs
+--  writeFile (base ++ coreName ++ ".input") stim
   -- Get the probes
   waves <- genProbes coreName fun
   writeFile (base ++ coreName ++ ".do") (doscript coreName waves)
@@ -161,7 +161,8 @@ sortPorts names ports = sortBy comp ports
               (Nothing, Just y) -> GT
               (Nothing,Nothing) -> case (a,b) of
                                      ('i':as, 'i':bs) -> compare (read as :: Int) (read bs)
-                                     _ -> error $ "sortInputs" ++ show a ++ show b
+                                     ('o':as, 'o':bs) -> compare (read as :: Int) (read bs)	-- HACK?
+                                     _ -> error $ "sortInputs:" ++ show (a,b,names,ports)
 
 findInputs opts = maybe [] names (find isInp opts)
   where isInp (InputNames names) = True
