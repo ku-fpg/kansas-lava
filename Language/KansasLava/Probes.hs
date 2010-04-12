@@ -1,13 +1,14 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Probes(ProbeValue(..),XStream(..),probeCircuit,probe,getProbe, showXStream) where
+module Language.KansasLava.Probes(ProbeValue(..),XStream(..),probeCircuit,probe,getProbe, showXStream, showXStreamBits) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
 import Data.Sized.Signed
 import Data.Sized.Ix
 import Data.Sized.Arith(X1_,X0_)
+import qualified Data.Sized.Matrix as M
 
 import Data.Char
 import Data.Bits
@@ -110,6 +111,15 @@ deriving instance Eq a => Eq (WireVal a)
 showXStream :: forall a. RepWire a => XStream a -> Stream String
 showXStream (XStream strm) = fmap (showRepWire (undefined :: a)) strm
 
+
+showXStreamBits :: forall a . (RepWire a) => XStream a -> Stream String
+showXStreamBits (XStream ss) =
+    fmap (\i -> (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))) ss
+       where showX b = case unX b of
+			Nothing -> 'X'
+			Just True -> '1'
+			Just False -> '0'
+             witness = error "witness" :: a
 
 -- A test circuit
 f :: Comb U8 -> Comb U8 -> Comb U8
