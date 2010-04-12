@@ -135,6 +135,7 @@ formatTT n ttls =
 --- Examples of use
 
 tt1 = truthTable (xor2 :: Comb Bool -> Comb Bool -> Comb Bool)
+
 tt2 = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool)
 			.*. in1
 			.*. in2)
@@ -144,6 +145,7 @@ tt2 = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool)
 		enc 'H' = return True
 		enc 'L' = return False
 		enc _   = fail "other"
+
 tt3 = truthTable ((*) :: Comb U2 -> Comb U2 -> Comb U2)
 
 tt4 = truthTable (halfAdder :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool))
@@ -160,7 +162,6 @@ tt5 = truthTable (example (register :: Rst -> Comb ALPHA -> Seq ALPHA -> Seq ALP
 
 ------------------------------------------------------------------------
 -- Current limitations
--- Needed curried values (No (Comb X,Comp Y) -> ...)	 [FIXABLE]
 -- Only handles 2 tuples 				[FIXABLE]
 --- ???
 
