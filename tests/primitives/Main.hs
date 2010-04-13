@@ -29,7 +29,7 @@ import System.IO
 import qualified System.Posix.Env as Posix
 
 -- CONFIG --
-runTests = ["matrixOps"] -- empty list builds every test
+runTests = ["muxX"] -- empty list builds every test
 
 numberOfCycles :: Int
 numberOfCycles = 100
@@ -81,8 +81,8 @@ main = do
         (\ f -> f inp)
 
     testCircuit "muxX" 
-        ((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
-        (\ f -> f (toSeq (cycle [True,False,True,True,False])) inp inp2)  
+        (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4)
+        (\ f -> f (toSeq (cycle [True,False,True,True,False])) (inp, inp2))  
 
     testCircuit "signedArithX"
         ((\ a b -> pack (matrix [a + b, a - b{- this overflows! , a * b-}] :: Matrix X2 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X2 S5))
@@ -199,8 +199,9 @@ testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
 testCircuit nm tst f
     | null runTests || nm `elem` runTests = do
         plist <- probeCircuit $ f $ probe nm tst
-        mkTest nm 0 50 $ sortBy (\(n,_) (n2,_) -> compare n n2)
-                       $ filter (\(_, (ProbeValue name _)) -> nm `isPrefixOf` name) plist
+        mkTest nm 0 numberOfCycles
+		$ sortBy (\(n,_) (n2,_) -> compare n n2)
+                $ filter (\(_, (ProbeValue name _)) -> nm `isPrefixOf` name) plist
         mkTestbench [OptimizeReify] [] nm tst   -- inc optimizations?
 
         return ()   
