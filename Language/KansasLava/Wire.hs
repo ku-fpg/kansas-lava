@@ -385,7 +385,7 @@ instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Sampled"
 	wireName _	    = "Sampled"
-	wireType x   	    = U (size (error "Sampled" :: ix))
+	wireType x   	    = S (size (error "Sampled" :: ix))		-- err, we need to think about this!
 
 instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) where 
 	type WIDTH (Sampled.Sampled m ix) = ix

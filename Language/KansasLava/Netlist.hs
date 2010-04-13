@@ -235,6 +235,14 @@ specials =
 
 
 mkInst :: Unique -> Entity BaseTy Unique -> [Decl]
+
+{-
+-- LATER, build a table
+mkInst i (Entity n@(Name "Bool" _) [(Var "o0",oTy)] [(Var "i0",iTty,i0),(Var "i0",iTty,i0)] _) 
+  = 
+    where ops = [(".<.",LessThan), (".>.",GreaterThan),(".==.",Equals),(".<=.",LessEqual), (".>=.",GreaterEqual)])
+-}	  
+
 mkInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
@@ -325,6 +333,9 @@ mkInst i (Entity n@(Name "X32" "+") outputs inputs dyn) =
 	mkInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
 mkInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
 	mkInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
+mkInst i (Entity n@(Name "Sampled" op) outputs inputs dyn) 
+      | op `elem` [".<.", ".>.", ".<=.", ".>=.", ".==."] 
+      = mkInst i (Entity (Name "Signed" op) outputs inputs dyn)
 	
 -- 
 

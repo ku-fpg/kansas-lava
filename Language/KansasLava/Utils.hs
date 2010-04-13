@@ -286,7 +286,7 @@ boolOp nm fn =
 		    Comb (optX $ do a' <- unX a :: Maybe a
 			            b' <- unX b :: Maybe a
 			            return $ a' `fn` b')
-		      (entity2 (Name "Bool" nm) ea eb)
+		      (entity2 (Name (wireName (error "boolOp" :: a)) nm) ea eb)
 
 (.==.) :: forall a sig . (Wire a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
