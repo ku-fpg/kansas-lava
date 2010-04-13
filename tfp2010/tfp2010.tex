@@ -1,4 +1,5 @@
 \documentclass{llncs}
+\usepackage{multirow}
 \usepackage{tikz}
 \usepackage{tikz-timing}
 %
@@ -69,13 +70,20 @@ shallow and deep embedding within \verb!Signal!. The deep embedding is a
 structure of primitive entities that can be reified to a netlist, from which
 we generate VHDL for compilation.
 
-\subsection{Techniques}
+\subsection{In This Paper}
+
+Programmatically generating hardware presents new challenges when it comes
+to testing and debugging. Often, traditional lightweight testing strategies
+are cumbersome to use in large circuits, or don't permit inspection of
+intermediate values.
 
 In this paper we present four approaches to testing and debugging
-Lava circuits. We summarize them here, noting which embedding and
-circuit type can be tested, as well as the target use case.
+Lava circuits. They enable us to scale Lava usage to large, real-world
+problem instances in a more straighforward manner than in the past.
+We summarize each approach here, noting which embedding and
+circuit type can be tested, as well as the target use case:
 
-% TODO: Make sure this is correct, and force it to inline rather than float.
+% TODO: Make sure this is correct
 \begin{center}
 \label{table:approaches}
 \begin{tabular}{l | c | c | c | c | c | c |}
@@ -86,13 +94,17 @@ circuit type can be tested, as well as the target use case.
 \cline{2-6}
  & Shallow & Deep & Comb & Seq & Use Case \\
 \hline
-\multicolumn{1}{|l|}{QuickCheck} & y & n & y & n & Users \\
+\multicolumn{1}{|c|}{QuickCheck} & \multirow{2}{*}{y} & \multirow{2}{*}{n} & \multirow{2}{*}{y} & \multirow{2}{*}{n} & \multirow{2}{*}{Users} \\
+\multicolumn{1}{|c|}{\footnotesize{Section \ref{sec:quickcheck}}} & & & & & \\
 \hline
-\multicolumn{1}{|l|}{Truth Tables} & y & n & y & y & Users \\
+\multicolumn{1}{|c|}{Truth Tables} & \multirow{2}{*}{y} & \multirow{2}{*}{n} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{Users} \\
+\multicolumn{1}{|c|}{\footnotesize{Section \ref{sec:waveforms}}} & & & & & \\
 \hline
-\multicolumn{1}{|l|}{Probes} & y & y & y & y & Both \\
+\multicolumn{1}{|c|}{Probes} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{Both} \\
+\multicolumn{1}{|c|}{\footnotesize{Section \ref{sec:probes}}} & & & & & \\
 \hline
-\multicolumn{1}{|l|}{Comparing} & y & y & y & y & KL Devs \\
+\multicolumn{1}{|c|}{Comparing} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{y} & \multirow{2}{*}{KL Devs} \\
+\multicolumn{1}{|c|}{\footnotesize{Section \ref{sec:comparing}}} & & & & & \\
 \hline
 \end{tabular}
 
@@ -101,6 +113,7 @@ circuit type can be tested, as well as the target use case.
 \end{center}
 
 \section{Using QuickCheck}
+\label{sec:quickcheck}
 
 A popular method of testing Haskell functions is to use the QuickCheck library.
 Since Lava circuits are Haskell functions, this is straightforward.
@@ -158,6 +171,7 @@ effective tool for small circuits. For larger circuits that
 require non-random inputs, another solution is needed.
 
 \section{Generating Truth Tables and Waveforms}
+\label{sec:waveforms}
 
 An easy way to visualize the relationship between circuit inputs and
 outputs is by generating truth tables, which can then be transformed
@@ -198,12 +212,6 @@ infixl 2 .*.
 
 class TestArg a where
     testArg :: a -> [ExampleArg]
-
-instance (Show a, RepWire a) => TestArg (Seq a) where
-    testArg a = [ExampleArg a]
-
-instance (Show a, RepWire a) => TestArg (Comb a) where
-    testArg a = [ExampleArg (liftS0 a)]
 \end{verbatim}
 
 All that remains is to pretty print the resulting truth table.
@@ -240,6 +248,7 @@ inspection of intermediate results inside the circuit. For larger circuits, this
 ability is crucial. To address this need, we created probes.
 
 \section{Circuit Instrumentation Using Probes}
+\label{sec:probes}
 
 Testing primitive circuits using the shallow embedding of Haskell provides a
 convenient method for validating circuit behavior. However, as a Lava user
@@ -294,11 +303,11 @@ modified to propogate the debugging output of the \verb!fullAdder! circuit.
 This leaves the user with two options, both with
 significant drawbacks. Either \emph{all} of the intermediate circuit outputs are
 exported (changing the circuit interfaces a single time) and then the global
-collection of intermediate values is sorted through. Alternatively, the user can
-iteratively export a subset of the intermediate values, checking for correct
+collection of intermediate values is sorted through, or the user 
+iteratively exports a subset of the intermediate values, checking for correct
 behavior, until the troublesome circuit is located.
 
-Kansas Lava provides a solution that sidesteps this time consuming debugging
+Kansas Lava provides a solution that sidesteps this time consuming process
 using the notion of a \emph{probe}. When using this construct,
 intemediate values can be observed without changing the circuit
 interface. Moreover, only those intermediate values that are probed will be
@@ -306,7 +315,7 @@ observable, allowing probes to be inserted and removed as the circuit is
 searched to locate the source of an error.
 
 The Kansas Lava \verb!probe! function takes a string representing a
-user-significant name for the intermediate value, along with a Kansas Lava
+user-significant name for the intermediate value and a Kansas Lava
 circuit. To allow \verb!probe! to be utilized for a variety of types, the
 function is overloaded via a type class. Instances are provided for the range of
 types representable as Kansas Lava circuits.
@@ -340,7 +349,7 @@ test = do
 \end{verbatim}
 
 Calling \verb!test! at the ghci prompt yields the following trace of outputs for
-the \texttt{s1} probe. 
+the \verb!s1! probe: 
 
 \begin{verbatim}
 ghci> test
@@ -348,15 +357,14 @@ ghci> test
 \end{verbatim}
 
 The probe mechanism automatically lifts combinational Kansas Lava
-values into a stream of values, as the probe mechanism proves particularly
-useful when debugging sequential circuits.
+values into a stream of values.
 
-Although the above example demonstrated a way to observe intermediate Kansas
-Lava values, it doesn't necessarily shed a great deal of light on the particular
-bug in the full adder circuit, which is due to providing the wrong argument to
-the first halfAdder circuit, while we have only observed the output of that
-function. To make it possible to observe both the input and output of a
-function, we can apply probe to the function itself:
+While the above example demonstrated a way to observe intermediate Kansas
+Lava values, it doesn't shed a great deal of light on the particular
+bug in the full adder circuit. We have only observed the output of the
+\verb!halfAdder!, whereas the bug is due to the incorrect input value.
+To make it possible to observe both the input and output of a
+function, we can apply \verb!probe! to the function itself:
 
 \begin{verbatim}
 fullAdder a b cin = (sum,cout)
@@ -413,18 +421,89 @@ notation in the \verb!test! functions.
 % circuit, using testbench framework.
 
 \section{Comparing Deep and Shallow}
+\label{sec:comparing}
 
-Describe, maybe show example or the info file or something?
+Using probes, we wrote a tool to compare the results of the shallow simulation
+against those of the deep, compiled version of the circuit. This allows us to
+confirm that the shallow and deep embeddings yield the same result.
 
-\subsection{The Good}
+\begin{verbatim}
+testCircuit :: (Ports a, Probe a, Ports b) =>
+		String -> a -> (a -> b) -> IO ()
+\end{verbatim}
 
-Excellent for testing our VHDL generation.
+The \verb!testCircuit! function takes a probeable circuit (in this case \verb!mux2!) and
+a function that applies the circuit to arguments. It simply wraps a probe around
+the circuit and passes that to the second function. As an example:
 
-\subsection{The Bad}
+\begin{verbatim}
+testCircuit "mux2" 
+    (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4)
+    (\ f -> let sel  = toSeq $ cycle [True,False,True,True,False]
+                inp  = toSeq $ cycle [0..15]
+                inp2 = toSeq $ cycle $ reverse [0..15]
+            in f sel (inp, inp2))  
+\end{verbatim}
 
-Not so useful to end users of Lava? Simulation can be time consuming?
+Using the data collected by the probe, we can generate input and expected output
+files, along with a testbench, for a VHDL simulator. Using these, we test the
+compiled VHDL obtained from the deep embedding and compare the results with 
+a standard diff tool.
+
+Using this basic ability to automatically compare the deep and shallow embeddings,
+we can implement a form of algorithmic debugging, using one embedding as the
+oracle for the other.
+
+At a high level, algorithmic debugging builds an execution tree, then iteratively
+checks the value of each node with one given by an oracle (often the programmer).
+If the values match, the node is considered 'correct' and the debugger continues
+with that node's siblings. If the values do not match, the debugger instead continues
+with that node's children. If all the children are correct, then the node itself is
+at fault.
+
+% image of sample execution tree or circuit graph
+
+Using the netlist created by the Kansas Lava reification process, we can construct
+a small execution graph, where each node represents a high level component of
+the circuit and contains the probe results for that component. We then search the
+graph, simulating each node and comparing it to the probe results, returning
+the first incorrect node that is either has no children, or has children that
+are all correct.
+
+% need to implement this and stick some code/pictures/dot diagrams here
+
+This technique allows us to find problems in extremely large circuits quickly.
 
 % talk about adapting probes to execution tree/algorithmic debugging idea?
 % conclusion?
+\section{Related Work}
+
+\section{Conclusion and Future Work}
+
+Traditional Haskell testing tools like QuickCheck are of limited use
+when testing Lava circuits. Many properties that are easy to express
+over finite data structures (like \verb!Comb!) are more cumbersome
+over unbounded ones (such as \verb!Seq!). They also present no easy
+way to test generated VHDL code.
+
+Observing the inputs and outputs to a circuit via truth tables and
+waveforms helps explain circuit behavior, but doesn't permit testing
+of an internal component in the context of a larger circuit. Once again,
+the deep embedding is not tested at all.
+
+Probes present a method of observing intermediate values in the shallow
+embedding and recovering them for comparison with the VHDL coming out of
+the deep embedding. They also serve as the foundation for more advanced 
+strategies, such as our adaptation of algorithmic debugging.
+
+While the current system is primarily useful to Kansas Lava developers to
+ensure correct VHDL generation, one possible future direction is to adapt 
+the current framework to be a true algorithmic debugger, with the Lava
+user as the oracle.
+
+Alternatively, this framework could be used to test circuit optimizations,
+using the unoptimized circuit as an oracle for the optimized one.
+\bibliographystyle{splncs}
+\bibliography{../../bib/csdl}
 
 \end{document}
