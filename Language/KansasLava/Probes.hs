@@ -10,6 +10,10 @@ import Data.Sized.Ix
 import Data.Sized.Arith(X1_,X0_)
 import qualified Data.Sized.Matrix as M
 
+-- so we can derive Typeable2 instances
+import Data.Sized.Matrix (Matrix)
+import Data.Sized.Sampled (Sampled)
+
 import Data.Char
 import Data.Bits
 import Data.Dynamic
@@ -104,6 +108,8 @@ deriving instance Typeable1 X1_
 deriving instance Typeable1 X0_
 deriving instance Typeable1 Signed
 deriving instance Typeable1 Unsigned
+deriving instance Typeable2 Matrix
+deriving instance Typeable2 Sampled
 
 deriving instance Typeable1 WireVal
 deriving instance Eq a => Eq (WireVal a)
