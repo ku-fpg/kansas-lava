@@ -10,6 +10,7 @@ import Control.Concurrent.Chan
 import Data.Dynamic
 
 import Data.Bits
+import Data.List as L
 
 import Data.Sized.Arith as A
 import Data.Sized.Matrix as M
@@ -18,11 +19,13 @@ import Data.Sized.Sampled as S
 import Data.Sized.Signed as S
 import Data.Sized.Unsigned as U
 
+import Language.KansasLava.Probes
 import Language.KansasLava.VHDL.Testbench
 
 import System.Environment
 import System.Directory
 import System.Cmd
+import System.IO
 
 import qualified System.Posix.Env as Posix
 
@@ -30,15 +33,15 @@ import qualified System.Posix.Env as Posix
 
 testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
 testSomeTruth n nm fn = do
-	putStrLn $ "Testing " ++ nm ++ " function"
-	putStrLn $ "======="
-	putStrLn $ showSomeTT n $ truthTable fn	
-	
+    putStrLn $ "Testing " ++ nm ++ " function"
+    putStrLn $ "======="
+    putStrLn $ showSomeTT n $ truthTable fn 
+    
 testReify :: (Ports a) => String -> a -> IO ()
 testReify nm fn = do
-	putStrLn $ "Testing " ++ nm ++ " reify"
-	putStrLn $ "======="
-	debugCircuit [OptimizeReify] fn
+    putStrLn $ "Testing " ++ nm ++ " reify"
+    putStrLn $ "======="
+    debugCircuit [OptimizeReify] fn
 
 
 numberOfCycles :: Int
@@ -52,11 +55,11 @@ type FLOAT = Sampled X32 X32
 -- ldpc metric function (copied from [git]/hfec/src/KansasLava/Core.hs)
 metricComb :: Comb FLOAT -> Comb FLOAT -> Comb FLOAT 
 metricComb (Comb ox xe) (Comb oy ye) =
-			Comb ((optX :: Maybe FLOAT -> X FLOAT) $
-			      (do x <- unX ox :: Maybe FLOAT
-			 	  y <- unX oy :: Maybe FLOAT
-				  return $ signum(x) * signum(y) * (min (abs x) (abs y))))
-	     		(entity2 (Name "LDPC" "metric") xe ye)
+            Comb ((optX :: Maybe FLOAT -> X FLOAT) $
+                  (do x <- unX ox :: Maybe FLOAT
+                      y <- unX oy :: Maybe FLOAT
+                      return $ signum(x) * signum(y) * (min (abs x) (abs y))))
+                  (entity2 (Name "LDPC" "metric") xe ye)
 
 timesNeg0_75 :: forall a . (Fractional a, Wire a) => Comb a -> Comb a
 timesNeg0_75 (Comb a ea) = Comb (optX $ do a' <- unX a :: Maybe a
@@ -82,79 +85,160 @@ testSome nm tst f
   -- Hack to speed up the generation of our tests
   | otherwise = putStrLn $ "Ignoring " ++ show nm
 
+-- bitsXStream creates a list of binary representations of the values in the stream.
+bitsXStream :: forall a. RepWire a => XStream a -> [String]
+bitsXStream (XStream strm) = showSeqBits ((shallowSeq strm) :: Seq a)
+
+-- valsXStream creates a list of string representations of the values in the stream.
+valsXStream :: forall a. RepWire a => XStream a -> [String]
+valsXStream (XStream strm) = showSeqVals ((shallowSeq strm) :: Seq a)
+
+mkTest nm n count probes = do
+            let nm_n = nm ++ "_" ++ show n
+            let path = dumpDir ++ nm ++ "/"
+
+            createDirectoryIfMissing True path
+
+            writeFile (path ++ "Makefile")
+                $ unlines
+                $ ["run : setup " ++ nm_n ++ ".info " ++ nm ++ ".do"
+                  ,"\t@echo \"Simulating...\""
+                  ,"\t@vsim -c -do " ++ nm ++ ".do"
+                  ,"\t@echo \"10 lines from the info file...\""
+                  ,"\t@tail " ++ nm_n ++ ".info"
+                  ,"\t@echo \"The same 10 lines from the input file...\""
+                  ,"\t@tail " ++ nm ++ ".input"
+                  ,"\t@echo \"Ditto for the output file...\""
+                  ,"\t@tail " ++ nm ++ ".output"
+                  ,"\t@./test.sh"
+                  ,""
+                  ,"setup : " ++ nm_n ++ ".bits"
+                  ,"\t@/bin/cp " ++ nm_n ++ ".bits " ++ nm ++ ".input"
+                  ]
+            writeFile (path ++ "test.sh")
+                $ unlines
+                $ ["#!/bin/bash"
+                  ,"THEDIFF=`diff *.input *.output`"
+                  ,""
+                  ,"if [[ -z \"$THEDIFF\" ]]; then"
+                  ,"    echo \"Input/Output Files Are The Same\""
+                  ,"else"
+                  ,"    echo \"$THEDIFF\""
+                  ,"fi"
+                  ]
+            system $ "chmod +x " ++ path ++ "test.sh"
+
+            let bits = map (\(_, (ProbeValue _ xs)) -> bitsXStream xs) probes
+
+            writeFile (path ++ nm_n ++ ".bits")
+                $ unlines
+                $ take count
+                $ mergeWith (++)
+                $ bits
+            -- kind of messy I know
+            writeFile (path ++ nm_n ++ ".info")
+                $ unlines
+                $ L.zipWith (\n l -> "(" ++ show n ++ ") " ++ l) [0..]
+                $ mergeWith (\x y -> x ++ " -> " ++ y)
+                $ L.zipWith (\bs vs -> L.zipWith (\v b -> v ++ "/" ++ b) (take count vs) (take count bs)) bits
+                $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
+
+-- surely this exists in the prelude?
+mergeWith :: (a -> a -> a) -> [[a]] -> [a]
+mergeWith fn probes = go probes []
+    where go (bs:ps) []  = go ps bs
+          go (bs:ps) acc = go ps $ L.zipWith fn acc bs
+          go []      acc = acc
+
+testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
+testCircuit nm tst f
+    | nm `elem` ["eqProbes"] = do
+        plist <- probeCircuit $ f $ probe nm tst
+        mkTest nm 0 50 $ sortBy (\(n,_) (n2,_) -> compare n n2)
+                       $ filter (\(_, (ProbeValue name _)) -> nm `isPrefixOf` name) plist
+        mkTestbench [OptimizeReify] [] nm tst   -- inc optimizations?
+
+        return ()   
+    -- Hack to speed up the generation of our tests
+    | otherwise = putStrLn $ "Ignoring " ++ show nm
 
 main = do
-	Posix.setEnv "LAVA_SIM_PATH" dumpDir True
-  	createDirectoryIfMissing True dumpDir
+    Posix.setEnv "LAVA_SIM_PATH" dumpDir True
+    createDirectoryIfMissing True dumpDir
 
-	let env = takeThenSeq 7 shallowRst env
-	    env' = takeThenSeq 40 shallowRst env'
+    let env = takeThenSeq 7 shallowRst env
+        env' = takeThenSeq 40 shallowRst env'
 
-	    inp :: Seq U4
-	    inp  = toSeq $ cycle [0..15]
-	    inp2 :: Seq U4
-	    inp2 = toSeq $ cycle $ reverse [0..15]
-	    inp3 :: Seq U4
-	    inp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
+        inp :: Seq U4
+        inp  = toSeq $ cycle [0..15]
+        inp2 :: Seq U4
+        inp2 = toSeq $ cycle $ reverse [0..15]
+        inp3 :: Seq U4
+        inp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
 
-	    sinp :: Seq S5
-	    sinp  = toSeq $ cycle [0..15]
-	    sinp2 :: Seq S5
-	    sinp2 = toSeq $ cycle $ reverse [0..15]
-	    sinp3 :: Seq S5
-	    sinp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
+        sinp :: Seq S5
+        sinp  = toSeq $ cycle [0..15]
+        sinp2 :: Seq S5
+        sinp2 = toSeq $ cycle $ reverse [0..15]
+        sinp3 :: Seq S5
+        sinp3 = toSeq $ step 3 $ cycle $ reverse $ 0 : [0..15]
 
-	    binp :: Seq Bool
-	    binp  = toSeq $ cycle [True, False]
-	    binp2 :: Seq Bool
-	    binp2 = toSeq $ cycle [True, True, False, False]
+        binp :: Seq Bool
+        binp  = toSeq $ cycle [True, False]
+        binp2 :: Seq Bool
+        binp2 = toSeq $ cycle [True, True, False, False]
 
-	    step n (x:xs) = x : (step n $ drop (n - 1) xs)
+        step n (x:xs) = x : (step n $ drop (n - 1) xs)
 
-	    eInp :: Seq (Enabled U4)
-	    eInp = toEnabledSeq 
-		 $ Prelude.zipWith (\ a b -> if b then Just a else Nothing)
-	 		           (cycle [0..15]) 
-				   (cycle [False,True,False,False,True])
+        eInp :: Seq (Enabled U4)
+        eInp = toEnabledSeq 
+         $ Prelude.zipWith (\ a b -> if b then Just a else Nothing)
+                       (cycle [0..15]) 
+                   (cycle [False,True,False,False,True])
 
-	let nop x = return ()
+    let nop x = return ()
 
-	-- And the tests (comment them out wiht nop)
+    -- test that uses probes instead of examine
+    testCircuit "eqProbes"
+        ((\ a b -> a .==. b :: Seq Bool) :: Seq U4 -> Seq U4 -> Seq Bool)
+        (\ f -> f inp inp3)
 
-	testSome "regX" 
-		(register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
-		(\ reg -> reg .*. env .*. 10 .*. inp)
-		
-	testSome "delayX" 
-		(delay :: Seq U4 -> Seq U4)
-		(\ f -> f .*. inp)
-		
-	testSome "muxX" 
-		((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
-		(\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)	
+    -- And the tests (comment them out wiht nop)
 
-	testSome "signedArithX"
-		((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X3 S5))
-		(\ f -> f .*. sinp .*. sinp3)
+    testSome "regX" 
+        (register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
+        (\ reg -> reg .*. env .*. 10 .*. inp)
+        
+    testSome "delayX" 
+        (delay :: Seq U4 -> Seq U4)
+        (\ f -> f .*. inp)
+        
+    testSome "muxX" 
+        ((\ a b c -> mux2 a (b,c)) :: Seq Bool -> Seq U4 -> Seq U4 -> Seq U4)
+        (\ f -> f .*. toSeq (cycle [True,False,True,True,False]) .*. inp .*. inp2)  
 
-	testSome "unsignedArithX"
-		((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X3 U4))
-		(\ f -> f .*. inp .*. inp3)
+    testSome "signedArithX"
+        ((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X3 S5))
+        (\ f -> f .*. sinp .*. sinp3)
 
-	testSome "boolPrimsX"
-		((\ a b -> pack (matrix [a `and2` b, a `or2` b, a `xor2` b, bitNot a] :: Matrix X4 (Seq Bool))) :: Seq Bool -> Seq Bool -> Seq (Matrix X4 Bool))
-		(\ f -> f .*. binp .*. binp2)
+    testSome "unsignedArithX"
+        ((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X3 U4))
+        (\ f -> f .*. inp .*. inp3)
 
-	testSome "boolPrims2X"
-		((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq U4 -> Seq U4 -> Seq (Matrix X5 Bool))
-		(\ f -> f .*. inp .*. inp3)
+    testSome "boolPrimsX"
+        ((\ a b -> pack (matrix [a `and2` b, a `or2` b, a `xor2` b, bitNot a] :: Matrix X4 (Seq Bool))) :: Seq Bool -> Seq Bool -> Seq (Matrix X4 Bool))
+        (\ f -> f .*. binp .*. binp2)
 
-{-	This doesn't have a deep embedding defined, and takes an Int,
- 	which requires an instance of Examine (Int -> Seq Bool)
- 		testSome "testABitX"
-		((\ a i -> testABit a i) :: Seq U8 -> Int -> Seq Bool)
-		(\ f -> f .*. (toSeq $ cycle $ [0..255]) .*. 8)
+    testSome "boolPrims2X"
+        ((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq U4 -> Seq U4 -> Seq (Matrix X5 Bool))
+        (\ f -> f .*. inp .*. inp3)
+
+{-  This doesn't have a deep embedding defined, and takes an Int, which requires an instance of Examine (Int -> Seq Bool)
+        testSome "testABitX"
+        ((\ a i -> testABit a i) :: Seq U8 -> Int -> Seq Bool)
+        (\ f -> f .*. (toSeq $ cycle $ [0..255]) .*. 8)
 -}
+
 	testSome "enabledRegisterX"
 		(enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
 		(\ f -> f .*. env .*. 10 .*. eInp)
