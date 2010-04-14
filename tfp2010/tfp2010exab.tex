@@ -1,8 +1,11 @@
 \documentclass{llncs}
 \usepackage{multirow}
+\usepackage{fancyvrb}
 \usepackage{tikz}
 \usepackage{tikz-timing}
 %
+
+\DefineVerbatimEnvironment{code}{Verbatim}{fontsize=\small}
 
 \begin{document}
 
@@ -41,7 +44,7 @@ design pattern that allows direct (Chalmers style) specification of circuits.
 There are two concrete types in Kansas Lava: \verb!Seq! and \verb!Comb!, which represent
 sequential and combinatorial values, respectively. Combinatorial values exclude the
 notion of a clock, whereas sequential values are more like streams in that they
-encode a series of values over time. Both are instances of the \verb!Signal! typeclass,
+encode a series of values over time. Both are instances of the \verb!Signal! type class,
 over which most primitives are defined.
 This allows the user to write circuits that work on both types of input, pretending
 there is a single unified type, \verb!Signal!.
@@ -101,7 +104,7 @@ Since Lava circuits are Haskell functions, this is straightforward.
 For instance, given Kansas Lava's implementation of boolean conjunction and
 a suitable instance of QuickCheck's Arbitrary type class:
 
-\begin{verbatim}
+\begin{code}
 and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 and2 = liftS2 $ \ (Comb a ae) (Comb b be) ->
                     Comb (liftA2 (&&) a b)
@@ -109,15 +112,15 @@ and2 = liftS2 $ \ (Comb a ae) (Comb b be) ->
 
 instance (Arbitrary a, Wire a) => Arbitrary (Comb a) where
     arbitrary = shallowComb <$> (optX :: Maybe a -> X a) <$> arbitrary
-\end{verbatim}
+\end{code}
 
 One can verify properties like the following, which shows that the
 \verb|and2| implementation is commutative:
 
-\begin{verbatim}
+\begin{code}
 prop_andComm x y = (x `and2` y) == (y `and2` x)
     where types = (x :: Comb Bool, y :: Comb Bool)
-\end{verbatim}
+\end{code}
 
 While this approach is quick and easy to implement, it is of
 limited use.
@@ -129,10 +132,10 @@ certain they are truly equivalent, rather than merely having
 equivalent prefixes. We can use a hack to say, effectively, that
 the first $n$ values are 'good enough':
 
-\begin{verbatim}
+\begin{code}
 prop_andCommSeq x y = show (x `and2` y) == show (y `and2` x)
     where types = (x :: Seq Bool, y :: Seq Bool)
-\end{verbatim}
+\end{code}
 
 But this is less than ideal. An instance of QuickCheck's Arbitrary
 type class is nevertheless defined for Seq, in case it proves
@@ -164,14 +167,14 @@ This also works for sequential circuits. Using a small DSL to apply the sequenti
 circuit to sample inputs, we stash both the function and its arguments
 in a data structure as they are applied in succession:
 
-\begin{verbatim}
+\begin{code}
 tt = truthTable (example (xor2 :: Seq Bool -> Seq Bool -> Seq Bool)
                 .*. input1
                 .*. input2)
         where
                 input1 = encSeqBool "HLHHL"
                 input2 = encSeqBool "HH_LL"
-\end{verbatim}
+\end{code}
 
 Implementing this is straightforward. The \verb!example! function simply
 wraps up its argument (the circuit) for the \verb!.*.! operator, which applies
@@ -179,7 +182,7 @@ each argument in succession, storing it for later inclusion in the table.
 \emph{In the final paper, we detail the implementation of these two functions here.}
 
 All that remains is to pretty print the resulting truth table.
-Currently we can output both ASCII and \LaTeX tables, as well as \LaTeX waveforms.
+Currently we can output both ASCII and \LaTeX \hspace{1pt} tables, as well as \LaTeX \hspace{1pt} waveforms.
 An example waveform for a mux can be found in Figure 1. % for some reason this returns 3?! \ref{fig:mux2}.
 % is the use of the latex logo above totally retarded?
 
@@ -209,7 +212,8 @@ However, this approach requires direct examination by the user to verify that th
 simulated circuit behaved correctly for each combination of inputs, which
 is time consuming. It also doesn't test the deep embedding or permit
 inspection of intermediate results inside the circuit. For larger circuits, this
-ability is crucial. To address this need, we created probes.
+ability is crucial. To address this need, we created probes, starting from the
+design in the Hawk architectural design language.
 
 \section{Circuit Instrumentation Using Probes}
 \label{sec:probes}
@@ -222,7 +226,7 @@ the underlying circuit.
 As a simple example, consider the archetypal Lava definition of a full adder,
 constructed by combining two half adder circuits:
 
-\begin{verbatim}
+\begin{code}
 halfAdder a b = (sum,carry)
   where sum = xor2 a b
         carry = and2 a b
@@ -231,7 +235,7 @@ fullAdder a b cin = (sum,cout)
   where (s1,c1) = halfAdder a a
         (sum,c2) = halfAdder cin s1
         cout = xor2 c1 c2
-\end{verbatim}
+\end{code}
 
 In this example, the intermediate values \verb!s1!, \verb!c1!, and \verb!c2! are
 not exposed as outputs to the function, and are consequently not
@@ -245,13 +249,13 @@ be able to observe the input/output behavior of the first \verb!halfAdder!.
 One approach to locating the bug is to simply return the intermediate values as
 additional outputs to the circuit:
 
-\begin{verbatim}
+\begin{code}
 fullAdder a b cin = ((sum,cout),debug)
   where (s1,c1) = halfAdder a a
         (sum,c2) = halfAdder cin s1
         cout = xor2 c1 c2
         debug = (s1,c1,c2)
-\end{verbatim}
+\end{code}
 
 While effective, this approach suffers in that it changes the interface to the
 circuit, which in turn necessitates a modification to all of the users of the
@@ -279,10 +283,10 @@ circuit. To allow \verb!probe! to be utilized for a variety of types, the
 function is overloaded via a type class. Instances are provided for the range of
 types representable as Kansas Lava circuits.
 
-\begin{verbatim}
+\begin{code}
 class Probe a where
   probe :: String -> a -> a
-\end{verbatim}
+\end{code}
 
 \emph{In the full paper, we demonstrate probe usage on intermediate values
 and intermediate functions, which allows us to capture inputs as well as output.
@@ -296,40 +300,40 @@ Using probes, we can compare the results of the shallow simulation
 against those of the deep, compiled version of the circuit. This allows us to
 confirm that the shallow and deep embeddings yield the same result.
 
-\begin{verbatim}
+\begin{code}
 testCircuit :: (Ports a, Probe a, Ports b) =>
                 String -> a -> (a -> b) -> IO ()
-\end{verbatim}
+\end{code}
 
 The \verb!testCircuit! function takes a circuit and
 a function that applies the circuit to arguments. It simply wraps a probe around
-the circuit and passes that to the second function. As an example:
+the circuit and passes it to the second function. As an example:
 
-\begin{verbatim}
+\begin{code}
 testCircuit "mux2" 
     (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4)
     (\ f -> let sel  = toSeq $ cycle [True,False,True,True,False]
                 inp  = toSeq $ cycle [0..15]
                 inp2 = toSeq $ cycle $ reverse [0..15]
             in f sel (inp, inp2))  
-\end{verbatim}
+\end{code}
 
 Using the data collected by the probe, we can generate input and expected output
-files, along with a test bench, for a VHDL simulator. Using these, we test the
+files, along with a test bench, for a VHDL simulator. Then we test the
 compiled VHDL obtained from the deep embedding and compare the results with 
 a standard diff tool.
 
 \paragraph{Ongoing work that will be expanded upon in the final paper - }
 Using this basic ability to automatically compare the deep and shallow embeddings,
-we can implement a form of algorithmic debugging, using one embedding as the
+we can implement a form of automated algorithmic debugging, using one embedding as the
 oracle for the other.
 
 At a high level, algorithmic debugging builds an execution tree, then iteratively
 checks the value of each node with one given by an oracle (often the programmer).
-If the values match, the node is considered 'correct' and the debugger continues
-with that node's siblings. If the values do not match, the debugger instead continues
-with that node's children. If all the children are correct, then the node itself is
-at fault.
+If the values match, the node is considered ``correct'' and the debugger continues
+with that node's siblings. If the values do not match, the node is considered
+``incorrect'' and the debugger instead continues with that node's children. If
+all the children are in turn correct, then the node itself is at fault.
 
 % image of sample execution tree or circuit graph
 
@@ -342,7 +346,7 @@ are all correct.
 
 % need to implement this and stick some code/pictures/dot diagrams here
 
-This technique allows us to find problems in extremely large circuits quickly.
+We hope this technique will allow us to find problems in extremely large circuits quickly.
 
 % talk about adapting probes to execution tree/algorithmic debugging idea?
 
@@ -367,9 +371,8 @@ strategies, such as our adaptation of algorithmic debugging.
 While the current system is primarily useful to Kansas Lava developers to
 ensure correct VHDL generation, one possible future direction is to adapt 
 the current framework to be a true algorithmic debugger, with the Lava
-user as the oracle.
-
-Alternatively, this framework could be used to test circuit optimizations,
-using the unoptimized circuit as an oracle for the optimized one.
+user as the oracle. Alternatively, this framework could be used to test 
+circuit optimizations, using the unoptimized circuit as an oracle for
+the optimized one.
 
 \end{document}
