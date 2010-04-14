@@ -138,7 +138,7 @@ prop_andCommSeq x y = show (x `and2` y) == show (y `and2` x)
 \end{code}
 
 But this is less than ideal. An instance of QuickCheck's Arbitrary
-type class is nevertheless defined for Seq, in case it proves
+type class is nevertheless defined for \verb!Seq!, in case it proves
 useful for other kinds of tests.
 
 More problematic is the fact that using QuickCheck doesn't test the deep
