@@ -9,12 +9,16 @@ data BaseTy
         | RstTy         -- | Reset Signal
 	| S Int		-- | Signed vector, with a width
 	| U Int  	-- | Unsigned vector, with a width
+	| V Int		-- | std_logic_vector
 
-	| T		-- Time
+	| T		-- Time	TODO: remove
 			-- What about Float/Double, special, etc.
 	| TupleTy [BaseTy]
+			-- | Tuple, represented as a larget std_logic_vector
 	| MatrixTy Int BaseTy
+			-- | Matrix, vhdl array.
 	| IntegerTy	-- holds whatever, not realizable in hw
+			-- used to pass static arguments to 
 	deriving (Eq, Ord)
 
 
@@ -26,6 +30,7 @@ baseTypeLength ClkTy = 1
 baseTypeLength RstTy = 1
 baseTypeLength (S x) = x
 baseTypeLength (U x) = x
+baseTypeLength (V x) = x
 baseTypeLength T = 1
 baseTypeLength (TupleTy tys) = sum (map baseTypeLength tys)
 baseTypeLength (MatrixTy i ty) = i * baseTypeLength ty
@@ -40,6 +45,7 @@ baseTypeIsSigned ClkTy = False
 baseTypeIsSigned RstTy = False
 baseTypeIsSigned (S _) = True
 baseTypeIsSigned (U _) = False
+baseTypeIsSigned (V _) = False
 baseTypeIsSigned T     = False
 
 instance Show BaseTy where
@@ -49,6 +55,7 @@ instance Show BaseTy where
         show RstTy      = "RST"
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
+	show (V i) 	= show i ++ "V"
 	show T		= "T"
 	show (TupleTy tys) = show tys
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
