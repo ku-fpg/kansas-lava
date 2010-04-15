@@ -151,15 +151,15 @@ instance Wire a => Ports (Comb a) where
   ports _ sig = wireCapture (combDriver sig)
 
 instance (Ports a, Ports b) => Ports (a,b) where 
-  ports _ (a,b) = ports bad a ++ 
-		  ports bad b 
+  ports _ (a,b) = ports bad b ++ 
+		  ports bad a 
      where bad = error "bad using of arguments in Reify"
 
 instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where 
   ports _ (a,b,c)
- 		 = ports bad a ++ 
+ 		 = ports bad c ++ 
 		   ports bad b ++
-		   ports bad c
+		   ports bad a
      where bad = error "bad using of arguments in Reify"
 
 instance (Ports a,Size x) => Ports (Matrix x a) where
@@ -193,8 +193,8 @@ instance InPorts Time where
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)
 	 where
-		(a,vs1) = inPorts vs0
-		(b,vs2) = inPorts vs1
+		(b,vs1) = inPorts vs0
+		(a,vs2) = inPorts vs1
 
 instance (InPorts a, Size x) => InPorts (Matrix x a) where
  inPorts vs0 = (M.matrix bs, vsX)
@@ -213,9 +213,9 @@ instance (InPorts a, Size x) => InPorts (Matrix x a) where
 instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
     inPorts vs0 = ((a,b,c),vs3)
 	 where
-		(a,vs1) = inPorts vs0
+		(c,vs1) = inPorts vs0
 		(b,vs2) = inPorts vs1
-		(c,vs3) = inPorts vs2
+		(a,vs3) = inPorts vs2
 
 
 ---------------------------------------
