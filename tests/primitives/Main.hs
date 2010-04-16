@@ -29,7 +29,7 @@ import System.IO
 import qualified System.Posix.Env as Posix
 
 -- CONFIG --
-runTests = ["muxX"] -- empty list builds every test
+runTests = [] -- 'muxX"] -- empty list builds every test
 
 numberOfCycles :: Int
 numberOfCycles = 100
