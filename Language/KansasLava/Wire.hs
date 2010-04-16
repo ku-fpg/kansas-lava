@@ -178,7 +178,7 @@ instance Wire () where
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire ()"
 	wireName _	= "Unit"
-	wireType _	= U 1
+	wireType _	= V 1	-- should really be V 0
 		
 instance RepWire () where
 	type WIDTH () = X1	-- should really be X0
