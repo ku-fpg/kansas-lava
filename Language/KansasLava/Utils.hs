@@ -9,6 +9,8 @@ import Language.KansasLava.Stream  as S
 import Language.KansasLava.Signal
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
+import Language.KansasLava.StdLogicVector as SLV
+
 import Data.Sized.Matrix	as M
 import Data.Sized.Unsigned	as U
 import Data.Sized.Signed
@@ -105,17 +107,6 @@ instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     recip s1 = fun1 "recip" (recip) s1
     -- This should just fold down to the raw bits.
     fromRational r = constComb (fromRational r :: a)
-{-
-	Comb
-		(pureX (fromRational r :: a))
-		(D $ Port (Var "o0") $ E $
- 		 Entity (Name "Lava" "fromRational")
-			[(Var "o0",aTy)]
-		  	[ (Var "c0",IntegerTy,Lit $ numerator r)
-			, (Var "c1",IntegerTy,Lit $ denominator r)
-			] [])
--}
-	 where aTy = wireType (error "fromRational" :: a)
 
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
     (/) = liftS2 (/)
@@ -451,3 +442,26 @@ coerceSized a  = (b, err)
        b = toEnum valA
        valB = fromEnum b
        err = not (valA == valB)
+
+
+---------------------------------------------------------------------------------------------
+-- A StdLogicVector is just an array of bits, but will be represented using
+-- std_logic_vector for its Lava *and* IEEE type.
+
+
+toStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig w -> sig (StdLogicVector (WIDTH w))
+toStdLogicVector = fun1 "toStdLogicVector" (StdLogicVector . fromWireRep)
+ 
+fromStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig (StdLogicVector (WIDTH w)) -> sig w
+fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) -> 
+				  case toWireRep (v :: Matrix (WIDTH w) Bool) of
+				     Just r -> r
+				     Nothing -> error "fromStdLogicVector problem"
+
+coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b) 
+		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
+coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerce)
+
+spliceStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b) 
+		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
+spliceStdLogicVector i = fun1 "spliceStdLogicVector" (SLV.splice i)
