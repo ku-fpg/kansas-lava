@@ -39,6 +39,7 @@ Library
        Language.KansasLava.Signal
        Language.KansasLava.Stream
        Language.KansasLava.Simulate
+       Language.KansasLava.StdLogicVector
        Language.KansasLava.Test
        Language.KansasLava.Type
        Language.KansasLava.Utils
