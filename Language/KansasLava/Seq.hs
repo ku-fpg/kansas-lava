@@ -137,7 +137,7 @@ instance Dual (Comb a) where
   dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
 
 instance (Dual a, Dual b) => Dual (a,b) where
-	dual ~(a1,b1) ~(a2,b2) = (dual a1 a1,dual b2 b2)
+	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
 
 instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
 	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
