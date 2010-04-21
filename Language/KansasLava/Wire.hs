@@ -251,8 +251,8 @@ instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => 
 	type WIDTH (a,b)	= ADD (WIDTH a) (WIDTH b)
 --	toWireRep m  		= return $ m ! 0
 	fromWireRep (a,b) 	= M.matrix (M.toList (fromWireRep a) ++ M.toList (fromWireRep b))
-	fromWireXRep w (a,b)    = M.matrix (M.toList (fromWireXRep (error "witness" :: b) b) ++ 
-					    M.toList (fromWireXRep (error "witness" :: a) a))
+	fromWireXRep w (a,b)    = M.matrix (M.toList (fromWireXRep (error "witness" :: a) a) ++ 
+					    M.toList (fromWireXRep (error "witness" :: b) b))
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
 
@@ -275,9 +275,9 @@ instance (t ~ ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c)), Size t, Enum t, RepWire a
 	type WIDTH (a,b,c)	= ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c))
 --	toWireRep m  		= return $ m ! 0
 	fromWireRep (a,b,c) 	= M.matrix (M.toList (fromWireRep a) ++ M.toList (fromWireRep b) ++ M.toList (fromWireRep c))
-	fromWireXRep w (a,b,c)  = M.matrix (M.toList (fromWireXRep (error "witness" :: c) c) ++ 
+	fromWireXRep w (a,b,c)  = M.matrix (M.toList (fromWireXRep (error "witness" :: a) a) ++ 
 					    M.toList (fromWireXRep (error "witness" :: b) b) ++
-					    M.toList (fromWireXRep (error "witness" :: a) a))
+					    M.toList (fromWireXRep (error "witness" :: c) c))
 	showRepWire ~(a,b,c) (x,y,z) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ "," ++ showRepWire c z ++ ")"
 
 
