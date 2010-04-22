@@ -29,7 +29,7 @@ import System.IO
 import qualified System.Posix.Env as Posix
 
 -- CONFIG --
-runTests = [] -- 'muxX"] -- empty list builds every test
+runTests = [] -- empty list builds every test
 
 numberOfCycles :: Int
 numberOfCycles = 100
@@ -38,7 +38,12 @@ dumpDir = "examine/"
 -- END CONFIG --
 
 -- TESTS --
-main = do
+main = run runTests
+
+run enabled = do
+    let testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
+        testCircuit = testCircuit' enabled
+
     Posix.setEnv "LAVA_SIM_PATH" dumpDir True
     createDirectoryIfMissing True dumpDir
 
@@ -96,21 +101,20 @@ main = do
         ((\ a b -> pack (matrix [a `and2` b, a `or2` b, a `xor2` b, bitNot a] :: Matrix X4 (Seq Bool))) :: Seq Bool -> Seq Bool -> Seq (Matrix X4 Bool))
         (\ f -> f binp binp2)
 
-    testCircuit "boolPrims2X"
+    testCircuit "boolPrims2Unsigned"
         ((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq U4 -> Seq U4 -> Seq (Matrix X5 Bool))
         (\ f -> f inp inp3)
 
-    testSome "boolPrims2Signed"
+    testCircuit "boolPrims2Signed"
 	((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq S5 -> Seq S5 -> Seq (Matrix X5 Bool))
-	(\ f -> f .*. sinp .*. sinp3)
+	(\ f -> f sinp sinp3)
 
-    testSome "boolPrims2FLOAT"
+    testCircuit "boolPrims2FLOAT"
 	((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq FLOAT -> Seq FLOAT -> Seq (Matrix X5 Bool))
-	(\ f -> f .*. (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
-		  .*. (toSeq (reverse ([-32,-31..31] ++ [31])) :: Seq (Sampled X32 X32)))
+	(\ f -> f (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
+		  (toSeq (reverse ([-32,-31..31] ++ [31])) :: Seq (Sampled X32 X32)))
 
-
-{-  This doesn't have a deep embedding defined, and takes an Int, which requires an instance of Examine (Int -> Seq Bool)
+{-  This doesn't have a deep embedding defined
         testCircuit "testABitX"
         ((\ a i -> testABit a i) :: Seq U8 -> Int -> Seq Bool)
         (\ f -> f (toSeq $ cycle $ [0..255]) 8)
@@ -194,19 +198,41 @@ timesNeg0_75 (Comb a ea) = Comb (optX $ do a' <- unX a :: Maybe a
 -- END HELPERS --
 
 -- Everything below is to make the tests work. --
+probesTT probes = unlines
+    $ take numberOfCycles
+    $ mergeWith (\x y -> x ++ " | " ++ y)
+    $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
 
-testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
-testCircuit nm tst f
-    | null runTests || nm `elem` runTests = do
-        plist <- probeCircuit $ f $ probe nm tst
-        mkTest nm 0 numberOfCycles
-		$ sortBy (\(n,_) (n2,_) -> compare n n2)
-                $ filter (\(_, (ProbeValue name _)) -> nm `isPrefixOf` name) plist
-        mkTestbench [OptimizeReify] [] nm tst   -- inc optimizations?
+probesFor name plist = sortBy (\(n,_) (n2,_) -> compare n n2)
+                     $ filter (\(_, (ProbeValue nm _)) -> name `isPrefixOf` nm) plist
+
+testReify :: (Ports a) => String -> a -> IO ()
+testReify nm fn = do
+    putStrLn $ "Testing " ++ nm ++ " reify"
+    putStrLn $ "======="
+    debugCircuit [OptimizeReify] fn
+
+testCircuit' :: (Ports a, Probe a, Ports b) => [String] -> String -> a -> (a -> b) -> IO ()
+testCircuit' enabled name f apply
+    | null enabled || name `elem` enabled = do
+        testReify name f        
+        plist <- probeCircuit $ apply $ probe name f
+        
+        let trace = probesFor name plist
+
+        putStrLn $ "Truth table for " ++ name
+        putStrLn $ "======="
+        putStrLn $ probesTT trace
+
+        mkTest name 0 numberOfCycles trace
+
+        putStrLn $ "Generating Testbench for " ++ name
+        putStrLn $ "======="
+        mkTestbench [OptimizeReify] [] name f   -- inc optimizations?
 
         return ()   
     -- Hack to speed up the generation of our tests
-    | otherwise = putStrLn $ "Ignoring " ++ show nm
+    | otherwise = return ()
 
 -- bitsXStream creates a list of binary representations of the values in the stream.
 bitsXStream :: forall a. RepWire a => XStream a -> [String]
@@ -281,12 +307,6 @@ testSomeTruth n nm fn = do
     putStrLn $ "======="
     putStrLn $ showSomeTT n $ truthTable fn 
     
-testReify :: (Ports a) => String -> a -> IO ()
-testReify nm fn = do
-    putStrLn $ "Testing " ++ nm ++ " reify"
-    putStrLn $ "======="
-    debugCircuit [OptimizeReify] fn
-
 testSome
   :: (Ports a, Testable a1, Examine a) 
   => String -> a -> (Example a -> a1) -> IO ()
