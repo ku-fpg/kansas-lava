@@ -252,6 +252,25 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
 
 -------------------------------------------------------------------------------------------------
 
+muxMatrix 
+	:: forall sig x a 
+	 . (Signal sig, Size x, Wire x, Wire a) 
+	=> sig (Matrix x a) 
+	-> sig x 
+	-> sig a
+muxMatrix m x = liftS2 (\ 
+		    ~(Comb m me)
+	 	    ~(Comb x xe)
+			-> Comb (optX $
+				 do x' <- unX x :: Maybe x
+				    m' <- unX m :: Maybe (Matrix x a)
+				    return $ m' M.! x'
+				)
+			     (entity2 (Name "Lava" "muxMatrix") me xe)
+	         ) m x
+
+-------------------------------------------------------------------------------------------------
+
 instance (Ord a, Wire a) => Ord (Comb a) where
   compare _ _ = error "compare not supported for Comb"
   (<) _ _ = error "(<) not supported for Comb"
