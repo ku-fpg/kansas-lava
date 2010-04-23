@@ -418,12 +418,15 @@ regProc nlOpts (clk,rst) es
   | otherwise =
     [ProcessDecl
      [(Event (sigExpr clk) PosEdge,
-               (If (case rst of
-		     Lit 0 -> ExprVar "false"
-		     Lit 1 -> error "opps, bad delay code"
-	 	     _ -> isHigh (sigTyped B rst))
-                     (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
-                     (Just regNext)))]]
+               (case rst of
+		  Lit 0 -> regNext
+		  Lit 1 -> error "opps, bad delay code"
+		  _ -> If (isHigh (sigTyped B rst))
+                     	  (statements [Assign (outName i) (defaultDriver e) |  (i,e) <- es])
+                     	  (Just regNext)))
+     ]
+    ]
+
 
   where outName i = sigExpr (Port (Var "o0") i)
         nextName i = sigExprNext (Port (Var "o0") i)
