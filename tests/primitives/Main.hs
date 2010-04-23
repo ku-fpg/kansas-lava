@@ -77,6 +77,10 @@ run enabled = do
                         (cycle [0..15]) 
                         (cycle [False,True,False,False,True])
 
+
+	x9 :: Seq X9
+	x9 = toSeq $ cycle [0..8]
+
     testCircuit "regX" 
         (register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
         (\ reg -> reg env 10 inp)
@@ -178,6 +182,11 @@ run enabled = do
         ((pack . (\ m -> (pack $ forAll $ \ i -> m ! i, pack $ forAll $ \ i -> 3, 9))  . unpack) 
                         :: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4,Matrix X3 U3,U4))
         (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2 ])))        
+
+    testCircuit "muxMatrix"
+	(muxMatrix :: Seq (Matrix X9 U4) -> Seq X9 -> Seq U4)
+        (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2, inp, inp2, inp3, inp2, inp3  ])) x9)    
+	
 
 -- HELPERS --
 type FLOAT = Sampled X32 X32 

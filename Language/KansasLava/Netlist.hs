@@ -294,6 +294,21 @@ mkInst i (Entity (Name "Lava" "index") [(Var "o0",outTy)] [(Var "i0",_, (Lit idx
     [ NetAssign  (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
   where tys = take sz $ repeat eleTy
 
+mkInst i (Entity (Name "Lava" "index") 
+	[ (Var "o0",outTy) ] 
+	[ (Var "i0",inTy, ix)
+	, (Var "i1",MatrixTy sz eleTy,input)
+	] _)
+    =	[ NetAssign (sigName "o0" i)
+		(ExprCase (sigExpr ix)
+			[ ([toBinary inTy i],e)
+			| (i,e) <- zip [0..] (prodSlices input tys)
+			]
+			(Just $ ExprVar "(others => 'X')")	-- *REAL* hack
+		)
+	]
+  where tys = take sz $ repeat eleTy
+
 mkInst i e@(Entity (Name "Lava" "fst") [(Var "o0",_)] [(Var "i0", pTy@(TupleTy tys), input)] _) =
   [NetAssign  (sigName "o0" i) (prodSlices input tys !! 0)]
 

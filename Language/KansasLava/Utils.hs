@@ -266,7 +266,7 @@ muxMatrix m x = liftS2 (\
 				    m' <- unX m :: Maybe (Matrix x a)
 				    return $ m' M.! x'
 				)
-			     (entity2 (Name "Lava" "muxMatrix") me xe)
+			     (entity2 (Name "Lava" "index") xe me) -- order reversed
 	         ) m x
 
 -------------------------------------------------------------------------------------------------
