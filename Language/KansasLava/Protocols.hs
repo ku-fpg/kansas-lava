@@ -212,6 +212,9 @@ runBlock rst fn inp = unShiftRegister
 	syncCounter :: Seq x
 	syncCounter = counter rst en
 		
+-- If the Seq Bool is enabled, then we want to generate the
+-- next number in the sequence, in the *next* cycle.
+
 counter :: (RepWire x, Num x) => Rst -> Seq Bool -> Seq x
 counter rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
