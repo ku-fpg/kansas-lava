@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Probes(Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe, showXStream, showXStreamBits) where
+module Language.KansasLava.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,valsXStream,bitsXStream,showXStream,showXStreamBits) where
 
 import Language.KansasLava
 import Data.Sized.Unsigned
@@ -17,8 +17,6 @@ import Data.Sized.Sampled (Sampled)
 import Data.Char
 import Data.Bits
 import Data.Dynamic
-import Data.Maybe
-import Data.Char
 
 import Debug.Trace
 
@@ -31,7 +29,7 @@ probeCircuit :: (Ports a) =>
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
     let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
-                Just val <- [lookup "simValue" attrs],
+                ("simValue", val) <- attrs,
                 Just pv@(ProbeValue n v) <- [fromDynamic val]]
     return evts
 
@@ -81,8 +79,10 @@ instance (Show a, Probe a, Probe b) => Probe (a -> b) where
   probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
 
 addAttr :: forall a . (Show a, RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
-addAttr probeName value (Port v (E (Entity n outs ins _))) =
-            Port v (E (Entity n outs ins [("simValue", (toDyn (ProbeValue probeName value)))]))
+addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
+            Port v (E (Entity n outs ins $ attrs ++ [("simValue", (toDyn (ProbeValue probeName value)))]))
+-- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
+-- multiple names, since each probe will always observe the same sequence.
 addAttr probeName value d@(Pad (Var v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
@@ -99,6 +99,8 @@ addAttr _ _ driver = error $ "Can't probe " ++ show driver
 
 data ProbeValue = forall a. (Show a, RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
 
+instance Show ProbeValue where
+    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
 
 data XStream a = XStream (Stream (X a)) deriving Typeable
 
@@ -115,9 +117,19 @@ deriving instance Typeable1 WireVal
 deriving instance Eq a => Eq (WireVal a)
 
 -- showXStream is a utility function for printing out stream representations.
+instance RepWire a => Show (XStream a) where
+    show xs = show $ foldr (\i r -> i ++ ", " ++ r) "..." $ take 30 $ valsXStream xs
+
 showXStream :: forall a. RepWire a => XStream a -> Stream String
 showXStream (XStream strm) = fmap (showRepWire (undefined :: a)) strm
 
+-- bitsXStream creates a list of binary representations of the values in the stream.
+bitsXStream :: forall a. RepWire a => XStream a -> [String]
+bitsXStream (XStream strm) = showSeqBits ((shallowSeq strm) :: Seq a)
+
+-- valsXStream creates a list of string representations of the values in the stream.
+valsXStream :: forall a. RepWire a => XStream a -> [String]
+valsXStream (XStream strm) = showSeqVals ((shallowSeq strm) :: Seq a)
 
 showXStreamBits :: forall a . (RepWire a) => XStream a -> Stream String
 showXStreamBits (XStream ss) =
