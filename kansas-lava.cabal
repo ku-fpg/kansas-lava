@@ -54,7 +54,7 @@ Library
 --  Hs-Source-Dirs: ., ../sized-types
 
 
-  Ghc-Options:  -Wall
+  Ghc-Options:  -Wall -O2
 
 Executable kansas-lava-test1
     if flag(all)
