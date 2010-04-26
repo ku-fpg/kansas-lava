@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.VHDL.Testbench
-  (mkTestbench) where
+  (mkTestbench,mkTestbench',genProbes',ports') where
 
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.VHDL.VCD(ProbeValue(..))
@@ -42,22 +42,30 @@ mkTestbench :: Ports fun =>
 mkTestbench ropts nlopts coreName fun = do
   env <- getEnvironment
   let base = case lookup "LAVA_SIM_PATH" env of
-               Nothing -> "/tmp/" ++ coreName ++ "/"
-               Just dir -> dir ++"/"++coreName ++ "/"
-  putStrLn $ "Base directory is " ++ base
-  createDirectoryIfMissing True base
+               Nothing -> "/tmp"
+               Just dir -> dir
   vhdl <- vhdlCircuit ropts nlopts coreName fun
-  writeFile (base ++ coreName ++ ".vhd") vhdl
   (inputs,outputs,sequentials) <- ports ropts fun
-  writeFile (base ++ coreName ++ "_tb.vhd") $
-            entity coreName ++ architecture coreName inputs outputs sequentials
---  stim <- vectors inputs
---  writeFile (base ++ coreName ++ ".input") stim
-  -- Get the probes
   waves <- genProbes coreName fun
-  writeFile (base ++ coreName ++ ".do") (doscript coreName waves)
+  mkTestbench' coreName base vhdl (inputs,outputs,sequentials) waves
 
-
+mkTestbench' :: String -- Name of circuit
+	     -> String -- Base directory
+             -> String -- Generated VHDL
+             -> ([(Var, BaseTy)], [(Var, BaseTy)], [(Var, BaseTy)]) -- result of call to ports
+             -> [String] -- result of call to genProbes
+             -> IO ()
+mkTestbench' name base vhdl (inputs,outputs,sequentials) waves = do
+  let dir = base ++ "/" ++ name ++ "/"
+  putStrLn $ "Base directory is " ++ dir
+  createDirectoryIfMissing True dir
+  writeFile (dir ++ name ++ ".vhd") vhdl
+  writeFile (dir ++ name ++ "_tb.vhd") $
+            entity name ++ architecture name inputs outputs sequentials
+--  stim <- vectors inputs
+--  writeFile (dir ++ name ++ ".input") stim
+  -- Get the probes
+  writeFile (dir ++ name ++ ".do") (doscript name waves)
 
 entity :: String -> String
 entity coreName = unlines
@@ -143,9 +151,12 @@ stimulus coreName inputs outputs = unlines $ [
 -- Manipulating ports
 ports :: (Ports a) =>
          [ReifyOptions] -> a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[(Var, BaseTy)])
-
 ports ropts fun = do
   reified <- reifyCircuit ropts fun
+  ports' ropts reified
+
+ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[(Var, BaseTy)])
+ports' ropts reified = do
   let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
       clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
@@ -239,6 +250,10 @@ vectors inputs = do
 genProbes :: Ports a => String -> a -> IO [String]
 genProbes top fun = do
     c <- reifyCircuit [] fun
+    genProbes' top c
+
+genProbes' :: String -> ReifiedCircuit -> IO [String]
+genProbes' top c = do
     let graph = theCircuit c
     return (concatMap getProbe graph)
   where getProbe (ident, (Entity _ [(Var v, _)] _ attrs) )=
@@ -249,4 +264,3 @@ genProbes top fun = do
                             in ["add wave -label " ++ show name ++ " " ++ sig]
             Nothing -> []
         getProbe _ = []
-

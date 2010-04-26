@@ -53,9 +53,17 @@ netlistCircuit :: (Ports o) =>
             -> o              -- ^ The Lava circuit.
             -> IO Module
 netlistCircuit opts nlOpts name circuit = do
-  (ReifiedCircuit nodes srcs sinks) <- reifyCircuit opts circuit
+  rc <- reifyCircuit opts circuit
+  netlistCircuit' nlOpts name rc
 
-  let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
+netlistCircuit' :: NetlistOptions -- ^ Options for controlling netlist generation
+            	-> String         -- ^ The name of the generated entity.
+            	-> ReifiedCircuit -- ^ The reified Lava circuit.
+            	-> IO Module
+netlistCircuit' opts name circuit = do
+  let (ReifiedCircuit nodes srcs sinks) = circuit
+
+  let loadEnable = if addEnabled opts then [("enable",Nothing)] else []
   let inports = -- need size info for each input, to declare length of std_logic_vector
             loadEnable ++ [ (nm,sizedRange ty) | (Var nm, ty) <- srcs]
               -- need size info for each output, to declare length of std_logic_vector
@@ -63,11 +71,10 @@ netlistCircuit opts nlOpts name circuit = do
   let  outports =
             [ (nm,sizedRange ty) | (Var nm,ty,_) <- sinks]
 
-  let mod = Module name inports outports ( genDecls nodes ++   genInsts nlOpts nodes ++ genFinals sinks)
+  let mod = Module name inports outports ( genDecls nodes ++   genInsts opts nodes ++ genFinals sinks)
       -- mod' = inlineModule mod
 
   return mod
-
 
 -- genDecls :: [(Unique,Entity BaseTy Unique)] -> [DeclDescriptor]
 genDecls nodes =
