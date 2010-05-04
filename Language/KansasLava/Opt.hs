@@ -25,14 +25,17 @@ optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)] []
 	case env u of
 	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
 	       | o0' == o0'' -> return $ replaceWith env o0 (i2',t2,p2)
-	    _ -> Nothing	
+	    _ -> Nothing
 optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)] []) =
 	case (env u0,env u1) of
 	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)] []
 	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] []
-	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 -> 
+	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
 			return $ replaceWith env o0 (Var "o0",tO,p1)
 	    _ -> Nothing
+optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)] _)
+    | t == f = return $ replaceWith env o0 (i1,tTy,t)
+    | otherwise = Nothing
 optimizeEntity env _ = Nothing
 
 replaceWith env o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
@@ -51,12 +54,12 @@ instance Monad Opt where
 
 -- copy elimination
 copyElimReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamings) 
+copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamings)
     where
 	env0 = theCircuit rCir
-	
-	rCir' = rCir 
-	      { theSinks = 
+
+	rCir' = rCir
+	      { theSinks =
 		  [ ( v,t,
 		      case d of
 		        Port p u -> case lookup (u,p) renamings of
@@ -66,7 +69,7 @@ copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamin
 		    )
 		  | (v,t,d) <- theSinks rCir
 		  ]
-	      , theCircuit = 
+	      , theCircuit =
 		 [ (u,case e of
 			Entity nm outs ins tags -> Entity nm outs (map fixInPort ins) tags
 			Table in' out' table -> Table in' (fixInPort out') table
@@ -80,12 +83,12 @@ copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamin
 		    , tO == tI	-- should always be, anyway
 		    ]
 
-	fixInPort (i,t,Port p u) = 
+	fixInPort (i,t,Port p u) =
 			    (i,t, case lookup (u,p) renamings of
 				     Just other -> other
 				     Nothing    -> Port p u)
 	fixInPort (i,t,o) = (i,t,o)
-	
+
 
 -- We assume, for now, that we cse if possible. This will not always be so.
 -- cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
@@ -118,7 +121,7 @@ dceReifiedCircuit rCir = if optCount == 0
 
 -- return Nothing *if* no optimization can be found.
 optimizeReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-optimizeReifiedCircuit rCir = if optCount == 0 
+optimizeReifiedCircuit rCir = if optCount == 0
 			      then return rCir	-- no changes
 			      else Opt rCir' optCount
   where
@@ -126,7 +129,7 @@ optimizeReifiedCircuit rCir = if optCount == 0
 	env1 v = case lookup v env0 of
 		   Nothing -> error $ "oops, can not find " ++ show v
 		   Just e -> e
-		    
+
 	attemptOpt = [ optimizeEntity env1 e | (u,e) <- theCircuit rCir ]
 	optCount = length [ () | (Just _) <- attemptOpt ]
 
@@ -149,7 +152,7 @@ optimize rCir = loop (("init",Opt rCir 0) : optimizeReifiedCircuits (cycle opts)
    where
 	loop cs@((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] = c
 	loop ((nm,Opt c v):cs) = loop cs
-	
+
 	opts = [ ("opt",optimizeReifiedCircuit)
 	       , ("copy",copyElimReifiedCircuit)
 	       , ("dce",dceReifiedCircuit)

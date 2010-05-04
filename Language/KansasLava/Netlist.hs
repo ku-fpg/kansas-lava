@@ -257,9 +257,11 @@ mkInst i e@(Entity (Name "Memory" "delay") [(Var "o0",_)]
 
 
 mkInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] _ _) =
-          [NetAssign input (sigExpr (lookupInput "i0" e)) ]
+          [NetAssign input (asStdLogic ty driver) ]
   where output = sigName "o0" i
         input =  output ++ "_next"
+        driver = lookupInput "i0" e
+        ty = lookupInputType "i0" e
 
 
 -- Muxes
