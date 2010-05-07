@@ -1,9 +1,13 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
 module Language.KansasLava.Dot
 	( writeDotCircuit
+	, writeDotCircuit'
 	) where
 
+import Data.Dynamic
+
 import Language.KansasLava.Entity
+import Language.KansasLava.Probes
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit
 
@@ -19,21 +23,31 @@ writeDotCircuit :: (Ports circuit) =>
                 -> circuit  -- ^ The Lava circuit.
                 -> IO ()
 writeDotCircuit opts filename circuit = do
+   rc <- reifyCircuit opts circuit
+   writeDotCircuit' filename rc
+
+writeDotCircuit' :: String  -- ^ The name of the circuit. The graph will be
+                           -- written a file with this name (with a .dot extension).
+                 -> ReifiedCircuit  -- ^ The reified Lava circuit.
+                 -> IO ()
+writeDotCircuit' filename circuit = do
 {-
    let (inputs',blob) = output' circuit
    let inputs = map fst inputs'
 -}
-   (ReifiedCircuit nodes inputs' outputs) <- reifyCircuit opts circuit
+   let (ReifiedCircuit nodes inputs' outputs) = circuit
    print (nodes,inputs',outputs)
    let inputs = inputs'
 
    let showP (_,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
 
-   let  mkLabel nm ins outs =
+   let mkLabel nm ins outs =
 	      (concatMap addSpecial $ show nm) ++ "|{{"
  	   ++ join (map showP ins) ++ "}|{"
 	   ++ join (map showP outs) ++ "}}"
-
+       mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{" 
+ 	   ++ join (map showP ins) ++ "}|{"
+	   ++ join (map showP outs) ++ "}}"
 
    print ("INPUTS:" ,inputs)
    print ("NODES:" ,nodes)
@@ -58,7 +72,7 @@ writeDotCircuit opts filename circuit = do
 			       		 , ("style","rounded")
 			       		 ]
 			      return (n,nd)
-		        | (n,Entity nm outs ins _) <- nodes ]
+		        | (n,Entity nm outs ins []) <- nodes ]
 
 	nds1 <- sequence [ do nd <- node [ ("label",mkLabel "TABLE"
 	 						       [ (n,(vin,tyin)) ]
@@ -68,7 +82,22 @@ writeDotCircuit opts filename circuit = do
 			       		 ]
 			      return (n,nd)
 		        | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
-	let nds = nds0 ++ nds1
+
+	probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
+							      [ (n,(v,ty)) | (v,ty) <- outs] )
+	 		                   , ("shape","record")
+			       		   , ("style","rounded,filled")
+                                           , ("fillcolor","#bbbbbb")
+			       		   ]
+			        return (n,nd)
+		           | (n,Entity nm outs ins attrs) <- nodes
+			   , not $ null attrs
+			   , let pnms = map (\(a,v) -> case a of
+							"simValue" -> case fromDynamic v of
+									Just (ProbeValue pnm _) -> pnm
+							_ -> "") attrs ]
+
+	let nds = nds0 ++ nds1 ++ probed
 
 	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
 	 		                 , ("shape","record")
