@@ -1,7 +1,5 @@
-{-# LANGUAGE StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances, StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
 module Language.KansasLava.Test.Probes where
-
-import Language.KansasLava
 
 import System.IO.Unsafe
 
@@ -22,9 +20,19 @@ import Data.Sized.Unsigned as U
 
 import Debug.Trace
 
+import Language.KansasLava.Circuit
+import Language.KansasLava.Comb
+import Language.KansasLava.Dot
+import Language.KansasLava.Entity
 import Language.KansasLava.Netlist
 import Language.KansasLava.Probes
+import Language.KansasLava.Reify
+import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+import Language.KansasLava.Utils
 import Language.KansasLava.VHDL.Testbench
+import Language.KansasLava.VHDL.VCD
+import Language.KansasLava.Wire
 
 import Language.Netlist.GenVHDL
 
@@ -37,6 +45,8 @@ import System.IO
 import qualified System.Posix.Env as Posix
 
 import Text.PrettyPrint(render)
+
+opts = Opts { username = "afarmer", host = "rome" }
 
 numberOfCycles :: Int
 numberOfCycles = 100
@@ -51,14 +61,6 @@ fullAdder a b cin = (sum,cout)
   where (s1,c1) = probe "ha1" halfAdder a b
         (sum,c2) = probe "ha2" halfAdder cin s1
         cout = xor2 c1 c2
-
-probesTT probes = unlines
-    $ take numberOfCycles
-    $ mergeWith (\x y -> x ++ " | " ++ y)
-    $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
-
-probesFor name plist = sortBy (\(n,_) (n2,_) -> compare n n2)
-                     $ filter (\(_, (ProbeValue nm _)) -> name `isPrefixOf` nm) plist
 
 -- Run through the list of nodes that have probes on them and generate a list of
 -- subcircuits that we can build testbenches for. This depends on the behavior of
@@ -157,6 +159,8 @@ testCircuit' enabled name f apply
 
         rc <- reifyCircuit ropts probed
 
+        vcdCircuit name 10 $ apply probed
+
         let sinks = sinkNames rc
             pvs = filter (not . null . snd) $ map ((\x -> (x, probeValues x rc)) . fst) $ theCircuit rc
             subRCs = genRCs pnames rc
@@ -167,6 +171,10 @@ testCircuit' enabled name f apply
         return ()   
     -- Hack to speed up the generation of our tests
     | otherwise = return ()
+
+data Opts = Opts { username :: String
+                 , host :: String
+                 }
 
 mkTest ropts plist base names (n,rc) = do
     -- So they can see what the subcircuit looks like.
@@ -199,8 +207,9 @@ mkTest ropts plist base names (n,rc) = do
 
     mkInputs name path numberOfCycles probeData fp
     mkTestbench' name base vhdl (inputs,outputs,sequentials) waves
+    writeDotCircuit' (path ++ name ++ ".dot") rc
 
-    system $ "ssh afarmer@rome " ++ fp ++ "test.sh"
+    system $ "ssh " ++ username opts ++ "@" ++ host opts ++ " " ++ fp ++ "test.sh"
 
 mkInputs name path count probes fp = do
     let name_n = name ++ "_0"
@@ -251,6 +260,99 @@ mkInputs name path count probes fp = do
 -- surely this exists in the prelude?
 mergeWith :: (a -> a -> a) -> [[a]] -> [a]
 mergeWith fn probes = go probes []
-    where go (bs:ps) []  = go ps bs
-          go (bs:ps) acc = go ps $ L.zipWith fn acc bs
-          go []      acc = acc
+    where go (p:ps) []  = go ps p
+          go (p:ps) acc = go ps $ L.zipWith fn acc p
+          go []     acc = acc
+
+-- stab at truth tables
+probeTT :: (Probe a, Ports b) => a -> (a -> b) -> IO [[String]]
+probeTT f apply = do
+        plist <- probeCircuit $ apply $ probe "tt" f 
+        return [valsXStream xs | (_, (ProbeValue _ xs)) <- probesFor "tt" plist]
+
+asciiTT :: String -> Int -> [[String]] -> IO ()
+asciiTT name entries tt = do
+    putStrLn $ "Truth table for " ++ name
+    putStrLn $ "======="
+    putStrLn $ unlines
+             $ take entries
+             $ mergeWith (\x y -> x ++ " | " ++ y) tt
+
+probesTT probes = unlines
+                $ take numberOfCycles
+                $ mergeWith (\x y -> x ++ " | " ++ y)
+                $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
+
+muxWaveform = do
+    let expand n = concatMap (replicate n)
+        allBools = [Just False, Just True, Nothing]
+    tt <- probeTT (mux2 :: Seq Bool -> (Seq Bool, Seq Bool) -> Seq Bool)
+                  (\f -> f (toSeq' $ cycle $ expand 9 allBools)
+                           (toSeq' $ cycle $ expand 3 allBools,
+                            toSeq' $ cycle allBools))
+
+    asciiTT "mux2" 27 tt
+
+showTruthTable :: (TruthTable a) => String -> a -> IO ()
+showTruthTable name fn = asciiTT name (L.length $ head tt) tt
+    where tt = truthTable fn
+
+truthTable :: (TruthTable a) => a -> [[String]]
+truthTable fn = L.transpose [ l | ls <- genTT fn, l <- asciiTTV ls ]
+
+asciiTTV :: TTV -> [[String]]
+asciiTTV (ArgValue nm rest) = [ nm : rs | rss <- map asciiTTV rest, rs <- rss ]
+asciiTTV (ResValue str)      = [[ str ]]
+
+class TruthTable a where
+    genTT :: a -> [TTV]
+
+data TTV = ArgValue String [TTV]
+         | ResValue String
+    deriving Show
+
+instance (RepWire a) => TruthTable (Comb a) where
+    genTT c = [ ResValue $ showRepWire (undefined :: a) (combValue c) ]
+
+instance (Enum (WIDTH w), Size (WIDTH w), RepWire w, TruthTable b) => TruthTable (Comb w -> b) where
+    genTT fn = [ ArgValue (showRepWire (undefined :: w) a)
+                           (genTT (fn (shallowComb a)))
+               | a <- map optX $ args ++ [Nothing] ]
+        where
+            args :: [Maybe w]
+            args = [ toWireRep rep | rep <- allWireReps ]
+
+{- below is an experiment ... it takes a function over Combs
+-- and gives back a list of Seqs which contain every possible
+-- input possible to the Comb. The problem, as you can see,
+-- is how I had to box up the Seqs, making them impossible to
+-- use for application (I think).
+data Lifter = forall w . (Show w, RepWire w) => Lift (Seq w)
+            | forall w x . (Show w, RepWire w, Show x, RepWire x) => LiftTuple (Seq w, Seq x)
+
+instance Show Lifter where
+    show (Lift seq) = show seq
+    show (LiftTuple t) = show t
+
+class ProbeTT a where
+    discover :: a -> [Lifter] -> [Lifter]
+
+instance ProbeTT (Comb w) where
+    discover _ args = args
+
+instance (Show w, RepWire w, ProbeTT b) => ProbeTT (Comb w -> b) where
+    discover fn as = discover (fn (shallowComb (optX $ head args))) (as ++ [Lift $ toSeq' args])
+        where
+            args :: [Maybe w]
+            args = [ toWireRep rep | rep <- allWireReps ] ++ [Nothing]
+
+instance (Show w, RepWire w, Show x, RepWire x, ProbeTT b) => ProbeTT ((Comb w, Comb x) -> b) where
+    discover fn as = discover (fn ((shallowComb (optX $ head args1)),
+                                   (shallowComb (optX $ head args2))))
+                              (as ++ [LiftTuple $ (toSeq' args1, toSeq' args2)])
+        where
+            args1 :: [Maybe w]
+            args1 = [ toWireRep rep | rep <- allWireReps ] ++ [Nothing]
+            args2 :: [Maybe x]
+            args2 = [ toWireRep rep | rep <- allWireReps ] ++ [Nothing]
+-}

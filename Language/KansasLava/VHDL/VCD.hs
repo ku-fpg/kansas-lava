@@ -18,8 +18,6 @@ import Data.Dynamic
 import Data.Maybe
 import Data.Char
 
-
-
 -- | 'vcdCircuit' simulates a circuit and logs the probes to a file. The
 --   function takes a name parameter for the circuit and generates a file
 --   @name.vcd@ in the cwd.  The circuit type must implement the 'Ports' class
@@ -31,18 +29,12 @@ vcdCircuit :: (Ports a) =>
            -> a        -- ^ The Lava circuit.
            -> IO ()
 vcdCircuit circuitName end circuit = do
-    rc <- reifyCircuit [] circuit
-    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
-                Just val <- [lookup "simValue" attrs],
-                Just pv@(ProbeValue n _) <- [fromDynamic val]]
+    evts <- probeCircuit circuit
 
     putStrLn $ "There are " ++ show (length evts) ++ " probes"
     let vcd = format end evts
     writeFile (circuitName ++ ".vcd") vcd
     return ()
-
-
-
 
 -- Below this is all implementation.
 

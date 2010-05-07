@@ -1,9 +1,8 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,valsXStream,bitsXStream,showXStream,showXStreamBits) where
+module Language.KansasLava.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
 
-import Language.KansasLava
 import Data.Sized.Unsigned
 import Data.Sized.Signed
 import Data.Sized.Ix
@@ -17,8 +16,16 @@ import Data.Sized.Sampled (Sampled)
 import Data.Char
 import Data.Bits
 import Data.Dynamic
+import Data.List
 
-import Debug.Trace
+import Language.KansasLava.Circuit
+import Language.KansasLava.Comb
+import Language.KansasLava.Entity
+import Language.KansasLava.Reify
+import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+import Language.KansasLava.Stream
+import Language.KansasLava.Wire
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
@@ -33,10 +40,18 @@ probeCircuit circuit = do
                 Just pv@(ProbeValue n v) <- [fromDynamic val]]
     return evts
 
--- | 'getProbe' takes a association list of probe values and a probe
+-- | 'getProbe' takes an association list of probe values and a probe
 -- | name, and returns the trace (wrapped in a ProbeValue) from the probe.
 getProbe :: [(String,ProbeValue)] -> String ->  Maybe ProbeValue
 getProbe ps nm = lookup nm ps
+
+-- | 'probesFor' takes an association list of probe values and a probe
+-- | name, and returns an association list containing only those probes
+-- | related to the probed function, in argument order.
+probesFor :: String -> [(String,ProbeValue)] -> [(String,ProbeValue)]
+probesFor name plist =
+    sortBy (\(n1, _) (n2, _) -> compare n1 n2) $
+    filter (\(n, _) -> name `isPrefixOf` n) plist
 
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class  Probe a where
@@ -46,8 +61,7 @@ class  Probe a where
 
 instance (Show a, RepWire a, Typeable a) => Probe (Seq a) where
   probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
-   where strm :: XStream a
-         strm = XStream s
+   where strm = XStream s :: XStream a
   probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
 instance (Show a, RepWire a, Typeable a) => Probe (Comb a) where
@@ -141,6 +155,6 @@ showXStreamBits (XStream ss) =
              witness = error "witness" :: a
 
 -- A test circuit
-f :: Comb U8 -> Comb U8 -> Comb U8
-f x y = x + y
+-- f :: Comb U8 -> Comb U8 -> Comb U8
+-- f x y = x + y
 

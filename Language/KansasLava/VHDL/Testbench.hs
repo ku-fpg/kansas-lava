@@ -199,20 +199,16 @@ portAssigns inputs outputs = imap ++ omap
         (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- inputs]
         (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- outputs]
 
-
-
 -- Modelsim 'do' script
 doscript :: String -> [String] -> String
 doscript coreName waves = unlines $ [
   "vlib work",
   "vcom " ++ coreName ++ ".vhd",
-  "vcom " ++ coreName ++ "_tb.vhd"] ++
+  "vcom " ++ coreName ++ "_tb.vhd",
+  "vsim " ++ coreName ++ "_tb"] ++
   waves ++
-  ["vsim " ++ coreName ++ "_tb",
-   "run -all",
+  ["run -all",
   "quit"]
-
-
 
 -- Generating the test vectors.
 toBits :: Bits a => Int -> a -> String
