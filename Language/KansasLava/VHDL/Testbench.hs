@@ -1,11 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.VHDL.Testbench
-  (mkTestbench,mkTestbench',genProbes',ports') where
+  (mkTestbench,mkTestbench',testbenchBaseDir, genProbes',ports') where
 
 import Language.KansasLava hiding (ports)
-import Language.KansasLava.VHDL.VCD(ProbeValue(..))
 import Language.KansasLava.Netlist(NetlistOption(..))
+import Language.KansasLava.Probes
 import Data.List(mapAccumL,sortBy, elemIndex,find)
 import Data.Bits
 
@@ -48,6 +48,13 @@ mkTestbench ropts nlopts coreName fun = do
   (inputs,outputs,sequentials) <- ports ropts fun
   waves <- genProbes coreName fun
   mkTestbench' coreName base vhdl (inputs,outputs,sequentials) waves
+
+testbenchBaseDir name = do
+  env <- getEnvironment
+  let base = case lookup "LAVA_SIM_PATH" env of
+               Nothing -> "/tmp"
+               Just dir -> dir
+  return $ base ++ "/" ++ name ++ "/"
 
 mkTestbench' :: String -- Name of circuit
 	     -> String -- Base directory
@@ -194,6 +201,8 @@ portAssigns :: [(Var, BaseTy)]-> [(Var, BaseTy)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
+        assign sig idx (RstTy,n,1) =
+          (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
         (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- inputs]
@@ -201,14 +210,16 @@ portAssigns inputs outputs = imap ++ omap
 
 -- Modelsim 'do' script
 doscript :: String -> [String] -> String
-doscript coreName waves = unlines $ [
-  "vlib work",
-  "vcom " ++ coreName ++ ".vhd",
-  "vcom " ++ coreName ++ "_tb.vhd",
-  "vsim " ++ coreName ++ "_tb"] ++
-  waves ++
-  ["run -all",
-  "quit"]
+doscript coreName waves =
+    let workDir = "mywork"
+    in
+      unlines $ ["vlib " ++ workDir,
+                 "vcom -work " ++ workDir ++ " " ++ coreName ++ ".vhd",
+                 "vcom -work " ++ workDir ++ " " ++ coreName ++ "_tb.vhd",
+                 "vsim -lib "  ++ workDir ++ " " ++ coreName ++ "_tb"]
+                  ++ waves
+                  ++ ["run -all",
+                      "quit"]
 
 -- Generating the test vectors.
 toBits :: Bits a => Int -> a -> String
