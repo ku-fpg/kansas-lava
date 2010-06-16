@@ -4,7 +4,7 @@ module Language.KansasLava.VHDL.Testbench
   (mkTestbench,mkTestbench',testbenchBaseDir, genProbes',ports') where
 
 import Language.KansasLava hiding (ports)
-import Language.KansasLava.Netlist(NetlistOption(..))
+import Language.KansasLava.Netlist.Utils(NetlistOption(..))
 import Language.KansasLava.Probes
 import Data.List(mapAccumL,sortBy, elemIndex,find)
 import Data.Bits

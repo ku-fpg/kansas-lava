@@ -32,13 +32,17 @@ Library
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
        Language.KansasLava.Netlist
+       Language.KansasLava.Netlist.Decl
+       Language.KansasLava.Netlist.Inst
+       Language.KansasLava.Netlist.Sync
+       Language.KansasLava.Netlist.Utils
        Language.KansasLava.Opt
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
        Language.KansasLava.Seq
        Language.KansasLava.Signal
-       Language.KansasLava.Stream
        Language.KansasLava.Simulate
+       Language.KansasLava.Stream
        Language.KansasLava.StdLogicVector
        Language.KansasLava.Test
        Language.KansasLava.Type
@@ -67,26 +71,26 @@ Executable kansas-lava-test1
     Hs-Source-Dirs: ., tests/test1
     Ghc-Options: -Wall
 
-Executable kansas-lava-test2
-    if flag(all)
-      Build-Depends: base
-      buildable: True
-      Other-modules:
-    else
-      Build-depends: base
-      buildable: False
-    Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests/test2
-    Ghc-Options: -Wall
+--Executable kansas-lava-test2
+--    if flag(all)
+--      Build-Depends: base
+--      buildable: True
+--      Other-modules:
+--    else
+--      Build-depends: base
+--      buildable: False
+--    Main-Is:        Main.hs
+--    Hs-Source-Dirs: ., tests/test2
+--    Ghc-Options: -Wall
 
-Executable kansas-lava-test_api
-    if flag(all)
-      Build-Depends: base
-      buildable: True
-      Other-modules:
-    else
-      Build-depends: base
-      buildable: False
-    Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests/test_api
-    Ghc-Options: -Wall
+--Executable kansas-lava-test_api
+--    if flag(all)
+--      Build-Depends: base
+--      buildable: True
+--      Other-modules:
+--    else
+--      Build-depends: base
+--      buildable: False
+--    Main-Is:        Main.hs
+--    Hs-Source-Dirs: ., tests/test_api
+--    Ghc-Options: -Wall

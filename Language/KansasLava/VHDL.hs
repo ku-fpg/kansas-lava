@@ -13,6 +13,7 @@ import Language.KansasLava.Entity hiding (name)
 import Text.PrettyPrint(render)
 
 import Language.KansasLava.Netlist
+import Language.KansasLava.Netlist.Utils
 import Language.Netlist.GenVHDL
 
 -- | The 'vhdlCircuit' function converts a Lava circuit into a VHDL
