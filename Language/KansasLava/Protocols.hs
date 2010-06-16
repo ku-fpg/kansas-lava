@@ -16,6 +16,7 @@ import Data.Word
 import Control.Applicative
 import Data.Maybe  as Maybe
 import Data.Sized.Unsigned (Unsigned,U1)
+import Language.KansasLava.Entity.Utils
 
 type Enabled a = Maybe a
 
@@ -119,9 +120,57 @@ mapEnabled f en = pack (en_bool,liftS1 f en_val)
    where (en_bool,en_val) = unpack en
 
 zipEnabled :: (Wire a, Wire b, Wire c, Signal sig) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
-zipEnabled f en1 en2 = pack (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
-   where (en_bool1,en_val1) = unpack en1
-	 (en_bool2,en_val2) = unpack en2
+zipEnabled f en1 en2 = packY (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
+   where (en_bool1,en_val1) = unpackY en1
+	 (en_bool2,en_val2) = unpackY en2
+	
+
+packY :: forall a sig . (Wire a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
+packY ~(a,b) = {-# SCC "pack(Maybe)" #-}
+			liftS2 (\ ~(Comb a ae) ~(Comb b be) ->
+				    Comb (case unX (a :: X Bool) :: Maybe Bool of
+					    Nothing -> optX (Nothing :: Maybe (Maybe a))
+					    Just False -> optX (Just Nothing :: Maybe (Maybe a))
+					    Just True -> 
+						case unX (b :: X a) :: Maybe a of
+						   Just v -> optX (Just (Just v) :: Maybe (Maybe a))
+							-- This last one is strange.
+						   Nothing -> optX (Just Nothing :: Maybe (Maybe a))
+					 )
+					 (entity2 (Name "Lava" "pair") ae be)
+			     ) a b
+unpackY :: forall a sig . (Wire a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a) 
+unpackY ma = {-# SCC "unpack(MaybeY)" #-}
+		   ((,) $! 
+		    ( {-# SCC "unpack(MaybeY1)" #-}liftS1 ({-# SCC "a_1" #-} (\ (Comb a abe) -> {-# SCC "unpack(Maybe_B)" #-}
+						Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
+							Nothing -> {-# SCC "unpack(Maybe,1)" #-}optX (Nothing :: Maybe Bool)
+							Just Nothing -> {-# SCC "unpack(Maybe,2)" #-}optX (Just False :: Maybe Bool)
+							Just (Just _) -> {-# SCC "unpack(Maybe,3)" #-}optX (Just True :: Maybe Bool)
+						     )
+						     ({-# SCC"a_2" #-}(entity1 (Name "Lava" "fst") abe))
+			      )) ma
+		    )) $! ( {-# SCC "unpack(MaybeY2)" #-}liftS1 (\ (Comb a abe) -> {-# SCC "unpack(Maybe_a)" #-}
+						Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
+							Nothing -> {-# SCC "unpack(Maybe,3)" #-}optX (Nothing :: Maybe a)
+							Just Nothing -> {-# SCC "unpack(Maybe,4)" #-}optX (Nothing :: Maybe a)
+							Just (Just v) ->{-# SCC "unpack(Maybe,5)" #-} optX (Just v :: Maybe a)
+						     ) 
+						     (entity1 (Name "Lava" "snd") abe)
+			      ) ma
+		    )
+			
+{-
+packX :: (Wire a, Wire b, Signal sig) => (sig a, sig b) -> sig (a,b)
+packX ~(a,b) = {-# SCC "pack(,)" #-}
+			liftS2 (\ ~(Comb a ae) ~(Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
+			    a b
+unpackX :: (Wire a, Wire b, Signal sig) => sig (a,b) -> (sig a, sig b)
+unpackX ab = {-# SCC "unpack(,)" #-}
+		    ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
+		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
+		    )
+-}
 
 phi :: forall a sig . (Signal sig, RepWire a) => sig a -> sig a -> sig a
 phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->

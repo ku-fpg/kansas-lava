@@ -65,11 +65,12 @@ errorSeq = liftS0 errorComb
 instance Signal Seq where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
-  liftS1 f ~(Seq a ea) = Seq (fmap f' a) eb
-      where
+  liftS1 f ~(Seq a ea) = {-# SCC "liftS1Seq" #-}
+    let 
 	Comb _ eb = f (deepComb ea)
 	f' a = let ~(Comb b _) = f (shallowComb a) 
 	       in b
+   in Seq (fmap f' a) eb
 
   -- We can not replace this with a version that uses packing,
   -- because *this* function is used by the pack/unpack stuff.

@@ -52,9 +52,8 @@ Library
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
-
-
   Ghc-Options:  -Wall -O2
+--  Ghc-Prof-options:  -auto-all
 
 Executable kansas-lava-test1
     if flag(all)

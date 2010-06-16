@@ -76,7 +76,8 @@ fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) 
 
 instance (Wire a, Signal sig) => Pack sig (Maybe a) where 
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
-	pack ~(a,b) = liftS2 (\ ~(Comb a ae) ~(Comb b be) ->
+	pack ~(a,b) = {-# SCC "pack(Maybe)" #-}
+			liftS2 (\ ~(Comb a ae) ~(Comb b be) ->
 				    Comb (case unX (a :: X Bool) :: Maybe Bool of
 					    Nothing -> optX (Nothing :: Maybe (Maybe a))
 					    Just False -> optX (Just Nothing :: Maybe (Maybe a))
@@ -88,7 +89,8 @@ instance (Wire a, Signal sig) => Pack sig (Maybe a) where
 					 )
 					 (entity2 (Name "Lava" "pair") ae be)
 			     ) a b
-	unpack ma = ( liftS1 (\ (Comb a abe) -> Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
+	unpack ma = {-# SCC "unpack(Maybe)" #-}
+		    ( liftS1 (\ (Comb a abe) -> Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
 							Nothing -> optX (Nothing :: Maybe Bool)
 							Just Nothing -> optX (Just False :: Maybe Bool)
 							Just (Just _) -> optX (Just True :: Maybe Bool)
@@ -106,9 +108,11 @@ instance (Wire a, Signal sig) => Pack sig (Maybe a) where
 
 instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where 
 	type Unpacked sig (a,b) = (sig a, sig b)
-	pack ~(a,b) = liftS2 (\ ~(Comb a ae) ~(Comb b be) -> Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
+	pack ~(a,b) = {-# SCC "pack(,)" #-}
+			liftS2 (\ ~(Comb a ae) ~(Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
 			    a b
-	unpack ab = ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
+	unpack ab = {-# SCC "unpack(,)" #-}
+		    ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
