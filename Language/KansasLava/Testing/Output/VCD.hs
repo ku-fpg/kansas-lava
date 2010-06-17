@@ -2,10 +2,10 @@
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.VHDL.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..)) where
+module Language.KansasLava.Testing.Output.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..)) where
 
 import Language.KansasLava
-import Language.KansasLava.Probes
+import Language.KansasLava.Testing.Probes
 
 import Data.Sized.Unsigned
 import Data.Sized.Signed

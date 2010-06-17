@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Language.KansasLava.QuickCheck where
+module Language.KansasLava.Testing.QuickCheck.Primitives where
 
 import Language.KansasLava
 import Test.QuickCheck

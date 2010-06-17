@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
+module Language.KansasLava.Testing.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
 
 import Data.Sized.Unsigned
 import Data.Sized.Signed
@@ -154,7 +154,4 @@ showXStreamBits (XStream ss) =
 			Just False -> '0'
              witness = error "witness" :: a
 
--- A test circuit
--- f :: Comb U8 -> Comb U8 -> Comb U8
--- f x y = x + y
 

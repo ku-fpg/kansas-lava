@@ -1,11 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
-module Language.KansasLava.VHDL.Testbench
+module Language.KansasLava.Testing.Bench
   (mkTestbench,mkTestbench',testbenchBaseDir, genProbes',ports') where
 
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.Netlist.Utils(NetlistOption(..))
-import Language.KansasLava.Probes
+import Language.KansasLava.Testing.Probes
 import Data.List(mapAccumL,sortBy, elemIndex,find)
 import Data.Bits
 

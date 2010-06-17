@@ -1,5 +1,5 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
-module Language.KansasLava.Dot
+module Language.KansasLava.Testing.Output.Dot
 	( writeDotCircuit
 	, writeDotCircuit'
 	) where
@@ -7,7 +7,7 @@ module Language.KansasLava.Dot
 import Data.Dynamic
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Probes
+import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit
 
@@ -45,7 +45,7 @@ writeDotCircuit' filename circuit = do
 	      (concatMap addSpecial $ show nm) ++ "|{{"
  	   ++ join (map showP ins) ++ "}|{"
 	   ++ join (map showP outs) ++ "}}"
-       mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{" 
+       mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
  	   ++ join (map showP ins) ++ "}|{"
 	   ++ join (map showP outs) ++ "}}"
 
