@@ -191,10 +191,9 @@ mkTest ropts plist base names (n,rc) = do
 
     -- this mess to cut the /nfs off the front of local paths
     let pwdsp = filter (\dir -> dir /= "/") $ FP.splitDirectories pwd
-        hmfst = head $ filter (\dir -> dir /= "/") $ FP.splitDirectories home
-        remotePath = FP.makeRelative home $ FP.joinPath $ "/" : dropWhile (\dir -> dir /= hmfst) pwdsp
+        remotePath = FP.joinPath $ dropWhile (\dir -> dir == "nfs") pwdsp
         path = base ++ name ++ "/"
-        fp = "~/" ++ remotePath ++ "/" ++ path
+        fp = "/" ++ remotePath ++ "/" ++ path
 
     mod <- netlistCircuit' ropts [] name rc
 
