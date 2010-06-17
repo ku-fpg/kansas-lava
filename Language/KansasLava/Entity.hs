@@ -53,8 +53,6 @@ data Driver s = Port Var s      -- a specific port on the entity
               | Pad Var         --
 	      | PathPad [Int]	-- a unique path to a pad
               | Lit Integer --
-              | BitIndex Int (Driver s)
-              | BitSlice Int Int (Driver s)
               deriving (Show, Eq, Ord)
 
 
@@ -69,8 +67,6 @@ instance T.Traversable Driver where
   traverse _ (Pad v)       = pure $ Pad v
   traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
-  traverse f (BitIndex idx s) = BitIndex idx <$> T.traverse f s
-  traverse f (BitSlice hi lo s) = BitSlice hi lo <$> T.traverse f s
 
 
 instance F.Foldable (Entity ty) where

@@ -49,7 +49,8 @@ bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Bool" "not") ae
 
 testABit :: forall sig a . (Bits a, Wire a, Signal sig) => sig a -> Int -> sig Bool
-testABit x y = liftS1 (\ (Comb a e) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a)) $ error "test a bit") x
+testABit x y = liftS2 (\ (Comb a ae) (Comb b be) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
+                                      $ entity2 (Name "Signed" "testBit") ae be) x (pureS y)
 
 
 isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
@@ -252,13 +253,13 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
 
 -------------------------------------------------------------------------------------------------
 
-muxMatrix 
-	:: forall sig x a 
-	 . (Signal sig, Size x, Wire x, Wire a) 
-	=> sig (Matrix x a) 
-	-> sig x 
+muxMatrix
+	:: forall sig x a
+	 . (Signal sig, Size x, Wire x, Wire a)
+	=> sig (Matrix x a)
+	-> sig x
 	-> sig a
-muxMatrix m x = liftS2 (\ 
+muxMatrix m x = liftS2 (\
 		    ~(Comb m me)
 	 	    ~(Comb x xe)
 			-> Comb (optX $
@@ -280,7 +281,7 @@ instance (Ord a, Wire a) => Ord (Comb a) where
   s1 `max` s2 = fun2 "max" max s1 s2
   s1 `min` s2 = fun2 "min" min s1 s2
 
-	
+
 instance (Ord a, Wire a) => Ord (Seq a) where
   compare _ _ = error "compare not supported for Seq"
   (<) _ _ = error "(<) not supported for Seq"
@@ -329,10 +330,10 @@ data Rst = Rst Bool
 -}
 
 type Rst = Seq Bool
-	
+
 {-
 
-instance Wire Bool where 
+instance Wire Bool where
 	type X Bool 	= WireVal Bool
 	optX (Just b) 	= return b
 	optX Nothing	= fail "Wire Bool"
@@ -340,7 +341,7 @@ instance Wire Bool where
 	unX (WireUnknown) = fail "Wire Bool"
 	wireName _	= "Bool"
 	wireType _	= B
-	
+
 instance RepWire Bool where
 	type WIDTH Bool	= X1
 	toWireRep m  		= return $ m ! 0
@@ -362,7 +363,7 @@ instance RepWire Rst where
 	toWireRep m		= return $ Rst $ m ! 0
 	fromWireRep (Rst v)	= matrix [v]
 	showRepWire _ = show
-	
+
 instance Wire Clk where
 	type X Clk = WireVal Clk
 	optX (Just b) 	= return b
@@ -404,17 +405,17 @@ register' :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
 register' rst c@(Comb def edef) l@(Seq line eline) = res
    where
 	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
-	sres = S.zipWith (\ i v -> 
+	sres = S.zipWith (\ i v ->
 				case unX i :: Maybe Bool of
 				   Nothing -> optX (Nothing :: Maybe a)
 				   Just (True) -> def
 				   Just (False) -> v
-			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)		
+			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)
         entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
-		     (Var "i0", bitTypeOf res, unD eline), 
-		     (Var "rst", RstTy, unD $ seqDriver $ rst), 
+		     (Var "i0", bitTypeOf res, unD eline),
+		     (Var "rst", RstTy, unD $ seqDriver $ rst),
 		     (Var "clk", ClkTy, Pad (Var "clk"))] []
 
 
@@ -470,17 +471,17 @@ coerceSized a  = (b, err)
 
 toStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" (StdLogicVector . fromWireRep)
- 
+
 fromStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig (StdLogicVector (WIDTH w)) -> sig w
-fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) -> 
+fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) ->
 				  case toWireRep (v :: Matrix (WIDTH w) Bool) of
 				     Just r -> r
 				     Nothing -> error "fromStdLogicVector problem"
 
-coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b) 
+coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
 coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerce)
 
-spliceStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b) 
+spliceStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
 spliceStdLogicVector i = fun1 "spliceStdLogicVector" (SLV.splice i)

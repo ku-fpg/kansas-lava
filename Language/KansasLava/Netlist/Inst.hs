@@ -71,7 +71,6 @@ genInst i (Entity (Name "probe" _)
          [(Var "o0",oty)]
          [(Var "i0", _, input)] _) = [NetAssign (sigName "o0" i) (toTypedExpr oty input)]
 
---
 genInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] inputs _) =
           [NetAssign input (toStdLogicExpr ty d) ]
   where output = sigName "o0" i
@@ -172,6 +171,19 @@ mkSpecialBinary coerceR coerceF mtys ops =
          , (lavaName,netListOp) <- ops
          ]
 
+-- testBit returns the bit-value at a specific (constant) bit position
+-- of a bit-vector.
+-- This generates:    invar(indexVal);
+mkSpecialTestBit mtys  =
+    [(Name moduleName lavaName
+      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
+                          let (ExprVar varname) =  toStdLogicExpr lty l
+                          in (ExprIndex varname (toIntegerExpr rty r)))
+     )
+     | moduleName <- mtys
+    , lavaName <- ["testBit"]
+    ]
+
 specials :: [(Name, NetlistOperation)]
 specials =
       mkSpecialBinary (\ _t -> active_high) toTypedExpr
@@ -200,4 +212,9 @@ specials =
    ++ mkSpecialUnary  toStdLogicExpr toTypedExpr
         ["Signed"]
 	[("negate",Neg)]
+   ++ mkSpecialUnary  (\ _ e -> e) toStdLogicExpr
+        ["Bool"]
+	[("not",LNeg)]
+   ++   mkSpecialTestBit
+        ["Unsigned", "Signed"]
 
