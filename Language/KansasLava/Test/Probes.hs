@@ -110,7 +110,7 @@ splitWith c s = go s []
     where go [] acc = (reverse acc,[])
           go (i:inp) acc | i == c = (reverse acc,inp)
                          | otherwise = go inp (i:acc)
- 
+
 -- bfs the circuit from a given set of starting nodes
 bfs = bfs' (\_ -> True)
 bfs' fn nodes rc  = reverse $ go nodes []
@@ -168,7 +168,7 @@ testCircuit' enabled name f apply
 
         mapM_ (mkTest ropts plist (dumpDir ++ name ++ "/") pnames) subRCs
 
-        return ()   
+        return ()
     -- Hack to speed up the generation of our tests
     | otherwise = return ()
 
@@ -196,7 +196,7 @@ mkTest ropts plist base names (n,rc) = do
         path = base ++ name ++ "/"
         fp = "~/" ++ remotePath ++ "/" ++ path
 
-    mod <- netlistCircuit' [] name rc
+    mod <- netlistCircuit' ropts [] name rc
 
     let vhdl = render $ genVHDL mod
 
@@ -267,7 +267,7 @@ mergeWith fn probes = go probes []
 -- stab at truth tables
 probeTT :: (Probe a, Ports b) => a -> (a -> b) -> IO [[String]]
 probeTT f apply = do
-        plist <- probeCircuit $ apply $ probe "tt" f 
+        plist <- probeCircuit $ apply $ probe "tt" f
         return [valsXStream xs | (_, (ProbeValue _ xs)) <- probesFor "tt" plist]
 
 asciiTT :: String -> Int -> [[String]] -> IO ()

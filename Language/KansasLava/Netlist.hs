@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.Netlist where -- (netlistCircuit, NetlistOption(..) ) where
+module Language.KansasLava.Netlist where
 
 
 -- import Language.KansasLava hiding (Seq)
@@ -51,7 +51,17 @@ netlistCircuit :: (Ports o) =>
             -> o              -- ^ The Lava circuit.
             -> IO Module
 netlistCircuit opts nlOpts name circuit = do
-  (ReifiedCircuit nodes srcs sinks) <- reifyCircuit (opts {- ++ [DebugReify] -}) circuit
+  rc <- reifyCircuit (opts {- ++ [DebugReify] -}) circuit
+  netlistCircuit' opts nlOpts name rc
+
+-- This interface is used by the probe tools.
+netlistCircuit' :: [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+                -> NetlistOptions -- ^ Options for controlling netlist generation
+                -> String         -- ^ The name of the generated entity.
+                -> ReifiedCircuit -- ^ The Lava circuit.
+                -> IO Module
+netlistCircuit' opts nlOpts name circuit = do
+  let (ReifiedCircuit nodes srcs sinks) = circuit
 
   let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
 	         -- need size info for each input, to declare length of std_logic_vector
@@ -61,10 +71,10 @@ netlistCircuit opts nlOpts name circuit = do
 
   let finals = [ NetAssign n (toStdLogicExpr ty x) | (Var n,ty,x) <- sinks ]
 
-  let mod = Module name inports outports 
+  let mod = Module name inports outports
 		(concatMap genDecl nodes ++
-		 concatMap (uncurry genInst) nodes ++ 
---		 concatMap (uncurry (genSync nlOpts)) nodes ++ 
+		 concatMap (uncurry genInst) nodes ++
+--		 concatMap (uncurry (genSync nlOpts)) nodes ++
 		genSync nlOpts nodes ++
 		 finals)
 
