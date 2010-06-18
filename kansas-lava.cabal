@@ -26,7 +26,6 @@ Library
                  directory, random, netlist==0.2, netlist-to-VHDL, process
   Exposed-modules:
        Language.KansasLava
-       Language.KansasLava.Dot
        Language.KansasLava.Comb
        Language.KansasLava.Circuit
        Language.KansasLava.Entity
@@ -44,14 +43,13 @@ Library
        Language.KansasLava.Simulate
        Language.KansasLava.Stream
        Language.KansasLava.StdLogicVector
-       Language.KansasLava.Test
        Language.KansasLava.Type
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Wire
-       Language.KansasLava.VHDL.Testbench
-       Language.KansasLava.VHDL.VCD
-       Language.KansasLava.Probes
+       Language.KansasLava.Testing.Bench
+       Language.KansasLava.Testing.Output.VCD
+       Language.KansasLava.Testing.Probes
   Other-modules:
 
 -- hack for now
