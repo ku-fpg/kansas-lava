@@ -50,6 +50,8 @@ class (Signal sig) => Pack sig a where
 
 --------------------------------------------------------------------------------
 
+-- TODO: rename toComb
+
 constComb :: (RepWire a) => a -> Comb a
 constComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
