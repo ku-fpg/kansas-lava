@@ -478,10 +478,14 @@ fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) ->
 				     Just r -> r
 				     Nothing -> error "fromStdLogicVector problem"
 
+
+-- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
 coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
 coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerce)
 
-spliceStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
+
+-- Starting at the given bit; grab the specified (by the type) number of bits.
+extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
-spliceStdLogicVector i = fun1 "spliceStdLogicVector" (SLV.splice i)
+extractStdLogicVector i = fun1 "spliceStdLogicVector" (SLV.splice i)
