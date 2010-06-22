@@ -86,8 +86,10 @@ instance (Show a, Bits a, RepWire a)
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
     s1 .|. s2 = fun2 ".|." (.|.) s1 s2
     s1 `xor` s2 = fun2 "xor" (xor) s1 s2
-    s1 `shift` n = fun2 "shift" (shift) s1 (fromIntegral n)
-    s1 `rotate` n = fun2 "rotate" (rotate) s1 (fromIntegral n)
+    s1 `shiftL` n = fun2 "shiftL" (shiftL) s1 (fromIntegral n)
+    s1 `shiftR` n = fun2 "shiftR" (shiftR) s1 (fromIntegral n)
+    s1 `rotateL` n = fun2 "rotateL" (rotateL) s1 (fromIntegral n)
+    s1 `rotateR` n = fun2 "rotateR" (rotateR) s1 (fromIntegral n)
     complement s = fun1 "complement" (complement) s
     bitSize s                       = baseTypeLength (bitTypeOf s)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
@@ -97,8 +99,10 @@ instance (Show a, Bits a, RepWire a)
     (.&.)   = liftS2 (.&.)
     (.|.)  = liftS2 (.|.)
     xor    = liftS2 (xor)
-    shift s n = liftS1 (flip shift n) s
-    rotate s n = liftS1 (flip rotate n) s
+    shiftL s n = liftS1 (flip shiftL n) s
+    shiftR s n = liftS1 (flip shiftR n) s
+    rotateL s n = liftS1 (flip rotateL n) s
+    rotateR s n = liftS1 (flip rotateR n) s
     complement = liftS1 complement
     bitSize s                       = baseTypeLength (bitTypeOf s)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)

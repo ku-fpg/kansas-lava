@@ -184,6 +184,16 @@ mkSpecialTestBit mtys  =
     , lavaName <- ["testBit"]
     ]
 
+mkSpecialShifts mtys ops =
+    [(Name moduleName lavaName
+      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
+                          let (ExprVar varname) =  toStdLogicExpr lty l
+                          in toStdLogicExpr fTy $ ExprFunCall funName [toTypedExpr lty l, toIntegerExpr rty r])
+     )
+     | moduleName <- mtys
+    , (lavaName, funName) <- ops
+    ]
+
 specials :: [(Name, NetlistOperation)]
 specials =
       mkSpecialBinary (\ _t -> active_high) toTypedExpr
@@ -217,4 +227,10 @@ specials =
 	[("not",LNeg)]
    ++   mkSpecialTestBit
         ["Unsigned", "Signed"]
-
+   ++   mkSpecialShifts
+        ["Unsigned", "Signed"]
+        [ ("shiftL", "shift_left")
+        , ("shiftR", "shift_right")
+        , ("rotateL", "rotate_left")
+        , ("rotateR", "rotate_right")
+        ]
