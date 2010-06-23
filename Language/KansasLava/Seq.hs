@@ -35,34 +35,36 @@ import Language.KansasLava.Wire
 -- This clock is assumed known, based on who is consuming the list.
 -- Right now, it is global, but we think we can support multiple clocks with a bit of work.
 
-data Seq a = Seq (Stream (X a)) (D a)
+data CSeq c a = Seq (Stream (X a)) (D a)
 
-seqValue :: Seq a -> Stream (X a)
+type Seq a = CSeq () a
+
+seqValue :: CSeq c a -> Stream (X a)
 seqValue (Seq a d) = a
 
-seqDriver :: Seq a -> D a
+seqDriver :: CSeq c a -> D a
 seqDriver (Seq a d) = d
 
-instance forall a . (RepWire a, Show a) => Show (Seq a) where
+instance forall a c . (RepWire a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
          	= unwords [ showRepWire (undefined :: a) x ++ " :~ "
                           | x <- take 20 $ toList vs
                           ] ++ "..."
 
-instance forall a . (Wire a, Eq a) => Eq (Seq a) where
+instance forall a c . (Wire a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.
 	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
 
-deepSeq :: D a -> Seq a
+deepSeq :: D a -> CSeq c a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
-shallowSeq :: Stream (X a) -> Seq a
+shallowSeq :: Stream (X a) -> CSeq c a
 shallowSeq s = Seq s (D $ Pad $ Var "incorrect use of deep Seq")
 
-errorSeq ::  forall a . (Wire a) => Seq a
+errorSeq ::  forall a c . (Wire a) => CSeq c a
 errorSeq = liftS0 errorComb
 
-instance Signal Seq where
+instance Signal (CSeq c) where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
   liftS1 f ~(Seq a ea) = {-# SCC "liftS1Seq" #-}
@@ -91,37 +93,37 @@ instance Signal Seq where
 
 -- Small DSL's for declaring signals
 
-toSeq :: (Wire a) => [a] -> Seq a
+toSeq :: (Wire a) => [a] -> CSeq c a
 toSeq xs = shallowSeq (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
-toSeq' :: (Wire a) => [Maybe a] -> Seq a
+toSeq' :: (Wire a) => [Maybe a] -> CSeq c a
 toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
 
-toSeqX :: forall a . (Wire a) => [X a] -> Seq a
+toSeqX :: forall a c . (Wire a) => [X a] -> CSeq c a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
-takeThenSeq :: Int -> Seq a -> Seq a -> Seq a
+takeThenSeq :: Int -> CSeq c a -> CSeq c a -> CSeq c a
 takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++  (S.toList (seqValue sq2))))
 
-encSeq :: (Wire a) =>  (Char -> Maybe a) -> String -> Seq a
+encSeq :: (Wire a) =>  (Char -> Maybe a) -> String -> CSeq c a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
 
-encSeqBool :: String -> Seq Bool
+encSeqBool :: String -> CSeq c Bool
 encSeqBool = encSeq enc 
 	where enc 'H' = return True
 	      enc 'L' = return False
 	      enc  _   = Nothing
 
-showStreamList :: forall a . (RepWire a) => Seq a -> [String]
+showStreamList :: forall a c . (RepWire a) => CSeq c a -> [String]
 showStreamList ss = 
 	[ showRepWire (undefined :: a) x
 	| x <- toList (seqValue ss)
 	]
 
-fromSeq :: (Wire a) => Seq a -> [Maybe a]
+fromSeq :: (Wire a) => CSeq c a -> [Maybe a]
 fromSeq = fmap unX . toList . seqValue
 
-fromSeqX :: (Wire a) => Seq a -> [X a]
+fromSeqX :: (Wire a) => CSeq c a -> [X a]
 fromSeqX = toList . seqValue
 
 -----------------------------------------------------------------------------------
@@ -131,7 +133,7 @@ fromSeqX = toList . seqValue
 class Dual a where
   dual :: a -> a -> a
 
-instance Dual (Seq a) where
+instance Dual (CSeq c a) where
   dual ~(Seq a _) ~(Seq _ eb) = Seq a eb
 
 instance Dual (Comb a) where
@@ -149,7 +151,7 @@ instance (Dual b) => Dual (a -> b) where
 -----------------------------------------------------------------------------------
 
 -- Monomorphic box round wires.
-data IsRepWire = forall a . (RepWire a) => IsRepWire (Seq a)
+data IsRepWire = forall a c . (RepWire a) => IsRepWire (CSeq c a)
 
 -- The raw data
 showBitfile :: [IsRepWire] -> [String]
@@ -174,9 +176,9 @@ showBitfileInfo streams =
 		bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
 		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
 
-showSeqBits :: forall a . (RepWire a) => Seq a -> [String]
+showSeqBits :: forall a c . (RepWire a) => CSeq c a -> [String]
 showSeqBits ss = [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))
-		 | i <- fromSeqX (ss :: Seq a)
+		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
        where showX b = case unX b of
 			Nothing -> 'X'
@@ -184,9 +186,9 @@ showSeqBits ss = [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i ::
 			Just False -> '0'
              witness = error "witness" :: a
 
-showSeqVals :: forall a . (RepWire a) => Seq a -> [String]
+showSeqVals :: forall a c . (RepWire a) => CSeq c a -> [String]
 showSeqVals ss = [ showRepWire witness i
-	 	 | i <- fromSeqX (ss :: Seq a)
+	 	 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
 
      where witness = error "witness" :: a

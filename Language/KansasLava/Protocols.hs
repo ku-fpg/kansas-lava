@@ -22,9 +22,9 @@ type Enabled a = Maybe a
 
 type Pipe a d = Enabled (a,d)
 
-type Memory a d = Seq a -> Seq d
+type Memory clk a d = CSeq clk a -> CSeq clk d
 
-enabledRegister :: forall a. (Wire a) => Rst -> Comb a -> Seq (Enabled a) -> Seq a
+enabledRegister :: forall a clk. (Wire a) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
 enabledRegister sysEnv c inp = res
    where 
 	(en,v) = unpack inp
@@ -36,19 +36,24 @@ toEnabledSeq xs = toSeqX [ optX (Just x)
 			 | x <- xs
 			 ]
 
-memoryToPipe ::  forall a d . (Wire a, Wire d) => Seq (Enabled a) -> Memory a d -> Seq (Pipe a d)
-memoryToPipe enA mem = pack (delay en,pack ((delay a),mem a))
+memoryToPipe ::  forall a d clk . (Wire a, Wire d) => Env clk -> CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
+memoryToPipe clk enA mem = pack (delay clk en,pack (delay clk a,mem a))
    where
 	(en,a) = unpack enA
 
--- Warning, I'm pretty sure this will space leak. Call it a gut feel :-)
-pipeToMemory :: forall a d . (Size (WIDTH a), RepWire a, RepWire d) => Rst -> Seq (Pipe a d) -> Memory a d
-pipeToMemory rst pipe addr2 = res
+
+-- Does not work for two clocks, *YET*
+pipeToMemory :: forall a d clk1 clk2. (Size (WIDTH a), RepWire a, RepWire d) 
+	=> Env clk1
+	-> Env clk2
+	-> CSeq clk1 (Pipe a d) 
+	-> Memory clk2 a d
+pipeToMemory env1@(Env (Clock _ clk) rst en) _env2 pipe addr2 = res
   where
 	(en,pipe') = unpack pipe
 	(addr,dat) = unpack pipe'
 
-    	res :: Seq d
+    	res :: CSeq clk2 d
     	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
 {-
 	shallowRes' :: Stream (X (Matrix a d))
@@ -97,7 +102,7 @@ pipeToMemory rst pipe addr2 = res
     	entity =
 		Entity (Name "Memory" "BRAM")
 			[ (Var "o0",bitTypeOf res)]
-			[ (Var "clk",ClkTy,Pad (Var "clk"))
+			[ (Var "clk",ClkTy,unD $ clk)
 			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
 			, (Var "wEn",bitTypeOf en,unD $ seqDriver en)
 			, (Var "wAddr",bitTypeOf addr,unD $ seqDriver addr)
@@ -207,10 +212,10 @@ joinEnabled = liftS2 $ \ e1 e2 ->
 
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
-memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory a d -> Seq (Matrix a d)
+memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory clk a d -> CSeq clk (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
-shiftRegister :: (Wire d, Integral x, Size x) => Rst -> Seq (Enabled d) -> Seq (Matrix x d)
+shiftRegister :: (Wire d, Integral x, Size x) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
 shiftRegister sysEnv inp = pack m
   where
 	(en,val) = unpack inp
@@ -219,18 +224,18 @@ shiftRegister sysEnv inp = pack m
 		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
 
 
-unShiftRegister :: forall x d . (Integral x, Size x, Wire d) => Seq (Enabled (Matrix x d)) -> Seq (Enabled d)
-unShiftRegister inp = r
+unShiftRegister :: forall x d clk . (Integral x, Size x, Wire d) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
+unShiftRegister env inp = r
   where
-	en :: Seq Bool
-	m :: Seq (Matrix x d)
+	en :: CSeq clk Bool
+	m :: CSeq clk (Matrix x d)
 	(en,m) = unpack inp
-	r :: Seq (Enabled d)
+	r :: CSeq clk (Enabled d)
 	(_, r) = scanR fn (pack (low,errorSeq), unpack m)
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry
-		reg = (delay 
+		reg = (delay env 
 		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))
@@ -240,31 +245,33 @@ unShiftRegister inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x y . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Wire a, Wire b) 
-	 => Rst 
+runBlock :: forall a b x y clk . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Wire a, Wire b) 
+	 => Env clk 
 	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
-	 -> Seq (Enabled a) 
-	 -> Seq (Enabled b)
-runBlock rst fn inp = unShiftRegister 
+	 -> CSeq clk (Enabled a) 
+	 -> CSeq clk (Enabled b)
+runBlock env fn inp = unShiftRegister env
 		       $ addSync
 		       $ liftS1 fn
-		       $ shiftRegister rst inp
+		       $ shiftRegister env inp
    where
 	addSync a = pack (syncGo,a)
 
 	(en,_) = unpack inp
 
 	-- counting n things put into the queue
-	syncGo :: Seq Bool
-	syncGo = delay (pureS maxBound .==. syncCounter)
+	syncGo :: CSeq clk Bool
+	syncGo = delay env (pureS maxBound .==. syncCounter)
 
-	syncCounter :: Seq x
-	syncCounter = counter rst en
+	syncCounter :: CSeq clk x
+	syncCounter = counter env en
 		
 -- If the Seq Bool is enabled, then we want to generate the
 -- next number in the sequence, in the *next* cycle.
 
-counter :: (RepWire x, Num x) => Rst -> Seq Bool -> Seq x
+-- TODO: remove, its confusing
+
+counter :: (RepWire x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
 counter rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
 

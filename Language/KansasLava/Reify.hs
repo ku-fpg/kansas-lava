@@ -144,7 +144,7 @@ debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 class Ports a where
   ports :: [String] -> a -> [(BaseTy, Driver E)]
 
-instance Wire a => Ports (Seq a) where
+instance Wire a => Ports (CSeq c a) where
   ports _ sig = wireCapture (seqDriver sig)
 
 instance Wire a => Ports (Comb a) where
@@ -175,7 +175,7 @@ class OutPorts a where
 class InPorts a where
     inPorts :: [String] -> (a,[String])
 
-instance Wire a => InPorts (Seq a) where
+instance Wire a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
 

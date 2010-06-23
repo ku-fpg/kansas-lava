@@ -19,7 +19,7 @@ module Language.KansasLava (
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
     -- hacks
-    examine, dumpBitTrace, Examine(..),
+--    examine, dumpBitTrace, Examine(..),
 
      ) where
 
@@ -74,6 +74,7 @@ class Examine a where
     examine = examine0
 -}
 
+{-
 -- TODO: Combine with the Ports stuff
 class Examine a where
     examine' :: String -> [IsRepWire] -> a -> a
@@ -149,3 +150,4 @@ dumpBitTrace path depth = do
             f path n depth
             loop (succ n)
     loop 0
+-}

@@ -27,7 +27,7 @@ import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 
-high, low :: Seq Bool
+high, low :: CSeq clk Bool
 high = pureS True
 low  = pureS False
 
@@ -72,7 +72,7 @@ instance (Show a, RepWire a, Num a) => Num (Comb a) where
     signum s = fun1 "signum" (signum) s
     fromInteger n = pureS (fromInteger n)
 
-instance (Show a, RepWire a, Num a) => Num (Seq a) where
+instance (Show a, RepWire a, Num a) => Num (CSeq c a) where
     (+) = liftS2 (+)
     (-) = liftS2 (-)
     (*) = liftS2 (*)
@@ -95,7 +95,7 @@ instance (Show a, Bits a, RepWire a)
     isSigned s                      = baseTypeIsSigned (bitTypeOf s)
 
 instance (Show a, Bits a, RepWire a)
-	=> Bits (Seq a) where
+	=> Bits (CSeq c a) where
     (.&.)   = liftS2 (.&.)
     (.|.)  = liftS2 (.|.)
     xor    = liftS2 (xor)
@@ -113,7 +113,7 @@ instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     -- This should just fold down to the raw bits.
     fromRational r = constComb (fromRational r :: a)
 
-instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Seq a) where
+instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (CSeq c a) where
     (/) = liftS2 (/)
     recip = liftS1 recip
     fromRational = liftS0 . fromRational
@@ -286,7 +286,7 @@ instance (Ord a, Wire a) => Ord (Comb a) where
   s1 `min` s2 = fun2 "min" min s1 s2
 
 
-instance (Ord a, Wire a) => Ord (Seq a) where
+instance (Ord a, Wire a) => Ord (CSeq c a) where
   compare _ _ = error "compare not supported for Seq"
   (<) _ _ = error "(<) not supported for Seq"
   (>=) _ _ = error "(>=) not supported for Seq"
@@ -333,7 +333,26 @@ data Rst = Rst Bool
 
 -}
 
-type Rst = Seq Bool
+-- Rational number is Frequency, in Hz
+data Clock c = Clock Rational (D ())
+
+data Env c = Env { clockEnv  :: Clock c
+	         , resetEnv  :: CSeq c Bool
+	         , enableEnv :: CSeq c Bool
+                 }
+
+toEnv :: Clock c -> Env c
+toEnv c = Env  
+	    c
+	    (toSeq $ [True] ++ repeat False)
+	    (toSeq $ repeat True)
+	
+-- | Takes a clock, a 'Seq' of reset signals, and a 'Seq' of enables. 
+mkEnv :: Clock c -> CSeq c Bool -> CSeq c Bool -> Env c
+mkEnv = Env
+
+
+-- type Rst = Seq Bool
 
 {-
 
@@ -389,24 +408,18 @@ instance Eq Clk where
 
 -}
 
-
+{-
 -- for use only with shallow
 shallowRst :: Rst
 shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
                   (D $ Pad $ Var "shallowRst")
+-}
 
 -- zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
 
-
-delay :: forall a . (Wire a) => Seq a -> Seq a
-delay = register' low errorComb
-
-
-register :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
-register rst def v = mux2 rst (liftS0 def,delay v)
-
-register' :: forall a. (Wire a) => Rst -> Comb a -> Seq a -> Seq a
-register' rst c@(Comb def edef) l@(Seq line eline) = res
+{-
+register :: forall a. (Wire a) => Env -> Comb a -> Seq a -> Seq a
+register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
    where
 	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
 	sres = S.zipWith (\ i v ->
@@ -421,6 +434,41 @@ register' rst c@(Comb def edef) l@(Seq line eline) = res
 		     (Var "i0", bitTypeOf res, unD eline),
 		     (Var "rst", RstTy, unD $ seqDriver $ rst),
 		     (Var "clk", ClkTy, Pad (Var "clk"))] []
+
+-}
+
+{-
+
+
+
+delay :: forall a . (Wire a) => Seq a -> Seq a
+delay = register' low errorComb
+-}
+
+delay :: (Wire a) => Env clk -> CSeq clk a -> CSeq clk a
+delay env = register env errorComb
+
+-- register rst def v = mux2 rst (liftS0 def,delay v)
+
+register :: forall a clk .  (Wire a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
+register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Seq line eline) = res
+   where
+	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
+	-- TODO: add enable to this
+	sres = S.zipWith (\ i v ->
+				case unX i :: Maybe Bool of
+				   Nothing -> optX (Nothing :: Maybe a)
+				   Just (True) -> def
+				   Just (False) -> v
+			 ) rst (optX (Nothing :: Maybe a) :~ line)
+        entity = Entity (Name "Memory" "register")
+                    [(Var "o0", bitTypeOf res)]
+                    [(Var "def", bitTypeOf res, unD $ edef),
+		     (Var "i0", bitTypeOf res, unD eline),
+		     (Var "rst", RstTy, unD $ erst),
+	             (Var "en",  B, unD $ een),
+		     (Var "clk", ClkTy, unD $ clk)
+		    ] []
 
 
 -- hack
