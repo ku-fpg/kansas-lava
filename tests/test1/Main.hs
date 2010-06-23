@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, TypeFamilies, ScopedTypeVariables, ParallelListComp
  #-}
 import Language.KansasLava
+import Language.KansasLava.Test -- todo: remove me!
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
@@ -33,7 +34,7 @@ fullAdder c (a,b) = (s2,c2 `xor2` c1)
 
 wordAdder :: (RepWire (Unsigned x)
 	     ,Size (WIDTH (Unsigned x))
-	     ,Integral (WIDTH (Unsigned x))	
+	     ,Integral (WIDTH (Unsigned x))
 	     )
 	   => Comb Bool ->  (Comb (Unsigned x), Comb (Unsigned x)) -> (Comb (Unsigned x), Comb Bool)
 wordAdder c_in (a,b) = (fromBoolMatrix res, c_out)
@@ -63,7 +64,7 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 
 
 
-test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a 
+test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a
 test_mux_1 sig = a
 	where a = mux2 high (sig ,delay a)
 
@@ -73,13 +74,13 @@ testAllTruth nm fn = do
 	putStrLn $ "Testing " ++ nm ++ " function"
 	putStrLn $ "======="
 	putStrLn $ showAllTT $ truthTable fn
-	
+
 testSomeTruth:: (Testable a) => Int -> String -> a -> IO ()
 testSomeTruth n nm fn = do
 	putStrLn $ "Testing " ++ nm ++ " function"
 	putStrLn $ "======="
-	putStrLn $ showSomeTT n $ truthTable fn	
-	
+	putStrLn $ showSomeTT n $ truthTable fn
+
 testReify :: (Ports a) => String -> a -> IO ()
 testReify nm fn = do
 	putStrLn $ "Testing " ++ nm ++ " reify"
@@ -90,76 +91,76 @@ main = do
 	let tst :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
 	    tst a b = halfAdder (a,b)
 	testAllTruth "halfAdder" tst
-	testReify "halfAdder" tst	
-	
+	testReify "halfAdder" tst
+
 	let tst :: Comb Bool -> Comb U1 -> Comb U1 -> Comb U1
 	    tst a b c = mux2 a (b,c)
 	testAllTruth "mux2" tst
-	testReify "mux2" tst		
+	testReify "mux2" tst
 
 	let tst :: Comb Bool -> Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool)
 	    tst a b c = fullAdder a (b,c)
 	testAllTruth "fullAdder" tst
-	testReify "fullAdder" tst	
-	
+	testReify "fullAdder" tst
+
 	let tst :: Comb Bool -> Comb U2 -> Comb U2 -> (Comb U2,Comb Bool)
 	    tst a b c = wordAdder a (b,c)
 	testAllTruth "wordAdder" tst
-	testReify "wordAdder" tst		
+	testReify "wordAdder" tst
 
 	let tst ::Rst -> Comb U4 -> Seq U4 -> Seq U4
 	    tst = register
-	
+
 	testSomeTruth 50 "register" $
 		let env = takeThenSeq 7 shallowRst env
 		    def = 1
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
-	testReify "register" tst		
+	testReify "register" tst
 
 	let tst ::Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4
 	    tst = enabledRegister
-	
+
 	testSomeTruth 50 "enabledRegister" $
 		let env = takeThenSeq 30 shallowRst env
 		    def = 1
-		    inp = toEnabledSeq $ 
+		    inp = toEnabledSeq $
 			    (Prelude.zipWith (\ a b -> if b then Just a else Nothing)
 				 (cycle [0..3])
 			         (cycle [True,False,False])
 		            )
-			    
+
 		 in example tst .*. env .*. def .*. inp
-	testReify "enabledRegister" tst		
+	testReify "enabledRegister" tst
 
 	let tst ::Rst -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
 		let env = takeThenSeq 20 shallowRst env
-		    pipe = toEnabledSeq $ 
+		    pipe = toEnabledSeq $
 			    cycle
 			    [ return (val,ALPHA (txt ++ "_" ++ show val))
 			    | val <- [0..3]
 			    , txt <- ["A","B","C"]
-			    ] 
-					
+			    ]
+
 		    addr = toSeq' $ cycle (map Just [ 0..3 ] ++ [Nothing])
 		 in example tst .*. env .*. pipe .*. addr
-		
+
 	let tst ::Rst -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
 		let env = takeThenSeq 20 shallowRst env
-		    pipe = toEnabledSeq $ 
+		    pipe = toEnabledSeq $
 			    cycle
 			    ([ return ((),ALPHA (show val))
 			     | val <- [0..3]
 			     ] ++ take 5 (repeat Nothing))
-					
+
 		    addr = toSeq $ repeat ()
-		 in example tst .*. env .*. pipe .*. addr		
+		 in example tst .*. env .*. pipe .*. addr
 
 	let tst ::Rst -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
 	    tst = pipeToMemory
@@ -167,43 +168,43 @@ main = do
 
 	testSomeTruth 50 "pipeToMemory" $
 		let env = takeThenSeq 20 shallowRst env
-		    pipe = toEnabledSeq $ 
+		    pipe = toEnabledSeq $
 			    cycle
 			    ([ return (odd val,ALPHA (show val))
 			     | val <- [0..3]
 			     ] ++ take 5 (repeat Nothing))
-					
+
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. env .*. pipe .*. addr		
+		 in example tst .*. env .*. pipe .*. addr
 
 	let tst ::Rst -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
 	    tst = shiftRegister
 
 	testSomeTruth 200 "shiftRegister" $
 		let env = takeThenSeq 180 shallowRst env
-		    inp = toEnabledSeq $ 
+		    inp = toEnabledSeq $
 			    cycle
 			    ([ return (ALPHA (show val))
 			     | val <- [0..7]
 			     ] ++ take 5 (repeat Nothing))
-					
+
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. env .*. inp		
-		
+		 in example tst .*. env .*. inp
+
 	let tst :: Seq (Enabled (Matrix X4 ALPHA)) -> Seq (Enabled ALPHA)
 	    tst = unShiftRegister
 
 	testSomeTruth 200 "unShiftRegister" $
 		let env = takeThenSeq 180 shallowRst env
-		    inp = toEnabledSeq $ 
+		    inp = toEnabledSeq $
 			    cycle
 			    ([ return (matrix (map (ALPHA . show) [val,val+1,val+2,val+3]))
 			     | val <- [0..7]
 			     ] ++ take 5 (repeat Nothing))
-					
+
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. inp				
-		
+		 in example tst .*. inp
+
 	let --tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
 	    tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
 	    tst shallowRst = runBlock shallowRst (mapPacked fn)
@@ -213,14 +214,14 @@ main = do
 
 	testSomeTruth 200 "runBlock" $
 		let env = takeThenSeq 180 shallowRst env
-		    inp = toEnabledSeq $ 
+		    inp = toEnabledSeq $
 			    cycle
 			    ([ return $ (ALPHA . show) val
 			     | val <- [0..7]
 			     ] ++ take 5 (repeat Nothing))
-					
+
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. env .*. inp						
+		 in example tst .*. env .*. inp
 
 	return ()
 
