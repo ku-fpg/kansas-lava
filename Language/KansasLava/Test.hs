@@ -17,7 +17,7 @@ import Data.Sized.Unsigned as U
 
 data Example a = Example a [ExampleArg]
 
-data ExampleArg = forall a . (Show a, RepWire a) => ExampleArg (Seq a)
+data ExampleArg = forall a clk . (Show a, RepWire a) => ExampleArg (CSeq clk a)
 
 example :: a -> Example a
 example a = Example a []
@@ -25,11 +25,14 @@ example a = Example a []
 class TestArg a where
 	testArg :: a -> [ExampleArg]
 
-instance (Show a, RepWire a) => TestArg (Seq a) where
+instance (Show a, RepWire a) => TestArg (CSeq clk a) where
 	testArg a = [ExampleArg a]
 
 instance (Show a, RepWire a) => TestArg (Comb a) where
 	testArg a = [ExampleArg (liftS0 a)]
+
+instance TestArg (Env clk) where
+	testArg (Env clk rst en) = [ExampleArg rst,ExampleArg en] -- Mutter, mutter
 
 infixl 2 .*.
 
@@ -50,7 +53,7 @@ data TTL = CombValue String TT
 newtype TT = TT { unTT :: [TTL] }
 
 
-instance (RepWire a) => Testable (Seq a) where
+instance (RepWire a) => Testable (CSeq clk a) where
 	truthTable sq = TT [ ResV v | v <- showStreamList sq ]
 
 instance (RepWire a) => Testable (Comb a) where
@@ -151,12 +154,12 @@ tt3 = truthTable ((*) :: Comb U2 -> Comb U2 -> Comb U2)
 tt4 = truthTable (halfAdder :: Comb Bool -> Comb Bool -> (Comb Bool,Comb Bool))
   where halfAdder a b = (xor2 a b, and2 a b)
 
-tt5 = truthTable (example (register :: Rst -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA)
+tt5 = truthTable (example (register :: Env () -> Comb ALPHA -> Seq ALPHA -> Seq ALPHA)
 			.*. env
 			.*. def
 			.*. inp)
 	where
-		env = takeThenSeq 7 shallowRst env
+		env = shallowEnv
 		def = pureS $ ALPHA "~def~"
 		inp = toSeq $ cycle $ map ALPHA ["A","B","C","D"]
 

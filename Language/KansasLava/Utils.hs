@@ -351,6 +351,9 @@ toEnv c = Env
 mkEnv :: Clock c -> CSeq c Bool -> CSeq c Bool -> Env c
 mkEnv = Env
 
+shallowEnv :: Env ()
+shallowEnv = toEnv (Clock 1 (error "no deep clock"))
+
 
 -- type Rst = Seq Bool
 
