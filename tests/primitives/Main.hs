@@ -40,8 +40,8 @@ runWithOpts opts = do
     Posix.setEnv "LAVA_SIM_PATH" (baseDir opts) True
     createDirectoryIfMissing True (baseDir opts)
 
-    let env = takeThenSeq 7 shallowRst env
-        env' = takeThenSeq 40 shallowRst env'
+    let env = shallowEnv
+        env' = shallowEnv
 
         inp :: Seq U4
         inp  = toSeq $ cycle [0..15]
@@ -75,12 +75,12 @@ runWithOpts opts = do
 	x9 = toSeq $ cycle [0..8]
 
     testCircuit "regX"
-        (register :: Rst -> Comb U4 -> Seq U4 -> Seq U4)
+        (register :: Env () -> Comb U4 -> Seq U4 -> Seq U4)
         (\ reg -> reg env 10 inp)
 
     testCircuit "delayX"
-        (delay :: Seq U4 -> Seq U4)
-        (\ f -> f inp)
+        (delay :: Env () -> Seq U4 -> Seq U4)
+        (\ f -> f env inp)
 
     testCircuit "muxX"
         (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4)
@@ -113,17 +113,18 @@ runWithOpts opts = do
 
 {-  This doesn't have a deep embedding defined
         testCircuit "testABitX"
-        ((\ a i -> testABit a i) :: Seq U8 -> Int -> Seq Bool)
+        (testABit :: Seq U8 -> Int -> Seq Bool)
         (\ f -> f (toSeq $ cycle $ [0..255]) 8)
 -}
 
     testCircuit "enabledRegisterX"
-        (enabledRegister :: Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
+        (enabledRegister :: Env () -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
         (\ f -> f env 10 eInp)
 
+    -- not sure if the env use here is correct... it merely compiles
     testCircuit "pipeToMemoryX"
-        ((\ rst pipe -> memoryToMatrix (pipeToMemory rst pipe)) :: Rst -> Seq (Pipe X8 U4) -> Seq (Matrix X8 U4))
-        (\ f -> f env'
+        ((\ e pipe -> memoryToMatrix (pipeToMemory e env pipe)) :: Env () -> CSeq () (Pipe X8 U4) -> CSeq () (Matrix X8 U4))
+        (\ f -> f env
                 $ toEnabledSeq (concat
                        [ [ return (x,y), Nothing ]
                        | (x,y) <- cycle $ [(i:: X8,(fromIntegral i * fromIntegral i) :: U4)
@@ -133,8 +134,8 @@ runWithOpts opts = do
         )
 
     testCircuit "pipeToMemory2X"
-        (pipeToMemory :: Rst -> Seq (Pipe X2 U4) -> Seq X2 -> Seq U4)
-        (\ f -> f env'
+        (pipeToMemory :: Env clk -> Env clk2 -> CSeq clk (Pipe X2 U4) -> CSeq clk2 X2 -> CSeq clk2 U4)
+        (\ f -> f env env'
                   (toEnabledSeq (concat
                        [ [ return (x,y) ]
                        | (x,y) <- cycle $ [(i:: X2, j :: U4)

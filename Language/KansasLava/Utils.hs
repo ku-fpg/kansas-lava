@@ -111,7 +111,7 @@ instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2
     recip s1 = fun1 "recip" (recip) s1
     -- This should just fold down to the raw bits.
-    fromRational r = constComb (fromRational r :: a)
+    fromRational r = toComb (fromRational r :: a)
 
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (CSeq c a) where
     (/) = liftS2 (/)
@@ -335,19 +335,21 @@ data Rst = Rst Bool
 
 -- Rational number is Frequency, in Hz
 data Clock c = Clock Rational (D ())
+    deriving (Show)
 
 data Env c = Env { clockEnv  :: Clock c
 	         , resetEnv  :: CSeq c Bool
 	         , enableEnv :: CSeq c Bool
                  }
+    deriving (Show)
 
 toEnv :: Clock c -> Env c
-toEnv c = Env  
+toEnv c = Env
 	    c
 	    (toSeq $ [True] ++ repeat False)
 	    (toSeq $ repeat True)
-	
--- | Takes a clock, a 'Seq' of reset signals, and a 'Seq' of enables. 
+
+-- | Takes a clock, a 'Seq' of reset signals, and a 'Seq' of enables.
 mkEnv :: Clock c -> CSeq c Bool -> CSeq c Bool -> Env c
 mkEnv = Env
 
