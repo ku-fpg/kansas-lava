@@ -9,6 +9,7 @@ import Control.Concurrent.Chan
 import Data.Dynamic
 
 import Data.Bits
+import Data.Default
 import Data.List as L
 import Data.Maybe
 
@@ -20,7 +21,7 @@ import Data.Sized.Signed as S
 import Data.Sized.Unsigned as U
 
 import Language.KansasLava.Testing.Probes
-import Language.KansasLava.Testing.Codegen
+import Language.KansasLava.Testing.Compare
 
 import System.Directory
 import System.Environment
@@ -28,19 +29,16 @@ import System.IO
 
 import qualified System.Posix.Env as Posix
 
--- CONFIG --
-runTests = [] -- empty list builds every test
--- END CONFIG --
-
 -- TESTS --
-main = run runTests
+main = run []
+run tests = runWithOpts $ def { enabled = tests }
 
-run enabled = do
-    let testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
-        testCircuit = testCircuit' enabled
+runWithOpts opts = do
+    let testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO()
+        testCircuit = testCircuit' opts
 
-    Posix.setEnv "LAVA_SIM_PATH" dumpDir True
-    createDirectoryIfMissing True dumpDir
+    Posix.setEnv "LAVA_SIM_PATH" (baseDir opts) True
+    createDirectoryIfMissing True (baseDir opts)
 
     let env = takeThenSeq 7 shallowRst env
         env' = takeThenSeq 40 shallowRst env'
