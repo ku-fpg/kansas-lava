@@ -25,6 +25,7 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream
+import Language.KansasLava.Utils
 import Language.KansasLava.Wire
 
 -- | 'probeCircuit' takes a something that can be reified and
@@ -54,21 +55,24 @@ probesFor name plist =
     filter (\(n, _) -> name `isPrefixOf` n) plist
 
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
-class  Probe a where
-  probe :: String -> a -> a
-  -- probe' is used for a name supply.
-  probe' :: String -> [Var] -> a -> a
+class Probe a where
+    probe :: String -> a -> a
+    -- probe' is used for a name supply.
+    probe' :: String -> [Var] -> a -> a
+    probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
-instance (Show a, RepWire a, Typeable a) => Probe (Seq a) where
-  probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
-   where strm = XStream s :: XStream a
-  probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
+instance (Show a, RepWire a, Typeable a) => Probe (CSeq c a) where
+    probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
+        where strm = XStream s :: XStream a
 
 instance (Show a, RepWire a, Typeable a) => Probe (Comb a) where
-   probe probeName c@(Comb s (D d)) = Comb s (D (addAttr probeName strm d))
-     where strm :: XStream a
-           strm = XStream $ fromList $ repeat s
-   probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
+    probe probeName c@(Comb s (D d)) = Comb s (D (addAttr probeName strm d))
+        where strm :: XStream a
+              strm = XStream $ fromList $ repeat s
+
+-- ignore the Env for now
+instance Probe (Env c) where
+    probe _ = id
 
 instance (Show a, Show b,
           RepWire a, RepWire b,
@@ -77,20 +81,18 @@ instance (Show a, Show b,
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b)),
           Pack f (a,b)) => Probe (f a, f b) where
-   probe probeName c = val
-      where packed :: f (a,b)
-            packed =  probe probeName $ pack c
-            val :: (f a, f b)
-            val = unpack packed
-   probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
-
+    probe probeName c = val
+        where packed :: f (a,b)
+              packed =  probe probeName $ pack c
+              val :: (f a, f b)
+              val = unpack packed
 
 instance (Show a, Probe a, Probe b) => Probe (a -> b) where
-  -- The default behavior for probing functions is to generate fresh names.
-  probe probeName f =  probe' probeName vars f
-   where vars = [Var $ show i | i <- [0..]]
+    -- The default behavior for probing functions is to generate fresh names.
+    probe probeName f =  probe' probeName vars f
+        where vars = [Var $ show i | i <- [0..]]
 
-  probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
+    probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
 
 addAttr :: forall a . (Show a, RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
 addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
