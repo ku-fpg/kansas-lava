@@ -63,12 +63,6 @@ scanM f (l,m,r) =  ( fst3 (tmp ! minBound), snd3 `fmap` tmp, trd3 (tmp ! maxBoun
 	trd3 (_,_,c) = c
 
 
-
-test_mux_1 :: (Signal sig, sig ~ Seq, a ~ Int, Wire a) => sig a -> sig a
-test_mux_1 sig = a
-	where a = mux2 high (sig ,delay a)
-
-
 testAllTruth:: (Testable a) => String -> a -> IO ()
 testAllTruth nm fn = do
 	putStrLn $ "Testing " ++ nm ++ " function"
@@ -108,21 +102,21 @@ main = do
 	testAllTruth "wordAdder" tst
 	testReify "wordAdder" tst
 
-	let tst ::Rst -> Comb U4 -> Seq U4 -> Seq U4
+	let tst ::Env () -> Comb U4 -> Seq U4 -> Seq U4
 	    tst = register
 
 	testSomeTruth 50 "register" $
-		let env = takeThenSeq 7 shallowRst env
+		let env = shallowEnv
 		    def = 1
 		    inp = toSeq $ cycle [0..3]
 		 in example tst .*. env .*. def .*. inp
 	testReify "register" tst
 
-	let tst ::Rst -> Comb U4 -> Seq (Enabled U4) -> Seq U4
+	let tst ::Env () -> Comb U4 -> Seq (Enabled U4) -> Seq U4
 	    tst = enabledRegister
 
 	testSomeTruth 50 "enabledRegister" $
-		let env = takeThenSeq 30 shallowRst env
+		let env = shallowEnv
 		    def = 1
 		    inp = toEnabledSeq $
 			    (Prelude.zipWith (\ a b -> if b then Just a else Nothing)
@@ -133,11 +127,11 @@ main = do
 		 in example tst .*. env .*. def .*. inp
 	testReify "enabledRegister" tst
 
-	let tst ::Rst -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
+	let tst ::Env () -> Env () -> Seq (Pipe X4 ALPHA) -> Seq X4 -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 shallowRst env
+		let env = shallowEnv 
 		    pipe = toEnabledSeq $
 			    cycle
 			    [ return (val,ALPHA (txt ++ "_" ++ show val))
@@ -146,13 +140,13 @@ main = do
 			    ]
 
 		    addr = toSeq' $ cycle (map Just [ 0..3 ] ++ [Nothing])
-		 in example tst .*. env .*. pipe .*. addr
+		 in example tst .*. env .*. env .*. pipe .*. addr
 
-	let tst ::Rst -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
+	let tst ::Env () -> Env () -> Seq (Pipe () ALPHA) -> Seq () -> Seq ALPHA
 	    tst = pipeToMemory
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 shallowRst env
+		let env = shallowEnv
 		    pipe = toEnabledSeq $
 			    cycle
 			    ([ return ((),ALPHA (show val))
@@ -160,14 +154,14 @@ main = do
 			     ] ++ take 5 (repeat Nothing))
 
 		    addr = toSeq $ repeat ()
-		 in example tst .*. env .*. pipe .*. addr
+		 in example tst .*. env .*. env .*. pipe .*. addr
 
-	let tst ::Rst -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
+	let tst ::Env () -> Env () -> Seq (Pipe Bool ALPHA) -> Seq Bool -> Seq ALPHA
 	    tst = pipeToMemory
 
 
 	testSomeTruth 50 "pipeToMemory" $
-		let env = takeThenSeq 20 shallowRst env
+		let env = shallowEnv
 		    pipe = toEnabledSeq $
 			    cycle
 			    ([ return (odd val,ALPHA (show val))
@@ -175,13 +169,13 @@ main = do
 			     ] ++ take 5 (repeat Nothing))
 
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. env .*. pipe .*. addr
+		 in example tst .*. env .*. env .*. pipe .*. addr
 
-	let tst ::Rst -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
+	let tst ::Env () -> Seq (Enabled ALPHA) -> Seq (Matrix X20 ALPHA)
 	    tst = shiftRegister
 
 	testSomeTruth 200 "shiftRegister" $
-		let env = takeThenSeq 180 shallowRst env
+		let env = shallowEnv
 		    inp = toEnabledSeq $
 			    cycle
 			    ([ return (ALPHA (show val))
@@ -191,11 +185,11 @@ main = do
 		    addr = toSeq $ cycle [True,False]
 		 in example tst .*. env .*. inp
 
-	let tst :: Seq (Enabled (Matrix X4 ALPHA)) -> Seq (Enabled ALPHA)
+	let tst :: Env () -> Seq (Enabled (Matrix X4 ALPHA)) -> Seq (Enabled ALPHA)
 	    tst = unShiftRegister
 
 	testSomeTruth 200 "unShiftRegister" $
-		let env = takeThenSeq 180 shallowRst env
+		let env = shallowEnv
 		    inp = toEnabledSeq $
 			    cycle
 			    ([ return (matrix (map (ALPHA . show) [val,val+1,val+2,val+3]))
@@ -203,17 +197,17 @@ main = do
 			     ] ++ take 5 (repeat Nothing))
 
 		    addr = toSeq $ cycle [True,False]
-		 in example tst .*. inp
+		 in example tst .*. env .*. inp
 
-	let --tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
-	    tst :: Rst -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
-	    tst shallowRst = runBlock shallowRst (mapPacked fn)
+	let --tst :: Env () -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst :: Env () -> Seq (Enabled ALPHA) -> Seq (Enabled (ALPHA,X4))
+	    tst shallowEnv = runBlock shallowEnv (mapPacked fn)
 	      where
 		fn :: Matrix X4 (Comb ALPHA) -> Matrix X4 (Comb (ALPHA,X4))
 		fn m = forAll $ \ i -> pack (m ! (i :: X4),pureS i)
 
 	testSomeTruth 200 "runBlock" $
-		let env = takeThenSeq 180 shallowRst env
+		let env = shallowEnv
 		    inp = toEnabledSeq $
 			    cycle
 			    ([ return $ (ALPHA . show) val
@@ -225,10 +219,11 @@ main = do
 
 	return ()
 
-
+{-
 t1 :: Seq (Int,Bool) -> Seq (Bool,Int)
 t1 inp = pack (y,x)
   where (x,y) = unpack inp
 
 t2 = wordAdder :: Comb Bool -> (Comb U3, Comb U3) -> (Comb U3,Comb Bool)
-t3 = pipeToMemory :: Rst -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4
+t3 = pipeToMemory :: Env () -> Seq (Pipe Bool U4) -> Seq Bool -> Seq U4
+-}
