@@ -13,6 +13,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Circuit
 import Language.KansasLava.Opt
+import Language.KansasLava.Utils
 
 import Data.Sized.Matrix as M
 import Debug.Trace
@@ -184,12 +185,19 @@ instance Wire a => InPorts (Comb a) where
       where (d,vs') = wireGenerate vs
 
 {-
-instance InPorts Time where
-    inPorts vs = (Time c r,vs')
-       where
-	((c,r),vs') = inPorts vs
+
+instance InPorts (Env clk) where
+  inPorts nms = (Env (
 -}
 
+instance InPorts (Clock clk) where
+    inPorts vs = (Clock (error "InPorts (Clock clk)") d,vs')
+      where (d,vs') = wireGenerate vs
+
+instance InPorts (Env clk) where
+    inPorts vs = (Env clk rst en,vs')
+	 where ((clk,rst,en),vs') = inPorts vs
+	
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)
 	 where
