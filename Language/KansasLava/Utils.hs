@@ -27,7 +27,7 @@ import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 
-high, low :: CSeq clk Bool
+high, low :: forall (sig :: * -> *) . (Signal sig) => sig Bool
 high = pureS True
 low  = pureS False
 
