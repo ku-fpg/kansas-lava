@@ -148,25 +148,18 @@ instance (Wire a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 
 instance (Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
-	pack m = liftS1 gg (pack m)
-	unpack sig = unpack (liftS1 ff sig)
+	pack m = liftS1 matrixBool2slv (pack m)
+	unpack sig = unpack (liftS1 slv2matrixBool sig)
 
 -- TODO: find the 'lift/fmap' function inside here.
-ff' :: forall ix . (Size ix) => Comb (StdLogicVector ix) -> Comb (Matrix ix Bool)
-ff' (Comb s d) = Comb (case unX (s :: X (StdLogicVector ix)) :: Maybe (StdLogicVector ix) of
-		        Just (StdLogicVector m) -> optX (Just m) :: X (Matrix ix Bool)
-	                Nothing -> optX (Nothing :: Maybe (Matrix ix Bool)))
-		     (undefined)
-
-ff :: forall ix . (Size ix) => Comb (StdLogicVector ix) -> Comb (Matrix ix Bool)
-ff (Comb s d) = Comb (case unX (s :: X (StdLogicVector ix)) :: Maybe (StdLogicVector ix) of
-		        Just (StdLogicVector m) -> optX (Just m) :: X (Matrix ix Bool)
+slv2matrixBool :: forall ix . (Size ix) => Comb (StdLogicVector ix) -> Comb (Matrix ix Bool)
+slv2matrixBool (Comb s d) = Comb (case unX (s :: X (StdLogicVector ix)) of
+		        Just (StdLogicVector m) -> optX (Just m)
 	                Nothing -> optX (Nothing :: Maybe (Matrix ix Bool)))
 		     (entity1 (Name "Lava" "id") d)
 
-
-gg :: forall ix . (Size ix) => Comb (Matrix ix Bool) -> Comb (StdLogicVector ix)
-gg (Comb s d) = Comb (case unX (s :: X (Matrix ix Bool)) :: Maybe (Matrix ix Bool) of
-		        Just  m -> optX (Just $ StdLogicVector m) :: X (StdLogicVector ix)
+matrixBool2slv :: forall ix . (Size ix) => Comb (Matrix ix Bool) -> Comb (StdLogicVector ix)
+matrixBool2slv (Comb s d) = Comb (case unX (s :: X (Matrix ix Bool)) of
+		        Just  m -> optX (Just $ StdLogicVector m)
 	                Nothing -> optX (Nothing :: Maybe (StdLogicVector ix)))
 		     (entity1 (Name "Lava" "id") d)
