@@ -34,8 +34,8 @@ main = run []
 run tests = runWithOpts $ def { enabled = tests }
 
 runWithOpts opts = do
-    let testCircuit :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO()
-        testCircuit = testCircuit' opts
+    let mkTest :: (Ports a, Probe a, Ports b) => String -> a -> (a -> b) -> IO ()
+        mkTest = testCircuit opts
 
     Posix.setEnv "LAVA_SIM_PATH" (baseDir opts) True
     createDirectoryIfMissing True (baseDir opts)
@@ -74,55 +74,55 @@ runWithOpts opts = do
 	x9 :: Seq X9
 	x9 = toSeq $ cycle [0..8]
 
-    testCircuit "regX"
+    mkTest "regX"
         (register :: Env () -> Comb U4 -> Seq U4 -> Seq U4)
         (\ reg -> reg env 10 inp)
 
-    testCircuit "delayX"
+    mkTest "delayX"
         (delay :: Env () -> Seq U4 -> Seq U4)
         (\ f -> f env inp)
 
-    testCircuit "muxX"
+    mkTest "muxX"
         (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4)
         (\ f -> f (toSeq (cycle [True,False,True,True,False])) (inp, inp2))
 
-    testCircuit "signedArithX"
+    mkTest "signedArithX"
         ((\ a b -> pack (matrix [a + b, a - b{- this overflows! , a * b-}] :: Matrix X2 (Seq S5))) :: Seq S5 -> Seq S5 -> Seq (Matrix X2 S5))
         (\ f -> f sinp sinp3)
 
-    testCircuit "unsignedArithX"
+    mkTest "unsignedArithX"
         ((\ a b -> pack (matrix [a + b, a - b, a * b] :: Matrix X3 (Seq U4))) :: Seq U4 -> Seq U4 -> Seq (Matrix X3 U4))
         (\ f -> f inp inp3)
 
-    testCircuit "boolPrimsX"
+    mkTest "boolPrimsX"
         ((\ a b -> pack (matrix [a `and2` b, a `or2` b, a `xor2` b, bitNot a] :: Matrix X4 (Seq Bool))) :: Seq Bool -> Seq Bool -> Seq (Matrix X4 Bool))
         (\ f -> f binp binp2)
 
-    testCircuit "boolPrims2Unsigned"
+    mkTest "boolPrims2Unsigned"
         ((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq U4 -> Seq U4 -> Seq (Matrix X5 Bool))
         (\ f -> f inp inp3)
 
-    testCircuit "boolPrims2Signed"
+    mkTest "boolPrims2Signed"
 	((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq S5 -> Seq S5 -> Seq (Matrix X5 Bool))
 	(\ f -> f sinp sinp3)
 
-    testCircuit "boolPrims2FLOAT"
+    mkTest "boolPrims2FLOAT"
 	((\ a b -> pack (matrix [a .==. b, a .>=. b, a .<=. b, a .>. b, a .<. b] :: Matrix X5 (Seq Bool))) :: Seq FLOAT -> Seq FLOAT -> Seq (Matrix X5 Bool))
 	(\ f -> f (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
 		  (toSeq (reverse ([-32,-31..31] ++ [31])) :: Seq (Sampled X32 X32)))
 
 {-  This doesn't have a deep embedding defined
-        testCircuit "testABitX"
+        mkTest "testABitX"
         (testABit :: Seq U8 -> Int -> Seq Bool)
         (\ f -> f (toSeq $ cycle $ [0..255]) 8)
 -}
 
-    testCircuit "enabledRegisterX"
+    mkTest "enabledRegisterX"
         (enabledRegister :: Env () -> Comb U4 -> Seq (Enabled U4) -> Seq U4)
         (\ f -> f env 10 eInp)
 
     -- not sure if the env use here is correct... it merely compiles
-    testCircuit "pipeToMemoryX"
+    mkTest "pipeToMemoryX"
         ((\ e pipe -> memoryToMatrix (pipeToMemory e env pipe)) :: Env () -> CSeq () (Pipe X8 U4) -> CSeq () (Matrix X8 U4))
         (\ f -> f env
                 $ toEnabledSeq (concat
@@ -133,7 +133,7 @@ runWithOpts opts = do
                        ])
         )
 
-    testCircuit "pipeToMemory2X"
+    mkTest "pipeToMemory2X"
         (pipeToMemory :: Env clk -> Env clk2 -> CSeq clk (Pipe X2 U4) -> CSeq clk2 X2 -> CSeq clk2 U4)
         (\ f -> f env env'
                   (toEnabledSeq (concat
@@ -147,41 +147,41 @@ runWithOpts opts = do
 
     -- Testing Sampled
 
-    testCircuit "arithmeticSampled32X"
+    mkTest "arithmeticSampled32X"
         ((\ a b -> pack (matrix [a + b, a - b] :: Matrix X2 (Seq FLOAT))) :: Seq FLOAT -> Seq FLOAT -> Seq (Matrix X2 FLOAT))
         (\ f -> f (toSeq [-32,-31..31] :: Seq (Sampled X32 X32))
                   (toSeq [-3.2,-3.15..10] :: Seq (Sampled X32 X32))
         )
 
-    testCircuit "timesNeg0_75"
+    mkTest "timesNeg0_75"
         ((\ a -> liftS1 (timesNeg0_75) a) :: Seq FLOAT -> Seq FLOAT)
         (\ f -> f (toSeq [-10,-9.5..10] :: Seq (Sampled X32 X32)))
 
-    testCircuit "metricSampled32X"
+    mkTest "metricSampled32X"
         ((\ a b -> liftS2 (metricComb) a b) :: Seq FLOAT -> Seq FLOAT -> Seq FLOAT)
         (\ f -> f (toSeq [-2.4,-2.2..5] :: Seq (Sampled X32 X32))
                   (toSeq [-3.0,-2.5..] :: Seq (Sampled X32 X32))
         )
 
-    testCircuit "matrixOps"
+    mkTest "matrixOps"
         ((pack . (\ m -> forAll $ \ i -> m ! i)  . unpack) :: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4))
         (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2 ])))
 
-    testCircuit "matrixOps2"
+    mkTest "matrixOps2"
         ((pack . (\ m -> (pack $ forAll $ \ i -> m ! i, pack $ forAll $ \ i -> 3))  . unpack)
                         :: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4,Matrix X3 U3))
         (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2 ])))
 
-    testCircuit "matrixOps3"
+    mkTest "matrixOps3"
         ((pack . (\ m -> (pack $ forAll $ \ i -> m ! i, pack $ forAll $ \ i -> 3, 9))  . unpack)
                         :: Seq (Matrix X4 U4) -> Seq (Matrix X4 U4,Matrix X3 U3,U4))
         (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2 ])))
 
-    testCircuit "muxMatrix"
+    mkTest "muxMatrix"
 	(muxMatrix :: Seq (Matrix X9 U4) -> Seq X9 -> Seq U4)
         (\ f -> f (pack (matrix [ inp, inp2, inp3, inp2, inp, inp2, inp3, inp2, inp3  ])) x9)
 
-    testCircuit "fullAdder"
+    mkTest "fullAdder"
         (fullAdder :: Seq Bool -> Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool))
         (\ f -> f binp binp2 $ toSeq $ cycle [False, True, False])
 
@@ -201,4 +201,13 @@ timesNeg0_75 :: forall a . (Fractional a, Wire a) => Comb a -> Comb a
 timesNeg0_75 (Comb a ea) = Comb (optX $ do a' <- unX a :: Maybe a
                                            return $ a' * (-0.75))
                                 (entity1 (Name "LDPC" "timesNeg0_75") ea)
+
+halfAdder a b = (sum,carry)
+  where sum = xor2 a b
+        carry = and2 a b
+
+fullAdder a b cin = (sum,cout)
+  where (s1,c1) = probe "ha1" halfAdder a b
+        (sum,c2) = probe "ha2" halfAdder cin s1
+        cout = xor2 c1 c2
 -- END HELPERS --

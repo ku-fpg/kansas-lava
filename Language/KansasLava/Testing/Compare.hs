@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
-module Language.KansasLava.Testing.Compare where
+module Language.KansasLava.Testing.Compare (DebugOpts(..), testCircuit) where
 
 import System.IO.Unsafe
 
@@ -75,17 +75,8 @@ numberOfCycles = 100
 
 dumpDir = "examine/"
 
-halfAdder a b = (sum,carry)
-  where sum = xor2 a b
-        carry = and2 a b
-
-fullAdder a b cin = (sum,cout)
-  where (s1,c1) = probe "ha1" halfAdder a b
-        (sum,c2) = probe "ha2" halfAdder cin s1
-        cout = xor2 c1 c2
-
-testCircuit' :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
-testCircuit' opts name circuit apply
+testCircuit :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
+testCircuit opts name circuit apply
     | null (enabled opts) || name `elem` (enabled opts) = do
         let probed = probe name circuit
 
