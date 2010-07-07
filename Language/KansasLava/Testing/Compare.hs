@@ -94,24 +94,25 @@ testCircuit' opts name circuit apply
 
         print rc
 
-        algDebug rc pdata "" $ probeForest rc
+        algDebug name rc pdata "" $ probeForest rc
     | otherwise = return ()
 
-algDebug :: ReifiedCircuit
+algDebug :: String
+         -> ReifiedCircuit
          -> [(String, ProbeValue)]
          -> String
          -> [ProbeTree]
          -> IO ()
-algDebug rc pdata parent forest = go parent forest
+algDebug name rc pdata parent forest = go parent forest
     where go []     [] = putStrLn "Embeddings act the same."
           go parent [] = putStrLn $ parent ++ " failed, but all its children (if any) succeeded."
           go parent ((Node nm _ ch):ts) = do
-                code <- testSubcircuit rc pdata nm
+                code <- testSubcircuit name rc pdata nm
                 case code of
                     ExitSuccess -> go parent ts -- move on to a sibling
                     ExitFailure _ -> go nm ch   -- start checking children
 
-testSubcircuit rc pdata name = do
+testSubcircuit wholeName rc pdata name = do
     let sub = extractSubcircuit name rc
 
     -- Glad to see Haskell's directory handling libraries suck as much
@@ -123,7 +124,7 @@ testSubcircuit rc pdata name = do
     -- this mess to cut the /nfs off the front of local paths
     let pwdsp = filter (\dir -> dir /= "/") $ FP.splitDirectories pwd
         remotePath = FP.joinPath $ dropWhile (\dir -> dir == "nfs") pwdsp
-        base = dumpDir ++ name ++ "/"
+        base = dumpDir ++ wholeName ++ "/"
         path = base ++ name ++ "/"
         fp = "/" ++ remotePath ++ "/" ++ path
         ropts = []
