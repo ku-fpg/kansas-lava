@@ -2,27 +2,27 @@
 
 module Language.KansasLava.Utils where
 
-import Language.KansasLava.Entity as E
-import Language.KansasLava.Type
-import Language.KansasLava.Seq
-import Language.KansasLava.Stream  as S
-import Language.KansasLava.Signal
-import Language.KansasLava.Wire
 import Language.KansasLava.Comb
-import Language.KansasLava.StdLogicVector as SLV
-
-import Data.Sized.Matrix	as M
-import Data.Sized.Unsigned	as U
-import Data.Sized.Signed
-import Data.Sized.Arith
-import qualified Data.Sized.Sampled	as Sam
+import Language.KansasLava.Entity as E
 import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+import Language.KansasLava.StdLogicVector as SLV
+import Language.KansasLava.Stream  as S
+import Language.KansasLava.Type
+import Language.KansasLava.Wire
+
+import Data.Sized.Arith
+import Data.Sized.Matrix	as M
+import qualified Data.Sized.Sampled	as Sam
+import Data.Sized.Signed
+import Data.Sized.Unsigned	as U
 
 import Control.Applicative
 import Control.Monad
-import Data.Word
 import Data.Bits
 import Data.Ratio
+import Data.Word
 import Debug.Trace
 
 -----------------------------------------------------------------------------------------------

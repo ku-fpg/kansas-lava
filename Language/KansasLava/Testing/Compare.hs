@@ -94,7 +94,7 @@ testCircuit' opts name circuit apply
 
         print rc
 
-        algDebug rc pdata [] $ probeForest rc
+        algDebug rc pdata "" $ probeForest rc
     | otherwise = return ()
 
 algDebug :: ReifiedCircuit
