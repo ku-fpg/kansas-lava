@@ -270,8 +270,22 @@ runBlock env fn inp = unShiftRegister env
 -- next number in the sequence, in the *next* cycle.
 
 -- TODO: remove, its confusing
-
 counter :: (RepWire x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
 counter rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
+
+
+
+--------------------------------------------------
+
+
+-- The order here has the function *last*, because it allows
+-- for a idiomatic way of writing things
+--
+--  res = rom env inp $ \ a -> .... 
+--
+rom :: (RepWire a, RepWire b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
+rom env inp fn = delay env $ funMap fn inp
+
+
 
