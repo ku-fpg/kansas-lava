@@ -185,19 +185,24 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 
 -----------------------------------------------------------------------------------------------
 
+witness :: a
+witness = error "witness"
+
 mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i ~(t,e)
 	= liftS3 (\ ~(Comb i ei)
 	 	    ~(Comb t et)
 	 	    ~(Comb e ee)
-			-> Comb (case unX i :: Maybe Bool of
-			          Nothing -> optX (Nothing :: Maybe a)
-				  Just True -> t
-				  Just False -> e
-			     )
-			     (entity3 (Name "Lava" "mux2") ei et ee)
+			-> Comb (mux2shallow (witness :: a) i t e)
+			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
 
+mux2shallow :: forall a . (Wire a) => a -> X Bool -> X a -> X a -> X a
+mux2shallow _ i t e = 
+   case unX i of
+       Nothing -> optX (Nothing :: Maybe a)
+       Just True -> t
+       Just False -> e
 
 class MUX a where
 	wideMux2 :: Comb Bool -> (a, a) -> a
