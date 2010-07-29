@@ -4,7 +4,7 @@ import Data.Traversable
 import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
-import Prelude hiding (zipWith)
+import Prelude hiding (zipWith,zipWith3)
 import Data.Monoid
 
 infixr 5 :~
@@ -63,6 +63,9 @@ tail (_ :~ as) = as
 
 zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
 zipWith f (x :~ xs) (y :~ ys) = f x y :~ zipWith f xs ys
+
+zipWith3 :: (a -> b -> c -> d) -> Stream a -> Stream b -> Stream c -> Stream d
+zipWith3 f (x :~ xs) (y :~ ys) (z :~ zs) = f x y z :~ zipWith3 f xs ys zs
 
 fromList :: [a] -> Stream a
 fromList (x : xs) = x :~ fromList xs
