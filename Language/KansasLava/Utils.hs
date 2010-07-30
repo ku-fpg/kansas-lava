@@ -475,7 +475,7 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Se
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
 		     (Var "i0", bitTypeOf res, unD eline),
-		     (Var "rst", RstTy, unD $ erst),
+		     (Var "rst", B, unD $ erst),	-- use to be RstTy
 	             (Var "en",  B, unD $ een),
 		     (Var "clk", ClkTy, unD $ clk)
 		    ] []
