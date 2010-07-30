@@ -30,7 +30,10 @@ genDecl (i,Entity nm outputs _ _)
 	    ]
 	  | (Var n,nTy) <- outputs  ]
 genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Name "Memory" "BRAM"
-	= [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
+	= concat 
+	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
+	    , NetDecl (sigName n i) (sizedRange nTy) Nothing
+	    ]
 	  | (Var n,nTy) <- outputs ]
   where
 	aTy = lookupInputType "wAddr" e
