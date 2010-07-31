@@ -196,7 +196,7 @@ instance InPorts (Clock clk) where
 
 instance InPorts (Env clk) where
     inPorts vs = (Env clk rst en,vs')
-	 where ((clk,rst,en),vs') = inPorts vs
+	 where ((en,rst,clk),vs') = inPorts vs
 	
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)
