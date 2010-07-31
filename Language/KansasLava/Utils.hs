@@ -465,12 +465,13 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Se
    where
 	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
 	-- TODO: add enable to this
-	sres = S.zipWith (\ i v ->
+	sres = optX (Nothing :: Maybe a)
+	         :~ S.zipWith (\ i v ->
 				case unX i :: Maybe Bool of
 				   Nothing -> optX (Nothing :: Maybe a)
 				   Just (True) -> def
 				   Just (False) -> v
-			 ) rst (optX (Nothing :: Maybe a) :~ line)
+			 ) rst line
         entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
