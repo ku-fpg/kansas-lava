@@ -119,7 +119,7 @@ sizedRange ty = case toStdLogicTy ty of
 memRange :: BaseTy -> Maybe Range
 memRange ty = case toStdLogicTy ty of
 		  B -> Nothing
-		  V n -> Just $ Range (ExprNum $ 2^(fromIntegral n - 1)) (ExprNum 0)
+		  V n -> Just $ Range (ExprNum (2^(fromIntegral n) - 1)) (ExprNum 0)
 
 -- VHDL "macros"
 active_high d      = ExprFunCall "active_high" [d]
