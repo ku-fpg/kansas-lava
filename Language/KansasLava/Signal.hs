@@ -32,6 +32,9 @@ op _ nm = Name (wireName (error "op" :: w)) nm
 pureS :: (Signal s, RepWire a) => a -> s a
 pureS a = liftS0 (toComb a)
 
+-- An unknown (X) signal.
+errorS :: (Signal s, RepWire a) => s a
+errorS = liftS0 errorComb
 
 -- | k is a constant
 
@@ -48,11 +51,6 @@ class (Signal sig) => Pack sig a where
  type Unpacked sig a
  pack :: Unpacked sig a -> sig a
  unpack :: sig a -> Unpacked sig a
-
---------------------------------------------------------------------------------
-
-toComb :: (RepWire a) => a -> Comb a
-toComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
 --------------------------------------------------------------------------------
 

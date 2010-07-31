@@ -8,6 +8,8 @@ module Language.KansasLava.Comb where
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
+import Data.Sized.Unsigned as U
+
 
 -- import Control.Applicative
 
@@ -48,5 +50,8 @@ applyComb2 :: (Wire a, Wire b, Wire c) => (Comb a -> Comb b -> Comb c) -> a -> b
 applyComb2 f a b = unX c
    where Comb c _ = f (Comb (pureX a) (error "deep embedding problem in apply2"))
 	              (Comb (pureX b) (error "deep embedding problem in apply2"))
+
+toComb :: (RepWire a) => a -> Comb a
+toComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
 ----------------------------------------------------------------------------------------------------
