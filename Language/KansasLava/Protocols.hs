@@ -120,6 +120,8 @@ enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (sig x -> sig (y,z)) ->
 enabledToPipe f se = pack (en, (f x))
    where (en,x) = unpack se
 
+-- This is lifting *Comb* because Comb is stateless, and the 'en' Bool being passed on assumes no history,
+-- in the 'a -> b' function.
 mapEnabled :: (Wire a, Wire b, Signal sig) => (Comb a -> Comb b) -> sig (Enabled a) -> sig (Enabled b)
 mapEnabled f en = pack (en_bool,liftS1 f en_val)
    where (en_bool,en_val) = unpack en
