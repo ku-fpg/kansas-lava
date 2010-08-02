@@ -289,5 +289,12 @@ counter rst inc = res
 rom :: (RepWire a, RepWire b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom env inp fn = delay env $ funMap fn inp
 
+---------------------------------
 
+-- A latch that can cross clock domains
+latch :: forall clk1 clk2 a. (RepWire a) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
+latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
+    where 
+	wr :: CSeq clk1 (Pipe () a)
+	wr = enabledToPipe (\ a -> pack (pureS (),a)) inp
 
