@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
-module Language.KansasLava.Testing.Compare (DebugOpts(..), testCircuit) where
+module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit) where
 
 import System.IO.Unsafe
 
@@ -70,11 +70,6 @@ instance Default DebugOpts where
                , enabled = []
                }
 
-numberOfCycles :: Int
-numberOfCycles = 100
-
-dumpDir = "examine/"
-
 testCircuit :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
 testCircuit opts name circuit apply
     | null (enabled opts) || name `elem` (enabled opts) = do
@@ -85,25 +80,26 @@ testCircuit opts name circuit apply
 
         print rc
 
-        algDebug name rc pdata "" $ probeForest rc
+        algDebug opts name rc pdata "" $ probeForest rc
     | otherwise = return ()
 
-algDebug :: String
+algDebug :: DebugOpts
+         -> String
          -> ReifiedCircuit
          -> [(String, ProbeValue)]
          -> String
          -> [ProbeTree]
          -> IO ()
-algDebug name rc pdata parent forest = go parent forest
+algDebug opts name rc pdata parent forest = go parent forest
     where go []     [] = putStrLn "Embeddings act the same."
           go parent [] = putStrLn $ parent ++ " failed, but all its children (if any) succeeded."
           go parent ((Node nm _ ch):ts) = do
-                code <- testSubcircuit name rc pdata nm
+                code <- testSubcircuit opts name rc pdata nm
                 case code of
                     ExitSuccess -> go parent ts -- move on to a sibling
                     ExitFailure _ -> go nm ch   -- start checking children
 
-testSubcircuit wholeName rc pdata name = do
+testSubcircuit opts wholeName rc pdata name = do
     let sub = extractSubcircuit name rc
 
     -- Glad to see Haskell's directory handling libraries suck as much
@@ -115,7 +111,7 @@ testSubcircuit wholeName rc pdata name = do
     -- this mess to cut the /nfs off the front of local paths
     let pwdsp = filter (\dir -> dir /= "/") $ FP.splitDirectories pwd
         remotePath = FP.joinPath $ dropWhile (\dir -> dir == "nfs") pwdsp
-        base = dumpDir ++ wholeName ++ "/"
+        base = (baseDir opts) ++ wholeName ++ "/"
         path = base ++ name ++ "/"
         fp = "/" ++ remotePath ++ "/" ++ path
         ropts = []
@@ -133,7 +129,7 @@ testSubcircuit wholeName rc pdata name = do
                 "" -> ""
                 uname -> uname ++ "@"
 
-    mkInputs name path numberOfCycles probeData fp
+    mkInputs name path (cycles opts) probeData fp
     mkTestbench' name base vhdl ports waves
     writeDotCircuit' dotName sub
     system $ "dot -Tpng " ++ dotName ++ " > " ++ path ++ name ++ ".png"
