@@ -40,8 +40,6 @@ class Eq w => Wire w where
 	wireCapture :: D w -> [(BaseTy, Driver E)]
 	wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
-	wireGenerate :: [String] -> (D w,[String])
-	wireGenerate (v:vs) = (D (Pad (Var v)),vs)
 
 -- D w -> 
 

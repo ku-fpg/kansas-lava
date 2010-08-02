@@ -176,6 +176,9 @@ class OutPorts a where
 class InPorts a where
     inPorts :: [String] -> (a,[String])
 
+wireGenerate :: [String] -> (D w,[String])
+wireGenerate (v:vs) = (D (Pad (Var v)),vs)
+
 instance Wire a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
