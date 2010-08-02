@@ -78,11 +78,15 @@ genInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] inputs _) =
 	(ty,d) = head [ (ty,d) | (Var "i0",ty,d) <- inputs ]
 
 -- Muxes
-genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var i0,cTy,c),(Var i1 ,tTy,t),(Var i2,fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,Lit 1),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
+	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
+genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,Lit _),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
+	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
+genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,c),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i)
                      (ExprCond cond
-                      (toStdLogicExpr fTy t)
-                      (toStdLogicExpr tTy f))]
+                      (toStdLogicExpr tTy t)
+                      (toStdLogicExpr fTy f))]
   where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprBit 1)
 
 -- The following do not need any code in the inst segement
