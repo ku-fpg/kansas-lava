@@ -185,6 +185,10 @@ runWithOpts opts = do
         (fullAdder :: Seq Bool -> Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool))
         (\ f -> f binp binp2 $ toSeq $ cycle [False, True, False])
 
+    mkTest "rom"
+        ((\ env inp -> rom env inp (\ a -> if a == 0 then Nothing else return (a + 1))) :: Env () -> Seq U4 -> Seq U4)
+	(\ f -> f env inp)
+
 -- HELPERS --
 type FLOAT = Sampled X32 X32
 
