@@ -116,8 +116,8 @@ fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire 
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
 
-enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (sig x -> sig (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
-enabledToPipe f se = pack (en, (f x))
+enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe f se = pack (en, (liftS1 f x))
    where (en,x) = unpack se
 
 -- This is lifting *Comb* because Comb is stateless, and the 'en' Bool being passed on assumes no history,
