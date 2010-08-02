@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
-module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit) where
+module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit, testOnly, testReify) where
 
 import System.IO.Unsafe
 
@@ -82,6 +82,14 @@ testCircuit opts name circuit apply
 
         algDebug opts name rc pdata "" $ probeForest rc
     | otherwise = return ()
+
+testOnly :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
+testOnly opts name circuit apply = do
+    rc <- reifyCircuit (reifyOptions opts) circuit
+    pdata <- probeCircuit $ apply circuit
+
+    code <- testSubcircuit opts name rc pdata name
+    return ()
 
 algDebug :: DebugOpts
          -> String
