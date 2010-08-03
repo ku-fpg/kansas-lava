@@ -310,17 +310,6 @@ output nm = liftS1 $ \ (Comb a d) ->
                     [(Var "i0", bitTypeOf res, unD d)]
 		    []
 	in res
-{-
-input :: (Signal seq, Wire a)  => String -> seq a -> seq a
-input nm = liftS1 $ \ (Comb a d) ->
-	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
-	    entity = Entity (Name "Lava" "input")
-                    [(Var "o0", bitTypeOf res)]
-                    [(Var nm, bitTypeOf res, unD d)]
-		    []
-	in res
--}
-
 
 resolveNames :: ReifiedCircuit -> ReifiedCircuit
 resolveNames cir =
