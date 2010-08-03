@@ -32,5 +32,6 @@ data ReifyOptions
 	| OutputNames [String]
 	| DebugReify		-- show debugging output of the reification stage
 	| OptimizeReify
+	| NoRenamingReify	-- do not use renaming of variables
 	deriving (Eq, Show)
 
