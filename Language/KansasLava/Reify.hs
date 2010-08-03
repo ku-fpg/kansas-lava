@@ -334,6 +334,9 @@ resolveNames cir =
 		  , case e of
 		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad _)] misc
 			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad oNm)] misc
+		      Entity (Name "Lava" io) outs ins misc
+			| io `elem` ["input","output"]
+			-> Entity (Name "Lava" "id") outs ins misc
 		      other -> other
 		   )
 		| (u,e) <- theCircuit cir
