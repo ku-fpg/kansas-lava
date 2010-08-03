@@ -74,6 +74,14 @@ reifyCircuit opts circuit = do
                                   , theSrcs = nub inputs
                                   , theSinks = outputs
                                   }
+
+--	print rCit
+				
+	let rCit' = resolveNames rCit
+	let rCit = rCit'
+
+--	print rCit
+	
         if OptimizeReify `elem` opts then return (optimize rCit) else return rCit
 
 
@@ -170,11 +178,24 @@ instance (InPorts a, Ports b) => Ports (a -> b) where
   ports vs f = ports vs' $ f a
      where (a,vs') = inPorts vs    
 
-class OutPorts a where
-    outPorts :: a ->  [(Var, BaseTy, Driver E)]
+--class OutPorts a where
+--    outPorts :: a ->  [(Var, BaseTy, Driver E)]
 
 class InPorts a where
     inPorts :: [String] -> (a,[String])
+
+    input :: String -> a -> a
+
+{-
+input nm = liftS1 $ \ (Comb a d) -> 
+	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
+	    entity = Entity (Name "Lava" "input")
+                    [(Var "o0", bitTypeOf res)]
+                    [(Var nm, bitTypeOf res, unD d)] 
+		    []
+	in res
+
+-}
 
 wireGenerate :: [String] -> (D w,[String])
 wireGenerate (v:vs) = (D (Pad (Var v)),vs)
@@ -182,11 +203,19 @@ wireGenerate (v:vs) = (D (Pad (Var v)),vs)
 instance Wire a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
+    input nm = liftS1 (input nm)
 
 instance Wire a => InPorts (Comb a) where
     inPorts vs = (Comb (error "InPorts (Comb a)") d,vs')
       where (d,vs') = wireGenerate vs
 
+    input nm (Comb a d) =
+	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
+	    entity = Entity (Name "Lava" "input")
+                    [(Var "o0", bitTypeOf res)]
+                    [(Var nm, bitTypeOf res, unD d)] 
+		    []
+	in res
 {-
 
 instance InPorts (Env clk) where
@@ -197,15 +226,29 @@ instance InPorts (Clock clk) where
     inPorts vs = (Clock (error "InPorts (Clock clk)") d,vs')
       where (d,vs') = wireGenerate vs
 
+    input nm (Clock f d) = 
+	let res  = Clock f $ D $ Port (Var "o0") $ E $ entity
+	    entity = Entity (Name "Lava" "input")
+                    [(Var "o0", ClkTy)]
+                    [(Var nm, ClkTy, unD d)] 
+		    []
+	in res
+
 instance InPorts (Env clk) where
-    inPorts vs = (Env clk rst en,vs')
-	 where ((en,rst,clk),vs') = inPorts vs
+    inPorts vs0 = (Env clk rst en,vs3)
+	 where ((en,rst,clk),vs3) = inPorts vs0
+
+    input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
+			            (input ("rst" ++ nm) rst)	
+			            (input ("en" ++ nm) en)	
 	
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)
 	 where
 		(b,vs1) = inPorts vs0
 		(a,vs2) = inPorts vs1
+
+    input nm (a,b) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b)
 
 instance (InPorts a, Size x) => InPorts (Matrix x a) where
  inPorts vs0 = (M.matrix bs, vsX)
@@ -220,6 +263,8 @@ instance (InPorts a, Size x) => InPorts (Matrix x a) where
 
 	bs :: [a]
 	(bs,vsX) = loop vs0 sz
+	
+ input nm m = forEach m $ \ i a -> input (nm ++ "_" ++ show i) a
 
 instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
     inPorts vs0 = ((a,b,c),vs3)
@@ -228,6 +273,7 @@ instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
 		(b,vs2) = inPorts vs1
 		(a,vs3) = inPorts vs2
 
+    input nm (a,b,c) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b,input (nm ++ "_thd") c)
 
 ---------------------------------------
 
@@ -250,3 +296,70 @@ showOptReifiedCircuit opt c = do
 
 	rCir' <- loop 0 (("init",Opt rCir 0) : optimizeReifiedCircuits opts rCir)
 	return $ show rCir'
+
+
+
+-------------------------------------------------------------
+
+
+output :: (Signal seq, Wire a)  => String -> seq a -> seq a
+output nm = liftS1 $ \ (Comb a d) -> 
+	let res  = Comb a $ D $ Port (Var nm) $ E $ entity
+	    entity = Entity (Name "Lava" "output")
+                    [(Var nm, bitTypeOf res)]
+                    [(Var "i0", bitTypeOf res, unD d)] 
+		    []
+	in res
+{-
+input :: (Signal seq, Wire a)  => String -> seq a -> seq a
+input nm = liftS1 $ \ (Comb a d) -> 
+	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
+	    entity = Entity (Name "Lava" "input")
+                    [(Var "o0", bitTypeOf res)]
+                    [(Var nm, bitTypeOf res, unD d)] 
+		    []
+	in res
+-}
+
+
+resolveNames :: ReifiedCircuit -> ReifiedCircuit
+resolveNames cir = 
+ 		  ReifiedCircuit { theCircuit = newCircuit
+				 , theSrcs = newSrcs
+				 , theSinks = newSinks
+		           	 }
+  where
+	newCircuit = 
+		[ ( u
+		  , case e of
+		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad _)] misc
+			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad oNm)] misc
+		      other -> other
+		   )
+		| (u,e) <- theCircuit cir
+		]
+	newSrcs = [ case lookup nm mapInputs of
+		       Nothing -> (nm,ty)
+		       Just nm' -> (nm',ty)
+	          | (nm,ty) <- theSrcs cir 
+		  ]
+	newSinks = [ case dr of
+		      Port (nm') u | isOutput u -> (nm',ty,dr)
+		      _ -> (nm,ty,dr)
+		   | (nm,ty,dr) <- theSinks cir 
+		   ]
+
+	isOutput u = case lookup u (theCircuit cir) of
+			Just (Entity (Name "Lava" "output") _ _ _) -> True
+			_ -> False
+
+	mapInputs :: [(Var,Var)]
+	mapInputs = [ (inp,nm)
+		    | (_,Entity (Name "Lava" "input") _ [(nm,_,Pad inp)] _) <- theCircuit cir
+		    ]
+
+
+	isInput u = case lookup u (theCircuit cir) of
+			Just (Entity (Name "Lava" "input") _ _ _) -> True
+			_ -> False
+
