@@ -7,7 +7,7 @@ import Language.KansasLava.Type
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
 import Language.KansasLava.Circuit
-
+import Control.Monad
 
 import Data.List
 
@@ -70,7 +70,8 @@ copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamin
 		        Port p u -> case lookup (u,p) renamings of
 				      Just other -> other
 				      Nothing    -> Port p u
-
+			Pad v -> Pad v
+			Lit i -> Lit i
 		    )
 		  | (v,t,d) <- theSinks rCir
 		  ]
@@ -204,19 +205,30 @@ optimizeReifiedCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 optimizeReifiedCircuits :: [(String,ReifiedCircuit -> Opt ReifiedCircuit)] -> ReifiedCircuit -> [(String,Opt ReifiedCircuit)]
-optimizeReifiedCircuits ((nm,fn):fns) c = trace (show (nm,n,c)) $ (nm,opt) : optimizeReifiedCircuits fns c'
-	where opt@(Opt c' n) = fn c
+optimizeReifiedCircuits ((nm,fn):fns) c = (nm,opt) : optimizeReifiedCircuits fns c'
+	where opt@(Opt c' n) = case fn c of
+				 Opt c' 0 -> Opt c 0	-- If there was no opts, avoid churn
+				 Opt c' n' -> Opt c' n'
 
 
 -- Assumes reaching a fixpoint.
-optimize :: ReifiedCircuit -> ReifiedCircuit
-optimize rCir = loop (("init",Opt rCir 0) : optimizeReifiedCircuits (cycle opts) rCir)
+optimize :: [ReifyOptions] -> ReifiedCircuit -> IO ReifiedCircuit
+optimize options rCir = do
+	when (DebugReify `elem` options) $ do
+		print rCir
+	loop (optimizeReifiedCircuits (cycle opts) rCir)
    where
-	loop cs@((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] = c
-	loop ((nm,Opt c v):cs) = loop cs
+	loop cs@((nm,Opt code n):_) = do
+		when (DebugReify `elem` options) $ do
+		  putStrLn $ "##[" ++ nm ++ "](" ++ show n ++ ")###################################"
+		  when (n > 0) $ do
+			print code
+		case cs of
+		    ((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] -> return c
+		    ((nm,Opt c v):cs) -> loop cs
 
 	opts = [ ("opt",optimizeReifiedCircuit)
---	       , ("cse",cseReifiedCircuit)
+	       , ("cse",cseReifiedCircuit)
 	       , ("copy",copyElimReifiedCircuit)
 	       , ("dce",dceReifiedCircuit)
 	       ]

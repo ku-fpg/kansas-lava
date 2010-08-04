@@ -81,8 +81,7 @@ reifyCircuit opts circuit = do
 	let rCit = rCit'
 
 --	print rCit
-
-        if OptimizeReify `elem` opts then return (optimize rCit) else return rCit
+        if OptimizeReify `elem` opts then optimize opts rCit else return rCit
 
 
 showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
