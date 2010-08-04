@@ -260,13 +260,26 @@ output nm = liftS1 $ \ (Comb a d) ->
 	in res
 
 resolveNames :: ReifiedCircuit -> ReifiedCircuit
-resolveNames cir =
- 		  ReifiedCircuit { theCircuit = newCircuit
-				 , theSrcs = newSrcs
-				 , theSinks = newSinks
-		           	 }
+resolveNames cir 
+	| error1 = error "The generated input/output names are non distinct"
+	| not (null error2) = error $ "A name has been used both labeled and non labeled "
+	| error3 = error "The labled input/output names are non distinct"	
+	| otherwise = ReifiedCircuit { theCircuit = newCircuit
+			 	     , theSrcs = newSrcs
+				     , theSinks = newSinks
+		           	     }
   where
-	newCircuit =
+	error1 = L.length (map fst (theSrcs cir)) /= L.length (nub (map fst (theSrcs cir)))
+	error2 =  [ v
+			| (_,e) <- newCircuit
+			, v <- case e of
+			    Entity _ _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
+--			    Table _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
+			, v `elem` oldSrcs
+			]
+	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))	
+	
+	newCircuit = 
 		[ ( u
 		  , case e of
 		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad _)] misc
@@ -278,11 +291,20 @@ resolveNames cir =
 		   )
 		| (u,e) <- theCircuit cir
 		]
+
+	newSrcs :: [(Var,BaseTy)]
 	newSrcs = [ case lookup nm mapInputs of
 		       Nothing -> (nm,ty)
 		       Just nm' -> (nm',ty)
 	          | (nm,ty) <- theSrcs cir
 		  ]
+
+	-- Names that have been replaced.
+	oldSrcs = [ nm
+		  | (nm,ty) <- theSrcs cir
+		  , not (nm `elem` (map fst newSrcs))
+		  ]
+
 	newSinks = [ case dr of
 		      Port (nm') u | isOutput u -> (nm',ty,dr)
 		      _ -> (nm,ty,dr)
