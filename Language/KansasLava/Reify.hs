@@ -274,7 +274,7 @@ resolveNames cir
 			| (_,e) <- newCircuit
 			, v <- case e of
 			    Entity _ _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
---			    Table _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
+			    Table _ ins _ -> [ nm | (_,_,Pad nm) <- [ins]]
 			, v `elem` oldSrcs
 			]
 	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))	
