@@ -35,3 +35,56 @@ data ReifyOptions
 	| NoRenamingReify	-- do not use renaming of variables
 	deriving (Eq, Show)
 
+
+
+instance Show ReifiedCircuit where
+   show rCir = msg
+     where
+	bar = (replicate 78 '-') ++ "\n"
+        showDriver :: Driver Unique -> BaseTy -> String
+        showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
+        showDriver (Lit x) ty = show x ++ ":" ++ show ty
+        showDriver (Pad x) ty = show x ++ ":" ++ show ty
+        showDriver l _ = error $ "showDriver" ++ show l
+	inputs = unlines
+		[ show var ++ " : " ++ show ty
+		| (var,ty) <- theSrcs rCir
+		]
+	outputs = unlines
+		[ show var   ++ " <- " ++ showDriver dr ty
+		| (var,ty,dr) <- theSinks rCir
+		]
+	circuit = unlines
+		[ case e of
+		    Entity nm outs ins _	 ->
+			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+		    Table (v0,ty0) (v1,ty1,dr) mapping ->
+			"(" ++ show uq ++ ") TABLE \n" 
+			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
+			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
+			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2 
+				       | (i,e1,o,e2) <- mapping 
+				       ]
+		| (uq,e) <- theCircuit rCir
+		]
+
+	msg = bar
+		++ "-- Inputs                                                                   --\n"
+		++ bar
+		++ inputs
+		++ bar
+		++ "-- Outputs                                                                  --\n"
+		++ bar
+		++ outputs
+		++ bar
+-- 		++ "-- Types                                                                    --\n"
+-- 		++ bar
+-- 		++ types
+-- 		++ bar
+		++ "-- Entities                                                                 --\n"
+		++ bar
+		++ circuit
+		++ bar
+
