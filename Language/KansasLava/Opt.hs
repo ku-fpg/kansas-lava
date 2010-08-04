@@ -101,14 +101,25 @@ cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
 cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
    where
 
+	-- how many CSE's did we spot?
 	cseCount = length (theCircuit rCir) - length rCirX
-	-- Find common nodes
---	rCirX :: [[(Unique, Entity BaseTy Unique)]]
+
+	rCirX :: [[(Unique, Entity BaseTy Unique)]]
 	rCirX = map canonicalize
-	      $ groupBy (\ (a,b) (a',b') -> (b `mycompare` b') == EQ)
+		-- We want to combine anything *except* idents's 
+		-- because we would just replace them with new idents's (not a problem)
+		-- *and* say we've found some optimization (which *is* a problem).
+	      $ groupBy (\ (a,b) (a',b') -> (b `mycompare` b') == EQ && not (isId b))
 	      $ sortBy (\ (a,b) (a',b') -> b `mycompare` b') 
 	      $ theCircuit rCir
 
+
+	isId (Entity (Name "Lava" "id") _ _ _) = True
+	isId _ = False
+
+	-- The outputs do not form part of the comparison here,
+	-- because they *can* be different, without effecting
+	-- the CSE opertunity.
 	mycompare (Entity nm outs ins misc)
 	 	  (Entity nm' outs' ins' misc') = 
 		chain
@@ -122,7 +133,8 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		  (Table o' ins' tab') = 
 		chain 
 		   [ ins `compare` ins'
-		   , tab `compare` tab'
+		   , tab `compare` tab'	-- allows us to share ROMs that
+					-- always get used at the same time
 		   ]
 
 			
@@ -134,17 +146,14 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	-- Build the identites
 
 	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) = 
-		(u0,e0) : concat [ case eX of
-			 	     Table {} -> error "found Table, expecting entity"
-{-
-				     Entity _ outs' _ _
-					| length outs == length outs' 
-					-> zipWith (\ (o,t) (o',t') -> -- t == t' TODO
-							replaceWith o' (Var "i0",t',Port o u0)
-						   ) outs outs'
--}					
-				 | (uX,eX) <- rest
-				 ]
+		(u0,e0) : [ ( uX
+		            , case eX of
+		 	     	Table {} -> error "found Table, expecting entity"
+			     	Entity nm' outs' _ _ | length outs == length outs' 
+				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ] []
+			    )
+			  | (uX,eX) <- rest
+			  ]
 	canonicalize xs@((u0,Table {}):rest) = xs
 
 dceReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
