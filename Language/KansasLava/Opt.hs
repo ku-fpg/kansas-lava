@@ -12,6 +12,9 @@ import Language.KansasLava.Circuit
 import Data.List
 
 import Debug.Trace
+
+import Data.List
+
 -- A very simple optimizer.
 
 -- This returns an optimized version of the Entity, or fails to optimize.
@@ -19,26 +22,28 @@ optimizeEntity :: (Unique -> Entity BaseTy Unique) -> Entity BaseTy Unique -> Ma
 optimizeEntity env (Entity (Name "Lava" "fst") [(o0,tO)] [(i0,tI,Port o0' u)] []) =
 	case env u of
 	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
-	       | o0' == o0'' -> return $ replaceWith env o0 (i1',t1,p1)
+	       | o0' == o0'' -> return $ replaceWith o0 (i1',t1,p1)
 	    _ -> Nothing
 optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)] []) =
 	case env u of
 	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
-	       | o0' == o0'' -> return $ replaceWith env o0 (i2',t2,p2)
+	       | o0' == o0'' -> return $ replaceWith o0 (i2',t2,p2)
 	    _ -> Nothing
 optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)] []) =
 	case (env u0,env u1) of
 	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)] []
 	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] []
 	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
-			return $ replaceWith env o0 (Var "o0",tO,p1)
+			return $ replaceWith o0 (Var "o0",tO,p1)
 	    _ -> Nothing
 optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)] _)
-    | t == f = return $ replaceWith env o0 (i1,tTy,t)
+    | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
 optimizeEntity env _ = Nothing
 
-replaceWith env o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
+----------------------------------------------------------------------
+
+replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
 --replaceWith (i,t,x) = error $ "replaceWith " ++ show (i,t,x)
 
 ----------------------------------------------------------------------
@@ -90,9 +95,57 @@ copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamin
 	fixInPort (i,t,o) = (i,t,o)
 
 
--- We assume, for now, that we cse if possible. This will not always be so.
--- cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
---
+-- 
+-- Starting CSE.
+cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
+cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
+   where
+
+	cseCount = length (theCircuit rCir) - length rCirX
+	-- Find common nodes
+--	rCirX :: [[(Unique, Entity BaseTy Unique)]]
+	rCirX = map canonicalize
+	      $ groupBy (\ (a,b) (a',b') -> (b `mycompare` b') == EQ)
+	      $ sortBy (\ (a,b) (a',b') -> b `mycompare` b') 
+	      $ theCircuit rCir
+
+	mycompare (Entity nm outs ins misc)
+	 	  (Entity nm' outs' ins' misc') = 
+		chain
+		  [ nm `compare` nm'
+		  , ins `compare` ins'
+		  , misc `compare` misc'
+		  ]
+	mycompare (Table {}) (Entity {}) = GT
+	mycompare (Entity {}) (Table {}) = LT
+	mycompare (Table o ins tab) 
+		  (Table o' ins' tab') = 
+		chain 
+		   [ ins `compare` ins'
+		   , tab `compare` tab'
+		   ]
+
+			
+	chain (LT:_ ) = LT
+	chain (GT:_ ) = GT
+	chain (EQ:xs) = chain xs
+	chain []      = EQ
+	
+	-- Build the identites
+
+	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) = 
+		(u0,e0) : concat [ case eX of
+			 	     Table {} -> error "found Table, expecting entity"
+{-
+				     Entity _ outs' _ _
+					| length outs == length outs' 
+					-> zipWith (\ (o,t) (o',t') -> -- t == t' TODO
+							replaceWith o' (Var "i0",t',Port o u0)
+						   ) outs outs'
+-}					
+				 | (uX,eX) <- rest
+				 ]
+	canonicalize xs@((u0,Table {}):rest) = xs
 
 dceReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
 dceReifiedCircuit rCir = if optCount == 0
@@ -142,7 +195,7 @@ optimizeReifiedCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 optimizeReifiedCircuits :: [(String,ReifiedCircuit -> Opt ReifiedCircuit)] -> ReifiedCircuit -> [(String,Opt ReifiedCircuit)]
-optimizeReifiedCircuits ((nm,fn):fns) c = (nm,opt) : optimizeReifiedCircuits fns c'
+optimizeReifiedCircuits ((nm,fn):fns) c = trace (show (nm,n,c)) $ (nm,opt) : optimizeReifiedCircuits fns c'
 	where opt@(Opt c' n) = fn c
 
 
@@ -154,6 +207,7 @@ optimize rCir = loop (("init",Opt rCir 0) : optimizeReifiedCircuits (cycle opts)
 	loop ((nm,Opt c v):cs) = loop cs
 
 	opts = [ ("opt",optimizeReifiedCircuit)
+--	       , ("cse",cseReifiedCircuit)
 	       , ("copy",copyElimReifiedCircuit)
 	       , ("dce",dceReifiedCircuit)
 	       ]
