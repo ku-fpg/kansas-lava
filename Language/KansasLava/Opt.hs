@@ -15,6 +15,9 @@ import Debug.Trace
 
 import Data.List
 
+-- NOTES:
+-- We need to update the Lava::id operator, that can take and return *multiple* values.
+
 -- A very simple optimizer.
 
 -- This returns an optimized version of the Entity, or fails to optimize.
