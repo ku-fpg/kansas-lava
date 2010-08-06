@@ -50,6 +50,7 @@ Library
        Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Probes
+       Language.KansasLava.Testing.Output.Dot
   Other-modules:
 
 -- hack for now
