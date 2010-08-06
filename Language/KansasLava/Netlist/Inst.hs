@@ -97,7 +97,14 @@ genInst i (Entity nm outputs inputs _)
 	= []
 
 
+-- HACK
+
+genInst i (Entity n@(Name modNm bitOp) outs ins misc)
+	| bitOp `elem` [".==.","./=."] && modNm /= "Vector"
+	= genInst i (Entity (Name "Vector" bitOp) outs ins misc)
+
 -- The specials (from a table)
+
 
 genInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
@@ -204,10 +211,11 @@ specials =
         ["Unsigned", "Signed", "Bool"]
         [ (".<.",LessThan)
 	, (".>.",GreaterThan)
-	, (".==.",Equals)
+--	, (".==.",Equals)
 	, (".<=.",LessEqual)
 	, (".>=.",GreaterEqual)
-	, ("./=.",NotEquals) ]
+--	, ("./=.",NotEquals) 
+	]
    ++ mkSpecialBinary (\ _t -> active_high) toTypedExpr
         ["Vector"]
         [(".==.",Equals), ("./=.",NotEquals)]
