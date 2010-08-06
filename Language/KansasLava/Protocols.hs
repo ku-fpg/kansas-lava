@@ -193,6 +193,48 @@ phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
 
+enabledS :: (Wire a, Signal sig) => sig a -> sig (Enabled a)
+enabledS s = pack (pureS True,s)
+
+disabledS :: (RepWire a, Signal sig) => sig (Enabled a)
+disabledS = pack (pureS False,errorS)
+
+packEnabled :: (Wire a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
+packEnabled s1 s2 = pack (s1,s2)
+
+unpackEnabled :: (Wire a, Signal sig) => sig (Enabled a) -> (sig Bool, sig a)
+unpackEnabled sig = unpack sig
+
+enabledVal :: (Wire a, Signal sig) => sig (Enabled a) -> sig a
+enabledVal = snd .  unpackEnabled
+
+isEnabled :: (Wire a, Signal sig) => sig (Enabled a) -> sig Bool
+isEnabled = fst .  unpackEnabled
+
+-- a 'safe' delay that uses the disabled to give a default value.
+delayEnabled :: (RepWire a) => Env clk -> CSeq clk (Enabled a) -> CSeq clk (Enabled a)
+delayEnabled env inp = register env disabledS inp
+
+{-
+-- to move into a counters module
+-- Count the number of ticks on a signal. Notice that we start at zero (no ticks),
+-- and bump the counter at each sighting.
+countTicks :: forall clk x . (RepWire x) => x -> (Comb x -> Comb x) -> Env clk -> CSeq clk Bool -> CSeq clk (Enabled x)
+countTicks init succ sysEnv enable = packEnabled enable ctr
+   where
+        ctr :: CSeq clk x
+        ctr = register sysEnv (pureS init) val
+
+        val :: CSeq clk x
+        val = mux2 enable (liftS1 succ ctr,ctr)
+
+
+-- compare with my previous value
+cmp :: (Wire a) => Env clk -> (Comb a -> Comb a -> Comb b) -> CSeq clk a -> CSeq clk b
+cmp env f inp = liftS2 f (delay env inp) inp
+
+-}
+
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
