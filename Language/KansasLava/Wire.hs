@@ -161,7 +161,7 @@ instance Wire Word8 where
 	optX Nothing	= fail "Wire Word8"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word8"
-	wireName _	= "Word8"
+	wireName _	= "Unsigned"
 	wireType _	= U 8
 		
 instance RepWire Word8 where
@@ -176,7 +176,7 @@ instance Wire Word32 where
 	optX Nothing	= fail "Wire Word32"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word32"
-	wireName _	= "Word32"
+	wireName _	= "Unsigned"
 	wireType _	= U 32
 		
 instance RepWire Word32 where
