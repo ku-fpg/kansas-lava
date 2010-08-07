@@ -551,4 +551,9 @@ coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerce)
 -- Starting at the given bit; grab the specified (by the type) number of bits.
 extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
-extractStdLogicVector i = fun1 "spliceStdLogicVector" (SLV.splice i)
+extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
+	liftS1 $ \ (Comb a ea) ->
+		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
+			            return $ (SLV.splice i a' :: StdLogicVector b))
+		         (entity2 (Name "StdLogicVector" "spliceStdLogicVector") (D $ Lit (fromIntegral i) :: D Int) ea)
+
