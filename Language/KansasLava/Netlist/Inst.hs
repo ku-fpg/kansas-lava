@@ -96,7 +96,30 @@ genInst i (Entity nm outputs inputs _)
 		    ]
 	= []
 
+-- Logic assignments
 
+genInst i (Entity n@(Name _ "fromStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
+	case (t_in,t_out) of
+	   (V n,U m) | n == m -> 
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
+		]
+	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
+genInst i (Entity n@(Name "StdLogicVector" "toStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
+	case (t_in,t_out) of
+	   (U n,V m) | n == m -> 
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
+		]
+	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
+
+genInst i (Entity n@(Name "StdLogicVector" "spliceStdLogicVector") [(Var "o0",V outs)] [(Var "i0",_,Lit x),(Var "i1",V ins,w)] _)
+	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
+	| otherwise = 
+	[ NetAssign  (sigName "o0" i) $ ExprSlice nm (ExprNum (fromIntegral x + fromIntegral outs - 1)) (ExprNum (fromIntegral x))
+	]
+  where
+     nm = case toTypedExpr (V ins) w of
+  	    ExprVar n -> n
+	    other -> error $ " problem with spliceStdLogicVector " ++ show w
 -- HACK
 
 genInst i (Entity n@(Name modNm bitOp) outs ins misc)
