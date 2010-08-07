@@ -37,11 +37,20 @@ false = pureS False
 
 -----------------------------------------------------------------------------------------------
 and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (&&) a b) $ entity2 (Name "Bool" "and2") ae be
+and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX b :: Maybe Bool) of
+						     (Just True,Just True) -> optX $ Just True
+						     (Just False,_)        -> optX $ Just False
+					     	     (_,Just False)        -> optX $ Just False
+						     _                     -> optX $ (Nothing :: Maybe Bool))
+					 $ entity2 (Name "Bool" "and2") ae be
 
 or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (||) a b) $ entity2 (Name "Bool" "or2") ae be
-
+or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX b :: Maybe Bool) of
+						     (Just False,Just False) -> optX $ Just False
+						     (Just True,_)           -> optX $ Just True
+					     	     (_,Just True)           -> optX $ Just True
+						     _                       -> optX $ (Nothing :: Maybe Bool))
+					 $ entity2 (Name "Bool" "ot2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Bool" "xor2") ae be
 
