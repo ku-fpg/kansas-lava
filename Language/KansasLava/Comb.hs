@@ -51,7 +51,13 @@ applyComb2 f a b = unX c
    where Comb c _ = f (Comb (pureX a) (error "deep embedding problem in apply2"))
 	              (Comb (pureX b) (error "deep embedding problem in apply2"))
 
+-- Hmm, not the same deep side as toSeq; why?
 toComb :: (RepWire a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
+
+toComb' :: forall a . (RepWire a) => Maybe a -> Comb a
+toComb' a = shallowComb (optX a)
+
+
 
 ----------------------------------------------------------------------------------------------------
