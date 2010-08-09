@@ -50,7 +50,7 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX 
 						     (Just True,_)           -> optX $ Just True
 					     	     (_,Just True)           -> optX $ Just True
 						     _                       -> optX $ (Nothing :: Maybe Bool))
-					 $ entity2 (Name "Bool" "ot2") ae be
+					 $ entity2 (Name "Bool" "or2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Bool" "xor2") ae be
 
@@ -370,6 +370,8 @@ mkEnv = Env
 shallowEnv :: Env ()
 shallowEnv = toEnv (Clock 1 (error "no deep clock"))
 
+clkDriver :: Clock c -> D ()
+clkDriver (Clock _ d) = d
 
 -- type Rst = Seq Bool
 
