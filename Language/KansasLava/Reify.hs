@@ -187,7 +187,7 @@ instance InPorts (Env clk) where
 
     input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
 			            (input ("rst" ++ nm) rst)
-			            (input ("sysEnable" ++ nm) en)
+			            (input ("sysEnable" ++ nm) en)	-- TODO: better name than sysEnable, its really clk_en
 
 instance (InPorts a, InPorts b) => InPorts (a,b) where
     inPorts vs0 = ((a,b),vs2)
