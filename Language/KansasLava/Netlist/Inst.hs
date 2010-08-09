@@ -47,6 +47,10 @@ genInst i (Entity n@(Name "Sampled" op) outputs inputs dyn)
       = genInst i (Entity (Name "Signed" op) outputs inputs dyn)
 
 
+-- identity
+
+genInst  i (Entity (Name "Lava" "id") [(Var vO,_)] [(Var vI,ty,d)] _) = 
+	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
 
 -- Concat and index (join, project)
 
