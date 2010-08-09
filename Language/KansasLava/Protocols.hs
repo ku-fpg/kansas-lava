@@ -48,9 +48,9 @@ pipeToMemory :: forall a d clk1 clk2. (Size (WIDTH a), RepWire a, RepWire d)
 	-> Env clk2
 	-> CSeq clk1 (Pipe a d) 
 	-> Memory clk2 a d
-pipeToMemory env1@(Env (Clock _ clk) rst en) _env2 pipe addr2 = res
+pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
   where
-	(en,pipe') = unpack pipe
+	(wEn,pipe') = unpack pipe
 	(addr,dat) = unpack pipe'
 
     	res :: CSeq clk2 d
@@ -83,7 +83,7 @@ pipeToMemory env1@(Env (Clock _ clk) rst en) _env2 pipe addr2 = res
 			      		addr' <- unX a :: Maybe a
 			      		dat'  <- unX b :: Maybe d
 			      		return $ Just (addr',dat')
-		       ) <*> seqValue en
+		       ) <*> seqValue wEn
 			 <*> seqValue addr
 			 <*> seqValue dat
 
@@ -104,7 +104,8 @@ pipeToMemory env1@(Env (Clock _ clk) rst en) _env2 pipe addr2 = res
 			[ (Var "o0",bitTypeOf res)]
 			[ (Var "clk",ClkTy,unD $ clk)
 			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
-			, (Var "wEn",bitTypeOf en,unD $ seqDriver en)
+			, (Var "wEn",bitTypeOf wEn,unD $ seqDriver wEn)
+			, (Var "en",bitTypeOf clk_en,unD $ seqDriver clk_en)
 			, (Var "wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, (Var "wData",bitTypeOf dat,unD $ seqDriver dat)
 			, (Var "rAddr",bitTypeOf addr2,unD $ seqDriver addr2)

@@ -25,14 +25,20 @@ genSync nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ Map.toList regs
 
 -- genSync nlOpts _ _ = []
 
-regProc _ (clk,rst) [] = []
-regProc nlOpts (clk,rst) es
+regProc :: NetlistOptions 
+        -> (Driver Unique, Driver Unique,  Driver Unique)
+        -> [(Unique, Entity BaseTy Unique)]
+	-> [Decl]
+regProc _ (clk,rst,clk_en) [] = []
+regProc nlOpts (clk,rst,clk_en) es
+{-
   | asynchResets nlOpts =
     [ProcessDecl
      [(Event (toStdLogicExpr RstTy rst) PosEdge,
                (statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es])),
       (Event (toStdLogicExpr ClkTy clk) PosEdge,
               regNext)]]
+-}
   | otherwise =
     [ProcessDecl
      [(Event (toStdLogicExpr ClkTy clk) PosEdge,
@@ -51,29 +57,33 @@ regProc nlOpts (clk,rst) es
         defaultDriverType e = lookupInputType "def" e
         driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
         regAssigns = statements [Assign (outName e i) (nextName e i)  | (i,e) <- es]
-        regNext
-          | addEnabled nlOpts = If (isHigh (ExprVar "enable")) regAssigns Nothing
-          | otherwise = regAssigns
+        regNext = case clk_en of
+		    Lit 1 -> regAssigns
+		    Lit 0 -> error "opps, en_clk is never enabled (boring?)"
+		    _     -> If (isHigh (toTypedExpr B clk_en)) regAssigns Nothing
 
 
-bramProc (clk,rst) [] = []
-bramProc (clk,rst) es =
+bramProc (clk,_,clk_en) [] = []
+bramProc (clk,_,clk_en) es =
   [ProcessDecl
    [(Event (toStdLogicExpr ClkTy clk) PosEdge,
            (statements $ concat
-             [ [ If (isHigh (wEn e))
-                   (Assign (writeIndexed i e) (wData e))
-                   Nothing
-		-- TODO: will need extra delay
-	       , Assign (outName e i) (readIndexed i e)
-	       ]
-	     | (i,e) <- es 
+             [ [ If (isHigh (clk_en e))
+	 	    (Seq [ If (isHigh (wEn e))
+                              (Assign (writeIndexed i e) (wData e))
+			      Nothing
+			 , Assign (outName e i) (readIndexed i e)
+			 ])
+                    Nothing
+               ]
+	     | (i,e) <- es
 	     ]
 	   ))]
   ]
     where outName e i = toStdLogicExpr (lookupInputType "wData" e) (Port (Var "o0") i)
           ramName i = "sig_" ++ show i ++ "_o0_ram"
           wEn e = toStdLogicExpr (lookupInputType "wEn" e) $ lookupInput "wEn" e
+	  clk_en e = toStdLogicExpr (lookupInputType "en" e) $ lookupInput "en" e
           wAddr e = lookupInput "wAddr" e
           rAddr e = lookupInput "rAddr" e
           wData e = toStdLogicExpr (lookupInputType "wData" e) $ lookupInput "wData" e

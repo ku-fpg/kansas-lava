@@ -221,10 +221,13 @@ cleanupName other = other
 -- on clk input, with the value including a list of associated entities.
 -- TODO: What is going on here!!
 
---getSynchs :: [String] -> [(Unique,Entity BaseTy Unique)] -> Map.Map ( [a]
+getSynchs :: [String] 
+	  -> [(Unique,Entity BaseTy Unique)] 
+	  -> Map.Map (Driver Unique, Driver Unique, Driver Unique) [(Unique, Entity BaseTy Unique)]
+
 getSynchs nms ents = Map.fromListWith (++) synchs
   where
-        synchs = [((getInput "clk" is,getInput "rst" is),[e])  
+        synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])  
 		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents, 
 		    n `elem` nms]
         getInput nm is = case find (\(Var c,_,_) -> c == nm) is of
