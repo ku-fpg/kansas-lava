@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,StandaloneDeriving, DeriveDataTypeable, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
 module Language.KansasLava.Testing.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
@@ -9,13 +9,8 @@ import Data.Sized.Ix
 import Data.Sized.Arith(X1_,X0_)
 import qualified Data.Sized.Matrix as M
 
--- so we can derive Typeable2 instances
-import Data.Sized.Matrix (Matrix)
-import Data.Sized.Sampled (Sampled)
-
 import Data.Char
 import Data.Bits
-import Data.Dynamic
 import Data.List
 
 import Language.KansasLava.Circuit
@@ -62,11 +57,11 @@ class Probe a where
     probe' :: String -> [Var] -> a -> a
     probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
-instance (Show a, RepWire a, Typeable a) => Probe (CSeq c a) where
+instance (Show a, RepWire a) => Probe (CSeq c a) where
     probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
         where strm = XStream s :: XStream a
 
-instance (Show a, RepWire a, Typeable a) => Probe (Comb a) where
+instance (Show a, RepWire a) => Probe (Comb a) where
     probe probeName c@(Comb s (D d)) = Comb s (D (addAttr probeName strm d))
         where strm :: XStream a
               strm = XStream $ fromList $ repeat s
@@ -77,7 +72,6 @@ instance Probe (Env c) where
 
 instance (Show a, Show b,
           RepWire a, RepWire b,
-          Typeable a, Typeable b,
           Size (ADD (WIDTH a) (WIDTH b)),
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b)),
@@ -95,7 +89,7 @@ instance (Show a, Probe a, Probe b) => Probe (a -> b) where
 
     probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
 
-addAttr :: forall a . (Show a, RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
+addAttr :: forall a . (Show a, RepWire a) => String -> XStream a -> Driver E -> Driver E
 addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
             Port v (E (Entity n outs ins $ attrs ++ [(ProbeValue probeName value)]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
@@ -111,27 +105,6 @@ addAttr probeName value d@(Lit x) =
                  [ProbeValue probeName value])))
             where ty = wireType (error "probe/oTy" :: a)
 addAttr _ _ driver = error $ "Can't probe " ++ show driver
-
-
-
---data ProbeValue = forall a. (Show a, RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
-
---instance Show ProbeValue where
---    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
-
---data XStream a = XStream (Stream (X a)) deriving Typeable
-
--- This was necessary to satisfy Data.Dynamic
-deriving instance Typeable X0
-deriving instance Typeable1 X1_
-deriving instance Typeable1 X0_
-deriving instance Typeable1 Signed
-deriving instance Typeable1 Unsigned
-deriving instance Typeable2 Matrix
-deriving instance Typeable2 Sampled
-
-deriving instance Typeable1 WireVal
-deriving instance Eq a => Eq (WireVal a)
 
 -- showXStream is a utility function for printing out stream representations.
 instance RepWire a => Show (XStream a) where

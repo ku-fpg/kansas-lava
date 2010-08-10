@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, DeriveDataTypeable
+{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables
  #-}
 module Language.KansasLava.Entity.Utils where
 
@@ -6,7 +6,6 @@ import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
-import Data.Dynamic
 
 import Language.KansasLava.Type
 import Data.Reify
@@ -29,7 +28,7 @@ instance Ord ProbeValue where {}
 instance Show ProbeValue where
     show (ProbeValue name _) = name
 
-data XStream a = XStream (Stream (X a)) deriving Typeable
+data XStream a = XStream (Stream (X a))
 
 ---------------------------------------------------------------------------------------------------------
 

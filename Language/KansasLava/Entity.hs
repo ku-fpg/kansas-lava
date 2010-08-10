@@ -6,7 +6,6 @@ import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
-import Data.Dynamic
 
 import Language.KansasLava.Type
 import Data.Reify

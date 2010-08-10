@@ -1,11 +1,10 @@
-{-# LANGUAGE FlexibleInstances, StandaloneDeriving, DeriveDataTypeable, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances, StandaloneDeriving, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
 module Language.KansasLava.Testing.TruthTable where
 
 import System.IO.Unsafe
 
 import Control.Concurrent
 import Control.Concurrent.Chan
-import Data.Dynamic
 
 import Data.Bits
 import Data.List as L

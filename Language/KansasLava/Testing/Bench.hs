@@ -13,8 +13,6 @@ import System.Random
 import System.Environment(getEnvironment)
 import System.Directory
 import Control.Monad(liftM)
-import Data.Dynamic(fromDynamic)
-
 
 -- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
 --   circuit. Given a circuit (with a given name), this will generate a series
@@ -263,10 +261,8 @@ genProbes' :: String -> ReifiedCircuit -> IO [String]
 genProbes' top c = do
     let graph = theCircuit c
     return (concatMap getProbe graph)
-  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs) ) = [""]
-
---          case attrs of
---	    [ProbeValue name _] -> -- TODO: fix VCD
---                            let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v
---                            in ["add wave -label " ++ show name ++ " " ++ sig]
---        getProbe _ = []
+  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs)) =
+            ["add wave -label " ++ show name ++ " " ++ sig
+            | ProbeValue name _ <- attrs
+            , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
+        getProbe _ = []
