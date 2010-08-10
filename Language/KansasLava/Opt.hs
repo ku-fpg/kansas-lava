@@ -51,7 +51,7 @@ replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
 
 ----------------------------------------------------------------------
 
-data Opt a = Opt a Int
+data Opt a = Opt a Int -- [String]
 
 instance Monad Opt where
     return a = Opt a 0
@@ -62,7 +62,7 @@ instance Monad Opt where
 
 -- copy elimination
 copyElimReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-copyElimReifiedCircuit rCir = trace (show renamings) $ Opt rCir' (length renamings)
+copyElimReifiedCircuit rCir =  Opt rCir' (length renamings)
     where
 	env0 = theCircuit rCir
 
@@ -107,6 +107,12 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 
 	-- how many CSE's did we spot?
 	cseCount = length (theCircuit rCir) - length rCirX
+
+	-- for now, just use show: this is what has changed
+	optMsg = [ (u,e)
+	         | (u,e) <- (theCircuit rCir)
+		 , not (u `elem` (map fst (map head rCirX)))
+	         ]
 
 	rCirX :: [[(Unique, Entity BaseTy Unique)]]
 	rCirX = map canonicalize
@@ -158,7 +164,15 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 			    )
 			  | (uX,eX) <- rest
 			  ]
-	canonicalize xs@((u0,Table {}):rest) = xs
+	canonicalize xs@((u0,e0@(Table (n,t) _ _)):rest) =
+		(u0,e0) : [ ( uX
+		            , case eX of
+			     	Table out' _ _
+				  -> Entity (Name "Lava" "id") [out'] [(n,t, Port n u0)]  []
+		 	     	Table {} -> error "found Entity, expecting Table"
+			    )
+			  | (uX,eX) <- rest
+			  ]
 
 dceReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
 dceReifiedCircuit rCir = if optCount == 0
