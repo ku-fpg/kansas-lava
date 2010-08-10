@@ -133,7 +133,7 @@ testSubcircuit opts wholeName rc pdata name = do
 
     let probeData = probesFor name pdata
         dotName = path ++ name ++ ".dot"
-        user = case username def of
+        user = case username opts of
                 "" -> ""
                 uname -> uname ++ "@"
 
