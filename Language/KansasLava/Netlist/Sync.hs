@@ -6,6 +6,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 
 import Data.Reify.Graph (Unique)
 
@@ -16,7 +17,7 @@ import qualified Data.Map as Map
 
 -- TODO: change into uncurried.
 
-genSync :: NetlistOptions -> [(Unique,Entity BaseTy Unique)] -> [Decl]
+genSync :: NetlistOptions -> [(Unique,MuE Unique)] -> [Decl]
 genSync nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ Map.toList regs) ++
                           (concatMap (uncurry bramProc ) $ Map.toList brams)
   where -- Handling registers
@@ -27,7 +28,7 @@ genSync nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ Map.toList regs
 
 regProc :: NetlistOptions 
         -> (Driver Unique, Driver Unique,  Driver Unique)
-        -> [(Unique, Entity BaseTy Unique)]
+        -> [(Unique, MuE Unique)]
 	-> [Decl]
 regProc _ (clk,rst,clk_en) [] = []
 regProc nlOpts (clk,rst,clk_en) es

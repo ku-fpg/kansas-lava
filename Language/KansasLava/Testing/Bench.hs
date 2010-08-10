@@ -263,11 +263,10 @@ genProbes' :: String -> ReifiedCircuit -> IO [String]
 genProbes' top c = do
     let graph = theCircuit c
     return (concatMap getProbe graph)
-  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs) )=
-          case lookup "simValue" attrs of
-            Just dyn -> case fromDynamic dyn of
-                          Just (ProbeValue name _) ->
-                            let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v
-                            in ["add wave -label " ++ show name ++ " " ++ sig]
-            Nothing -> []
-        getProbe _ = []
+  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs) ) = [""]
+
+--          case attrs of
+--	    [ProbeValue name _] -> -- TODO: fix VCD
+--                            let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v
+--                            in ["add wave -label " ++ show name ++ " " ++ sig]
+--        getProbe _ = []

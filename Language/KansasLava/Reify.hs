@@ -6,6 +6,7 @@ import Data.List as L
 
 
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
@@ -82,6 +83,10 @@ reifyCircuit opts circuit = do
 
 --	print rCit
         if OptimizeReify `elem` opts then optimize opts rCit else return rCit
+
+
+wireCapture :: forall w . (Wire w) => D w -> [(BaseTy, Driver E)]
+wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 
 showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String

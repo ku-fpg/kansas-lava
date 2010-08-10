@@ -8,6 +8,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 
 import Data.Reify.Graph (Unique)
 
@@ -15,7 +16,7 @@ import Language.KansasLava.Netlist.Utils
 
 import Debug.Trace
 
-genInst :: Unique -> Entity BaseTy Unique -> [Decl]
+genInst :: Unique -> MuE Unique -> [Decl]
 
 -- The replacements or aliases
 

@@ -7,6 +7,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 
 import Data.Reify.Graph (Unique)
 
@@ -20,7 +21,7 @@ toAddNextSignal = [Name "Memory" "delay",Name "Memory" "register"]
 -- but in general, we generate a single signal decl for each 
 -- entity.
 
-genDecl :: (Unique, Entity BaseTy Unique) -> [Decl]
+genDecl :: (Unique, MuE Unique) -> [Decl]
 -- Special cases
 genDecl (i,Entity nm outputs _ _)
         | nm `elem` toAddNextSignal

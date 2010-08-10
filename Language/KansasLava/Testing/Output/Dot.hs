@@ -92,10 +92,8 @@ writeDotCircuit' filename circuit = do
 			        return (n,nd)
 		           | (n,Entity nm outs ins attrs) <- nodes
 			   , not $ null attrs
-			   , let pnms = map (\(a,v) -> case a of
-							"simValue" -> case fromDynamic v of
-									Just (ProbeValue pnm _) -> pnm
-							_ -> "") attrs ]
+			   , let pnms = [ nm | ProbeValue nm _ <- attrs ]
+			   ]
 
 	let nds = nds0 ++ nds1 ++ probed
 

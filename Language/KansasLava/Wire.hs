@@ -37,8 +37,6 @@ class Eq w => Wire w where
 	-- | Each wire has a known type.
     	wireType :: w -> BaseTy
 
-	wireCapture :: D w -> [(BaseTy, Driver E)]
-	wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 
 -- D w -> 

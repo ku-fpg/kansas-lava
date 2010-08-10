@@ -7,6 +7,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 
 import qualified Data.Map as Map
 
@@ -163,7 +164,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
                  in (next, ExprSlice nm (ExprNum i) (ExprNum (next + 1)))
 
 -- Find some specific (named) input inside the entity.
-lookupInput :: (Show a, Show b) => String -> Entity a b -> Driver b
+lookupInput :: (Show a, Show b) => String -> Entity a a' b -> Driver b
 lookupInput i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
                                       Just (_,_,d) -> d
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
@@ -222,8 +223,8 @@ cleanupName other = other
 -- TODO: What is going on here!!
 
 getSynchs :: [String] 
-	  -> [(Unique,Entity BaseTy Unique)] 
-	  -> Map.Map (Driver Unique, Driver Unique, Driver Unique) [(Unique, Entity BaseTy Unique)]
+	  -> [(Unique,MuE Unique)] 
+	  -> Map.Map (Driver Unique, Driver Unique, Driver Unique) [(Unique, MuE Unique)]
 
 getSynchs nms ents = Map.fromListWith (++) synchs
   where

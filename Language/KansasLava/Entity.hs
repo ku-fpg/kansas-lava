@@ -35,18 +35,18 @@ instance Show Var where
     show NoVar = "NoVar"
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
-data Entity ty s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [(String,Dynamic)]
-		 | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
+data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
+		   | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
-
+{-
 -- UGGGGGG! This is the wrong place for these things.
 instance Eq Dynamic where
  _ == _ = True
 
 instance Ord Dynamic where
  compare _ _ = EQ
-
+-}
 
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
@@ -56,7 +56,7 @@ data Driver s = Port Var s      -- a specific port on the entity
               deriving (Show, Eq, Ord)
 
 
-instance T.Traversable (Entity ty) where
+instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
   traverse f (Table (v0,t0) (v1,t1,d) tbl) =
@@ -69,7 +69,7 @@ instance T.Traversable Driver where
   traverse _ (Lit i)       = pure $ Lit i
 
 
-instance F.Foldable (Entity ty) where
+instance F.Foldable (Entity ty a) where
   foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance F.Foldable Driver where
@@ -78,7 +78,7 @@ instance F.Foldable Driver where
   foldMap _ (PathPad _)   = mempty
   foldMap _ (Lit _)       = mempty
 
-instance Functor (Entity ty) where
+instance Functor (Entity ty a) where
     fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
 
 instance Functor Driver where
@@ -87,27 +87,3 @@ instance Functor Driver where
     fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
 
----------------------------------------------------------------------------------------------------------
-
-newtype E = E (Entity BaseTy E)
-
--- You want to observe
-instance MuRef E where
-  type DeRef E = Entity BaseTy
-  mapDeRef f (E s) = T.traverse f s
-
-instance Show E where
-    show (E s) = show s
-
-instance Eq E where
-   (E s1) == (E s2) = s1 == s2
-
----------------------------------------------------------------------------------------------------------
-
--- A pin to an E/Entity
-newtype D a = D (Driver E)
-	deriving Show
--- is this used?
-
-unD :: D a -> Driver E
-unD (D a) = a

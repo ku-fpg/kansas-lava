@@ -39,7 +39,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 import Language.KansasLava.Wire
 
-
+-- TODO Add StdLogicVector
 
 -- Location of Temp Hacks
 

@@ -98,7 +98,7 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 		| m <- Stream.toList mem
 		]
 
-    	entity :: Entity BaseTy E
+    	entity :: MuE E
     	entity =
 		Entity (Name "Memory" "BRAM")
 			[ (Var "o0",bitTypeOf res)]

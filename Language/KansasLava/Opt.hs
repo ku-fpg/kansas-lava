@@ -6,6 +6,7 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Circuit
 import Control.Monad
 
@@ -21,7 +22,7 @@ import Data.List
 -- A very simple optimizer.
 
 -- This returns an optimized version of the Entity, or fails to optimize.
-optimizeEntity :: (Unique -> Entity BaseTy Unique) -> Entity BaseTy Unique -> Maybe (Entity BaseTy Unique)
+optimizeEntity :: (Unique -> MuE Unique) -> MuE Unique -> Maybe (MuE Unique)
 optimizeEntity env (Entity (Name "Lava" "fst") [(o0,tO)] [(i0,tI,Port o0' u)] []) =
 	case env u of
 	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
@@ -114,7 +115,7 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		 , not (u `elem` (map fst (map head rCirX)))
 	         ]
 
-	rCirX :: [[(Unique, Entity BaseTy Unique)]]
+	rCirX :: [[(Unique, MuE Unique)]]
 	rCirX = map canonicalize
 		-- We want to combine anything *except* idents's 
 		-- because we would just replace them with new idents's (not a problem)

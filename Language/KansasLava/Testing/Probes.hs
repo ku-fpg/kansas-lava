@@ -21,6 +21,7 @@ import Data.List
 import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
@@ -37,8 +38,8 @@ probeCircuit :: (Ports a) =>
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
     let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
-                ("simValue", val) <- attrs,
-                Just pv@(ProbeValue n v) <- [fromDynamic val]]
+                val <- attrs,
+                pv@(ProbeValue n v) <- [val]]
     return evts
 
 -- | 'getProbe' takes an association list of probe values and a probe
@@ -96,29 +97,29 @@ instance (Show a, Probe a, Probe b) => Probe (a -> b) where
 
 addAttr :: forall a . (Show a, RepWire a, Typeable a) => String -> XStream a -> Driver E -> Driver E
 addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
-            Port v (E (Entity n outs ins $ attrs ++ [("simValue", (toDyn (ProbeValue probeName value)))]))
+            Port v (E (Entity n outs ins $ attrs ++ [(ProbeValue probeName value)]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
 addAttr probeName value d@(Pad (Var v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
-                       [("simValue", (toDyn (ProbeValue probeName value)))])))
+                       [ProbeValue probeName value])))
              where ty = wireType (error "probe/oTy" :: a)
 addAttr probeName value d@(Lit x) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
-                 [("simValue", (toDyn (ProbeValue probeName value)))])))
+                 [ProbeValue probeName value])))
             where ty = wireType (error "probe/oTy" :: a)
 addAttr _ _ driver = error $ "Can't probe " ++ show driver
 
 
 
-data ProbeValue = forall a. (Show a, RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
+--data ProbeValue = forall a. (Show a, RepWire a, Typeable a) => ProbeValue String (XStream  a) deriving Typeable
 
-instance Show ProbeValue where
-    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
+--instance Show ProbeValue where
+--    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
 
-data XStream a = XStream (Stream (X a)) deriving Typeable
+--data XStream a = XStream (Stream (X a)) deriving Typeable
 
 -- This was necessary to satisfy Data.Dynamic
 deriving instance Typeable X0

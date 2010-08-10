@@ -26,6 +26,7 @@ import Debug.Trace
 import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Netlist
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
@@ -150,8 +151,8 @@ extractSubcircuit :: String -> ReifiedCircuit -> ReifiedCircuit
 extractSubcircuit pname rc = extract root leaves rc
     where (root:leaves) = map fst $ sortBy (\(_,n1) (_,n2) -> compare n2 n1)
                         $ [ (node, name) | (node, Entity _ _ _ attrs) <- theCircuit rc
-                                         , ("simValue", val) <- attrs
-                                         , Just (ProbeValue name _) <- [fromDynamic val]
+                                         , val <- attrs
+                                         , (ProbeValue name _) <- [val]
                                          , pname `isPrefixOf` name ]
 
 extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
@@ -185,7 +186,7 @@ probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
           initial = findProbes bfsProbes (sinkNames rc) rc
           bfsOrder = lookupAll (bfs (sinkNames rc) rc) circuit
           bfsProbes = [ id | (id, Entity _ _ _ attrs) <- bfsOrder
-                           , "simValue" `elem` (map fst attrs)
+                           , L.length attrs > 0	-- TODO: check for actual probes
                       ]
           go fam n = Node fam
                           n
@@ -197,8 +198,8 @@ probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
 
 probesOn n circuit = nub [ fst $ splitWith '_' nm
                          | Just (Entity _ _ _ attrs) <- [lookup n circuit]
-                         , ("simValue", val) <- attrs
-                         , Just (ProbeValue nm _) <- [fromDynamic val]
+                         ,  val <- attrs
+                         , (ProbeValue nm _) <- [val]
                          ]
 
 findProbes pnodes nodes rc = reverse $ go nodes [] []
@@ -228,8 +229,8 @@ children name rc = catMaybes $ filter isJust
           Entity _ _ ins _ = fromJust $ lookup name c
 
 probeValues name rc = [ pv | Just (Entity _ _ _ attrs) <- [lookup name $ theCircuit rc]
-                          , ("simValue", val) <- attrs
-                          , Just pv@(ProbeValue n v) <- [fromDynamic val]]
+                          , val <- attrs
+                          , pv@(ProbeValue n v) <- [val]]
 
 testReify :: (Ports a) => String -> a -> IO ()
 testReify nm fn = do

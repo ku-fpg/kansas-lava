@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables
+{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, DeriveDataTypeable
  #-}
 module Language.KansasLava.Entity.Utils where
 
@@ -14,9 +14,53 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Type
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
+import Language.KansasLava.Stream
 
 import Control.Applicative
 
+---------------------------------------------------------------------------------------------------------
+
+data ProbeValue 
+	= EntityAnnotation
+	| forall a. (Show a, RepWire a) => ProbeValue String (XStream  a)
+
+instance Eq ProbeValue where {}
+instance Ord ProbeValue where {}
+instance Show ProbeValue where {}
+
+
+--instance Show ProbeValue where
+--    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
+
+data XStream a = XStream (Stream (X a)) deriving Typeable
+
+---------------------------------------------------------------------------------------------------------
+
+newtype E = E (MuE E)
+
+-- What should this be called. Pre-MuE?
+type MuE u = Entity BaseTy ProbeValue u
+
+-- You want to observe
+instance MuRef E where
+  type DeRef E = Entity BaseTy ProbeValue
+  mapDeRef f (E s) = T.traverse f s
+
+instance Show E where
+    show (E s) = show s
+
+instance Eq E where
+   (E s1) == (E s2) = s1 == s2
+
+---------------------------------------------------------------------------------------------------------
+
+-- A pin to an E/Entity
+newtype D a = D (Driver E)
+	deriving Show
+-- is this used?
+
+unD :: D a -> Driver E
+unD (D a) = a
 
 -----------------------------------------------------------------------------------------------
 -- And the utilties that get this done.
