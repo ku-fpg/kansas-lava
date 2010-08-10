@@ -20,17 +20,14 @@ import Control.Applicative
 
 ---------------------------------------------------------------------------------------------------------
 
-data ProbeValue 
+data ProbeValue
 	= EntityAnnotation
 	| forall a. (Show a, RepWire a) => ProbeValue String (XStream  a)
 
 instance Eq ProbeValue where {}
 instance Ord ProbeValue where {}
-instance Show ProbeValue where {}
-
-
---instance Show ProbeValue where
---    show (ProbeValue n v) = "ProbeValue " ++ show n ++ " " ++ show v
+instance Show ProbeValue where
+    show (ProbeValue name _) = name
 
 data XStream a = XStream (Stream (X a)) deriving Typeable
 
