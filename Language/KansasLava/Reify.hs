@@ -19,25 +19,24 @@ import Language.KansasLava.Utils
 import Data.Sized.Matrix as M
 import Debug.Trace
 
-
 -- | reifyCircuit does reification and type inference.
 -- reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
 -- ([(Unique,Entity (Ty Var) Unique)],[(Var,Driver Unique)])
 reifyCircuit :: (Ports a) => [ReifyOptions] -> a -> IO ReifiedCircuit
 reifyCircuit opts circuit = do
         -- GenSym for input/output pad names
-	let inputNames = head $
+	let inputNames = L.zipWith PadVar [0..] $ head $
 		[ nms | InputNames nms <- opts ] ++ [[ "i" ++ show i | i <- [0..]]]
-	let outputNames = head $
+	let outputNames =  L.zipWith PadVar [0..] $ head $
 		[ nms | OutputNames nms <- opts ] ++ [[ "o" ++ show i | i <- [0..]]]
 
-	let os = ports inputNames circuit
+	let os = ports 0 circuit
 
 	let o = Port (Var "o0")
             	$ E
             	$ Entity (Name "Lava" "top") [(Var "o0",B)]	-- not really a Bit
-             	[ (Var var,tys, dr)
-	     	| (var,(tys,dr)) <- zip inputNames os
+             	[ (Var $ "i_" ++ show i,tys, dr)
+	     	| (i,(tys,dr)) <- zip [0..] os
              	]
              	[]
 
@@ -51,15 +50,17 @@ reifyCircuit opts circuit = do
 			     ]
 		   case lookup out gr of
                      Just (Entity (Name "Lava" "top")  _ ins _) ->
-                       return $ (gr',[(Var sink,ity, driver)
+                       return $ (gr',[(sink,ity, driver)
                                        | (_,ity,driver) <- ins
-                                       | sink <- outputNames])
+                                       | sink <- outputNames
+				       ])
                      Just (Entity (Name _ _) outs _ _) ->
-                       return $ (gr', [(Var sink,oty, Port ovar out)
+                       return $ (gr', [(sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
-                                      | sink <- outputNames])
+                                      | sink <- outputNames
+				      ])
 		     Just (Table (ovar,oty) _ _) ->
-		       return $ (gr', [ (Var sink,oty, Port ovar out)
+		       return $ (gr', [ (sink,oty, Port ovar out)
                                      | sink <- [head outputNames]
 				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
@@ -103,7 +104,13 @@ debugCircuit opt c = showReifiedCircuit opt c >>= putStr
 -- typeclass, but I'm not really sure.
 
 class Ports a where
-  ports :: [String] -> a -> [(BaseTy, Driver E)]
+  ports :: Int -> a -> [(BaseTy, Driver E)]
+
+class InPorts a where
+    inPorts :: Int -> (a, Int)
+
+    input :: String -> a -> a
+
 
 instance Wire a => Ports (CSeq c a) where
   ports _ sig = wireCapture (seqDriver sig)
@@ -133,10 +140,6 @@ instance (InPorts a, Ports b) => Ports (a -> b) where
 --class OutPorts a where
 --    outPorts :: a ->  [(Var, BaseTy, Driver E)]
 
-class InPorts a where
-    inPorts :: [String] -> (a,[String])
-
-    input :: String -> a -> a
 
 {-
 input nm = liftS1 $ \ (Comb a d) ->
@@ -149,8 +152,8 @@ input nm = liftS1 $ \ (Comb a d) ->
 
 -}
 
-wireGenerate :: [String] -> (D w,[String])
-wireGenerate (v:vs) = (D (Pad (Var v)),vs)
+wireGenerate :: Int -> (D w,Int)
+wireGenerate v = (D (Pad (PadVar v ("i_" ++ show v))),succ v)
 
 instance Wire a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
@@ -250,7 +253,6 @@ showOptReifiedCircuit opt c = do
 	return $ show rCir'
 
 
-
 -------------------------------------------------------------
 
 
@@ -287,8 +289,8 @@ resolveNames cir
 	newCircuit = 
 		[ ( u
 		  , case e of
-		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad _)] misc
-			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad oNm)] misc
+		      Entity (Name "Lava" "input") outs [(Var oNm,oTy,Pad (PadVar i _))] misc
+			-> Entity (Name "Lava" "id") outs [(Var oNm,oTy,Pad (PadVar i oNm))] misc
 		      Entity (Name "Lava" io) outs ins misc
 			| io `elem` ["input","output"]
 			-> Entity (Name "Lava" "id") outs ins misc
@@ -297,7 +299,7 @@ resolveNames cir
 		| (u,e) <- theCircuit cir
 		]
 
-	newSrcs :: [(Var,BaseTy)]
+	newSrcs :: [(PadVar,BaseTy)]
 	newSrcs = [ case lookup nm mapInputs of
 		       Nothing -> (nm,ty)
 		       Just nm' -> (nm',ty)
@@ -310,19 +312,20 @@ resolveNames cir
 		  , not (nm `elem` (map fst newSrcs))
 		  ]
 
+	newSinks :: [(PadVar,BaseTy,Driver Unique)]
 	newSinks = [ case dr of
-		      Port (nm') u | isOutput u -> (nm',ty,dr)
+		      Port (Var nm') u | isOutput u -> (PadVar i nm',ty,dr)
 		      _ -> (nm,ty,dr)
-		   | (nm,ty,dr) <- theSinks cir
+		   | (nm@(PadVar i _),ty,dr) <- theSinks cir
 		   ]
 
 	isOutput u = case lookup u (theCircuit cir) of
 			Just (Entity (Name "Lava" "output") _ _ _) -> True
 			_ -> False
 
-	mapInputs :: [(Var,Var)]
-	mapInputs = [ (inp,nm)
-		    | (_,Entity (Name "Lava" "input") _ [(nm,_,Pad inp)] _) <- theCircuit cir
+	mapInputs :: [(PadVar,PadVar)]
+	mapInputs = [ (PadVar i inp,PadVar i nm)
+		    | (_,Entity (Name "Lava" "input") _ [(Var nm,_,Pad (PadVar i inp))] _) <- theCircuit cir
 		    ]
 
 

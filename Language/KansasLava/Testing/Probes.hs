@@ -70,9 +70,10 @@ instance (Show a, RepWire a) => Probe (Comb a) where
 --instance Probe (Clock c) where
 --    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
  
+-- AJG: The number are hacks to make the order of rst before clk work.
 instance Probe (Env c) where
-    probe probeName (Env clk rst clk_en) = Env clk (probe (probeName ++ "_rst") rst)
- 						   (probe (probeName ++ "_clk_en") clk_en)	
+    probe probeName (Env clk rst clk_en) = Env clk (probe (probeName ++ "_0rst") rst)
+ 						   (probe (probeName ++ "_1clk_en") clk_en)
 
 instance (Show a, Show b,
           RepWire a, RepWire b,
@@ -98,7 +99,7 @@ addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
             Port v (E (Entity n outs ins $ attrs ++ [(ProbeValue probeName value)]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
-addAttr probeName value d@(Pad (Var v)) =
+addAttr probeName value d@(Pad (PadVar _ v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
                        [ProbeValue probeName value])))

@@ -117,7 +117,6 @@ writeDotCircuit' filename circuit = do
 				               edge' nd' Nothing n (Just (show v ++ ":w")) []
 		     Lit i -> do nd' <- node [("label",show i),("shape","none")]
 				 edge' nd' Nothing n (Just (show v ++ ":w")) []
-                     p@(PathPad _) -> error $ "Unmatched pattern in drawEdge: " ++ show p
 
 	sequence [ drawEdge dr output_bar v
 		 | (v,_,dr) <- outputs

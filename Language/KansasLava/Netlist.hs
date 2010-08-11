@@ -19,7 +19,7 @@ import Data.Sized.Unsigned
 import Data.Reify.Graph
 
 import Text.PrettyPrint
-import Data.List(intersperse,find,mapAccumL,nub)
+import Data.List(intersperse,find,mapAccumL,nub,sort)
 import Data.Maybe(fromJust)
 import qualified Data.Map as M
 
@@ -65,11 +65,11 @@ netlistCircuit' opts nlOpts name circuit = do
 
   let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
 	         -- need size info for each input, to declare length of std_logic_vector
-  let inports = loadEnable ++ [ (nm,sizedRange ty) | (Var nm, ty) <- srcs]
+  let inports = loadEnable ++ [ (nm,sizedRange ty) | (PadVar _ nm, ty) <- sort srcs]
                  -- need size info for each output, to declare length of std_logic_vector
-  let outports = [ (nm,sizedRange ty) | (Var nm,ty,_) <- sinks]
+  let outports = [ (nm,sizedRange ty) | (PadVar _ nm,ty,_) <- sort sinks]
 
-  let finals = [ NetAssign n (toStdLogicExpr ty x) | (Var n,ty,x) <- sinks ]
+  let finals = [ NetAssign n (toStdLogicExpr ty x) | (PadVar _ n,ty,x) <- sort sinks ]
 
   let mod = Module name inports outports
 		(concatMap genDecl nodes ++

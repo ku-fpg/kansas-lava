@@ -6,7 +6,7 @@ module Language.KansasLava.Testing.Bench
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.Netlist.Utils(NetlistOption(..))
 import Language.KansasLava.Testing.Probes
-import Data.List(mapAccumL,sortBy, elemIndex,find)
+import Data.List(mapAccumL,sortBy, elemIndex,find,sort)
 import Data.Bits
 
 import System.Random
@@ -57,7 +57,7 @@ testbenchBaseDir name = do
 mkTestbench' :: String -- Name of circuit
 	     -> String -- Base directory
              -> String -- Generated VHDL
-             -> ([(Var, BaseTy)], [(Var, BaseTy)], [(Var, BaseTy)]) -- result of call to ports
+             -> ([(PadVar, BaseTy)], [(PadVar, BaseTy)], [(PadVar, BaseTy)]) -- result of call to ports
              -> [String] -- result of call to genProbes
              -> IO ()
 mkTestbench' name base vhdl (inputs,outputs,sequentials) waves = do
@@ -85,7 +85,7 @@ entity coreName = unlines
    "end entity " ++ coreName ++ "_tb;"
   ]
 
-architecture :: String  -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> String
+architecture :: String  -> [(PadVar, BaseTy)] -> [(PadVar, BaseTy)] -> [(PadVar, BaseTy)] -> String
 architecture coreName inputs outputs sequentials = unlines $
   ["architecture sim of " ++ coreName ++ "_tb is"] ++
    signals ++
@@ -101,11 +101,11 @@ architecture coreName inputs outputs sequentials = unlines $
          "signal output : " ++ portType (inputs ++ outputs) ++ ";"
           ]
 
-dut :: String -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> [(Var, BaseTy)] -> String
+dut :: String -> [(PadVar, BaseTy)] -> [(PadVar, BaseTy)] -> [(PadVar, BaseTy)] -> String
 dut coreName inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ coreName,
  "port map ("] ++
- ["\t" ++ c ++ " => clk," | (Var c,_) <- sequentials] ++
+ ["\t" ++ c ++ " => clk," | (PadVar _ c,_) <- sequentials] ++
  (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
  [");"]
 
@@ -155,18 +155,18 @@ stimulus coreName inputs outputs = unlines $ [
 
 -- Manipulating ports
 ports :: (Ports a) =>
-         [ReifyOptions] -> a -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[(Var, BaseTy)])
+         [ReifyOptions] -> a -> IO ([(PadVar, BaseTy)],[(PadVar, BaseTy)],[(PadVar, BaseTy)])
 ports ropts fun = do
   reified <- reifyCircuit ropts fun
   ports' ropts reified
 
-ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(Var, BaseTy)],[(Var, BaseTy)],[(Var, BaseTy)])
+ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(PadVar, BaseTy)],[(PadVar, BaseTy)],[(PadVar, BaseTy)])
 ports' ropts reified = do
   let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
       clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
-  return ({-sortPorts (findInputs ropts) -}inputs,{-sortPorts (findOutputs ropts)-} outputs,clocks) -- zip clocks resets)
+  return (sort inputs,{-sortPorts (findOutputs ropts)-} sort outputs,sort clocks) -- zip clocks resets)
 
 -- sortInputs
 sortPorts names ports = sortBy comp ports
@@ -195,7 +195,7 @@ portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
 portLen :: [(a, BaseTy)] -> Int
 portLen pts = sum (map (baseTypeLength .snd) pts)
 
-portAssigns :: [(Var, BaseTy)]-> [(Var, BaseTy)] -> [String]
+portAssigns :: [(PadVar, BaseTy)]-> [(PadVar, BaseTy)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
@@ -203,8 +203,8 @@ portAssigns inputs outputs = imap ++ omap
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- inputs]
-        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,baseTypeLength ty) | (Var n,ty) <- outputs]
+        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (PadVar _ n,ty) <- inputs]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,baseTypeLength ty) | (PadVar _ n,ty) <- outputs]
 
 -- Modelsim 'do' script
 doscript :: String -> [String] -> String

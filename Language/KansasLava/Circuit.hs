@@ -22,8 +22,8 @@ data Uq = Uq Unique | Sink | Source
 data ReifiedCircuit = ReifiedCircuit
 	{ theCircuit :: [(Unique,MuE Unique)]
 		-- ^ This the main graph. There is no actual node for the source or sink.
-	, theSrcs    :: [(Var,BaseTy)]
-	, theSinks   :: [(Var,BaseTy,Driver Unique)]
+	, theSrcs    :: [(PadVar,BaseTy)]
+	, theSinks   :: [(PadVar,BaseTy,Driver Unique)]
 	-- , theTypes   :: TypeEnv
 	}
 
@@ -38,16 +38,18 @@ data ReifyOptions
 
 
 
+showDriver :: Driver Unique -> BaseTy -> String
+showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
+showDriver (Lit x) ty = show x ++ ":" ++ show ty
+showDriver (Pad (PadVar n x)) ty = show x ++ "<" ++ show n ++ ">" ++ ":" ++ show ty
+showDriver (Error msg) ty = show msg ++ ":" ++ show ty
+showDriver l _ = error $ "showDriver: " ++ show l
+
 instance Show ReifiedCircuit where
    show rCir = msg
      where
 	bar = (replicate 78 '-') ++ "\n"
-        showDriver :: Driver Unique -> BaseTy -> String
-        showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
-        showDriver (Lit x) ty = show x ++ ":" ++ show ty
-        showDriver (Pad x) ty = show x ++ ":" ++ show ty
-        showDriver (Error msg) ty = show msg ++ ":" ++ show ty
-        showDriver l _ = error $ "showDriver: " ++ show l
+
 	inputs = unlines
 		[ show var ++ " : " ++ show ty
 		| (var,ty) <- theSrcs rCir

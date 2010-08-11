@@ -49,12 +49,14 @@ instance Ord Dynamic where
 
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
-              | Pad Var         --
-	      | PathPad [Int]	-- a unique path to a pad
+              | Pad PadVar       	  --
+--	      | PathPad [Int]	-- a unique path to a pad
               | Lit Integer
 	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Show, Eq, Ord)
 
+data PadVar = PadVar Int String		-- The # is used purely for sorting order.
+	deriving (Show, Eq, Ord)
 
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =
@@ -65,7 +67,7 @@ instance T.Traversable (Entity ty a) where
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
   traverse _ (Pad v)       = pure $ Pad v
-  traverse _ (PathPad v)   = pure $ PathPad v
+--  traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
   traverse _ (Error s)     = pure $ Error s
 
@@ -76,8 +78,9 @@ instance F.Foldable (Entity ty a) where
 instance F.Foldable Driver where
   foldMap f (Port _ s)    = f s
   foldMap _ (Pad _)       = mempty
-  foldMap _ (PathPad _)   = mempty
+--  foldMap _ (PathPad _)   = mempty
   foldMap _ (Lit _)       = mempty
+  foldMap _ (Error s)     = mempty
 
 instance Functor (Entity ty a) where
     fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
@@ -85,7 +88,7 @@ instance Functor (Entity ty a) where
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
     fmap _ (Pad v)       = Pad v
-    fmap _ (PathPad v)   = PathPad v
+--    fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
     fmap _ (Error s)     = Error s
 

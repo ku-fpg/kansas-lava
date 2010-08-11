@@ -26,9 +26,9 @@ class ToTypedExpr v where
 
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
-	toTypedExpr ty (Lit n)          = toTypedExpr ty n
-	toTypedExpr ty (Port (Var v) n) = toTypedExpr ty (sigName v (fromIntegral n))
-	toTypedExpr ty (Pad (Var nm))   = toTypedExpr ty nm
+	toTypedExpr ty (Lit n)             = toTypedExpr ty n
+	toTypedExpr ty (Port (Var v) n)    = toTypedExpr ty (sigName v (fromIntegral n))
+	toTypedExpr ty (Pad (PadVar _ nm)) = toTypedExpr ty nm
 
 instance ToTypedExpr String where
 	-- From a std_logic* into a typed Expr
@@ -55,9 +55,9 @@ class ToStdLogicExpr v where
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
-	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
-	toStdLogicExpr ty (Port (Var v) n) = ExprVar $ sigName v (fromIntegral n)
-	toStdLogicExpr ty (Pad (Var v))	   = ExprVar $ v
+	toStdLogicExpr ty (Lit n)            = toStdLogicExpr ty n
+	toStdLogicExpr ty (Port (Var v) n)   = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr ty (Pad (PadVar _ v)) = ExprVar $ v
 
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
@@ -154,7 +154,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 
 	nm = case d of
 		Port (Var v) n -> sigName v n
-		Pad (Var v) -> v
+		Pad (PadVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
 		
 	f :: Integer -> BaseTy -> (Integer,Expr)

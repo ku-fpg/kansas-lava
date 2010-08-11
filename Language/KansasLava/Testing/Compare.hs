@@ -117,14 +117,16 @@ testCircuit' opts name circuit apply
         rc <- reifyCircuit (reifyOptions opts) probed
         print rc
 
-        rc' <- reifyCircuit (reifyOptions opts) $ apply probed
-        print rc'
+--        rc' <- reifyCircuit (reifyOptions opts) $ apply probed
+--        print rc'
 
         pdata <- probeCircuit $ apply probed
 
 	print pdata
 
         let base = "examine/" ++ name
+            path = base ++ "/" ++ name ++ "/"
+            fp = path
 
 
 	vhdl <- vhdlCircuit [] [] name probed
@@ -135,10 +137,17 @@ testCircuit' opts name circuit apply
         ports <- ports' [] rc
         waves <- genProbes' name rc
 
---	print waves
---	print ports
+
+	-- probedata is in the correct order.
+	let probeData = probesFor name pdata
+
+	print (ports,waves)
+	print probeData
+
 	putStrLn vhdl
         mkTestbench' name base vhdl ports waves
+        mkInputs name path (cycles opts) probeData fp
+
 
         return ()
 
@@ -217,7 +226,9 @@ extractSubcircuit pname rc = extract root leaves rc
                                          , pname `isPrefixOf` name ]
 
 extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
-extract n ls rc = ReifiedCircuit { theCircuit = newGraph
+extract n ls rc = error "TODO FIX ME"
+{-	
+	ReifiedCircuit { theCircuit = newGraph
                                  , theSrcs = newPads
                                  , theSinks = newSinks
                                  }
@@ -237,6 +248,7 @@ extract n ls rc = ReifiedCircuit { theCircuit = newGraph
           newSinks = [ (Var $ "o" ++ show oname, ty, Port nm n)
                      | Just (Entity _ outs _ _) <- [lookup n $ theCircuit rc]
                      , (oname, (nm, ty)) <- zip [0..] outs ]
+-}
 
 data ProbeTree = Node String Unique [ProbeTree]
     deriving (Eq, Show)
