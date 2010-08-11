@@ -265,7 +265,8 @@ output nm = liftS1 $ \ (Comb a d) ->
 
 resolveNames :: ReifiedCircuit -> ReifiedCircuit
 resolveNames cir 
-	| error1 = error "The generated input/output names are non distinct"
+	| error1 = error $ "The generated input/output names are non distinct: " ++
+			   show (map fst (theSrcs cir))
 	| not (null error2) = error $ "A name has been used both labeled and non labeled "
 	| error3 = error "The labled input/output names are non distinct"	
 	| otherwise = ReifiedCircuit { theCircuit = newCircuit
