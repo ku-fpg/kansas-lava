@@ -170,7 +170,7 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		            , case eX of
 			     	Table out' _ _
 				  -> Entity (Name "Lava" "id") [out'] [(n,t, Port n u0)]  []
-		 	     	Table {} -> error "found Entity, expecting Table"
+		 	     	Entity {} -> error "found Entity, expecting Table"
 			    )
 			  | (uX,eX) <- rest
 			  ]
