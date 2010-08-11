@@ -19,14 +19,13 @@ import Control.Applicative
 
 ---------------------------------------------------------------------------------------------------------
 
-data ProbeValue
-	= EntityAnnotation
-	| forall a. (Show a, RepWire a) => ProbeValue String (XStream  a)
+data Annotation = forall a. (Show a, RepWire a) => ProbeValue String (XStream a)
 
-instance Eq ProbeValue where {}
-instance Ord ProbeValue where {}
-instance Show ProbeValue where
+instance Eq Annotation where {}
+instance Ord Annotation where {}
+instance Show Annotation where
     show (ProbeValue name _) = name
+    show _                   = error "Show: Unknown Annotation"
 
 data XStream a = XStream (Stream (X a))
 
@@ -35,11 +34,11 @@ data XStream a = XStream (Stream (X a))
 newtype E = E (MuE E)
 
 -- What should this be called. Pre-MuE?
-type MuE u = Entity BaseTy ProbeValue u
+type MuE u = Entity BaseTy Annotation u
 
 -- You want to observe
 instance MuRef E where
-  type DeRef E = Entity BaseTy ProbeValue
+  type DeRef E = Entity BaseTy Annotation
   mapDeRef f (E s) = T.traverse f s
 
 instance Show E where

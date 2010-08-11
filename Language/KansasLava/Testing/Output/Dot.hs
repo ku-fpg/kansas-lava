@@ -4,9 +4,8 @@ module Language.KansasLava.Testing.Output.Dot
 	, writeDotCircuit'
 	) where
 
-import Data.Dynamic
-
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit

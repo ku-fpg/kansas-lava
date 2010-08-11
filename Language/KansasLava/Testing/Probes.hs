@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,ProbeValue(..),XStream(..),probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
+module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
 
 import Data.Sized.Unsigned
 import Data.Sized.Signed
@@ -29,7 +29,7 @@ import Language.KansasLava.Wire
 -- | that circuit.
 probeCircuit :: (Ports a) =>
            a        -- ^ The Lava circuit.
-           -> IO [(String,ProbeValue)]
+           -> IO [(String,Annotation)]
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
     let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
@@ -39,13 +39,13 @@ probeCircuit circuit = do
 
 -- | 'getProbe' takes an association list of probe values and a probe
 -- | name, and returns the trace (wrapped in a ProbeValue) from the probe.
-getProbe :: [(String,ProbeValue)] -> String ->  Maybe ProbeValue
+getProbe :: [(String,Annotation)] -> String ->  Maybe Annotation
 getProbe ps nm = lookup nm ps
 
 -- | 'probesFor' takes an association list of probe values and a probe
 -- | name, and returns an association list containing only those probes
 -- | related to the probed function, in argument order.
-probesFor :: String -> [(String,ProbeValue)] -> [(String,ProbeValue)]
+probesFor :: String -> [(String,Annotation)] -> [(String,Annotation)]
 probesFor name plist =
     sortBy (\(n1, _) (n2, _) -> compare n1 n2) $
     filter (\(n, _) -> name `isPrefixOf` n) plist

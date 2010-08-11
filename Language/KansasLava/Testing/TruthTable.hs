@@ -22,6 +22,7 @@ import Debug.Trace
 import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Netlist
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq

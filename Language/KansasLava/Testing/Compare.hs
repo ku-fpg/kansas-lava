@@ -94,7 +94,7 @@ testOnly opts name circuit apply = do
 algDebug :: DebugOpts
          -> String
          -> ReifiedCircuit
-         -> [(String, ProbeValue)]
+         -> [(String, Annotation)]
          -> String
          -> [ProbeTree]
          -> IO ()

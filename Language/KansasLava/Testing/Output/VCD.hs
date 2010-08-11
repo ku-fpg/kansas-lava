@@ -2,7 +2,7 @@
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 --   Verilog (yes, it shouldn't be in the VHDL hierarchy) format for viewing in
 --   a waveform viewer.
-module Language.KansasLava.Testing.Output.VCD(vcdCircuit,probeCircuit,probe,getProbe,ProbeValue(..)) where
+module Language.KansasLava.Testing.Output.VCD(vcdCircuit) where
 
 import Language.KansasLava
 import Language.KansasLava.Testing.Probes
@@ -14,7 +14,6 @@ import Data.Sized.Arith(X1_,X0_)
 
 import Data.Char
 import Data.Bits
-import Data.Dynamic
 import Data.Maybe
 import Data.Char
 
@@ -96,7 +95,7 @@ taggedEvents identifiers tags = collated labeled
 
 
 -- format creates the actual VCD formatted dump.
-format :: TimeTag -> [(String,ProbeValue)] -> String
+format :: TimeTag -> [(String,Annotation)] -> String
 format maxTime seqs = unlines $ [
           "$timescale 10ns $end", -- Timescale section
           "$scope module logic $end"] -- scope section
