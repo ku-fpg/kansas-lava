@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, StandaloneDeriving, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
-module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit, testOnly, testReify) where
+module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit, testCircuit', testOnly, testReify) where
 
 import System.IO.Unsafe
 
@@ -38,6 +38,7 @@ import Language.KansasLava.Testing.TruthTable
 import Language.KansasLava.Testing.Utils
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
+import Language.KansasLava.VHDL
 
 import Language.Netlist.GenVHDL
 
@@ -82,6 +83,44 @@ testCircuit opts name circuit apply
 
         algDebug opts name rc pdata "" $ probeForest rc
     | otherwise = return ()
+
+-- Just generate the directory of 
+testCircuit' :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
+testCircuit' opts name circuit apply
+    | null (enabled opts) || name `elem` (enabled opts) = do
+        let probed = probe name circuit
+
+        rc <- reifyCircuit (reifyOptions opts) probed
+        print rc
+
+        rc' <- reifyCircuit (reifyOptions opts) $ apply probed
+        print rc'
+
+        pdata <- probeCircuit $ apply probed
+
+	print pdata
+
+        let base = "examine/" ++ name
+
+
+	vhdl <- vhdlCircuit [] [] name probed
+
+	let waves = []
+	let ports = ([],[],[])
+
+        ports <- ports' [] rc
+        waves <- genProbes' name rc
+
+--	print waves
+--	print ports
+	putStrLn vhdl
+        mkTestbench' name base vhdl ports waves
+
+        return ()
+
+
+    | otherwise = return ()
+
 
 testOnly :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
 testOnly opts name circuit apply = do
