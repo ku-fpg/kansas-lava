@@ -66,9 +66,13 @@ instance (Show a, RepWire a) => Probe (Comb a) where
         where strm :: XStream a
               strm = XStream $ fromList $ repeat s
 
--- ignore the Env for now
+-- TODO: consider, especially with seperate clocks
+--instance Probe (Clock c) where
+--    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
+ 
 instance Probe (Env c) where
-    probe _ = id
+    probe probeName (Env clk rst clk_en) = Env clk (probe (probeName ++ "_rst") rst)
+ 						   (probe (probeName ++ "_clk_en") clk_en)	
 
 instance (Show a, Show b,
           RepWire a, RepWire b,
