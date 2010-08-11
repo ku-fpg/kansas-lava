@@ -71,10 +71,9 @@ genInst i (Entity (Name "Lava" "index")
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
 
--- For Probes
-genInst i (Entity (Name "probe" _)
-         [(Var "o0",oty)]
-         [(Var "i0", _, input)] _) = [NetAssign (sigName "o0" i) (toTypedExpr oty input)]
+-- For Probes, consider adding a comment
+genInst i (Entity (Name "probe" _) ins outs _) = 
+	genInst i (Entity (Name "Lava" "id") ins outs [])
 
 genInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] inputs _) =
           [NetAssign input (toStdLogicExpr ty d) ]
