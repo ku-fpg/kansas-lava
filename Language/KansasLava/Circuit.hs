@@ -46,7 +46,8 @@ instance Show ReifiedCircuit where
         showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
         showDriver (Lit x) ty = show x ++ ":" ++ show ty
         showDriver (Pad x) ty = show x ++ ":" ++ show ty
-        showDriver l _ = error $ "showDriver" ++ show l
+        showDriver (Error msg) ty = show msg ++ ":" ++ show ty
+        showDriver l _ = error $ "showDriver: " ++ show l
 	inputs = unlines
 		[ show var ++ " : " ++ show ty
 		| (var,ty) <- theSrcs rCir

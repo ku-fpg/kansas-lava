@@ -104,6 +104,11 @@ addAttr probeName value d@(Lit x) =
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
                  [ProbeValue probeName value])))
             where ty = wireType (error "probe/oTy" :: a)
+addAttr probeName value d@(Error _) = 
+            (Port (Var "o0")
+             (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
+                 [ProbeValue probeName value])))
+            where ty = wireType (error "probe/oTy" :: a)
 addAttr _ _ driver = error $ "Can't probe " ++ show driver
 
 -- showXStream is a utility function for printing out stream representations.

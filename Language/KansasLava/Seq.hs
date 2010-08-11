@@ -60,7 +60,7 @@ deepSeq :: D a -> CSeq c a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
 shallowSeq :: Stream (X a) -> CSeq c a
-shallowSeq s = Seq s (D $ Pad $ Var "incorrect use of deep Seq")
+shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 
 errorSeq ::  forall a c . (Wire a) => CSeq c a
 errorSeq = liftS0 errorComb

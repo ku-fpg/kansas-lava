@@ -51,7 +51,8 @@ instance Ord Dynamic where
 data Driver s = Port Var s      -- a specific port on the entity
               | Pad Var         --
 	      | PathPad [Int]	-- a unique path to a pad
-              | Lit Integer --
+              | Lit Integer
+	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Show, Eq, Ord)
 
 
@@ -66,6 +67,7 @@ instance T.Traversable Driver where
   traverse _ (Pad v)       = pure $ Pad v
   traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
+  traverse _ (Error s)     = pure $ Error s
 
 
 instance F.Foldable (Entity ty a) where
@@ -85,4 +87,5 @@ instance Functor Driver where
     fmap _ (Pad v)       = Pad v
     fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
+    fmap _ (Error s)     = Error s
 

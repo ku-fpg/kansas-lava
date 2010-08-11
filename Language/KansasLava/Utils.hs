@@ -368,7 +368,7 @@ mkEnv :: Clock c -> CSeq c Bool -> CSeq c Bool -> Env c
 mkEnv = Env
 
 shallowEnv :: Env ()
-shallowEnv = toEnv (Clock 1 (error "no deep clock"))
+shallowEnv = toEnv (Clock 1 (D $ Error "no deep clock"))
 
 clkDriver :: Clock c -> D ()
 clkDriver (Clock _ d) = d
