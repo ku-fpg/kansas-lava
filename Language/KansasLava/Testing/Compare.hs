@@ -189,8 +189,7 @@ extractSubcircuit :: String -> ReifiedCircuit -> ReifiedCircuit
 extractSubcircuit pname rc = extract root leaves rc
     where (root:leaves) = map fst $ sortBy (\(_,n1) (_,n2) -> compare n2 n1)
                         $ [ (node, name) | (node, Entity _ _ _ attrs) <- theCircuit rc
-                                         , val <- attrs
-                                         , (ProbeValue name _) <- [val]
+                                         , ProbeValue name _ <- attrs
                                          , pname `isPrefixOf` name ]
 
 extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
@@ -223,9 +222,9 @@ probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
     where circuit = theCircuit rc
           initial = findProbes bfsProbes (sinkNames rc) rc
           bfsOrder = lookupAll (bfs (sinkNames rc) rc) circuit
-          bfsProbes = [ id | (id, Entity _ _ _ attrs) <- bfsOrder
-                           , L.length attrs > 0	-- TODO: check for actual probes
-                      ]
+          bfsProbes = nub [ id | (id, Entity _ _ _ attrs) <- bfsOrder
+                               , ProbeValue _ _ <- attrs
+                          ]
           go fam n = Node fam
                           n
                           [ go (last ps) x
@@ -236,8 +235,7 @@ probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
 
 probesOn n circuit = nub [ fst $ splitWith '_' nm
                          | Just (Entity _ _ _ attrs) <- [lookup n circuit]
-                         ,  val <- attrs
-                         , (ProbeValue nm _) <- [val]
+                         , (ProbeValue nm _) <- attrs
                          ]
 
 findProbes pnodes nodes rc = reverse $ go nodes [] []
@@ -267,8 +265,7 @@ children name rc = catMaybes $ filter isJust
           Entity _ _ ins _ = fromJust $ lookup name c
 
 probeValues name rc = [ pv | Just (Entity _ _ _ attrs) <- [lookup name $ theCircuit rc]
-                          , val <- attrs
-                          , pv@(ProbeValue n v) <- [val]]
+                          , pv@(ProbeValue n v) <- attrs]
 
 testReify :: (Ports a) => String -> a -> IO ()
 testReify nm fn = do
