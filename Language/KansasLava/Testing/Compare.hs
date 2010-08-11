@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, StandaloneDeriving, ScopedTypeVariables, FlexibleContexts, Rank2Types, ExistentialQuantification, TypeFamilies #-}
-module Language.KansasLava.Testing.Compare (DebugOpts(..), def, testCircuit, testCircuit', testOnly, testReify) where
+module Language.KansasLava.Testing.Compare (DebugOpts(..), def, genInfo, genInput, testCircuit, testCircuit', testOnly, testReify) where
 
 import System.IO.Unsafe
 
@@ -71,6 +71,30 @@ instance Default DebugOpts where
                , enabled = []
                }
 
+getProbeData :: (Ports a, Probe a, Ports b) => a -> (a -> b) -> IO ([[String]], [[String]])
+getProbeData circuit apply = do
+    let probed = probe "getProbeData" circuit
+    rc <- reifyCircuit [] probed
+    pdata <- probeCircuit $ apply probed
+    let ps   = probesFor "getProbeData" pdata
+        vals = [(bitsXStream xs, valsXStream xs) | (_, ProbeValue _ xs) <- ps]
+    return $ unzip vals
+
+genInput :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO [String]
+genInput num circuit apply = do
+    (bits, _) <- getProbeData circuit apply
+
+    return $ take num $ mergeWith (++) $ bits
+
+genInfo :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO [String]
+genInfo num circuit apply = do
+    (bits, vals) <- getProbeData circuit apply
+
+    return $ L.zipWith (\n l -> "(" ++ show n ++ ") " ++ l) [0..]
+           $ mergeWith (\x y -> x ++ " -> " ++ y)
+           $ L.zipWith (\bs vs -> L.zipWith (\v b -> v ++ "/" ++ b) (take num vs) (take num bs)) bits
+           $ vals
+
 testCircuit :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
 testCircuit opts name circuit apply
     | null (enabled opts) || name `elem` (enabled opts) = do
@@ -84,7 +108,7 @@ testCircuit opts name circuit apply
         algDebug opts name rc pdata "" $ probeForest rc
     | otherwise = return ()
 
--- Just generate the directory of 
+-- Just generate the directory of
 testCircuit' :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
 testCircuit' opts name circuit apply
     | null (enabled opts) || name `elem` (enabled opts) = do
