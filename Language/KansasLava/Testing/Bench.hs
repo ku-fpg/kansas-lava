@@ -166,7 +166,7 @@ ports' ropts reified = do
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
       clocks = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
-  return (sortPorts (findInputs ropts) inputs,sortPorts (findOutputs ropts) outputs,clocks) -- zip clocks resets)
+  return ({-sortPorts (findInputs ropts) -}inputs,{-sortPorts (findOutputs ropts)-} outputs,clocks) -- zip clocks resets)
 
 -- sortInputs
 sortPorts names ports = sortBy comp ports
