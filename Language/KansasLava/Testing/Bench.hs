@@ -214,7 +214,8 @@ doscript coreName waves =
       unlines $ ["vlib " ++ workDir,
                  "vcom -work " ++ workDir ++ " " ++ coreName ++ ".vhd",
                  "vcom -work " ++ workDir ++ " " ++ coreName ++ "_tb.vhd",
-                 "vsim -lib "  ++ workDir ++ " " ++ coreName ++ "_tb"]
+                 "vsim -lib "  ++ workDir ++ " " ++ coreName ++ "_tb",
+                 "add wave -r /*" ]
                   ++ waves
                   ++ ["run -all",
                       "quit"]
