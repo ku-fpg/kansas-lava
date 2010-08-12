@@ -87,6 +87,19 @@ instance (Show a, Show b,
               val :: (f a, f b)
               val = unpack packed
 
+instance (Show a, Show b,Show c,
+          RepWire a, RepWire b,RepWire c,
+          Size (ADD (WIDTH a) (WIDTH b)),
+          Enum (ADD (WIDTH a) (WIDTH b)),
+          Probe (f (a,b,c)),
+          Pack f (a,b,c)) => Probe (f a, f b, f c) where
+    probe probeName c = val
+        where packed :: f (a,b,c)
+              packed =  probe probeName $ pack c
+              val :: (f a, f b,f c)
+              val = unpack packed
+
+
 instance (Show a, Probe a, Probe b) => Probe (a -> b) where
     -- The default behavior for probing functions is to generate fresh names.
     probe probeName f =  probe' probeName vars f
