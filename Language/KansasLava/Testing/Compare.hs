@@ -109,9 +109,8 @@ testCircuit opts name circuit apply
     | otherwise = return ()
 
 -- Just generate the directory of
-testCircuit' :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
-testCircuit' opts name circuit apply
-    | null (enabled opts) || name `elem` (enabled opts) = do
+testCircuit' :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO b
+testCircuit' opts name circuit apply = do
         let probed = probe name circuit
 
         rc <- reifyCircuit (reifyOptions opts) probed
@@ -120,7 +119,9 @@ testCircuit' opts name circuit apply
 --        rc' <- reifyCircuit (reifyOptions opts) $ apply probed
 --        print rc'
 
-        pdata <- probeCircuit $ apply probed
+	let res = apply probed
+
+        pdata <- probeCircuit $ res
 
 	print pdata
 
@@ -149,10 +150,7 @@ testCircuit' opts name circuit apply
         mkInputs name path (cycles opts) probeData fp
 
 
-        return ()
-
-
-    | otherwise = return ()
+        return res
 
 
 testOnly :: (Ports a, Probe a, Ports b) => DebugOpts -> String -> a -> (a -> b) -> IO ()
