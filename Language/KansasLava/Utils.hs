@@ -474,15 +474,24 @@ delay env = register env errorComb
 register :: forall a clk .  (Wire a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
 register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Seq line eline) = res
    where
-	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
-	-- TODO: add enable to this
-	sres = optX (Nothing :: Maybe a)
-	         :~ S.zipWith (\ i v ->
-				case unX i :: Maybe Bool of
-				   Nothing -> optX (Nothing :: Maybe a)
-				   Just (True) -> def
-				   Just (False) -> v
-			 ) rst line
+	res = Seq sres1 (D $ Port (Var "o0") $ E $ entity)
+
+
+	sres0 = (\ r e l old_l ->
+		    case unX r :: Maybe Bool of
+		       Nothing -> optX (Nothing :: Maybe a)
+		       Just True -> def
+		       Just False -> case unX e :: Maybe Bool of
+		       			Nothing -> optX (Nothing :: Maybe a)
+		       			Just True -> l
+		       			Just False -> old_l)
+			<$> rst
+			<*> en
+			<*> line
+			<*> sres1
+
+	sres1 = optX (Nothing :: Maybe a) :~ sres0
+			
         entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
