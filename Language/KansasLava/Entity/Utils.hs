@@ -16,10 +16,12 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Stream
 
 import Control.Applicative
+import Data.Dynamic
 
 ---------------------------------------------------------------------------------------------------------
 
 data Annotation = forall a. (Show a, RepWire a) => ProbeValue String (XStream a)
+                | Ann String Dynamic
 
 instance Eq Annotation where {}
 instance Ord Annotation where {}
@@ -28,6 +30,8 @@ instance Show Annotation where
     show _                   = error "Show: Unknown Annotation"
 
 data XStream a = XStream (Stream (X a))
+
+
 
 ---------------------------------------------------------------------------------------------------------
 
