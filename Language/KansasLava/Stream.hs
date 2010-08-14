@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Language.KansasLava.Stream where
 
 import Data.Traversable
@@ -6,11 +7,13 @@ import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3)
 import Data.Monoid
+import Data.Dynamic
 
 infixr 5 :~
 
 -- A clocked sequence of values, which can be undefined (Nothing),  or have a specific value.
 data Stream a = a :~ Stream a
+    deriving (Typeable)
 
 instance Show a => Show (Stream a) where
    show = showStream 20

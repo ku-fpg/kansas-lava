@@ -32,9 +32,8 @@ probeCircuit :: (Ports a) =>
            -> IO [(String,Annotation)]
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
-    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc,
-                val <- attrs,
-                pv@(ProbeValue n v) <- [val]]
+    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
+                       , pv@(ProbeValue n v) <- attrs]
     return evts
 
 -- | 'getProbe' takes an association list of probe values and a probe
@@ -69,7 +68,7 @@ instance (Show a, RepWire a) => Probe (Comb a) where
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
 --    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
- 
+
 -- AJG: The number are hacks to make the order of rst before clk work.
 instance Probe (Env c) where
     probe probeName (Env clk rst clk_en) = Env clk (probe (probeName ++ "_0rst") rst)
@@ -122,7 +121,7 @@ addAttr probeName value d@(Lit x) =
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
                  [ProbeValue probeName value])))
             where ty = wireType (error "probe/oTy" :: a)
-addAttr probeName value d@(Error _) = 
+addAttr probeName value d@(Error _) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
                  [ProbeValue probeName value])))
