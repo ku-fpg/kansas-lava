@@ -224,9 +224,7 @@ extractSubcircuit pname rc = extract root leaves rc
                                          , pname `isPrefixOf` name ]
 
 extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
-extract n ls rc = error "TODO FIX ME"
-{-	
-	ReifiedCircuit { theCircuit = newGraph
+extract n ls rc = ReifiedCircuit { theCircuit = newGraph
                                  , theSrcs = newPads
                                  , theSinks = newSinks
                                  }
@@ -235,7 +233,7 @@ extract n ls rc = error "TODO FIX ME"
 
           newLeaves = [ (id, Entity (Name "probe" ("i" ++ show i)) outs nins attrs)
                       | (i, (id, Entity _ outs ins attrs)) <- zip [0..] (lookupAll (reverse ls) $ theCircuit rc)
-                      , let nins = [ (Var $ "i" ++ show x, ty, Pad $ Var $ "i" ++ show i) | (x, (_,ty)) <- zip [0..] outs ]
+                      , let nins = [ (Var $ "i" ++ show x, ty, Pad $ PadVar i $ "i" ++ show i) | (x, (_,ty)) <- zip [0..] outs ]
                       ]
 
           newGraph = newLeaves ++ (filter ((`notElem` (map fst newLeaves)) . fst) subGraph)
@@ -243,10 +241,9 @@ extract n ls rc = error "TODO FIX ME"
           newPads = [ (v,ty) | (_, Entity _ _ ins _) <- newLeaves
                              , (_, ty, Pad v) <- ins ]
 
-          newSinks = [ (Var $ "o" ++ show oname, ty, Port nm n)
+          newSinks = [ (PadVar oname $ "o" ++ show oname, ty, Port nm n)
                      | Just (Entity _ outs _ _) <- [lookup n $ theCircuit rc]
                      , (oname, (nm, ty)) <- zip [0..] outs ]
--}
 
 data ProbeTree = Node String Unique [ProbeTree]
     deriving (Eq, Show)
