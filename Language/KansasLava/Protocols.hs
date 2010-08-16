@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp  #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs #-}
 module Language.KansasLava.Protocols where
 
 import Language.KansasLava.Comb
@@ -55,27 +55,26 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 
     	res :: CSeq clk2 d
     	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
-{-
-	shallowRes' :: Stream (X (Matrix a d))
-	shallowRes' = pure (\ m -> forAll $ \ ix ->
-				    case Map.lookup (M.toList $ (fromWireRep ix :: Matrix (WIDTH a) Bool)) m of
-						    Nothing -> optX (Nothing :: Maybe d)
-						    Just v -> optX (Just v)
-			  ) <*> mem
--}
+
 	shallowRes :: Stream (X d)
 	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
 				       Nothing -> optX (Nothing :: Maybe d)
-				       Just a' -> case Map.lookup (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
+				       Just a' -> case lookupMEM (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
-			  ) <*> (Map.empty :~ mem)
+			  ) <*> (emptyMEM :~ mem)
 			    <*> (optX (Nothing :: Maybe a) :~ seqValue addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
 	updates :: Stream (Maybe (Maybe (a,d)))
-	updates = pure (\ e a b ->
+	updates = stepifyStream (\ a -> case a of
+					Nothing -> ()
+					Just b -> case b of 
+						   Nothing -> ()
+						   Just (c,d) -> eval c `seq` eval d `seq` ()
+			        )
+		$ pure (\ e a b ->
 			   do en'   <- unX e :: Maybe Bool
 			      if not en'
 				     then return Nothing
@@ -88,12 +87,25 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 			 <*> seqValue dat
 
 	-- mem
+{-
 	mem :: Stream (Map [Bool] d)
-	mem = Map.empty :~ Stream.fromList
+	mem = id -- stepify
+	    $ Map.empty :~ Stream.fromList
 		[ case u of
 		    Nothing           -> Map.empty	-- unknown again
 		    Just Nothing      -> m
-		    Just (Just (a,d)) -> Map.insert (M.toList $ (fromWireRep a :: Matrix (WIDTH a) Bool)) d m
+		    Just (Just (a,d)) -> ((Map.insert $! (M.toList $! (fromWireRep a :: Matrix (WIDTH a) Bool))) $!) d $! m
+		| u <- Stream.toList updates
+		| m <- Stream.toList mem
+		]
+-}
+	mem :: Stream (Mem d)
+	mem = stepifyStream (\ a -> a `seq` ()) 
+	    $ emptyMEM :~ Stream.fromList
+		[ case u of
+		    Nothing           -> emptyMEM	-- unknown again
+		    Just Nothing      -> m
+		    Just (Just (a,d)) -> ((insertMEM $! (M.toList $! (fromWireRep a :: Matrix (WIDTH a) Bool))) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
@@ -340,4 +352,82 @@ latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
     where 
 	wr :: CSeq clk1 (Pipe () a)
 	wr = enabledToPipe (\ a -> pack (pureS (),a)) inp
+
+----------------------
+
+class Stepify a where
+  stepify :: a -> a
+
+--class RepWire a => Eval a where
+eval :: (RepWire a) => a -> ()
+eval a = count $ M.toList $ fromWireRep a
+  where count (True:rest) = count rest
+	count (False:rest) = count rest
+	count [] = ()
+
+--instance (RepWire a) => Stepify (Seq a) where 
+--  stepify (Seq a d) = Seq (stepify a) d
+   
+-- one step behind, to allow knot tying.
+--instance (RepWire a) => Stepify (Stream a) where 
+--  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
+
+stepifyStream :: (a -> ()) -> Stream a -> Stream a
+stepifyStream f (a :~ r) = a :~ (f a `seq` stepifyStream f r)
+
+--instance Wire (Map [Bool] d) where {}
+
+-- instance RepRepWire (Map (M.Matrix x Bool) d) where {}
+
+
+{-
+
+instance Eval (WireVal a) where 
+    eval WireUnknown = ()
+    eval (WireVal a) = a `seq` ()
+
+instance (Eval a) => Eval (Maybe a) where
+    eval (Just a)  = eval a 
+    eval (Nothing) = ()
+
+instance (Eval a, Eval b) => Eval (a,b) where 
+	eval (a,b) = eval a `seq` eval b `seq` ()
+-}
+
+
+-- LATER: GADTs
+data Mem a 
+  = Res !a
+  | NoRes
+  | Choose !(Mem a) !(Mem a)
+	deriving Show
+
+emptyMEM :: Mem a 
+emptyMEM = NoRes
+
+insertMEM :: [Bool] -> a -> Mem a -> Mem a
+
+insertMEM []    y (Res _) = Res $! y
+insertMEM []    y NoRes   = Res $! y
+insertMEM []    y (Choose _ _) = error "inserting with short key"
+
+insertMEM (x:a) y NoRes   = insertMEM (x:a) y expanded
+insertMEM (x:a) y (Res _) = error "inserting with to long a key"
+insertMEM (x:a) y (Choose l r) 
+	| x == True 	  = Choose (insertMEM a y l) r
+	| x == False	  = Choose l (insertMEM a y r)
+
+-- Would this be lifted
+expanded = Choose NoRes NoRes
+
+lookupMEM :: [Bool] -> Mem a -> Maybe a
+lookupMEM [] (Res v) = Just v
+lookupMEM [] NoRes   = Nothing
+lookupMEM [] _       = error "lookup error with short key"
+
+lookupMEM (x:a) (Res _) = error "lookup error with long key"
+lookupMEM (x:a) NoRes   = Nothing
+lookupMEM (True:a) (Choose l r) = lookupMEM a l
+lookupMEM (False:a) (Choose l r) = lookupMEM a r
+
 
