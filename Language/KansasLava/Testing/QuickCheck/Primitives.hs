@@ -13,7 +13,7 @@ instance (Arbitrary a, Wire a) => Arbitrary (Comb a) where
 
 -- Note this isn't incredibly useful below, since Seq's don't
 -- implement equality, but maybe useful in the future.
-instance (Arbitrary a, Wire a) => Arbitrary (Seq a) where
+instance (Arbitrary a, Wire a) => Arbitrary (CSeq c a) where
     arbitrary = toSeq' <$> arbitrary
     -- TODO: shrink?
 
