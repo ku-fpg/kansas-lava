@@ -76,6 +76,7 @@ copyElimReifiedCircuit rCir =  Opt rCir' (length renamings)
 				      Nothing    -> Port p u
 			Pad v -> Pad v
 			Lit i -> Lit i
+			Error i -> error $ "Found Error : " ++ show (i,v,t,d)
 		    )
 		  | (v,t,d) <- theSinks rCir
 		  ]
