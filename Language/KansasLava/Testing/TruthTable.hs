@@ -48,9 +48,12 @@ import qualified System.Posix.Env as Posix
 import Text.PrettyPrint(render)
 
 probeTT :: (Probe a, Ports b) => a -> (a -> b) -> IO [[String]]
+probeTT f apply = error "FIX ME: probeTT in Testing/TruthTable.hs"
+{-
 probeTT f apply = do
         plist <- probeCircuit $ apply $ probe "tt" f
         return [valsXStream xs | (_, (ProbeValue _ xs)) <- probesFor "tt" plist]
+-}
 
 asciiTT :: String -> Int -> [[String]] -> IO ()
 asciiTT name entries tt = do
@@ -60,10 +63,13 @@ asciiTT name entries tt = do
              $ take entries
              $ mergeWith (\x y -> x ++ " | " ++ y) tt
 
+probesTT _ = error "FIX ME: probesTT in Testing/TruthTable.hs"
+{-
 probesTT probes = unlines
                 $ take 100
                 $ mergeWith (\x y -> x ++ " | " ++ y)
                 $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
+-}
 
 muxWaveform = do
     let expand n = concatMap (replicate n)

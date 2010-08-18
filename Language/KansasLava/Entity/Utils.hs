@@ -20,7 +20,7 @@ import Data.Dynamic
 
 ---------------------------------------------------------------------------------------------------------
 
-data Annotation = forall a. (Show a, RepWire a) => ProbeValue String (XStream a)
+data Annotation = ProbeValue String (BaseTy,[[X Bool]])
                 | Ann String Dynamic
 		| Comment String		-- intended to arrive in the VHDL
 

@@ -72,6 +72,8 @@ instance Default DebugOpts where
                }
 
 getProbeData :: (Ports a, Probe a, Ports b) => a -> (a -> b) -> IO ([[String]], [[String]])
+getProbeData circuit apply = error "FIX ME: getProbeData in Testing/Compare.hs"
+{-
 getProbeData circuit apply = do
     let probed = probe "getProbeData" circuit
     rc <- reifyCircuit [] probed
@@ -79,6 +81,7 @@ getProbeData circuit apply = do
     let ps   = probesFor "getProbeData" pdata
         vals = [(bitsXStream xs, valsXStream xs) | (_, ProbeValue _ xs) <- ps]
     return $ unzip vals
+-}
 
 genInput :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO [String]
 genInput num circuit apply = do
@@ -336,6 +339,7 @@ mkInputs name path count probes fp = do
           ]
     system $ "chmod +x " ++ path ++ "test.sh"
 
+{- TODO: Fix this
     let bits = map (\(_, (ProbeValue _ xs)) -> bitsXStream xs) probes
 
     writeFile (path ++ name ++ ".input")
@@ -351,3 +355,4 @@ mkInputs name path count probes fp = do
         $ mergeWith (\x y -> x ++ " -> " ++ y)
         $ L.zipWith (\bs vs -> L.zipWith (\v b -> v ++ "/" ++ b) (take count vs) (take count bs)) bits
         $ map (\(_, (ProbeValue _ xs)) -> valsXStream xs) probes
+-}

@@ -55,11 +55,14 @@ xstrmTail :: XStream a -> XStream a
 xstrmTail (XStream (_ :~ as)) = XStream as
 
 
- 
+
 
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
-taggedEvent :: forall a t. ( Ord a, Num a, RepWire t, Eq t) => a -> XStream t -> [(a, VCDVal)]
+taggedEvent :: forall a. ( Ord a, Num a) => a -> Annotation -> [(a, VCDVal)]
+taggedEvent maxTime (ProbeValue _ (ty,vals)) = error "FIX ME: taggedEvent in Testing/Output/VCD.hs"
+{-
+taggedEvent :: forall a t. ( Ord a, Num a, RepWire t) => a -> XStream t -> [(a, VCDVal)]
 taggedEvent maxTime (XStream (h :~ tl)) = (0,showWire h):[] -- :(taggedEvent' 1 (unX h) (XStream tl))
   where taggedEvent' :: a -> Maybe t -> XStream t -> [(a,VCDVal)]
         taggedEvent' time old strm
@@ -75,6 +78,7 @@ taggedEvent maxTime (XStream (h :~ tl)) = (0,showWire h):[] -- :(taggedEvent' 1 
                 as :: XStream t
                 as = xstrmTail strm
         showWire = showRepWire (error "taggedEvent:showWire" :: t)
+-}
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
@@ -112,17 +116,13 @@ format maxTime seqs = unlines $ [
           "$enddefinitions $end"] ++
          -- timestamp section
          concatMap fmtTimeStep evts
-  where decl (n,ProbeValue _ val) ident =
-          "$var wire " ++ show (vcdSize val) ++ " " ++ ident ++ " " ++ n ++ " $end"
+  where decl (n,ProbeValue _ (ty,_)) ident =
+          "$var wire " ++ show (baseTypeLength ty) ++ " " ++ ident ++ " " ++ n ++ " $end"
         fmtTimeStep (t,vals) =
           ["#" ++ show t] ++
           [v++ident | (ident,v) <- vals] -- no space between value and identifier
-        tes = [taggedEvent maxTime a | (_,ProbeValue _ a) <- seqs]
+        tes = [taggedEvent maxTime pval | (_,pval) <- seqs]
         evts = taggedEvents identifier_code tes
-        vcdSize :: forall a . RepWire a => XStream a -> Int
-        vcdSize strm = baseTypeLength $ wireType (error "vcdSize:" :: a)
-
-
 
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
 identifier_code :: [String]

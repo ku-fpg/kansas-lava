@@ -21,6 +21,7 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream
+import Language.KansasLava.Trace
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
 
@@ -57,13 +58,15 @@ class Probe a where
     probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
 
 instance (Show a, RepWire a) => Probe (CSeq c a) where
-    probe probeName (Seq s (D d)) = Seq s (D (addAttr probeName strm d))
-        where strm = XStream s :: XStream a
+    probe name (Seq s (D d)) = Seq s (D (addAttr pdata d))
+        where pdata = ProbeValue name (wireType witness, fromXStream witness s)
+              witness = (error "probe" :: a)
 
 instance (Show a, RepWire a) => Probe (Comb a) where
-    probe probeName c@(Comb s (D d)) = Comb s (D (addAttr probeName strm d))
-        where strm :: XStream a
-              strm = XStream $ fromList $ repeat s
+    probe name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
+        where pdata = ProbeValue name (wireType witness, fromXStream witness (fromList $ repeat s))
+              witness = (error "probe" :: a)
+--              strm = XStream $ fromList $ repeat s
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
@@ -106,27 +109,24 @@ instance (Show a, Probe a, Probe b) => Probe (a -> b) where
 
     probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
 
-addAttr :: forall a . (Show a, RepWire a) => String -> XStream a -> Driver E -> Driver E
-addAttr probeName value (Port v (E (Entity n outs ins attrs))) =
-            Port v (E (Entity n outs ins $ attrs ++ [(ProbeValue probeName value)]))
+addAttr :: Annotation -> Driver E -> Driver E
+addAttr value (Port v (E (Entity n outs ins attrs))) =
+            Port v (E (Entity n outs ins $ attrs ++ [value]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
-addAttr probeName value d@(Pad (PadVar _ v)) =
+addAttr value@(ProbeValue _ (ty,_)) d@(Pad (PadVar _ v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
-                       [ProbeValue probeName value])))
-             where ty = wireType (error "probe/oTy" :: a)
-addAttr probeName value d@(Lit x) =
+                       [value])))
+addAttr value@(ProbeValue _ (ty,_)) d@(Lit x) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
-                 [ProbeValue probeName value])))
-            where ty = wireType (error "probe/oTy" :: a)
-addAttr probeName value d@(Error _) =
+                 [value])))
+addAttr value@(ProbeValue _ (ty,_)) d@(Error _) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
-                 [ProbeValue probeName value])))
-            where ty = wireType (error "probe/oTy" :: a)
-addAttr _ _ driver = error $ "Can't probe " ++ show driver
+                 [value])))
+addAttr _ driver = error $ "Can't probe " ++ show driver
 
 -- showXStream is a utility function for printing out stream representations.
 instance RepWire a => Show (XStream a) where

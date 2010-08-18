@@ -159,9 +159,6 @@ instance RepWire Bool where
 	showRepWire _ (WireUnknown) = "?"
 	showRepWire _ (WireVal True) = "T"
 	showRepWire _ (WireVal False) = "F"
-        readRepWire B "?" = Nothing
-        readRepWire B "T" = Just True
-        readRepWire B "F" = Just False
 
 instance Wire Int where
 	type X Int 	= WireVal Int
