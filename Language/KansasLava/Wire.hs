@@ -51,13 +51,20 @@ class (Wire w, Size (WIDTH w)) => RepWire w where
 	toWireRep   :: Matrix (WIDTH w) Bool -> Maybe w
 	fromWireRep :: w -> Matrix (WIDTH w) Bool
 
+
+	-- toWireXRep (and fromWireXRep) can only be used on/after a whole cycle, and
+	-- not intra-cycle. Lazy loops that share Wires will be forced(!)
 	toWireXRep :: w -> Matrix (WIDTH w) (X Bool) -> X w
-	toWireXRep wt m = optX (toWireRep (fmap (noFail :: X Bool -> Bool) m :: Matrix (WIDTH w) Bool) :: Maybe w)
+	toWireXRep wt m = optX (if isValidWireRep wt m
+			        then toWireRep (fmap (noFail :: X Bool -> Bool) m :: Matrix (WIDTH w) Bool) :: Maybe w
+				else Nothing :: Maybe w
+			       )
 		where noFail :: X Bool -> Bool
 		      noFail x = case unX x of
 				   Nothing -> error "toWireXRep: non value"
 				   Just v -> v
-							
+
+
 	-- need to pass in witness
 	fromWireXRep :: w -> X w -> Matrix (WIDTH w) (X Bool)
 	fromWireXRep _wt w = case unX w :: Maybe w of
@@ -68,6 +75,17 @@ class (Wire w, Size (WIDTH w)) => RepWire w where
 	-- The first value is the witness.
 	showRepWire :: w -> X w -> String
 
+
+-- Checks to see if a representation is completely valid,
+-- such that toWireRep on Matrix (WIDTH w) Bool will succeed.
+isValidWireRep :: forall w .(Size (WIDTH w)) => w -> Matrix (WIDTH w) (X Bool) -> Bool
+isValidWireRep w m = and $ fmap isGood $ M.toList m
+   where
+	isGood :: X Bool -> Bool
+	isGood x  = case (unX x :: Maybe Bool) of
+		      Nothing -> False
+		      Just _  -> True
+		
 allWireReps :: forall width . (Size width) => [Matrix width Bool]
 allWireReps = [U.toMatrix count | count <- counts ]
    where
@@ -97,6 +115,11 @@ pureX = optX . Just
 
 -------------------------------------------------------------------------------------
 
+-- Same as X Bool
+-- To consider
+-- type WireVal = SignalVal Bool
+
+-- Should be called SignalVal? Par Cable? hmm.
 data WireVal a = WireUnknown | WireVal a
 
 instance Monad WireVal where
