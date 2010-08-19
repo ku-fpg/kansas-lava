@@ -71,6 +71,26 @@ instance Eq Trace where
               outsEqual = (sorted o1) == (sorted o2)
               probesEqual = (sorted p1) == (sorted p2)
 
+-- something more intelligent someday?
+diff :: Trace -> Trace -> Bool
+diff t1 t2 = t1 == t2
+
+emptyTrace :: Trace
+emptyTrace = Trace { cycles = 0, inputs = M.empty, outputs = M.empty, probes = M.empty }
+
+takeTrace :: Int -> Trace -> Trace
+takeTrace i t = t { cycles = i }
+
+dropTrace :: Int -> Trace -> Trace
+dropTrace i t@(Trace c ins outs ps) | i <= c = t { cycles = c - i
+                                                 , inputs = ins'
+                                                 , outputs = outs'
+                                                 , probes = ps' }
+                                    | otherwise = emptyTrace
+    where dropStream m = M.fromList [ (k,(ty,drop i s)) | (k,(ty,s)) <- M.toList m ]
+          ins' = dropStream ins
+          outs' = dropStream outs
+          ps' = dropStream ps
 
 {- combinators for working with traces
 -- should be easy to build using probes... especially once probes store data in same way
@@ -89,9 +109,6 @@ mkTraceRC :: (..) => ReifiedCircuit -> Trace
 runTrace :: (..) => a -> Trace -> Trace
 
 -- this is just Eq, but maybe instead of Bool some kind of detailed diff
-diff :: Trace -> Trace -> Bool
-takeTrace :: Int -> Trace -> Trace -- truncate a trace
-dropTrace :: Int -> Trace -> Trace -- skip into a trace?
 unionTrace :: Trace -> Trace -> Trace
 remove :: PadVar -> Trace -> Trace
 
