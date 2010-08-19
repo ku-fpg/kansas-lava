@@ -17,6 +17,11 @@ import Data.Bits
 import Data.Maybe
 import Data.Char
 
+vcdCircuit = error "vcdCircuit: TBD"
+{-
+ - AJG: I'm breaking VCD, because its the only place we use Eq over Wires.
+ - We should actually check the underlying form/bits anyway.
+
 -- | 'vcdCircuit' simulates a circuit and logs the probes to a file. The
 --   function takes a name parameter for the circuit and generates a file
 --   @name.vcd@ in the cwd.  The circuit type must implement the 'Ports' class
@@ -50,10 +55,11 @@ xstrmTail :: XStream a -> XStream a
 xstrmTail (XStream (_ :~ as)) = XStream as
 
 
+ 
 
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
-taggedEvent :: forall a t. ( Ord a, Num a, RepWire t) => a -> XStream t -> [(a, VCDVal)]
+taggedEvent :: forall a t. ( Ord a, Num a, RepWire t, Eq t) => a -> XStream t -> [(a, VCDVal)]
 taggedEvent maxTime (XStream (h :~ tl)) = (0,showWire h):[] -- :(taggedEvent' 1 (unX h) (XStream tl))
   where taggedEvent' :: a -> Maybe t -> XStream t -> [(a,VCDVal)]
         taggedEvent' time old strm
@@ -72,7 +78,7 @@ taggedEvent maxTime (XStream (h :~ tl)) = (0,showWire h):[] -- :(taggedEvent' 1 
 
 -- | taggedEvents takes a collection of Sequences, and converts it to a list of
 -- | tagged events, where each time stamp may have multiple value assignments.
-taggedEvents :: [a] -> [TaggedEvents] -> [(Int, [(a, VCDVal)])]
+taggedEvents :: (Eq a) => [a] -> [TaggedEvents] -> [(Int, [(a, VCDVal)])]
 taggedEvents identifiers tags = collated labeled
   where labeled = zip identifiers tags
         -- collated :: [(Int,TaggedEvents)] -> [(Time,[(Int,VCDVal )])]
@@ -125,4 +131,4 @@ identifier_code = res
         ids@(_:res) = [[]]  ++ concatMap (\i -> [c:i | c <- chars]) ids
 
 
-
+-}

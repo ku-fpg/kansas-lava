@@ -21,7 +21,7 @@ import qualified Data.Traversable as T
 import qualified Data.Maybe as Maybe
 
 -- | A 'Wire a' is an 'a' value that we can push over a wire.
-class Eq w => Wire w where
+class {- Eq w => -} Wire w where
 	-- | a way of adding unknown inputs to this wire.
 	type X w
 
