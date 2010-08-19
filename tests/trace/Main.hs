@@ -25,6 +25,9 @@ main = do
         witness2 = error "witness" :: U4
 
     print trace
+    print $ trace == trace
+    print $ trace == Trace {cycles = 100, inputs = outmap, outputs = inmap, probes = M.empty}
+    print $ trace == trace {cycles = 99}
 
 --    why don't streams with Nothings work?
     print $ delay shallowEnv $ (getSeq pv1 (inputs trace) witness :: Seq Bool)

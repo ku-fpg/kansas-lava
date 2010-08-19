@@ -120,7 +120,7 @@ pureX = optX . Just
 
 -- Should be called SignalVal? Par Cable? hmm.
 data WireVal a = WireUnknown | WireVal a
-    deriving (Typeable)
+    deriving (Eq) -- Useful for comparing [X a] lists in Trace.hs
 
 instance Monad WireVal where
 	return = WireVal

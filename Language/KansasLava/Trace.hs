@@ -5,6 +5,7 @@ import Language.KansasLava
 
 import qualified Data.Sized.Matrix as Matrix
 
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -62,8 +63,14 @@ instance Show Trace where
     show (Trace c i o p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs"], printer o, ["probes"], printer p]
         where printer strm = map show $ zip (M.keys strm) [(ty,take 20 val) | (ty,val) <- M.elems strm]
 
+-- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
-    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = c1 == c2
+    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 == c2) && insEqual && outsEqual && probesEqual
+        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,(ty,take c1 s)) | (k,(ty,s)) <- M.toList m]
+              insEqual = (sorted i1) == (sorted i2)
+              outsEqual = (sorted o1) == (sorted o2)
+              probesEqual = (sorted p1) == (sorted p2)
+
 
 {- combinators for working with traces
 -- should be easy to build using probes... especially once probes store data in same way
