@@ -20,6 +20,12 @@ genInst :: Unique -> MuE Unique -> [Decl]
 
 -- The replacements or aliases
 
+genInst i (Entity name outputs inputs (Comment msg:rest)) =
+	[ CommentDecl msg
+	] ++ genInst i (Entity name outputs inputs rest)
+
+-- TODO: check for Probes, etc.
+
 genInst i (Entity (Name "Lava" "pair") outputs inputs other)
 	= genInst i (Entity (Name "Lava" "concat") outputs inputs other)
 genInst i (Entity (Name "Lava" "triple") outputs inputs other)

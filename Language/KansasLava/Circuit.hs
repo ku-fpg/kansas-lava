@@ -62,10 +62,15 @@ instance Show ReifiedCircuit where
 		]
 	circuit = unlines
 		[ case e of
-		    Entity nm outs ins _	 ->
+		    Entity nm outs ins ann ->
 			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
 			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
  			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+			    ++ unlines [ case an of
+					   ProbeValue str _ -> "      probe " ++ str 
+					   Comment str -> "      comment " ++ str 
+				       | an <- ann 
+				       ]
 		    Table (v0,ty0) (v1,ty1,dr) mapping ->
 			"(" ++ show uq ++ ") TABLE \n" 
 			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"

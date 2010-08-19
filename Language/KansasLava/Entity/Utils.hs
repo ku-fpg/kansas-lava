@@ -22,6 +22,7 @@ import Data.Dynamic
 
 data Annotation = forall a. (Show a, RepWire a) => ProbeValue String (XStream a)
                 | Ann String Dynamic
+		| Comment String		-- intended to arrive in the VHDL
 
 instance Eq Annotation where {}
 instance Ord Annotation where {}
