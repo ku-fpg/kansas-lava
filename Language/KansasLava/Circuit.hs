@@ -2,6 +2,7 @@ module Language.KansasLava.Circuit where
 
 import Data.Reify
 import Data.List as L
+import qualified Data.Map as Map
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
@@ -10,6 +11,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
+
 
 import Debug.Trace
 
@@ -92,3 +94,35 @@ instance Show ReifiedCircuit where
 		++ circuit
 		++ bar
 
+
+-- Not the correct place for this!
+-- assumes no bad loops.
+
+-- Use lava table to change tables
+findChains :: [(Name,Float -> Float)] -> ReifiedCircuit -> [[(Float,Unique)]]
+findChains fn cir = reverse
+		$ L.groupBy (\ x y -> fst x == fst y)
+		$ L.sort
+		$ [ (b,a) | (a,b) <- Map.toList res ]
+	where
+		res = Map.map findEntityChain $ Map.fromList $ theCircuit cir
+
+		findEntityChain :: MuE Unique -> Float
+		findEntityChain (Entity nm _ ins _) =
+			plus (maximum [ findDriverChain d | (_,_,d) <- ins ])
+		   where plus = case lookup nm fn of
+			          Nothing -> (+ 1)
+			          Just f -> f
+		findEntityChain (Table _ (_,_,d) _) = plus (findDriverChain d)
+		   where plus = case lookup (Name "Lava" "table") fn of
+			          Nothing -> (+ 1)
+			          Just f -> f
+
+		findDriverChain :: Driver Unique -> Float
+		findDriverChain (Port _ u) =
+			case Map.lookup u res of
+			  Nothing -> error $ "Can not find " ++ show u
+			  Just i -> i
+		findDriverChain (Pad _) = 0
+		findDriverChain (Lit _) = 0
+		findDriverChain (Error err) = error $ "Error: " ++ show err
