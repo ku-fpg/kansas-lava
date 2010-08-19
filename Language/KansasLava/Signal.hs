@@ -40,6 +40,12 @@ errorS = liftS0 errorComb
 
 ----------------------------------------------------------------------------------------------------
 
+comment :: (Signal sig) => String -> sig a -> sig a
+comment msg = liftS1 (\ (Comb s (D (Port v (E (Entity nm ins outs ann))))) 
+		      -> Comb s (D (Port v (E (Entity nm ins outs (ann ++ [Comment msg]))))))
+
+----------------------------------------------------------------------------------------------------
+
 instance Signal Comb where
   liftS0 a     = a
   liftS1 f a   = f a
