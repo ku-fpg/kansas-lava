@@ -18,6 +18,7 @@ import Language.KansasLava.Utils
 
 import Data.Sized.Matrix as M
 import Debug.Trace
+import qualified Data.Map as Map
 
 -- | reifyCircuit does reification and type inference.
 -- reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
@@ -83,8 +84,24 @@ reifyCircuit opts circuit = do
 	let rCit = rCit'
 
 --	print rCit
-        if OptimizeReify `elem` opts then optimize opts rCit else return rCit
+	rCit2 <- if OptimizeReify `elem` opts then optimize opts rCit else return rCit
 
+	let depthss = [ mp | CommentDepth mp <- opts ]
+
+	rCit3 <- case depthss of
+		    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
+				        env = Map.fromList [ (u,d) | (d,u) <- concat chains ]
+				    return $ rCit2 { theCircuit = [ (u,case e of
+					 	          Entity nm ins outs ann -> 
+								case Map.lookup u env of
+								  Nothing -> e
+								  Just d -> Entity nm ins outs (ann ++ [Comment $ "depth: " ++ show d])
+							  _ -> e)
+						     | (u,e) <- theCircuit rCit2
+						     ]}
+		    []        -> return rCit2
+
+	return rCit3
 
 wireCapture :: forall w . (Wire w) => D w -> [(BaseTy, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]

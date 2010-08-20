@@ -36,8 +36,8 @@ data ReifyOptions
 	| DebugReify		-- show debugging output of the reification stage
 	| OptimizeReify
 	| NoRenamingReify	-- do not use renaming of variables
+	| CommentDepth [(Name,DepthOp)] 
 	deriving (Eq, Show)
-
 
 
 showDriver :: Driver Unique -> BaseTy -> String
@@ -104,7 +104,15 @@ instance Show ReifiedCircuit where
 -- assumes no bad loops.
 
 -- Use lava table to change tables
-findChains :: [(Name,Float -> Float)] -> ReifiedCircuit -> [[(Float,Unique)]]
+data DepthOp = AddDepth Float
+	     | NewDepth Float
+	deriving (Eq, Show)
+
+addDepthOp :: DepthOp -> Float -> Float
+addDepthOp (AddDepth n) m = n + m
+addDepthOp (NewDepth n) _ = n 
+
+findChains :: [(Name,DepthOp)] -> ReifiedCircuit -> [[(Float,Unique)]]
 findChains fn cir = reverse
 		$ L.groupBy (\ x y -> fst x == fst y)
 		$ L.sort
@@ -117,11 +125,11 @@ findChains fn cir = reverse
 			plus (maximum [ findDriverChain d | (_,_,d) <- ins ])
 		   where plus = case lookup nm fn of
 			          Nothing -> (+ 1)
-			          Just f -> f
+			          Just f -> addDepthOp f
 		findEntityChain (Table _ (_,_,d) _) = plus (findDriverChain d)
 		   where plus = case lookup (Name "Lava" "table") fn of
 			          Nothing -> (+ 1)
-			          Just f -> f
+			          Just f -> addDepthOp f
 
 		findDriverChain :: Driver Unique -> Float
 		findDriverChain (Port _ u) =
@@ -131,3 +139,21 @@ findChains fn cir = reverse
 		findDriverChain (Pad _) = 0
 		findDriverChain (Lit _) = 0
 		findDriverChain (Error err) = error $ "Error: " ++ show err
+
+depthTable :: [(Name,DepthOp)] 
+depthTable =
+	[ (Name "Memory" "register",NewDepth 0)
+	, (Name "Memory" "BRAM", NewDepth 0)
+
+	-- These are just pairing/projecting, and cost nothing in the final code
+	, (Name "Lava" "fst", AddDepth 0)
+	, (Name "Lava" "snd", AddDepth 0)
+	, (Name "Lava" "pair", AddDepth 0)
+	, (Name "Lava" "concat", AddDepth 0)
+	, (Name "Lava" "index", AddDepth 0)
+	, (Name "Lava" "id", AddDepth 0)
+	, (Name "StdLogicVector" "toStdLogicVector", AddDepth 0)
+	, (Name "StdLogicVector" "fromStdLogicVector", AddDepth 0)
+	, (Name "StdLogicVector" "coerceStdLogicVector", AddDepth 0)
+	, (Name "StdLogicVector" "spliceStdLogicVector", AddDepth 0)
+        ]
