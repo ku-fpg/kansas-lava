@@ -41,8 +41,13 @@ errorS = liftS0 errorComb
 ----------------------------------------------------------------------------------------------------
 
 comment :: (Signal sig) => String -> sig a -> sig a
-comment msg = liftS1 (\ (Comb s (D (Port v (E (Entity nm ins outs ann))))) 
-		      -> Comb s (D (Port v (E (Entity nm ins outs (ann ++ [Comment msg]))))))
+comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $ 
+			   case d of
+			     Port v (E e) -> Port v $ E $ 
+				case e of
+				  (Entity nm ins outs ann) -> Entity nm ins outs (ann ++ [Comment msg])
+			     Lit v -> error "can not add comment to literal"
+			     other -> error $ "can not add comment to " ++ show other
 
 ----------------------------------------------------------------------------------------------------
 
