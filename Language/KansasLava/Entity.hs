@@ -56,7 +56,7 @@ data Driver s = Port Var s      -- a specific port on the entity
               deriving (Show, Eq, Ord)
 
 data PadVar = PadVar Int String		-- The # is used purely for sorting order.
-	deriving (Show, Eq, Ord)
+	deriving (Show, Eq, Ord, Read)
 
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =

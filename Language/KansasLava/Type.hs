@@ -18,7 +18,7 @@ data BaseTy
 	| MatrixTy Int BaseTy
 			-- | Matrix, vhdl array.
 	| IntegerTy	-- holds whatever, not realizable in hw
-			-- used to pass static arguments to 
+			-- used to pass static arguments to
 	deriving (Eq, Ord)
 
 
@@ -61,3 +61,17 @@ instance Show BaseTy where
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
 	show IntegerTy	= "Integer"
 
+instance Read BaseTy where
+    readsPrec _ "B" = [(B,"")]
+    readsPrec _ "C" = [(CB,"")]
+    readsPrec _ "T" = [(T,"")]
+    readsPrec _ "CLK" = [(ClkTy,"")]
+    readsPrec _ "RST" = [(RstTy,"")]
+    readsPrec _ "Integer" = [(IntegerTy,"")]
+    readsPrec _ str | (last str) `elem` ['U', 'S', 'V'] = [(con int,"")]
+        where con = case last str of
+                        'U' -> U
+                        'S' -> S
+                        'V' -> V
+              int = read (init str) :: Int
+    readsPrec _ _   = error "read BaseTy: no parse"
