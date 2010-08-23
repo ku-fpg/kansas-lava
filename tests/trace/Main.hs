@@ -5,6 +5,8 @@ import Language.KansasLava.Trace
 import qualified Data.Map as M
 import Data.Sized.Unsigned
 
+import Data.List
+
 main = do
     let pv1 = PadVar 0 "blah"
         pv2 = PadVar 1 "bleh"
@@ -29,7 +31,11 @@ main = do
     print $ trace == Trace {cycles = 100, inputs = outmap, outputs = inmap, probes = M.empty}
     print $ trace == trace {cycles = 99}
 
+    writeToFile "test.trace" trace
+    newTrace <- readFromFile "test.trace"
+
+    print newTrace
+
 --    why don't streams with Nothings work?
     print $ delay shallowEnv $ (getSeq pv1 (inputs trace) witness :: Seq Bool)
-    print $ (getSeq (PadVar 3 "ints") (inputs trace) witness2 :: Seq U4)
-
+    print $ (getSeq (PadVar 3 "ints") (inputs newTrace) witness2 :: Seq U4)

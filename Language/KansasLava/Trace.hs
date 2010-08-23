@@ -10,7 +10,6 @@ import qualified Data.Map as M
 import Data.Maybe
 
 type TraceMap a = M.Map a (BaseTy,[[X Bool]]) -- to recover type, eventually clock too?
-type TraceStream a = Stream (Maybe a)
 
 data Trace = Trace { cycles :: Int
                    , inputs :: TraceMap PadVar
@@ -91,6 +90,37 @@ dropTrace i t@(Trace c ins outs ps) | i <= c = t { cycles = c - i
           ins' = dropStream ins
           outs' = dropStream outs
           ps' = dropStream ps
+
+serialize :: Trace -> String
+serialize (Trace c ins outs ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ ["OUTPUTS\n"] ++ showMap outs ++ ["PROBES\n"] ++ showMap ps
+    where showMap m = [unlines [show k, show ty, showStrm strm] | (k,(ty,strm)) <- M.toList m]
+          showStrm s = unwords [concatMap (showRepWire (error "serialize witness" :: Bool)) val | val <- take c s]
+
+deserialize :: String -> Trace
+deserialize str = Trace { cycles = c, inputs = ins, outputs = outs, probes = ps }
+    where (cstr:"INPUTS":ls) = lines str
+          c = read cstr :: Int
+          (ins,"OUTPUTS":r1) = readMap ls
+          (outs,"PROBES":r2) = readMap r1
+          (ps,_) = readMap r2
+
+readMap ls = (go $ takeWhile cond ls, rest)
+    where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
+          rest = dropWhile cond ls
+          go (k:ty:strm:r) = M.union (M.singleton (read k) (read ty,[map toXBool w | w <- words strm])) $ go r
+          go _             = M.empty
+          toXBool :: Char -> X Bool
+          toXBool 'T' = return True
+          toXBool 'F' = return False
+          toXBool _   = fail "unknown"
+
+writeToFile :: FilePath -> Trace -> IO ()
+writeToFile fp t = writeFile fp $ serialize t
+
+readFromFile :: FilePath -> IO Trace
+readFromFile fp = do
+    str <- readFile fp
+    return $ deserialize str
 
 {- combinators for working with traces
 -- should be easy to build using probes... especially once probes store data in same way
