@@ -49,6 +49,10 @@ genInst i (Entity n@(Name "X32" "+") outputs inputs dyn) =
 	genInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
 genInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
 	genInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
+genInst i (Entity n@(Name "X256" "+") outputs inputs dyn) =
+	genInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
+genInst i (Entity n@(Name "X256" "-") outputs inputs dyn) =
+	genInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
 genInst i (Entity n@(Name "Sampled" op) outputs inputs dyn)
       | op `elem` [".<.", ".>.", ".<=.", ".>=.", ".==."]
       = genInst i (Entity (Name "Signed" op) outputs inputs dyn)
