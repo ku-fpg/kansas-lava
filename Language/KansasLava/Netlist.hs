@@ -71,13 +71,12 @@ netlistCircuit' opts nlOpts name circuit = do
 
   let finals = [ NetAssign n (toStdLogicExpr ty x) | (PadVar _ n,ty,x) <- sort sinks ]
 
-  let mod = Module name inports outports
+  let mod = Module name inports outports []
 		(concatMap genDecl nodes ++
 		 concatMap (uncurry genInst) nodes ++
 --		 concatMap (uncurry (genSync nlOpts)) nodes ++
 		genSync nlOpts nodes ++
 		 finals)
-
   return mod
 
 
