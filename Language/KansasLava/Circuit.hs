@@ -36,7 +36,7 @@ data ReifyOptions
 	| DebugReify		-- show debugging output of the reification stage
 	| OptimizeReify
 	| NoRenamingReify	-- do not use renaming of variables
-	| CommentDepth [(Name,DepthOp)] 
+	| CommentDepth [(Name,DepthOp)]
 	deriving (Eq, Show)
 
 
@@ -67,16 +67,22 @@ instance Show ReifiedCircuit where
 			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
  			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
 			    ++ unlines [ case an of
-					   ProbeValue str _ -> "      probe " ++ str 
-					   Comment str -> "      comment " ++ str 
-				       | an <- ann 
+					   ProbeValue str _ -> "      probe " ++ str
+					   Comment str -> "      comment " ++ str
+				       | an <- ann
 				       ]
+		    Entity nm outs ins attrs ->
+			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			    ++ unlines [ "      out    " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in     " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+ 			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (PadVar i name) _ <- attrs ] ]
+			    ++ unlines [ "      comment " ++ str | Comment str <- ann ]
 		    Table (v0,ty0) (v1,ty1,dr) mapping ->
-			"(" ++ show uq ++ ") TABLE \n" 
+			"(" ++ show uq ++ ") TABLE \n"
 			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
 			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
-			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2 
-				       | (i,e1,o,e2) <- mapping 
+			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2
+				       | (i,e1,o,e2) <- mapping
 				       ]
 		| (uq,e) <- theCircuit rCir
 		]
@@ -110,7 +116,7 @@ data DepthOp = AddDepth Float
 
 addDepthOp :: DepthOp -> Float -> Float
 addDepthOp (AddDepth n) m = n + m
-addDepthOp (NewDepth n) _ = n 
+addDepthOp (NewDepth n) _ = n
 
 findChains :: [(Name,DepthOp)] -> ReifiedCircuit -> [[(Float,Unique)]]
 findChains fn cir = reverse
@@ -140,7 +146,7 @@ findChains fn cir = reverse
 		findDriverChain (Lit _) = 0
 		findDriverChain (Error err) = error $ "Error: " ++ show err
 
-depthTable :: [(Name,DepthOp)] 
+depthTable :: [(Name,DepthOp)]
 depthTable =
 	[ (Name "Memory" "register",NewDepth 0)
 	, (Name "Memory" "BRAM", NewDepth 0)
