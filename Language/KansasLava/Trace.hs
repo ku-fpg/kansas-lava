@@ -2,6 +2,7 @@
 module Language.KansasLava.Trace where
 
 import Language.KansasLava
+import Language.KansasLava.Testing.Probes
 
 import qualified Data.Sized.Matrix as Matrix
 
@@ -21,20 +22,6 @@ data Trace = Trace { cycles :: Int
                    }
 
 -- Some combinators to get stuff in and out of the map
-{-
-streamToSeq :: (Wire a) => TraceStream a -> Seq a
-streamToSeq s = shallowSeq $ fmap optX s
-
-seqToStream :: (Wire a) => Seq a -> TraceStream a
-seqToStream s = fmap unX $ seqValue s
--}
-
-fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> [[X Bool]]
-fromXStream witness stream = [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
-
-toXStream :: forall w. (RepWire w) => w -> [[X Bool]] -> Stream (X w)
-toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
-
 getStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w)
 getStream name m witness = case M.lookup name m of
                         Just (ty,rep) -> toXStream witness rep
@@ -55,7 +42,7 @@ addSeq key seq m = addStream key m witness (seqValue seq :: Stream (X b))
 
 -- obviously need to figure out the PadVar business at some point
 addProbe :: Annotation -> TraceMap PadVar -> TraceMap PadVar
-addProbe (ProbeValue key strm) m = M.insert (PadVar 0 key) strm m
+addProbe (ProbeValue key strm) m = M.insert key strm m
 
 -- instances for Trace
 instance Show Trace where
@@ -128,6 +115,9 @@ mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
 mkTrace cycles circuit apply = do
     rc <- reifyCircuit [] $ apply circuit -- this is essentially what probeCircuit does
                                           -- but we want the unique node id's too
+    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
+                       , pv@(ProbeValue n v) <- attrs]
+    return evts
 
 -- make use of probeCircuit
 mkTraceProbes :: (..) => [(String,Annotation)] -> Trace

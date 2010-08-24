@@ -20,19 +20,15 @@ import Data.Dynamic
 
 ---------------------------------------------------------------------------------------------------------
 
-data Annotation = ProbeValue String (BaseTy,[[X Bool]])
+data Annotation = ProbeValue PadVar (BaseTy,[[X Bool]])
                 | Ann String Dynamic
 		| Comment String		-- intended to arrive in the VHDL
 
 instance Eq Annotation where {}
 instance Ord Annotation where {}
 instance Show Annotation where
-    show (ProbeValue name _) = name
+    show (ProbeValue name _) = show name
     show _                   = error "Show: Unknown Annotation"
-
-data XStream a = XStream (Stream (X a))
-
-
 
 ---------------------------------------------------------------------------------------------------------
 

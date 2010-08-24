@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,getProbe,probesFor,valsXStream,bitsXStream,showXStream,showXStreamBits) where
+module Language.KansasLava.Testing.Probes (Probe,fromXStream,toXStream,probeCircuit,probe,getProbe,probesFor) where
 
-import Data.Sized.Unsigned
-import Data.Sized.Signed
-import Data.Sized.Ix
 import Data.Sized.Arith(X1_,X0_)
-import qualified Data.Sized.Matrix as M
+import Data.Sized.Ix
+import Data.Sized.Signed
+import Data.Sized.Unsigned
+import qualified Data.Sized.Matrix as Matrix
 
 import Data.Char
 import Data.Bits
@@ -21,9 +21,14 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream
-import Language.KansasLava.Trace
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
+
+fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> [[X Bool]]
+fromXStream witness stream = [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
+
+toXStream :: forall w. (RepWire w) => w -> [[X Bool]] -> Stream (X w)
+toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
@@ -33,8 +38,8 @@ probeCircuit :: (Ports a) =>
            -> IO [(String,Annotation)]
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
-    let evts = [(n,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
-                       , pv@(ProbeValue n v) <- attrs]
+    let evts = [(n ++ "_" ++ show i,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
+                       , pv@(ProbeValue (PadVar i n) v) <- attrs]
     return evts
 
 -- | 'getProbe' takes an association list of probe values and a probe
@@ -52,30 +57,36 @@ probesFor name plist =
 
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class Probe a where
+    -- this method is used internally to track order
+    attach :: Int -> String -> a -> a
+
+    -- this is the public facing method
     probe :: String -> a -> a
-    -- probe' is used for a name supply.
-    probe' :: String -> [Var] -> a -> a
-    probe' probeName ((Var v):_) s = probe (probeName ++ "_" ++ v) s
+    probe = attach 0
+
+    -- probe' is used internally for a name supply.
+    probe' :: String -> [Int] -> a -> a
+    probe' name (i:_) s = attach i name s
 
 instance (Show a, RepWire a) => Probe (CSeq c a) where
-    probe name (Seq s (D d)) = Seq s (D (addAttr pdata d))
-        where pdata = ProbeValue name (wireType witness, fromXStream witness s)
+    attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
+        where pdata = ProbeValue (PadVar i name) (wireType witness, fromXStream witness s)
               witness = (error "probe" :: a)
 
 instance (Show a, RepWire a) => Probe (Comb a) where
-    probe name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
-        where pdata = ProbeValue name (wireType witness, fromXStream witness (fromList $ repeat s))
+    attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
+        where pdata = ProbeValue (PadVar i name) (wireType witness, fromXStream witness (fromList $ repeat s))
               witness = (error "probe" :: a)
---              strm = XStream $ fromList $ repeat s
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
 --    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
 
 -- AJG: The number are hacks to make the order of rst before clk work.
+-- ACF: Revisit this with new PadVar probe names
 instance Probe (Env c) where
-    probe probeName (Env clk rst clk_en) = Env clk (probe (probeName ++ "_0rst") rst)
- 						   (probe (probeName ++ "_1clk_en") clk_en)
+    attach i name (Env clk rst clk_en) = Env clk (attach i (name ++ "_0rst") rst)
+ 						                         (attach i (name ++ "_1clk_en") clk_en)
 
 instance (Show a, Show b,
           RepWire a, RepWire b,
@@ -83,9 +94,9 @@ instance (Show a, Show b,
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b)),
           Pack f (a,b)) => Probe (f a, f b) where
-    probe probeName c = val
+    attach i name c = val
         where packed :: f (a,b)
-              packed =  probe probeName $ pack c
+              packed = attach i name $ pack c
               val :: (f a, f b)
               val = unpack packed
 
@@ -95,19 +106,20 @@ instance (Show a, Show b,Show c,
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b,c)),
           Pack f (a,b,c)) => Probe (f a, f b, f c) where
-    probe probeName c = val
+    attach i name c = val
         where packed :: f (a,b,c)
-              packed =  probe probeName $ pack c
-              val :: (f a, f b,f c)
+              packed = attach i name $ pack c
+              val :: (f a, f b, f c)
               val = unpack packed
 
-
 instance (Show a, Probe a, Probe b) => Probe (a -> b) where
-    -- The default behavior for probing functions is to generate fresh names.
-    probe probeName f =  probe' probeName vars f
-        where vars = [Var $ show i | i <- [0..]]
+    -- this shouldn't happen, but if it does, discard int and generate fresh order
+    attach _ = probe
 
-    probe' probeName ((Var v):vs) f x = probe' probeName vs $ f (probe (probeName ++ "_" ++ v) x)
+    -- The default behavior for probing functions is to generate fresh ordering
+    probe name f =  probe' name [0..] f
+
+    probe' name (i:is) f x = probe' name is $ f (attach i name x)
 
 addAttr :: Annotation -> Driver E -> Driver E
 addAttr value (Port v (E (Entity n outs ins attrs))) =
@@ -128,7 +140,7 @@ addAttr value@(ProbeValue _ (ty,_)) d@(Error _) =
                  [value])))
 addAttr _ driver = error $ "Can't probe " ++ show driver
 
--- showXStream is a utility function for printing out stream representations.
+{- showXStream is a utility function for printing out stream representations.
 instance RepWire a => Show (XStream a) where
     show xs = show $ foldr (\i r -> i ++ ", " ++ r) "..." $ take 30 $ valsXStream xs
 
@@ -152,4 +164,4 @@ showXStreamBits (XStream ss) =
 			Just False -> '0'
              witness = error "witness" :: a
 
-
+-}

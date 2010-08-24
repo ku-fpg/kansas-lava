@@ -47,16 +47,6 @@ type VCDVal = String
 type TimeTag = Int
 type TaggedEvents = [(TimeTag,VCDVal)]
 
-data XVal a = XVal (X a)
-xstrmHead :: XStream a -> XVal a
-xstrmHead (XStream (a :~ _)) = XVal a
-
-xstrmTail :: XStream a -> XStream a
-xstrmTail (XStream (_ :~ as)) = XStream as
-
-
-
-
 -- | taggedEvent takes a Seq and reduces it to a tagged (time,value) stream, eliminating
 --   no-change times.
 taggedEvent :: forall a. ( Ord a, Num a) => a -> Annotation -> [(a, VCDVal)]

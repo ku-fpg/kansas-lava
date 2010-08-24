@@ -223,8 +223,8 @@ extractSubcircuit :: String -> ReifiedCircuit -> ReifiedCircuit
 extractSubcircuit pname rc = extract root leaves rc
     where (root:leaves) = map fst $ sortBy (\(_,n1) (_,n2) -> compare n2 n1)
                         $ [ (node, name) | (node, Entity _ _ _ attrs) <- theCircuit rc
-                                         , ProbeValue name _ <- attrs
-                                         , pname `isPrefixOf` name ]
+                                         , ProbeValue (PadVar _ name) _ <- attrs
+                                         , pname == name ]
 
 extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
 extract n ls rc = ReifiedCircuit { theCircuit = newGraph
@@ -267,9 +267,9 @@ probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
                           , fam `notElem` ps
                           ]
 
-probesOn n circuit = nub [ fst $ splitWith '_' nm
+probesOn n circuit = nub [ nm
                          | Just (Entity _ _ _ attrs) <- [lookup n circuit]
-                         , (ProbeValue nm _) <- attrs
+                         , (ProbeValue (PadVar _ nm) _) <- attrs
                          ]
 
 findProbes pnodes nodes rc = reverse $ go nodes [] []

@@ -1,8 +1,8 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
 module Language.KansasLava.Testing.Output.Dot
-	( writeDotCircuit
-	, writeDotCircuit'
-	) where
+        ( writeDotCircuit
+        , writeDotCircuit'
+        ) where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
@@ -41,12 +41,12 @@ writeDotCircuit' filename circuit = do
    let showP (_,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
 
    let mkLabel nm ins outs =
-	      (concatMap addSpecial $ show nm) ++ "|{{"
- 	   ++ join (map showP ins) ++ "}|{"
-	   ++ join (map showP outs) ++ "}}"
+              (concatMap addSpecial $ show nm) ++ "|{{"
+           ++ join (map showP ins) ++ "}|{"
+           ++ join (map showP outs) ++ "}}"
        mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
- 	   ++ join (map showP ins) ++ "}|{"
-	   ++ join (map showP outs) ++ "}}"
+           ++ join (map showP ins) ++ "}|{"
+           ++ join (map showP outs) ++ "}}"
 
    print ("INPUTS:" ,inputs)
    print ("NODES:" ,nodes)
@@ -57,80 +57,80 @@ writeDotCircuit' filename circuit = do
 
 
    writeFile filename $ showDot $ do
-	attribute ("rankdir","LR")
+        attribute ("rankdir","LR")
 
-	input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP (Source,i) | i <- inputs] ++ "}}")
-	 		                 , ("shape","record")
-			       		 , ("style","filled")
-			       		 ]
+        input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP (Source,i) | i <- inputs] ++ "}}")
+                                         , ("shape","record")
+                                         , ("style","filled")
+                                         ]
 
 
-	nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
-							      [ (n,(v,ty)) | (v,ty) <- outs] )
-	 		                 , ("shape","record")
-			       		 , ("style","rounded")
-			       		 ]
-			      return (n,nd)
-		        | (n,Entity nm outs ins []) <- nodes ]
+        nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
+                                                              [ (n,(v,ty)) | (v,ty) <- outs] )
+                                         , ("shape","record")
+                                         , ("style","rounded")
+                                         ]
+                              return (n,nd)
+                        | (n,Entity nm outs ins []) <- nodes ]
 
-	nds1 <- sequence [ do nd <- node [ ("label",mkLabel "TABLE"
-	 						       [ (n,(vin,tyin)) ]
-							       [ (n,(vout,tyout)) ])
-	 		                 , ("shape","record")
-			       		 , ("style","rounded")
-			       		 ]
-			      return (n,nd)
-		        | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
+        nds1 <- sequence [ do nd <- node [ ("label",mkLabel "TABLE"
+                                                               [ (n,(vin,tyin)) ]
+                                                               [ (n,(vout,tyout)) ])
+                                         , ("shape","record")
+                                         , ("style","rounded")
+                                         ]
+                              return (n,nd)
+                        | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
 
-	probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
-							      [ (n,(v,ty)) | (v,ty) <- outs] )
-	 		                   , ("shape","record")
-			       		   , ("style","rounded,filled")
+        probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
+                                                              [ (n,(v,ty)) | (v,ty) <- outs] )
+                                           , ("shape","record")
+                                           , ("style","rounded,filled")
                                            , ("fillcolor","#bbbbbb")
-			       		   ]
-			        return (n,nd)
-		           | (n,Entity nm outs ins attrs) <- nodes
-			   , not $ null attrs
-			   , let pnms = [ nm | ProbeValue nm _ <- attrs ]
-			   ]
+                                           ]
+                                return (n,nd)
+                           | (n,Entity nm outs ins attrs) <- nodes
+                           , not $ null attrs
+                           , let pnms = [ nm ++ "_" ++ show i | ProbeValue (PadVar i nm) _ <- attrs ]
+                           ]
 
-	let nds = nds0 ++ nds1 ++ probed
+        let nds = nds0 ++ nds1 ++ probed
 
-	output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
-	 		                 , ("shape","record")
-			       		 , ("style","filled")
-			       		 ]
+        output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
+                                         , ("shape","record")
+                                         , ("style","filled")
+                                         ]
 
-	let findNd (Uq n) = case lookup n nds of
-			     Nothing -> error $ "strange port: " ++ show (n,nds)
-			     Just nd -> nd
-	    findNd Source = input_bar
-	    findNd Sink   = output_bar
+        let findNd (Uq n) = case lookup n nds of
+                             Nothing -> error $ "strange port: " ++ show (n,nds)
+                             Just nd -> nd
+            findNd Source = input_bar
+            findNd Sink   = output_bar
 
-	let drawEdge dr n v = case dr of
-		     Port nm' n' -> let (Just nd) = lookup n' nds
+        let drawEdge dr n v = case dr of
+                     Port nm' n' -> let (Just nd) = lookup n' nds
                                     in edge' nd (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
-		     Pad v' | v' `elem` (map fst inputs)
-					 -> edge' input_bar (Just (show v' ++ ":e")) n (Just (show v ++ ":w")) []
-			    | otherwise  -> do nd' <- node [ ("label",show v')
-				  	                   ]
-				               edge' nd' Nothing n (Just (show v ++ ":w")) []
-		     Lit i -> do nd' <- node [("label",show i),("shape","none")]
-				 edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     Pad v' | v' `elem` (map fst inputs)
+                                         -> edge' input_bar (Just (show v' ++ ":e")) n (Just (show v ++ ":w")) []
+                            | otherwise  -> do nd' <- node [ ("label",show v')
+                                                           ]
+                                               edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     Lit i -> do nd' <- node [("label",show i),("shape","none")]
+                                 edge' nd' Nothing n (Just (show v ++ ":w")) []
 
-	sequence [ drawEdge dr output_bar v
-		 | (v,_,dr) <- outputs
-		 ]
+        sequence [ drawEdge dr output_bar v
+                 | (v,_,dr) <- outputs
+                 ]
 
-	sequence [ drawEdge dr (findNd (Uq n)) v
-	       	 | (n,Entity _ _ ins _) <- nodes
-		 , (v,_,dr) <- ins
-		 ]
-	sequence [ drawEdge dr (findNd (Uq n)) v
-	       	 | (n,Table _ (v,_,dr) _) <- nodes
-		 ]
+        sequence [ drawEdge dr (findNd (Uq n)) v
+                 | (n,Entity _ _ ins _) <- nodes
+                 , (v,_,dr) <- ins
+                 ]
+        sequence [ drawEdge dr (findNd (Uq n)) v
+                 | (n,Table _ (v,_,dr) _) <- nodes
+                 ]
 
-	return ()
+        return ()
 
 
 -- addSpecial '>' = ['\\','>']
