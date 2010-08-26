@@ -207,7 +207,7 @@ mux2 i ~(t,e)
 	         ) i t e
 
 mux2shallow :: forall a . (Wire a) => a -> X Bool -> X a -> X a -> X a
-mux2shallow _ i t e = 
+mux2shallow _ i t e =
    case unX i of
        Nothing -> optX (Nothing :: Maybe a)
        Just True -> t
@@ -472,7 +472,7 @@ delay env = register env errorComb
 -- register rst def v = mux2 rst (liftS0 def,delay v)
 
 register :: forall a clk .  (Wire a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
-register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Seq line eline) = res
+register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(Seq line eline) = res
    where
 	res = Seq sres1 (D $ Port (Var "o0") $ E $ entity)
 
@@ -491,7 +491,7 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@(Se
 			<*> sres1
 
 	sres1 = optX (Nothing :: Maybe a) :~ sres0
-			
+
         entity = Entity (Name "Memory" "register")
                     [(Var "o0", bitTypeOf res)]
                     [(Var "def", bitTypeOf res, unD $ edef),
