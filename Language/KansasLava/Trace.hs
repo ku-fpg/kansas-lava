@@ -1,8 +1,7 @@
-{-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances #-}
+{-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
 module Language.KansasLava.Trace where
 
 import Language.KansasLava hiding (output)
-import Language.KansasLava.Testing.Probes
 
 import qualified Data.Sized.Matrix as Matrix
 
@@ -29,10 +28,15 @@ data Trace = Trace { cycles :: Int
                    }
 
 -- Some combinators to get stuff in and out of the map
+fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> [[X Bool]]
+fromXStream witness stream = [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
+
+toXStream :: forall w. (RepWire w) => w -> [[X Bool]] -> Stream (X w)
+toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
+
 getStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w)
 getStream name m witness = case M.lookup name m of
                         Just (ty,rep) -> toXStream witness rep
---                        Just (ty,strReps) -> fromList $ map (readRepWire ty) strReps
 
 getSeq :: (Ord a, RepWire w) => a -> TraceMap a -> w -> Seq w
 getSeq key m witness = shallowSeq $ getStream key m witness
@@ -41,7 +45,6 @@ addStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X
 addStream key m witness stream = M.insert key (ty,rep) m
     where ty = wireType witness
           rep = fromXStream witness stream
---          strRep = [showRepWire witness (optX x :: X b) | x <- toList stream]
 
 addSeq :: forall a b. (Ord a, RepWire b) => a -> Seq b -> TraceMap a -> TraceMap a
 addSeq key seq m = addStream key m witness (seqValue seq :: Stream (X b))
@@ -125,46 +128,50 @@ rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                          | (n1,Entity _ _ ins _) <- theCircuit rc
                                          , (_,_,Port _ n2) <- ins ]
 
-mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
-mkTrace c circuit apply = do
-    let probed = probe "wholeCircuit" circuit
+-- return true if running circuit with trace gives same output as that contained by the trace
+test :: (Run a) => a -> Trace -> Bool
+test circuit trace@(Trace c _ (oty,os) _) = res == (oty,take c os)
+    where res = run circuit trace
 
-    rc <- reifyCircuit [] $ probed
-    rc' <- reifyCircuit [] $ apply $ probed -- this is essentially what probeCircuit does
+class Run a where
+    run :: a -> Trace -> TraceStream
 
-    let pdata = M.fromList [(k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
-                                  , ProbeValue k v <- attrs ]
-        entities = [(id,e) | (id,e@(Entity _ _ _ attrs)) <- theCircuit rc
-                           , ProbeValue n v <- attrs]
-        pnodes = map fst entities
-        ins = M.fromList [ (k,fromJust $ M.lookup name pdata)
-                         | (_,Entity _ _ [(_,_,Pad k)] attrs) <- entities
-                         , ProbeValue name _ <- attrs]
-        out = fromJust $ M.lookup
-                         (head [k | let order = G.bfsn [id | (_,_,Port _ id) <- theSinks rc] graph
-                                  , let sink = head $ intersect order pnodes
-                                  , Just (Entity _ _ _ attrs) <- [lookup sink $ theCircuit rc]
-                                  , ProbeValue k _ <- attrs ])
-                         pdata
-        graph :: G.Gr (MuE DRG.Unique) ()
-        graph = rcToGraph rc
+instance (RepWire a) => Run (CSeq c a) where
+    run (Seq s _) (Trace c _ _ _) = (wireType witness, take c $ fromXStream witness s)
+        where witness = (error "run trace" :: a)
 
-    return $ Trace { cycles = c, inputs = ins, output = out, probes = pdata }
+{- eventually
+instance (RepWire a) => Run (Comb a) where
+    run (Comb s _) (Trace c _ _ _) = (wireType witness, take c $ fromXStream witness (fromList $ repeat s))
+        where witness = (error "run trace" :: a)
+-}
+
+instance (Run a, Run b) => Run (a,b) where
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y) t = (TupleTy [ty1,ty2], zipWith (++) strm1 strm2)
+        where (ty1,strm1) = run x t
+              (ty2,strm2) = run y t
+
+instance (Run a, Run b, Run c) => Run (a,b,c) where
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y,z) t = (TupleTy [ty1,ty2,ty3], zipWith (++) strm1 $ zipWith (++) strm2 strm3)
+        where (ty1,strm1) = run x t
+              (ty2,strm2) = run y t
+              (ty3,strm3) = run z t
+
+instance (RepWire a, Run b) => Run (Seq a -> b) where
+    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+        where witness = (error "run trace" :: a)
+              key = head $ sort $ M.keys ins
+              input = getSeq key ins witness
 
 {- combinators for working with traces
 -- assuming ReifiedCircuit has probe data in it
 mkTraceRC :: (..) => ReifiedCircuit -> Trace
 
--- run a circuit with a trace, get a new trace (same inputs, possibly diff outputs) back
-runTrace :: (..) => a -> Trace -> Trace
-
 -- this is just Eq, but maybe instead of Bool some kind of detailed diff
 unionTrace :: Trace -> Trace -> Trace
 remove :: PadVar -> Trace -> Trace
-
--- serialization
-writeTrace :: (..) => FilePath -> Trace -> IO ()
-readTrace :: (..) => FilePath -> IO Trace
 
 -- testing?
 

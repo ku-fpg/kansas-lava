@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,fromXStream,toXStream,probeCircuit,probe,getProbe,probesFor) where
+module Language.KansasLava.Testing.Probes (Probe,fromXStream,toXStream,mkTrace,run,probeCircuit,probe,getProbe,probesFor) where
 
 import Data.Sized.Arith(X1_,X0_)
 import Data.Sized.Ix
@@ -12,23 +12,52 @@ import qualified Data.Sized.Matrix as Matrix
 import Data.Char
 import Data.Bits
 import Data.List
+import qualified Data.Map as M
+import Data.Maybe
 
 import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Reify
+import Language.KansasLava.Reify hiding (output)
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.Stream
+import Language.KansasLava.Stream hiding (head,zipWith)
+import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
 
-fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> [[X Bool]]
-fromXStream witness stream = [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
+import Language.KansasLava.Trace
 
-toXStream :: forall w. (RepWire w) => w -> [[X Bool]] -> Stream (X w)
-toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
+import qualified Data.Graph.Inductive as G
+
+import qualified Data.Reify.Graph as DRG
+
+mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
+mkTrace c circuit apply = do
+    let probed = probe "wholeCircuit" circuit
+
+    rc <- reifyCircuit [] $ probed
+    rc' <- reifyCircuit [] $ apply $ probed -- this is essentially what probeCircuit does
+
+    let pdata = M.fromList [(k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
+                                  , ProbeValue k v <- attrs ]
+        entities = [(id,e) | (id,e@(Entity _ _ _ attrs)) <- theCircuit rc
+                           , ProbeValue n v <- attrs]
+        pnodes = map fst entities
+        ins = M.fromList [ (k,fromJust $ M.lookup name pdata)
+                         | (_,Entity _ _ [(_,_,Pad k)] attrs) <- entities
+                         , ProbeValue name _ <- attrs]
+        out = fromJust $ M.lookup
+                         (head [k | let order = G.bfsn [id | (_,_,Port _ id) <- theSinks rc] graph
+                                  , let sink = head $ intersect order pnodes
+                                  , Just (Entity _ _ _ attrs) <- [lookup sink $ theCircuit rc]
+                                  , ProbeValue k _ <- attrs ])
+                         pdata
+        graph :: G.Gr (MuE DRG.Unique) ()
+        graph = rcToGraph rc
+
+    return $ Trace { cycles = c, inputs = ins, output = out, probes = pdata }
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
@@ -57,12 +86,12 @@ probesFor name plist =
 
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class Probe a where
-    -- this method is used internally to track order
-    attach :: Int -> String -> a -> a
-
     -- this is the public facing method
     probe :: String -> a -> a
     probe = attach 0
+
+    -- this method is used internally to track order
+    attach :: Int -> String -> a -> a
 
     -- probe' is used internally for a name supply.
     probe' :: String -> [Int] -> a -> a
@@ -100,8 +129,8 @@ instance (Show a, Show b,
               val :: (f a, f b)
               val = unpack packed
 
-instance (Show a, Show b,Show c,
-          RepWire a, RepWire b,RepWire c,
+instance (Show a, Show b, Show c,
+          RepWire a, RepWire b, RepWire c,
           Size (ADD (WIDTH a) (WIDTH b)),
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b,c)),

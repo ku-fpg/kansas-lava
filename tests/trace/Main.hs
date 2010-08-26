@@ -50,6 +50,9 @@ main = do
     t2 <- mkTrace 100 (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     print t2
 
+    print "Result:"
+    print $ test lavaFst t2
+
 --    why don't streams with Nothings work?
     print $ delay shallowEnv $ (getSeq pv1 (inputs trace) witness :: Seq Bool)
     print $ (getSeq (PadVar 3 "ints") (inputs newTrace) witness2 :: Seq U4)
