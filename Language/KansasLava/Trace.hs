@@ -1,7 +1,17 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
 module Language.KansasLava.Trace where
 
-import Language.KansasLava hiding (output)
+import Language.KansasLava.Circuit
+import Language.KansasLava.Comb
+import Language.KansasLava.Entity
+import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Reify
+import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+import Language.KansasLava.Stream hiding (head,zipWith)
+import Language.KansasLava.Type
+import Language.KansasLava.Utils
+import Language.KansasLava.Wire
 
 import qualified Data.Sized.Matrix as Matrix
 
@@ -13,14 +23,13 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 type TraceMap k = M.Map k TraceStream
 type TraceStream = (BaseTy,[[X Bool]]) -- to recover type, eventually clock too?
 
+-- cycles -> Maybe Int?
 data Trace = Trace { cycles :: Int
                    , inputs :: TraceMap PadVar
-                   , output :: TraceStream
+                   , outputs :: TraceStream
                    , probes :: TraceMap PadVar
 --                   , circuit :: ReifiedCircuit
 --                   , opts :: DebugOpts -- can see a case for this eventually
@@ -47,17 +56,31 @@ addStream key m witness stream = M.insert key (ty,rep) m
           rep = fromXStream witness stream
 
 addSeq :: forall a b. (Ord a, RepWire b) => a -> Seq b -> TraceMap a -> TraceMap a
-addSeq key seq m = addStream key m witness (seqValue seq :: Stream (X b))
-    where witness = error "addSeq" :: b
+addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
 
--- obviously need to figure out the PadVar business at some point
-addProbe :: Annotation -> TraceMap PadVar -> TraceMap PadVar
-addProbe (ProbeValue key strm) m = M.insert key strm m
+-- Combinators to change a trace
+setCycles :: Int -> Trace -> Trace
+setCycles i t = t { cycles = i }
+
+addInput :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
+addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
+
+remInput :: PadVar -> Trace -> Trace
+remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
+
+setOutput :: forall a. (RepWire a) => Seq a -> Trace -> Trace
+setOutput (Seq s _) t = t { outputs = (wireType (witness :: a), fromXStream (witness :: a) s) }
+
+addProbe :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
+addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
+
+remProbe :: PadVar -> Trace -> Trace
+remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
 instance Show Trace where
-    show (Trace c i (oty,os) p) = unlines $ concat [[show c,"inputs"], printer i, ["output", show (oty,take 20 os), "probes"], printer p]
-        where printer m = [show (k,(ty,take 20 val)) | (k,(ty,val)) <- M.toList m]
+    show (Trace c i (oty,os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,take c os), "probes"], printer p]
+        where printer m = [show (k,(ty,take c val)) | (k,(ty,val)) <- M.toList m]
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
@@ -72,7 +95,7 @@ diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
 emptyTrace :: Trace
-emptyTrace = Trace { cycles = 0, inputs = M.empty, output = (B,[]), probes = M.empty }
+emptyTrace = Trace { cycles = 0, inputs = M.empty, outputs = (B,[]), probes = M.empty }
 
 takeTrace :: Int -> Trace -> Trace
 takeTrace i t = t { cycles = i }
@@ -80,7 +103,7 @@ takeTrace i t = t { cycles = i }
 dropTrace :: Int -> Trace -> Trace
 dropTrace i t@(Trace c ins (oty,os) ps) | i <= c = t { cycles = c - i
                                                 , inputs = dropStream ins
-                                                , output = (oty, drop i os)
+                                                , outputs = (oty, drop i os)
                                                 , probes = dropStream ps }
                                     | otherwise = emptyTrace
     where dropStream m = M.fromList [ (k,(ty,drop i s)) | (k,(ty,s)) <- M.toList m ]
@@ -89,10 +112,10 @@ dropTrace i t@(Trace c ins (oty,os) ps) | i <= c = t { cycles = c - i
 serialize :: Trace -> String
 serialize (Trace c ins (oty,os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ PadVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,(ty,strm)) <- M.toList m]
-          showStrm s = unwords [concatMap (showRepWire (error "serialize witness" :: Bool)) val | val <- take c s]
+          showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- take c s]
 
 deserialize :: String -> Trace
-deserialize str = Trace { cycles = c, inputs = ins, output = out, probes = ps }
+deserialize str = Trace { cycles = c, inputs = ins, outputs = out, probes = ps }
     where (cstr:"INPUTS":ls) = lines str
           c = read cstr :: Int
           (ins,"OUTPUT":r1) = readMap ls
@@ -128,17 +151,18 @@ rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                          | (n1,Entity _ _ ins _) <- theCircuit rc
                                          , (_,_,Port _ n2) <- ins ]
 
--- return true if running circuit with trace gives same output as that contained by the trace
+-- return true if running circuit with trace gives same outputs as that contained by the trace
 test :: (Run a) => a -> Trace -> Bool
-test circuit trace@(Trace c _ (oty,os) _) = res == (oty,take c os)
-    where res = run circuit trace
+test circuit trace = trace == (execute circuit trace)
+
+execute :: (Run a) => a -> Trace -> Trace
+execute circuit trace = trace { outputs = run circuit trace }
 
 class Run a where
     run :: a -> Trace -> TraceStream
 
 instance (RepWire a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = (wireType witness, take c $ fromXStream witness s)
-        where witness = (error "run trace" :: a)
+    run (Seq s _) (Trace c _ _ _) = (wireType (witness :: a), take c $ fromXStream (witness :: a) s)
 
 {- eventually
 instance (RepWire a) => Run (Comb a) where
@@ -161,9 +185,8 @@ instance (Run a, Run b, Run c) => Run (a,b,c) where
 
 instance (RepWire a, Run b) => Run (Seq a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where witness = (error "run trace" :: a)
-              key = head $ sort $ M.keys ins
-              input = getSeq key ins witness
+        where key = head $ sort $ M.keys ins
+              input = getSeq key ins (witness :: a)
 
 {- combinators for working with traces
 -- assuming ReifiedCircuit has probe data in it

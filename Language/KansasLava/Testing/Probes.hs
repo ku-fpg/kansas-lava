@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
 -- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,fromXStream,toXStream,mkTrace,run,probeCircuit,probe,getProbe,probesFor) where
+module Language.KansasLava.Testing.Probes where -- (Probe,fromXStream,toXStream,mkTrace,run,probeCircuit,probe,getProbe,probesFor) where
 
 import Data.Sized.Arith(X1_,X0_)
 import Data.Sized.Ix
@@ -19,7 +19,7 @@ import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Reify hiding (output)
+import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream hiding (head,zipWith)
@@ -32,6 +32,15 @@ import Language.KansasLava.Trace
 import qualified Data.Graph.Inductive as G
 
 import qualified Data.Reify.Graph as DRG
+
+data Thunk b = forall a. (Ports a, Probe a) => Thunk a (a -> b)
+mkThunk a b = Thunk a b
+
+runT :: Thunk b -> b
+runT (Thunk circuit fn) = fn circuit
+
+mkTrace' :: (Ports a, Probe a) => Int -> Thunk a -> IO Trace
+mkTrace' i (Thunk circuit fn) = mkTrace i circuit fn
 
 mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
 mkTrace c circuit apply = do
@@ -57,7 +66,7 @@ mkTrace c circuit apply = do
         graph :: G.Gr (MuE DRG.Unique) ()
         graph = rcToGraph rc
 
-    return $ Trace { cycles = c, inputs = ins, output = out, probes = pdata }
+    return $ Trace { cycles = c, inputs = ins, outputs = out, probes = pdata }
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in

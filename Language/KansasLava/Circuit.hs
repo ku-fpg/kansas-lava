@@ -64,18 +64,9 @@ instance Show ReifiedCircuit where
 		[ case e of
 		    Entity nm outs ins ann ->
 			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			    ++ unlines [ "      out " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
- 			    ++ unlines [ "      in  " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
-			    ++ unlines [ case an of
-					   ProbeValue str _ -> "      probe " ++ str
-					   Comment str -> "      comment " ++ str
-				       | an <- ann
-				       ]
-		    Entity nm outs ins attrs ->
-			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
 			    ++ unlines [ "      out    " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
  			    ++ unlines [ "      in     " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
- 			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (PadVar i name) _ <- attrs ] ]
+ 			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (PadVar i name) _ <- ann ] ]
 			    ++ unlines [ "      comment " ++ str | Comment str <- ann ]
 		    Table (v0,ty0) (v1,ty1,dr) mapping ->
 			"(" ++ show uq ++ ") TABLE \n"
