@@ -34,6 +34,7 @@ class {- Eq w => -} Wire w where
 
 	-- | Naming a component that generates this type of wire
    	wireName :: w -> String
+	wireName _ = "Lava"		-- default to built in
 
 	-- | Each wire has a known type.
     	wireType :: w -> BaseTy
@@ -149,7 +150,7 @@ instance Wire Bool where
 	optX Nothing	= fail "Wire Bool"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Bool"
-	wireName _	= "Bool"
+--	wireName _	= "Bool"
 	wireType _	= B
 
 instance RepWire Bool where
@@ -166,7 +167,7 @@ instance Wire Int where
 	optX Nothing	= fail "Wire Int"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Int"
-	wireName _	= "Int"
+--	wireName _	= "Int"
 	wireType _	= S 32		-- hmm. Not really on 64 bit machines.
 
 
@@ -182,7 +183,7 @@ instance Wire Word8 where
 	optX Nothing	= fail "Wire Word8"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word8"
-	wireName _	= "Unsigned"
+--	wireName _	= "Lava"
 	wireType _	= U 8
 
 instance RepWire Word8 where
@@ -197,7 +198,7 @@ instance Wire Word32 where
 	optX Nothing	= fail "Wire Word32"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word32"
-	wireName _	= "Unsigned"
+--	wireName _	= "Unsigned"
 	wireType _	= U 32
 
 instance RepWire Word32 where
@@ -212,7 +213,7 @@ instance Wire () where
 	optX Nothing	= fail "Wire ()"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire ()"
-	wireName _	= "Unit"
+--	wireName _	= "Unit"
 	wireType _	= V 1	-- should really be V 0 TODO
 
 instance RepWire () where
@@ -226,12 +227,13 @@ instance Wire Integer where
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Integer"
 	unX a		= a
-	wireName _	= "Integer"
-	wireType _	= IntegerTy
+--	wireName _	= "Integer"
+	wireType _	= GenericTy
 
 instance RepWire Integer where
 	type WIDTH Integer = X0
 	showRepWire _	= show
+
 
 -------------------------------------------------------------------------------------
 -- Now the containers
@@ -243,7 +245,7 @@ instance (Wire a, Wire b) => Wire (a,b) where
 	unX (a,b) = do x <- unX a
 		       y <- unX b
 		       return $ (x,y)
-	wireName _ = "Tuple_2"
+--	wireName _ = "Tuple_2"
 
 	wireType ~(a,b) = TupleTy [wireType a, wireType b]
 {-
@@ -293,7 +295,7 @@ instance (Wire a, Wire b, Wire c) => Wire (a,b,c) where
 		       y <- unX b
 		       z <- unX c
 		       return $ (x,y,z)
-	wireName _ = "Tuple_3"
+--	wireName _ = "Tuple_3"
 
 	wireType ~(a,b,c) = TupleTy [wireType a, wireType b,wireType c]
 
@@ -323,8 +325,8 @@ instance (Wire a) => Wire (Maybe a) where
 			    Nothing    -> Nothing
 			    Just True  -> Just $ unX b
 			    Just False -> Just Nothing
-	wireName _	= "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
-	wireType _	= TupleTy [ B, wireType (error "witness" :: a)]
+--	wireName _	= "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
+	wireType _	= TupleTy [ B, wireType (error "witness" :: a)] 
 
 
 --instance Size (ADD X1 a) => Size a where
@@ -349,7 +351,7 @@ instance (Size ix, Wire a) => Wire (Matrix ix a) where
 	optX (Just m)	= fmap (optX . Just) m
 	optX Nothing	= forAll $ \ ix -> optX (Nothing :: Maybe a)
 	unX m		= liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
-	wireName _ 	= "Matrix"
+--	wireName _ 	= "Matrix"
 	wireType m	= MatrixTy (size (ix m)) (wireType (a m))
 		where
 			ix :: Matrix ix a -> ix
@@ -381,7 +383,7 @@ instance (Enum ix, Size ix) => Wire (Unsigned ix) where
 	optX Nothing	    = fail "Wire Int"
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Int"
-	wireName _	    = "Unsigned"
+--	wireName _	    = "Unsigned"
 	wireType x   	    = U (size (error "Wire/Unsigned" :: ix))
 
 instance (Enum ix, Size ix) => RepWire (Unsigned ix) where
@@ -396,7 +398,7 @@ instance (Enum ix, Size ix) => Wire (Signed ix) where
 	optX Nothing	    = fail "Wire Int"
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Int"
-	wireName _	    = "Signed"
+--	wireName _	    = "Signed"
 	wireType x   	    = S (size (error "Wire/Signed" :: ix))
 
 instance (Enum ix, Size ix) => RepWire (Signed ix) where
@@ -411,8 +413,8 @@ instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where
 	optX Nothing	    = fail "Wire Sampled"
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Sampled"
-	wireName _	    = "Sampled"
-	wireType x   	    = S (size (error "Sampled" :: ix))		-- err, we need to think about this! (TODO: should be V n!)
+	wireName _	    = "Sampled"		-- We use a sub-module Sampled to implement Sampled
+	wireType x   	    = V (size (error "Sampled" :: ix))		-- err, we need to think about this! (TODO: should be V n!)
 
 instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = ix
@@ -420,15 +422,13 @@ instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) wh
 	toWireRep = return . Sampled.fromMatrix
 	showRepWire _ = show
 
-
-
-instance (Size ix) => Wire (StdLogicVector ix) where
+instance (Size ix) => Wire (StdLogicVector ix) where 
 	type X (StdLogicVector ix) = WireVal (StdLogicVector ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire StdLogicVector"
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire StdLogicVector"
-	wireName _	    = "StdLogicVector"
+--	wireName _	    = "StdLogicVector"
 	wireType x   	    = V (size (error "Wire/StdLogicVector" :: ix))
 
 instance (Size ix) => RepWire (StdLogicVector ix) where
@@ -460,7 +460,7 @@ instance (Size x) => Wire (X0_ x) where
 	optX Nothing	= fail "X0_"
 	unX (WireVal a) = return a
 	unX WireUnknown = fail "X0_"
-	wireName _ 	= "X" ++ show (size (error "wireName" :: X0_ x))
+--	wireName _ 	= "X" ++ show (size (error "wireName" :: X0_ x))
 	wireType _ 	= U (log2 $ (size (error "wireType" :: X0_ x) - 1))
 
 
@@ -476,8 +476,8 @@ instance (Size x) => Wire (X1_ x) where
 	optX Nothing	= fail "X1_"
 	unX (WireVal a) = return a
 	unX WireUnknown = fail "X1_"
-	wireName _ 	= "X" ++ show (size (error "wireName" :: X1_ x))
-	wireType _ 	= U (log2 $ (size (error "wireType" :: X1_ x) - 1))
+--	wireName _ 	= "X" ++ show (size (error "wireName" :: X1_ x))
+	wireType _ 	= U (log2 $ (size (error "wireType" :: X1_ x) - 1))	
 
 instance (Size (WIDTH (X1_ x)), Enum (WIDTH (X1_ x)), Integral (X1_ x), Size x) => RepWire (X1_ x) where
 	type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
@@ -517,7 +517,7 @@ instance Wire ALPHA where
 	optX Nothing	= fail "Wire ALPHA"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire ALPHA"
-	wireName _	= "ABC"
+--	wireName _	= "ABC"
 	wireType _	= U 0
 
 instance RepWire ALPHA where

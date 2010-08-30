@@ -42,7 +42,7 @@ and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX
 						     (Just False,_)        -> optX $ Just False
 					     	     (_,Just False)        -> optX $ Just False
 						     _                     -> optX $ (Nothing :: Maybe Bool))
-					 $ entity2 (Name "Bool" "and2") ae be
+					 $ entity2 (Name "Lava" "and2") ae be
 
 or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX b :: Maybe Bool) of
@@ -50,16 +50,16 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX 
 						     (Just True,_)           -> optX $ Just True
 					     	     (_,Just True)           -> optX $ Just True
 						     _                       -> optX $ (Nothing :: Maybe Bool))
-					 $ entity2 (Name "Bool" "or2") ae be
+					 $ entity2 (Name "Lava" "or2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Bool" "xor2") ae be
+xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Lava" "xor2") ae be
 
 bitNot :: (Signal sig) => sig Bool -> sig Bool
-bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Bool" "not") ae
+bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Lava" "not") ae
 
 testABit :: forall sig a . (Bits a, Wire a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS2 (\ (Comb a ae) (Comb b be) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
-                                      $ entity2 (Name "Signed" "testBit") ae be) x (pureS y)
+                                      $ entity2 (Name "Lava" "testBit") ae be) x (pureS y)
 
 
 isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
@@ -90,6 +90,7 @@ instance (Show a, RepWire a, Num a) => Num (CSeq c a) where
     signum = liftS1 signum
     fromInteger n = pureS (fromInteger n)
 
+-- Somehow, these ignore the type name
 instance (Show a, Bits a, RepWire a)
 	=> Bits (Comb a) where
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
@@ -383,7 +384,7 @@ instance Wire Bool where
 	optX Nothing	= fail "Wire Bool"
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Bool"
-	wireName _	= "Bool"
+	wireName _	= 	
 	wireType _	= B
 
 instance RepWire Bool where
@@ -575,5 +576,5 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
 		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
 			            return $ (SLV.splice i a' :: StdLogicVector b))
-		         (entity2 (Name "StdLogicVector" "spliceStdLogicVector") (D $ Lit (fromIntegral i) :: D Int) ea)
+		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Lit (fromIntegral i) :: D Int) ea)
 
