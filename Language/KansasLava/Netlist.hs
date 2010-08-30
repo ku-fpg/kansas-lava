@@ -11,7 +11,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Utils
 import Language.KansasLava.Reify(reifyCircuit,Ports)
 import Language.KansasLava.Circuit(ReifyOptions(..),ReifiedCircuit(..))
-import Language.KansasLava.Entity hiding (name)
+import Language.KansasLava.Entity
 import Language.KansasLava.Type
 
 import Data.Sized.Unsigned

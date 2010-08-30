@@ -6,7 +6,7 @@ module Language.KansasLava.VHDL(vhdlCircuit, NetlistOption(..)) where
 -- import qualified Language.KansasLava.Entity as E
 import Language.KansasLava.Reify(reifyCircuit,Ports)
 import Language.KansasLava.Circuit(ReifyOptions(..),ReifiedCircuit(..))
-import Language.KansasLava.Entity hiding (name)
+import Language.KansasLava.Entity
 
 
 
