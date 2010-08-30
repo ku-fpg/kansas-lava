@@ -12,45 +12,40 @@ import Data.Reify
 import qualified Data.Traversable as T
 import Language.KansasLava.Type
 import Control.Applicative
+import Data.Unique as U
 
-data Name = Name String String
+data Name = Name String String			-- external thing
+	  | Prim String				-- built in thing
+	  | UniqNm U.Unique 			-- uniq name of an entity
+	  | Function [(Integer,Integer)] 	-- anonymous function
     deriving (Eq, Ord)
 
 instance Show Name where
-    show (Name "" nm)  = nm
-    show (Name pre nm) =  pre ++ "::" ++ nm
+    show (Name "" nm)  = nm	-- do we use "" or "Lava" for the magic built-in?
+    show (Name pre nm) = pre ++ "::" ++ nm
+    show (Prim nm)     = nm
+    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
+    show (Function _)  = "<fn>"
 
-name :: String -> Name
-name n  = Name "" n
-
+-- TODO: Var
 data Var = Var String
-	 | UqVar [Int]		-- uniquely generated name
-         | NoVar                -- not needed, because the default does fine???
+--	 | UqVar [Int]		-- uniquely generated name
+--         | NoVar                -- not needed, because the default does fine???
     deriving (Eq,Ord)
 
 instance Show Var where
     show (Var nm)     = nm
-    show (UqVar path) = "<" ++ foldr (\ p s -> "_" ++ show p ++ s) ">" path
-    show NoVar = "NoVar"
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
+			-- specialized Entity, because tables (typically ROMs) are verbose.
 		   | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
-{-
--- UGGGGGG! This is the wrong place for these things.
-instance Eq Dynamic where
- _ == _ = True
-
-instance Ord Dynamic where
- compare _ _ = EQ
--}
 
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
               | Pad PadVar       	  --
---	      | PathPad [Int]	-- a unique path to a pad
               | Lit Integer
 	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Show, Eq, Ord)
