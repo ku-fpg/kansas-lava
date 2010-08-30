@@ -10,6 +10,7 @@ data BaseTy
 	| S Int		-- | Signed vector, with a width
 	| U Int  	-- | Unsigned vector, with a width
 	| V Int		-- | std_logic_vector
+	| GenericTy	-- | generics in VHDL, right now just Integer
 
 	| T		-- Time	TODO: remove
 			-- What about Float/Double, special, etc.
@@ -56,6 +57,7 @@ instance Show BaseTy where
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
 	show (V i) 	= show i ++ "V"
+	show GenericTy  = "G"
 	show T		= "T"
 	show (TupleTy tys) = show tys
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
