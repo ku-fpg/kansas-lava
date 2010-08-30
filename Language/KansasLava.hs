@@ -17,6 +17,7 @@ module Language.KansasLava (
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
     module Language.KansasLava.Wire,
+    module Language.KansasLava.StdLogicVector,
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
     -- hacks
@@ -40,6 +41,9 @@ import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 import Language.KansasLava.Wire
+
+import Language.KansasLava.StdLogicVector
+
 
 -- TODO Add StdLogicVector
 
