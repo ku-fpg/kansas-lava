@@ -117,7 +117,7 @@ testCircuit' opts name circuit apply = do
         let probed = probe name circuit
 
         rc <- reifyCircuit (reifyOptions opts) probed
-        print rc
+--        print rc
 
 --        rc' <- reifyCircuit (reifyOptions opts) $ apply probed
 --        print rc'
@@ -126,7 +126,7 @@ testCircuit' opts name circuit apply = do
 
         pdata <- probeCircuit $ res
 
-	print pdata
+--	print pdata
 
         let base = "examine/" ++ name
             path = base ++ "/" ++ name ++ "/"
@@ -145,10 +145,10 @@ testCircuit' opts name circuit apply = do
 	-- probedata is in the correct order.
 	let probeData = probesFor name pdata
 
-	print (ports,waves)
-	print probeData
+--	print (ports,waves)
+--	print probeData
 
-	putStrLn vhdl
+--	putStrLn vhdl
         mkTestbench' name base vhdl ports waves
         mkInputs name path (cycles opts) probeData fp
 
