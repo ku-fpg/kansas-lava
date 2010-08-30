@@ -45,18 +45,9 @@ genInst i (Entity (Name "Lava" "thd3") outputs inputs other)
 
 -- TMP aliases
 
-genInst i (Entity n@(Name "X32" "+") outputs inputs dyn) =
-	genInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
-genInst i (Entity n@(Name "X32" "-") outputs inputs dyn) =
-	genInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
-genInst i (Entity n@(Name "X256" "+") outputs inputs dyn) =
-	genInst i (Entity (Name "Unsigned" "+") outputs inputs dyn)
-genInst i (Entity n@(Name "X256" "-") outputs inputs dyn) =
-	genInst i (Entity (Name "Unsigned" "-") outputs inputs dyn)
-genInst i (Entity n@(Name "Sampled" op) outputs inputs dyn)
-      | op `elem` [".<.", ".>.", ".<=.", ".>=.", ".==."]
-      = genInst i (Entity (Name "Signed" op) outputs inputs dyn)
-
+--genInst i (Entity n@(Name "Sampled" op) outputs inputs dyn)
+--      | op `elem` [".<.", ".>.", ".<=.", ".>=.", ".==."]
+--      = genInst i (Entity (Name "Signed" op) outputs inputs dyn)
 
 -- identity
 
@@ -103,6 +94,17 @@ genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,c),(Var "i1",tTy
                       (toStdLogicExpr fTy f))]
   where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprBit 1)
 
+
+-- This is only defined over constants that are powers of two.
+genInst i (Entity (Name "Sampled" "/") [(Var "o0",oTy)] [ (Var "i0",iTy,v), (Var "i1",iTy',Lit n)] _)
+--	= trace (show n) 
+	| n == 64	-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
+	= [ InstDecl "Sampled_shiftR" ("inst" ++ show i)
+  		[ ("shift_by",ExprNum $ fromIntegral $ 2) ]
+                [ ("i0",toStdLogicExpr iTy v) ]
+		[ ("o0",ExprVar $ sigName "o0" i) ]
+          ]
+
 -- The following do not need any code in the inst segement
 
 genInst i (Entity nm outputs inputs _)
@@ -117,15 +119,21 @@ genInst i (Entity n@(Name _ "fromStdLogicVector") [(Var "o0",t_out)] [(Var "i0",
 	   (V n,U m) | n == m -> 
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
 		]
+	   (V n,V m) | n == m -> 
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
+		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
-genInst i (Entity n@(Name "StdLogicVector" "toStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
+genInst i (Entity n@(Name "Lava" "toStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
 	case (t_in,t_out) of
 	   (U n,V m) | n == m -> 
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
 		]
+	   (V n,V m) | n == m -> 
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
+		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
-genInst i (Entity n@(Name "StdLogicVector" "spliceStdLogicVector") [(Var "o0",V outs)] [(Var "i0",_,Lit x),(Var "i1",V ins,w)] _)
+genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [(Var "o0",V outs)] [(Var "i0",_,Lit x),(Var "i1",V ins,w)] _)
 	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
 	| otherwise = 
 	[ NetAssign  (sigName "o0" i) $ ExprSlice nm (ExprNum (fromIntegral x + fromIntegral outs - 1)) (ExprNum (fromIntegral x))
@@ -134,11 +142,6 @@ genInst i (Entity n@(Name "StdLogicVector" "spliceStdLogicVector") [(Var "o0",V 
      nm = case toTypedExpr (V ins) w of
   	    ExprVar n -> n
 	    other -> error $ " problem with spliceStdLogicVector " ++ show w
--- HACK
-
-genInst i (Entity n@(Name modNm bitOp) outs ins misc)
-	| bitOp `elem` [".==.","./=."] && modNm /= "Vector"
-	= genInst i (Entity (Name "Vector" bitOp) outs ins misc)
 
 -- The specials (from a table)
 
@@ -160,7 +163,7 @@ genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 			| mod_nms <- ["Sampled"]	-- hack
 			, mod_nm == mod_nms
 		]
-                [ (n,toStdLogicExpr nTy x)            | (Var n,nTy,x) <- inputs ]
+                [ (n,toStdLogicExpr nTy x)  | (Var n,nTy,x) <- inputs ]
 		[ (n,ExprVar $ sigName n i) | (Var n,nTy)   <- outputs ]
           ]
 
@@ -187,97 +190,82 @@ data NetlistOperation = NetlistOp Int (BaseTy -> [(BaseTy,Driver Unique)] -> Exp
 mkSpecialUnary
 	:: (BaseTy -> Expr -> Expr)
 	-> (BaseTy -> Driver Unique -> Expr)
-	-> [String]
 	-> [(String, UnaryOp)]
 	-> [(Name, NetlistOperation)]
-mkSpecialUnary coerceR coerceF mtys ops =
-       [( Name moduleName lavaName
+mkSpecialUnary coerceR coerceF ops =
+       [( Name "Lava" lavaName
 	, NetlistOp 1 $ \ fTy [(ity,i)] ->
 		coerceR fTy (ExprUnary netListOp
 					(coerceF ity i))
 
 	)
-         | moduleName <- mtys
-         , (lavaName,netListOp) <- ops
+         | (lavaName,netListOp) <- ops
          ]
 
 mkSpecialBinary
 	:: (BaseTy -> Expr -> Expr)
 	-> (BaseTy -> Driver Unique -> Expr)
-	-> [String]
+--	-> [String]
 	-> [(String, BinaryOp)]
 	-> [(Name, NetlistOperation)]
-mkSpecialBinary coerceR coerceF mtys ops =
-       [( Name moduleName lavaName
+mkSpecialBinary coerceR coerceF ops =
+       [( Name "Lava" lavaName
 	, NetlistOp 2 $ \ fTy [(lty,l),(rty,r)] ->
 		coerceR fTy (ExprBinary netListOp
 					(coerceF lty l)
 					(coerceF rty r))
 
 	)
-         | moduleName <- mtys
-         , (lavaName,netListOp) <- ops
+         | (lavaName,netListOp) <- ops
          ]
+
+mkSpecialShifts ops =
+    [(Name "Lava" lavaName
+      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
+                          toStdLogicExpr fTy $ ExprFunCall funName [toTypedExpr lty l, toIntegerExpr rty r])
+     )
+    | (lavaName, funName) <- ops
+    ]
 
 -- testBit returns the bit-value at a specific (constant) bit position
 -- of a bit-vector.
 -- This generates:    invar(indexVal);
-mkSpecialTestBit mtys  =
-    [(Name moduleName lavaName
+mkSpecialTestBit =
+    [(Name "Lava" lavaName
       , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
                           let (ExprVar varname) =  toStdLogicExpr lty l
                           in (ExprIndex varname (toIntegerExpr rty r)))
      )
-     | moduleName <- mtys
-    , lavaName <- ["testBit"]
+    | lavaName <- ["testBit"]
     ]
 
-mkSpecialShifts mtys ops =
-    [(Name moduleName lavaName
-      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
-                          let (ExprVar varname) =  toStdLogicExpr lty l
-                          in toStdLogicExpr fTy $ ExprFunCall funName [toTypedExpr lty l, toIntegerExpr rty r])
-     )
-     | moduleName <- mtys
-    , (lavaName, funName) <- ops
-    ]
 
 specials :: [(Name, NetlistOperation)]
 specials =
       mkSpecialBinary (\ _t -> active_high) toTypedExpr
-        ["Unsigned", "Signed", "Bool"]
         [ (".<.",LessThan)
 	, (".>.",GreaterThan)
---	, (".==.",Equals)
 	, (".<=.",LessEqual)
 	, (".>=.",GreaterEqual)
---	, ("./=.",NotEquals) 
+        , (".==.",Equals)
+	, ("./=.",NotEquals)
 	]
-   ++ mkSpecialBinary (\ _t -> active_high) toTypedExpr
-        ["Vector"]
-        [(".==.",Equals), ("./=.",NotEquals)]
    ++ mkSpecialBinary toStdLogicExpr toTypedExpr
-        ["Unsigned", "Signed"]
         [("+",Plus)
 	, ("-",Minus)
 	, ("*", Times)
-	, ("/", Divide)]
+	, ("/", Divide)
+	]
    ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
-        ["Unsigned", "Signed"]
-        [(".|.",Or), (".&.",And), (".^.",Xor)]
-   ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
-        ["Bool"]
-        [("or2",Or), ("and2",And), ("xor2",Xor)]
+        [ (".|.",Or), (".&.",And), (".^.",Xor)
+	, ("or2",Or), ("and2",And), ("xor2",Xor)
+	]
    ++ mkSpecialUnary  toStdLogicExpr toTypedExpr
-        ["Signed"]
 	[("negate",Neg)]
    ++ mkSpecialUnary  (\ _ e -> e) toStdLogicExpr
-        ["Bool"]
 	[("not",LNeg)]
    ++   mkSpecialTestBit
-        ["Unsigned", "Signed"]
    ++   mkSpecialShifts
-        ["Unsigned", "Signed"]
         [ ("shiftL", "shift_left")
         , ("shiftR", "shift_right")
         , ("rotateL", "rotate_left")

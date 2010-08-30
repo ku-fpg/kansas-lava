@@ -58,6 +58,8 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 	toStdLogicExpr ty (Lit n)            = toStdLogicExpr ty n
 	toStdLogicExpr ty (Port (Var v) n)   = ExprVar $ sigName v (fromIntegral n)
 	toStdLogicExpr ty (Pad (PadVar _ v)) = ExprVar $ v
+	toStdLogicExpr ty other		     = error $ show other
+
 
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
@@ -214,6 +216,7 @@ cleanupName :: String -> String
 cleanupName "+" = "addition"
 cleanupName "-" = "subtraction"
 cleanupName "*" = "multiplication"
+cleanupName ".>." = "greaterThan"
 cleanupName other = other
 
 ------------------------------------------------------------------------------------
