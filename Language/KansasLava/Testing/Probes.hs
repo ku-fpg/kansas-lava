@@ -64,6 +64,9 @@ mkTrace c (Thunk circuit k) = do
 
     return $ Trace { len = c, inputs = ins, outputs = out, probes = pdata }
 
+mkThunk :: forall a b. (Ports a, Probe a, Run a, RepWire b) => Trace -> a -> Thunk (Seq b)
+mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
+
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
 -- | that circuit.

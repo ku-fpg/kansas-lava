@@ -50,6 +50,10 @@ main = do
     t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     t3 <- mkTrace limit thunk
 
+    -- TODO: Fix mkThunk to handle -> mkThunk t halfAdder :: Thunk (Seq Bool, Seq Bool)
+    putStrLn "mkThunk test:"
+    print $ runT (mkThunk t2 lavaFst :: Thunk (Seq Bool))
+
     putStrLn "lavaFst Result:"
     print $ test lavaFst t2
     putStrLn "halfAdder Result:"
