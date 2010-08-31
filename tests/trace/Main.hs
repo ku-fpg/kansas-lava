@@ -1,10 +1,11 @@
-import Language.KansasLava hiding (output)
+import Language.KansasLava
 import Language.KansasLava.Testing.Probes
-import Language.KansasLava.Trace
+import Language.KansasLava.Testing.Unit
 
 import qualified Data.Map as M
 import Data.Sized.Unsigned
 
+import Data.Default
 import Data.List
 
 -- TODO: Add Ports/InPorts instance for Signal? Otherwise probe below won't work
@@ -33,6 +34,9 @@ main = do
               $ setOutput seq1
               $ emptyTrace
 
+        thunk = mkThunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+        limit = Just 100
+
     writeToFile "test.trace" trace
     newTrace <- readFromFile "test.trace"
     putStrLn "Serialization Test:"
@@ -41,9 +45,10 @@ main = do
     putStrLn "After:"
     print newTrace
 
-    t <- mkTrace 100 (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
-    t2 <- mkTrace 100 (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
-    t3 <- mkTrace' 100 $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+
+    t <- mkTrace limit (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+    t2 <- mkTrace limit (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+    t3 <- mkTrace' limit thunk
 
     putStrLn "lavaFst Result:"
     print $ test lavaFst t2
@@ -53,3 +58,7 @@ main = do
     print $ run halfAdder t
     putStrLn "halfAdder Execute:"
     print $ execute halfAdder t
+
+    putStrLn "unit test:"
+    res <- unitTest def "halfAdder" thunk
+    print res

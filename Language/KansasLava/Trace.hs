@@ -25,8 +25,9 @@ import Data.Maybe
 
 type TraceMap k = M.Map k TraceStream
 
--- len -> Maybe Int?
-data Trace = Trace { len :: Int
+-- instance Functor TraceStream where -- can we do this with proper types?
+
+data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap PadVar
                    , outputs :: TraceStream
                    , probes :: TraceMap PadVar
@@ -59,7 +60,7 @@ addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
-setCycles i t = t { len = i }
+setCycles i t = t { len = Just i }
 
 addInput :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
@@ -78,15 +79,15 @@ remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
 instance Show Trace where
-    show (Trace c i (TraceStream oty os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,take c os), "probes"], printer p]
-        where printer m = [show (k,TraceStream ty $ take c val) | (k,TraceStream ty val) <- M.toList m]
+    show (Trace c i (TraceStream oty os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,takeMaybe c os), "probes"], printer p]
+        where printer m = [show (k,TraceStream ty $ takeMaybe c val) | (k,TraceStream ty val) <- M.toList m]
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
     (==) (Trace c1 i1 (TraceStream oty1 os1) p1) (Trace c2 i2 (TraceStream oty2 os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
-        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,TraceStream ty $ take c1 s) | (k,TraceStream ty s) <- M.toList m]
+        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.toList m]
               insEqual = (sorted i1) == (sorted i2)
-              outEqual = (oty1 == oty2) && (take c1 os1 == take c2 os2)
+              outEqual = (oty1 == oty2) && (takeMaybe c1 os1 == takeMaybe c2 os2)
               probesEqual = (sorted p1) == (sorted p2)
 
 -- something more intelligent someday?
@@ -94,29 +95,34 @@ diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
 emptyTrace :: Trace
-emptyTrace = Trace { len = 0, inputs = M.empty, outputs = Empty, probes = M.empty }
+emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = Empty, probes = M.empty }
 
 takeTrace :: Int -> Trace -> Trace
-takeTrace i t = t { len = i }
+takeTrace i t = t { len = Just newLen }
+    where newLen = case len t of
+                    Just x -> min i x
+                    Nothing -> i
 
 dropTrace :: Int -> Trace -> Trace
-dropTrace i t@(Trace c ins (TraceStream oty os) ps) | i <= c = t { len = c - i
-                                                , inputs = dropStream ins
-                                                , outputs = TraceStream oty $ drop i os
-                                                , probes = dropStream ps }
-                                    | otherwise = emptyTrace
+dropTrace i t@(Trace c ins (TraceStream oty os) ps)
+    | newLen > 0 = t { len = Just newLen
+                     , inputs = dropStream ins
+                     , outputs = TraceStream oty $ drop i os
+                     , probes = dropStream ps }
+    | otherwise = emptyTrace
     where dropStream m = M.fromList [ (k,TraceStream ty (drop i s)) | (k,TraceStream ty s) <- M.toList m ]
+          newLen = maybe i (\x -> x - i) c
 
 -- need to change format to be vertical
 serialize :: Trace -> String
 serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ PadVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
-          showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- take c s]
+          showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- takeMaybe c s]
 
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
     where (cstr:"INPUTS":ls) = lines str
-          c = read cstr :: Int
+          c = read cstr :: Maybe Int
           (ins,"OUTPUT":r1) = readMap ls
           (out,"PROBES":r2) = readStrm r1
           (ps,_) = readMap r2
@@ -162,7 +168,11 @@ class Run a where
     run :: a -> Trace -> TraceStream
 
 instance (RepWire a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = TraceStream (wireType (witness :: a)) (take c $ fromXStream (witness :: a) s)
+    run (Seq s _) (Trace c _ _ _) = TraceStream (wireType (witness :: a)) (takeMaybe c $ fromXStream (witness :: a) s)
+
+-- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
+takeMaybe :: Maybe Int -> [a] -> [a]
+takeMaybe = maybe id take
 
 {- eventually
 instance (RepWire a) => Run (Comb a) where

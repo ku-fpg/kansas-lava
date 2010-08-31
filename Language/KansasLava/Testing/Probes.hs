@@ -41,10 +41,10 @@ mkThunk a b = Thunk a b
 runT :: Thunk b -> b
 runT (Thunk circuit fn) = fn circuit
 
-mkTrace' :: (Ports a) => Int -> Thunk a -> IO Trace
+mkTrace' :: (Ports a) => Maybe Int -> Thunk a -> IO Trace
 mkTrace' i (Thunk circuit fn) = mkTrace i circuit fn
 
-mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
+mkTrace :: (Ports a, Probe a, Ports b) => Maybe Int -> a -> (a -> b) -> IO Trace
 mkTrace c circuit apply = do
     let probed = probe "wholeCircuit" circuit
 
