@@ -86,7 +86,7 @@ fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) 
 
 instance (Wire a, Signal sig) => Pack sig (Maybe a) where
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
-	pack ~(a,b) = {-# SCC "pack(Maybe)" #-}
+	pack (a,b) = {-# SCC "pack(Maybe)" #-}
 			liftS2 (\ ~(Comb a ae) ~(Comb b be) ->
 				    Comb (case unX (a :: X Bool) :: Maybe Bool of
 					    Nothing -> optX (Nothing :: Maybe (Maybe a))

@@ -199,13 +199,38 @@ witness :: a
 witness = error "witness"
 
 mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 i ~(t,e)
+mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei)
 	 	    ~(Comb t et)
 	 	    ~(Comb e ee)
 			-> Comb (mux2shallow (witness :: a) i t e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
+
+mux2' :: forall sig a . (Signal sig, sig a ~ Seq a, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2' i (t,e)
+	= liftS3' (\ (Comb i ei)
+	 	    (Comb t et)
+	 	    (Comb e ee)
+			-> Comb (mux2shallow (witness :: a) i t e)
+			        (entity3 (Name "Lava" "mux2") ei et ee)
+	         ) i t e
+	
+--liftS3' :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
+--       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
+{-
+liftS3' f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
+-}
+-- BUGGS?
+liftS3' :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
+       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
+liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
+      where
+	Comb _ ed = error "" -- f (deepComb ea) (deepComb eb) (deepComb ec)
+	f' :: X a -> X b -> X c -> X d
+	f' a b c = case f (shallowComb a) (shallowComb b) (shallowComb c)  of
+		      Comb d _ -> d
+
 
 mux2shallow :: forall a . (Wire a) => a -> X Bool -> X a -> X a -> X a
 mux2shallow _ i t e =

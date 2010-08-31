@@ -146,8 +146,8 @@ zipEnabled f en1 en2 = packY (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
 	
 
 packY :: forall a sig . (Wire a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
-packY ~(a,b) = {-# SCC "pack(Maybe)" #-}
-			liftS2 (\ ~(Comb a ae) ~(Comb b be) ->
+packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
+			liftS2 (\ (Comb a ae) (Comb b be) ->
 				    Comb (case unX (a :: X Bool) :: Maybe Bool of
 					    Nothing -> optX (Nothing :: Maybe (Maybe a))
 					    Just False -> optX (Just Nothing :: Maybe (Maybe a))
