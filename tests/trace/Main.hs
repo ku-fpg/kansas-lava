@@ -17,9 +17,9 @@ lavaFst :: Seq Bool -> Seq Bool -> Seq Bool
 lavaFst a b = a
 
 main = do
-    let pv1 = PadVar 0 "bools0"
-        pv2 = PadVar 1 "bools1"
-        pv3 = PadVar 2 "ints"
+    let pv1 = OVar 0 "bools0"
+        pv2 = OVar 1 "bools1"
+        pv3 = OVar 2 "ints"
 
         seq1 = toSeq $ cycle [True, False]
         seq2 = toSeq' $ cycle [Nothing, Just True, Just False]

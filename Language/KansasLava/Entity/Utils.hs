@@ -23,7 +23,7 @@ data TraceStream = TraceStream BaseTy [[X Bool]] -- to recover type, eventually 
                  | Empty
     deriving (Eq, Show)
 
-data Annotation = ProbeValue PadVar TraceStream
+data Annotation = ProbeValue OVar TraceStream
                 | Ann String Dynamic
 		| Comment String		-- intended to arrive in the VHDL
 

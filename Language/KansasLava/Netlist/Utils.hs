@@ -28,7 +28,7 @@ instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr ty (Lit n)             = toTypedExpr ty n
 	toTypedExpr ty (Port (Var v) n)    = toTypedExpr ty (sigName v (fromIntegral n))
-	toTypedExpr ty (Pad (PadVar _ nm)) = toTypedExpr ty nm
+	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
 
 instance ToTypedExpr String where
 	-- From a std_logic* into a typed Expr
@@ -57,9 +57,8 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
 	toStdLogicExpr ty (Lit n)            = toStdLogicExpr ty n
 	toStdLogicExpr ty (Port (Var v) n)   = ExprVar $ sigName v (fromIntegral n)
-	toStdLogicExpr ty (Pad (PadVar _ v)) = ExprVar $ v
+	toStdLogicExpr ty (Pad (OVar _ v)) = ExprVar $ v
 	toStdLogicExpr ty other		     = error $ show other
-
 
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
@@ -83,12 +82,12 @@ instance ToStdLogicExpr Expr where
 
 class ToIntegerExpr v where
 	toIntegerExpr :: BaseTy -> v -> Expr
-	
+
 instance (Integral i) => ToIntegerExpr (Driver i) where
 	toIntegerExpr ty (Lit v) = ExprNum v
 	toIntegerExpr ty other   = to_integer (toTypedExpr ty other)
 
--- NEVER USED 
+-- NEVER USED
 {-
 toStdLogicVectorExpr :: (Integral a) => BaseTy -> Driver a -> Expr
 toStdLogicVectorExpr ty dr =
@@ -105,7 +104,7 @@ toStdLogicTy ClkTy = B
 toStdLogicTy RstTy = B
 toStdLogicTy ty    = V (fromIntegral size)
   where size = baseTypeLength ty
--- 
+--
 
 -- Name a signal
 -- TODO: consider Var -> Unique -> String
@@ -156,9 +155,9 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 
 	nm = case d of
 		Port (Var v) n -> sigName v n
-		Pad (PadVar _ v) -> v
+		Pad (OVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
-		
+
 	f :: Integer -> BaseTy -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprNum i))
         f i ty = let w = fromIntegral $ baseTypeLength ty
@@ -183,9 +182,9 @@ addNum _ _ = error "addNum"
 ------------------------------------------------------------------------
 
 
-data NetlistOption 
+data NetlistOption
 		= LoadEnable 			-- add an enable signal to the entity, and each gate.
-		| AsynchResets 
+		| AsynchResets
 --		| ReifyOptions [ReifyOption]
 		deriving (Eq, Show, Ord)
 type NetlistOptions = [NetlistOption]
@@ -198,16 +197,16 @@ asynchResets opts = AsynchResets `elem` opts
 class AddNext s where
    next :: s -> s
 
-instance AddNext String where 
+instance AddNext String where
    next nm = nm ++ "_next"
 
-instance AddNext Var where 
+instance AddNext Var where
    next (Var nm) = Var $ next nm
 
 
-instance AddNext (Driver i) where 	
+instance AddNext (Driver i) where
    next (Port v i) = Port (next v) i
-   next other = other 
+   next other = other
 
 ------------------------------------------------------------------------------
 -- Turn a name into something VHDL could use
@@ -225,14 +224,14 @@ cleanupName other = other
 -- on clk input, with the value including a list of associated entities.
 -- TODO: What is going on here!!
 
-getSynchs :: [String] 
-	  -> [(Unique,MuE Unique)] 
+getSynchs :: [String]
+	  -> [(Unique,MuE Unique)]
 	  -> Map.Map (Driver Unique, Driver Unique, Driver Unique) [(Unique, MuE Unique)]
 
 getSynchs nms ents = Map.fromListWith (++) synchs
   where
-        synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])  
-		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents, 
+        synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])
+		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents,
 		    n `elem` nms]
         getInput nm is = case find (\(Var c,_,_) -> c == nm) is of
                       Just (Var _,_,d) -> d

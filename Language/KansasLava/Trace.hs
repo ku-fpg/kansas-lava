@@ -28,9 +28,9 @@ type TraceMap k = M.Map k TraceStream
 -- instance Functor TraceStream where -- can we do this with proper types?
 
 data Trace = Trace { len :: Maybe Int
-                   , inputs :: TraceMap PadVar
+                   , inputs :: TraceMap OVar
                    , outputs :: TraceStream
-                   , probes :: TraceMap PadVar
+                   , probes :: TraceMap OVar
 --                   , circuit :: ReifiedCircuit
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    -- what else? keep the vhdl here?
@@ -62,19 +62,19 @@ addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
 setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
-addInput :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
+addInput :: forall a. (RepWire a) => OVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
 
-remInput :: PadVar -> Trace -> Trace
+remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
 setOutput :: forall a. (RepWire a) => Seq a -> Trace -> Trace
 setOutput (Seq s _) t = t { outputs = TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s) }
 
-addProbe :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
+addProbe :: forall a. (RepWire a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
 
-remProbe :: PadVar -> Trace -> Trace
+remProbe :: OVar -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
@@ -115,7 +115,7 @@ dropTrace i t@(Trace c ins (TraceStream oty os) ps)
 
 -- need to change format to be vertical
 serialize :: Trace -> String
-serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ PadVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
+serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- takeMaybe c s]
 
@@ -130,7 +130,7 @@ deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
 readStrm :: [String] -> (TraceStream, [String])
 readStrm ls = (strm,rest)
     where (m,rest) = readMap ls
-          [(_,strm)] = M.toList (m :: TraceMap PadVar)
+          [(_,strm)] = M.toList (m :: TraceMap OVar)
 
 readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
 readMap ls = (go $ takeWhile cond ls, rest)
@@ -204,7 +204,7 @@ mkTraceRC :: (..) => ReifiedCircuit -> Trace
 
 -- this is just Eq, but maybe instead of Bool some kind of detailed diff
 unionTrace :: Trace -> Trace -> Trace
-remove :: PadVar -> Trace -> Trace
+remove :: OVar -> Trace -> Trace
 
 -- testing?
 

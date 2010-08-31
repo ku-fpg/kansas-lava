@@ -26,9 +26,9 @@ import qualified Data.Map as Map
 reifyCircuit :: (Ports a) => [ReifyOptions] -> a -> IO ReifiedCircuit
 reifyCircuit opts circuit = do
         -- GenSym for input/output pad names
-	let inputNames = L.zipWith PadVar [0..] $ head $
+	let inputNames = L.zipWith OVar [0..] $ head $
 		[ nms | InputNames nms <- opts ] ++ [[ "i" ++ show i | i <- [0..]]]
-	let outputNames =  L.zipWith PadVar [0..] $ head $
+	let outputNames =  L.zipWith OVar [0..] $ head $
 		[ nms | OutputNames nms <- opts ] ++ [[ "o" ++ show i | i <- [0..]]]
 
 	let os = ports 0 circuit
@@ -92,7 +92,7 @@ reifyCircuit opts circuit = do
 		    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
 				        env = Map.fromList [ (u,d) | (d,u) <- concat chains ]
 				    return $ rCit2 { theCircuit = [ (u,case e of
-					 	          Entity nm ins outs ann -> 
+					 	          Entity nm ins outs ann ->
 								case Map.lookup u env of
 								  Nothing -> e
 								  Just d -> Entity nm ins outs (ann ++ [Comment $ "depth: " ++ show d])
@@ -170,7 +170,7 @@ input nm = liftS1 $ \ (Comb a d) ->
 -}
 
 wireGenerate :: Int -> (D w,Int)
-wireGenerate v = (D (Pad (PadVar v ("i_" ++ show v))),succ v)
+wireGenerate v = (D (Pad (OVar v ("i_" ++ show v))),succ v)
 
 instance Wire a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
@@ -283,11 +283,11 @@ output nm = liftS1 $ \ (Comb a d) ->
 	in res
 
 resolveNames :: ReifiedCircuit -> ReifiedCircuit
-resolveNames cir 
+resolveNames cir
 	| error1 = error $ "The generated input/output names are non distinct: " ++
 			   show (map fst (theSrcs cir))
 	| not (null error2) = error $ "A name has been used both labeled and non labeled "
-	| error3 = error "The labled input/output names are non distinct"	
+	| error3 = error "The labled input/output names are non distinct"
 	| otherwise = ReifiedCircuit { theCircuit = newCircuit
 			 	     , theSrcs = newSrcs
 				     , theSinks = newSinks
@@ -301,13 +301,13 @@ resolveNames cir
 			    Table _ ins _ -> [ nm | (_,_,Pad nm) <- [ins]]
 			, v `elem` oldSrcs
 			]
-	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))	
-	
-	newCircuit = 
+	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))
+
+	newCircuit =
 		[ ( u
 		  , case e of
-		      Entity (Name "Lava" "input") outs [(Var oNm,oTy,Pad (PadVar i _))] misc
-			-> Entity (Name "Lava" "id") outs [(Var oNm,oTy,Pad (PadVar i oNm))] misc
+		      Entity (Name "Lava" "input") outs [(Var oNm,oTy,Pad (OVar i _))] misc
+			-> Entity (Name "Lava" "id") outs [(Var oNm,oTy,Pad (OVar i oNm))] misc
 		      Entity (Name "Lava" io) outs ins misc
 			| io `elem` ["input","output"]
 			-> Entity (Name "Lava" "id") outs ins misc
@@ -316,7 +316,7 @@ resolveNames cir
 		| (u,e) <- theCircuit cir
 		]
 
-	newSrcs :: [(PadVar,BaseTy)]
+	newSrcs :: [(OVar,BaseTy)]
 	newSrcs = [ case lookup nm mapInputs of
 		       Nothing -> (nm,ty)
 		       Just nm' -> (nm',ty)
@@ -329,20 +329,20 @@ resolveNames cir
 		  , not (nm `elem` (map fst newSrcs))
 		  ]
 
-	newSinks :: [(PadVar,BaseTy,Driver Unique)]
+	newSinks :: [(OVar,BaseTy,Driver Unique)]
 	newSinks = [ case dr of
-		      Port (Var nm') u | isOutput u -> (PadVar i nm',ty,dr)
+		      Port (Var nm') u | isOutput u -> (OVar i nm',ty,dr)
 		      _ -> (nm,ty,dr)
-		   | (nm@(PadVar i _),ty,dr) <- theSinks cir
+		   | (nm@(OVar i _),ty,dr) <- theSinks cir
 		   ]
 
 	isOutput u = case lookup u (theCircuit cir) of
 			Just (Entity (Name "Lava" "output") _ _ _) -> True
 			_ -> False
 
-	mapInputs :: [(PadVar,PadVar)]
-	mapInputs = [ (PadVar i inp,PadVar i nm)
-		    | (_,Entity (Name "Lava" "input") _ [(Var nm,_,Pad (PadVar i inp))] _) <- theCircuit cir
+	mapInputs :: [(OVar,OVar)]
+	mapInputs = [ (OVar i inp,OVar i nm)
+		    | (_,Entity (Name "Lava" "input") _ [(Var nm,_,Pad (OVar i inp))] _) <- theCircuit cir
 		    ]
 
 

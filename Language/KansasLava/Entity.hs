@@ -45,12 +45,12 @@ data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
 
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
-              | Pad PadVar       	  --
+              | Pad OVar       	  --
               | Lit Integer
 	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Show, Eq, Ord)
 
-data PadVar = PadVar Int String		-- The # is used purely for sorting order.
+data OVar = OVar Int String		-- The # is used purely for sorting order.
 	deriving (Show, Eq, Ord, Read)
 
 instance T.Traversable (Entity ty a) where

@@ -91,7 +91,7 @@ writeDotCircuit' filename circuit = do
                                 return (n,nd)
                            | (n,Entity nm outs ins attrs) <- nodes
                            , not $ null attrs
-                           , let pnms = [ nm ++ "_" ++ show i | ProbeValue (PadVar i nm) _ <- attrs ]
+                           , let pnms = [ nm ++ "_" ++ show i | ProbeValue (OVar i nm) _ <- attrs ]
                            ]
 
         let nds = nds0 ++ nds1 ++ probed

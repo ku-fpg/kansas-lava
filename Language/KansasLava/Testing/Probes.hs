@@ -79,7 +79,7 @@ probeCircuit :: (Ports a) =>
 probeCircuit circuit = do
     rc <- reifyCircuit [] circuit
     let evts = [(n ++ "_" ++ show i,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
-                       , pv@(ProbeValue (PadVar i n) v) <- attrs]
+                       , pv@(ProbeValue (OVar i n) v) <- attrs]
     return evts
 
 -- | 'getProbe' takes an association list of probe values and a probe
@@ -110,18 +110,18 @@ class Probe a where
 
 instance (Show a, RepWire a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
-        where pdata = ProbeValue (PadVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s))
+        where pdata = ProbeValue (OVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s))
 
 instance (Show a, RepWire a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
-        where pdata = ProbeValue (PadVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) (fromList $ repeat s)))
+        where pdata = ProbeValue (OVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) (fromList $ repeat s)))
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
 --    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
 
 -- AJG: The number are hacks to make the order of rst before clk work.
--- ACF: Revisit this with new PadVar probe names
+-- ACF: Revisit this with new OVar probe names
 instance Probe (Env c) where
     attach i name (Env clk rst clk_en) = Env clk (attach i (name ++ "_0rst") rst)
  						                         (attach i (name ++ "_1clk_en") clk_en)
@@ -164,7 +164,7 @@ addAttr value (Port v (E (Entity n outs ins attrs))) =
             Port v (E (Entity n outs ins $ attrs ++ [value]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
-addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Pad (PadVar _ v)) =
+addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Pad (OVar _ v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
                        [value])))
