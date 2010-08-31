@@ -53,7 +53,7 @@ unitTest opts name thunk@(Thunk circuit fn) = do
 
     trace <- if exists && (not ignore)
         then deserialize <$> readFile tFile
-        else mkTrace' (cycles opts) thunk
+        else mkTrace (cycles opts) thunk
 
     let (equal, result) = test circuit trace
     (testAction opts) equal name result

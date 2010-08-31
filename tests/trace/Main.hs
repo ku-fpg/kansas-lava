@@ -34,7 +34,7 @@ main = do
               $ setOutput seq1
               $ emptyTrace
 
-        thunk = mkThunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+        thunk = Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
         limit = Just 100
 
     writeToFile "test.trace" trace
@@ -46,9 +46,9 @@ main = do
     print newTrace
 
 
-    t <- mkTrace limit (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
-    t2 <- mkTrace limit (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
-    t3 <- mkTrace' limit thunk
+    t <- mkTrace limit $ Thunk (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+    t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+    t3 <- mkTrace limit thunk
 
     putStrLn "lavaFst Result:"
     print $ test lavaFst t2

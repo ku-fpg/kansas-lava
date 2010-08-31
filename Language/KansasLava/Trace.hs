@@ -37,23 +37,21 @@ data Trace = Trace { len :: Maybe Int
                    }
 
 -- Some combinators to get stuff in and out of the map
-fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> [[X Bool]]
-fromXStream witness stream = [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
+fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> TraceStream
+fromXStream witness stream = TraceStream (wireType witness) [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
 
-toXStream :: forall w. (RepWire w) => w -> [[X Bool]] -> Stream (X w)
-toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
+-- oh to have dependent types!
+toXStream :: forall w. (RepWire w) => w -> TraceStream -> Stream (X w)
+toXStream witness (TraceStream _ list) = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
 
 getStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w)
-getStream name m witness = case M.lookup name m of
-                        Just (TraceStream ty rep) -> toXStream witness rep
+getStream name m witness = toXStream witness $ m M.! name
 
 getSeq :: (Ord a, RepWire w) => a -> TraceMap a -> w -> Seq w
 getSeq key m witness = shallowSeq $ getStream key m witness
 
 addStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
-addStream key m witness stream = M.insert key (TraceStream ty rep) m
-    where ty = wireType witness
-          rep = fromXStream witness stream
+addStream key m witness stream = M.insert key (fromXStream witness stream) m
 
 addSeq :: forall a b. (Ord a, RepWire b) => a -> Seq b -> TraceMap a -> TraceMap a
 addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
@@ -69,7 +67,7 @@ remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
 setOutput :: forall a. (RepWire a) => Seq a -> Trace -> Trace
-setOutput (Seq s _) t = t { outputs = TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s) }
+setOutput (Seq s _) t = t { outputs = fromXStream (witness :: a) s }
 
 addProbe :: forall a. (RepWire a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
@@ -168,7 +166,8 @@ class Run a where
     run :: a -> Trace -> TraceStream
 
 instance (RepWire a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = TraceStream (wireType (witness :: a)) (takeMaybe c $ fromXStream (witness :: a) s)
+    run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+        where TraceStream ty strm = fromXStream (witness :: a) s
 
 -- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
 takeMaybe :: Maybe Int -> [a] -> [a]

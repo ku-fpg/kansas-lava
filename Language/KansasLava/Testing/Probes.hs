@@ -35,21 +35,15 @@ import qualified Data.Reify.Graph as DRG
 
 data Thunk b = forall a. (Ports a, Probe a, Run a) => Thunk a (a -> b)
 
-mkThunk :: (Ports a, Probe a, Run a, Ports b) => a -> (a -> b) -> Thunk b
-mkThunk a b = Thunk a b
-
 runT :: Thunk b -> b
 runT (Thunk circuit fn) = fn circuit
 
-mkTrace' :: (Ports a) => Maybe Int -> Thunk a -> IO Trace
-mkTrace' i (Thunk circuit fn) = mkTrace i circuit fn
-
-mkTrace :: (Ports a, Probe a, Ports b) => Maybe Int -> a -> (a -> b) -> IO Trace
-mkTrace c circuit apply = do
+mkTrace :: (Ports a) => Maybe Int -> Thunk a -> IO Trace
+mkTrace c (Thunk circuit k) = do
     let probed = probe "wholeCircuit" circuit
 
     rc <- reifyCircuit [] $ probed
-    rc' <- reifyCircuit [] $ apply $ probed -- this is essentially what probeCircuit does
+    rc' <- reifyCircuit [] $ k $ probed -- this is essentially what probeCircuit does
 
     let pdata = M.fromList [(k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
                                   , ProbeValue k v <- attrs ]
@@ -110,11 +104,11 @@ class Probe a where
 
 instance (Show a, RepWire a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
-        where pdata = ProbeValue (OVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s))
+        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
 
 instance (Show a, RepWire a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
-        where pdata = ProbeValue (OVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) (fromList $ repeat s)))
+        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
