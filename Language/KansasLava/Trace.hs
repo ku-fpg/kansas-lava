@@ -24,10 +24,9 @@ import qualified Data.Map as M
 import Data.Maybe
 
 type TraceMap k = M.Map k TraceStream
-type TraceStream = (BaseTy,[[X Bool]]) -- to recover type, eventually clock too?
 
--- cycles -> Maybe Int?
-data Trace = Trace { cycles :: Int
+-- len -> Maybe Int?
+data Trace = Trace { len :: Int
                    , inputs :: TraceMap PadVar
                    , outputs :: TraceStream
                    , probes :: TraceMap PadVar
@@ -45,13 +44,13 @@ toXStream witness list = fromList [toWireXRep witness $ Matrix.fromList val | va
 
 getStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w)
 getStream name m witness = case M.lookup name m of
-                        Just (ty,rep) -> toXStream witness rep
+                        Just (TraceStream ty rep) -> toXStream witness rep
 
 getSeq :: (Ord a, RepWire w) => a -> TraceMap a -> w -> Seq w
 getSeq key m witness = shallowSeq $ getStream key m witness
 
 addStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
-addStream key m witness stream = M.insert key (ty,rep) m
+addStream key m witness stream = M.insert key (TraceStream ty rep) m
     where ty = wireType witness
           rep = fromXStream witness stream
 
@@ -60,7 +59,7 @@ addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
-setCycles i t = t { cycles = i }
+setCycles i t = t { len = i }
 
 addInput :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
@@ -69,7 +68,7 @@ remInput :: PadVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
 setOutput :: forall a. (RepWire a) => Seq a -> Trace -> Trace
-setOutput (Seq s _) t = t { outputs = (wireType (witness :: a), fromXStream (witness :: a) s) }
+setOutput (Seq s _) t = t { outputs = TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s) }
 
 addProbe :: forall a. (RepWire a) => PadVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
@@ -79,13 +78,13 @@ remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
 instance Show Trace where
-    show (Trace c i (oty,os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,take c os), "probes"], printer p]
-        where printer m = [show (k,(ty,take c val)) | (k,(ty,val)) <- M.toList m]
+    show (Trace c i (TraceStream oty os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,take c os), "probes"], printer p]
+        where printer m = [show (k,TraceStream ty $ take c val) | (k,TraceStream ty val) <- M.toList m]
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
-    (==) (Trace c1 i1 (oty1,os1) p1) (Trace c2 i2 (oty2,os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
-        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,(ty,take c1 s)) | (k,(ty,s)) <- M.toList m]
+    (==) (Trace c1 i1 (TraceStream oty1 os1) p1) (Trace c2 i2 (TraceStream oty2 os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
+        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,TraceStream ty $ take c1 s) | (k,TraceStream ty s) <- M.toList m]
               insEqual = (sorted i1) == (sorted i2)
               outEqual = (oty1 == oty2) && (take c1 os1 == take c2 os2)
               probesEqual = (sorted p1) == (sorted p2)
@@ -95,27 +94,27 @@ diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
 emptyTrace :: Trace
-emptyTrace = Trace { cycles = 0, inputs = M.empty, outputs = (B,[]), probes = M.empty }
+emptyTrace = Trace { len = 0, inputs = M.empty, outputs = Empty, probes = M.empty }
 
 takeTrace :: Int -> Trace -> Trace
-takeTrace i t = t { cycles = i }
+takeTrace i t = t { len = i }
 
 dropTrace :: Int -> Trace -> Trace
-dropTrace i t@(Trace c ins (oty,os) ps) | i <= c = t { cycles = c - i
+dropTrace i t@(Trace c ins (TraceStream oty os) ps) | i <= c = t { len = c - i
                                                 , inputs = dropStream ins
-                                                , outputs = (oty, drop i os)
+                                                , outputs = TraceStream oty $ drop i os
                                                 , probes = dropStream ps }
                                     | otherwise = emptyTrace
-    where dropStream m = M.fromList [ (k,(ty,drop i s)) | (k,(ty,s)) <- M.toList m ]
+    where dropStream m = M.fromList [ (k,TraceStream ty (drop i s)) | (k,TraceStream ty s) <- M.toList m ]
 
 -- need to change format to be vertical
 serialize :: Trace -> String
-serialize (Trace c ins (oty,os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ PadVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
-    where showMap m = [unlines [show k, show ty, showStrm strm] | (k,(ty,strm)) <- M.toList m]
+serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ PadVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
+    where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- take c s]
 
 deserialize :: String -> Trace
-deserialize str = Trace { cycles = c, inputs = ins, outputs = out, probes = ps }
+deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
     where (cstr:"INPUTS":ls) = lines str
           c = read cstr :: Int
           (ins,"OUTPUT":r1) = readMap ls
@@ -131,7 +130,7 @@ readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
 readMap ls = (go $ takeWhile cond ls, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
           rest = dropWhile cond ls
-          go (k:ty:strm:r) = M.union (M.singleton (read k) (read ty,[map toXBool w | w <- words strm])) $ go r
+          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([map toXBool w | w <- words strm]))) $ go r
           go _             = M.empty
           toXBool :: Char -> X Bool
           toXBool 'T' = return True
@@ -152,8 +151,9 @@ rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                          , (_,_,Port _ n2) <- ins ]
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
-test :: (Run a) => a -> Trace -> Bool
-test circuit trace = trace == (execute circuit trace)
+test :: (Run a) => a -> Trace -> (Bool, Trace)
+test circuit trace = (trace == result, result)
+    where result = execute circuit trace
 
 execute :: (Run a) => a -> Trace -> Trace
 execute circuit trace = trace { outputs = run circuit trace }
@@ -162,7 +162,7 @@ class Run a where
     run :: a -> Trace -> TraceStream
 
 instance (RepWire a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = (wireType (witness :: a), take c $ fromXStream (witness :: a) s)
+    run (Seq s _) (Trace c _ _ _) = TraceStream (wireType (witness :: a)) (take c $ fromXStream (witness :: a) s)
 
 {- eventually
 instance (RepWire a) => Run (Comb a) where
@@ -172,16 +172,16 @@ instance (RepWire a) => Run (Comb a) where
 
 instance (Run a, Run b) => Run (a,b) where
     -- note order of zip matters! must be consistent with fromWireXRep
-    run (x,y) t = (TupleTy [ty1,ty2], zipWith (++) strm1 strm2)
-        where (ty1,strm1) = run x t
-              (ty2,strm2) = run y t
+    run (x,y) t = TraceStream (TupleTy [ty1,ty2]) $ zipWith (++) strm1 strm2
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
 
 instance (Run a, Run b, Run c) => Run (a,b,c) where
     -- note order of zip matters! must be consistent with fromWireXRep
-    run (x,y,z) t = (TupleTy [ty1,ty2,ty3], zipWith (++) strm1 $ zipWith (++) strm2 strm3)
-        where (ty1,strm1) = run x t
-              (ty2,strm2) = run y t
-              (ty3,strm3) = run z t
+    run (x,y,z) t = TraceStream (TupleTy [ty1,ty2,ty3]) (zipWith (++) strm1 $ zipWith (++) strm2 strm3)
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
+              TraceStream ty3 strm3 = run z t
 
 instance (RepWire a, Run b) => Run (Seq a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }

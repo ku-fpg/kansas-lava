@@ -19,8 +19,11 @@ import Control.Applicative
 import Data.Dynamic
 
 ---------------------------------------------------------------------------------------------------------
+data TraceStream = TraceStream BaseTy [[X Bool]] -- to recover type, eventually clock too?
+                 | Empty
+    deriving (Eq, Show)
 
-data Annotation = ProbeValue PadVar (BaseTy,[[X Bool]])
+data Annotation = ProbeValue PadVar TraceStream
                 | Ann String Dynamic
 		| Comment String		-- intended to arrive in the VHDL
 

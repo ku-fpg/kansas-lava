@@ -33,13 +33,15 @@ import qualified Data.Graph.Inductive as G
 
 import qualified Data.Reify.Graph as DRG
 
-data Thunk b = forall a. (Ports a, Probe a) => Thunk a (a -> b)
+data Thunk b = forall a. (Ports a, Probe a, Run a) => Thunk a (a -> b)
+
+mkThunk :: (Ports a, Probe a, Run a, Ports b) => a -> (a -> b) -> Thunk b
 mkThunk a b = Thunk a b
 
 runT :: Thunk b -> b
 runT (Thunk circuit fn) = fn circuit
 
-mkTrace' :: (Ports a, Probe a) => Int -> Thunk a -> IO Trace
+mkTrace' :: (Ports a) => Int -> Thunk a -> IO Trace
 mkTrace' i (Thunk circuit fn) = mkTrace i circuit fn
 
 mkTrace :: (Ports a, Probe a, Ports b) => Int -> a -> (a -> b) -> IO Trace
@@ -66,7 +68,7 @@ mkTrace c circuit apply = do
         graph :: G.Gr (MuE DRG.Unique) ()
         graph = rcToGraph rc
 
-    return $ Trace { cycles = c, inputs = ins, outputs = out, probes = pdata }
+    return $ Trace { len = c, inputs = ins, outputs = out, probes = pdata }
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in
@@ -108,13 +110,11 @@ class Probe a where
 
 instance (Show a, RepWire a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
-        where pdata = ProbeValue (PadVar i name) (wireType witness, fromXStream witness s)
-              witness = (error "probe" :: a)
+        where pdata = ProbeValue (PadVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) s))
 
 instance (Show a, RepWire a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
-        where pdata = ProbeValue (PadVar i name) (wireType witness, fromXStream witness (fromList $ repeat s))
-              witness = (error "probe" :: a)
+        where pdata = ProbeValue (PadVar i name) (TraceStream (wireType (witness :: a)) (fromXStream (witness :: a) (fromList $ repeat s)))
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
@@ -164,15 +164,15 @@ addAttr value (Port v (E (Entity n outs ins attrs))) =
             Port v (E (Entity n outs ins $ attrs ++ [value]))
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
-addAttr value@(ProbeValue _ (ty,_)) d@(Pad (PadVar _ v)) =
+addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Pad (PadVar _ v)) =
   (Port (Var "o0")
           (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
                        [value])))
-addAttr value@(ProbeValue _ (ty,_)) d@(Lit x) =
+addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Lit x) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
                  [value])))
-addAttr value@(ProbeValue _ (ty,_)) d@(Error _) =
+addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
             (Port (Var "o0")
              (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
                  [value])))
