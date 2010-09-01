@@ -68,19 +68,19 @@ errorSeq = liftS0 errorComb
 instance Signal (CSeq c) where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
-  liftS1 f ~(Seq a ea) = {-# SCC "liftS1Seq" #-}
+  liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
     let 
 	Comb _ eb = f (deepComb ea)
-	f' a = let ~(Comb b _) = f (shallowComb a) 
+	f' a = let (Comb b _) = f (shallowComb a) 
 	       in b
    in Seq (fmap f' a) eb
 
   -- We can not replace this with a version that uses packing,
   -- because *this* function is used by the pack/unpack stuff.
-  liftS2 f ~(Seq a ea) ~(Seq b eb) = Seq (S.zipWith f' a b) ec
+  liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
-	f' a b = let ~(Comb c _) = f (shallowComb a) (shallowComb b) 
+	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b) 
 	         in c
 
   liftSL f ss = Seq (S.fromList
