@@ -15,10 +15,10 @@ import Data.Sized.Unsigned as U
 import Data.Sized.Matrix as M
 
 class Signal f where
-  liftS0 :: Comb a -> f a
-  liftS1 :: (Comb a -> Comb b) -> f a -> f b
-  liftS2 :: (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
-  liftSL :: ([Comb a] -> Comb b) -> [f a] -> f b
+  liftS0 :: (Wire a) => Comb a -> f a
+  liftS1 :: (Wire a, Wire b) => (Comb a -> Comb b) -> f a -> f b
+  liftS2 :: (Wire a, Wire b, Wire c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
+  liftSL :: (Wire a, Wire b) => ([Comb a] -> Comb b) -> [f a] -> f b
 
 bitTypeOf :: forall f w . (Signal f, Wire w) => f w -> BaseTy
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
@@ -40,10 +40,10 @@ errorS = liftS0 errorComb
 
 ----------------------------------------------------------------------------------------------------
 
-comment :: (Signal sig) => String -> sig a -> sig a
-comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $ 
+comment :: (Signal sig, Wire a) => String -> sig a -> sig a
+comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $
 			   case d of
-			     Port v (E e) -> Port v $ E $ 
+			     Port v (E e) -> Port v $ E $
 				case e of
 				  (Entity nm ins outs ann) -> Entity nm ins outs (ann ++ [Comment msg])
 			     Lit v -> error "can not add comment to literal"

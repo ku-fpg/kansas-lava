@@ -4,7 +4,7 @@
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
 module Language.KansasLava.Comb where
-	
+
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Type
@@ -31,17 +31,26 @@ instance forall a . (RepWire a, Show a) => Show (Comb a) where
 instance forall a . (Wire a, Eq a) => Eq (Comb a) where
 	(Comb x _) == (Comb y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
 
-deepComb :: D a -> Comb a
-deepComb e = Comb (error "shallow argument being used incorrectly") e
+-- ACF: Since the shallow part of Comb is strict, we can't use error here.
+--      This only seems to come up in debugging. We could create a special
+--      wrapper to encode the error status like we did in the deep, but
+--      adding the class constraint is less invasive for now.
+-- deepComb e = Comb (error "shallow argument being used incorrectly") e
+deepComb :: forall a. (Wire a) => D a -> Comb a
+deepComb e = Comb (optX (Nothing :: Maybe a)) e
 
 shallowComb :: X a -> Comb a
 shallowComb a = Comb a (D $ Error "deep argument being used incorrectly")
 
-errorComb ::  forall a . (Wire a) => Comb a 
-errorComb = Comb (optX $ (Nothing :: Maybe a)) (D $ Lit 0)		-- perhaps add a I do not know
+-- ACF: We should probably redefine this with dual:
+--      errorComb = dual (deepComb $ error "errorComb") (shallowComb $ error "errorComb")
+--      (the calls to error get thrown away by dual)
+--      but this would require some major module rearrangement to avoid circular imports
+errorComb ::  forall a . (Wire a) => Comb a
+errorComb = Comb (optX $ (Nothing :: Maybe a)) (D $ Error "errorComb")
 
 applyComb0 :: (Wire a) => Comb a -> Maybe a
-applyComb0 (Comb a _) = unX a 
+applyComb0 (Comb a _) = unX a
 
 applyComb1 :: (Wire a, Wire b) => (Comb a -> Comb b) -> a -> Maybe b
 applyComb1 f a = unX b
