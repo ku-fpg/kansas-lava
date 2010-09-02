@@ -66,3 +66,6 @@ main = do
     putStrLn "unit test:"
     res <- unitTest def "halfAdder" thunk
     print res
+
+    putStrLn "genInfo:"
+    mapM_ print $ genInfo trace

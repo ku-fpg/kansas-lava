@@ -10,6 +10,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream hiding (head,zipWith)
 import qualified Language.KansasLava.Stream as Stream
+import Language.KansasLava.Testing.Utils
 import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
@@ -121,6 +122,23 @@ serialize :: Trace -> String
 serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "INPUTS"] : showMap ins ++ [unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRepWire (witness :: Bool)) val | val <- takeMaybe c s]
+
+toXBit :: Maybe Bool -> Char
+toXBit = maybe 'X' (\b -> if b then '1' else '0')
+
+showTraceStream :: Maybe Int -> TraceStream -> [String]
+showTraceStream c (TraceStream _ s) = [map (toXBit . unX) val | val <- takeMaybe c s]
+
+genShallow :: Trace -> [String]
+genShallow (Trace c ins out _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
+    where sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2)
+          alldata = (map snd $ sorted $ M.toList ins) ++ [out]
+
+genInfo :: Trace -> [String]
+genInfo (Trace c ins out _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
+    where sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2)
+          alldata = (map snd $ sorted $ M.toList ins) ++ [out]
+          lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
