@@ -12,6 +12,7 @@ import Data.Bits
 import System.Random
 import System.Environment(getEnvironment)
 import System.Directory
+import System.FilePath.Posix
 import Control.Monad(liftM)
 
 -- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
@@ -35,42 +36,38 @@ mkTestbench :: Ports fun =>
                [ReifyOptions] -- Options for controlling the observable-sharing reification, of dut
             -> [NetlistOption] -- Options for controlling the netlist generation
             -> String -- ^ The name of the function
+            -> FilePath -- ^ Base directory
             -> fun    -- ^ The Lava circuit
             -> IO ()
-mkTestbench ropts nlopts coreName fun = do
-  env <- getEnvironment
-  let base = case lookup "LAVA_SIM_PATH" env of
-               Nothing -> "/tmp"
-               Just dir -> dir
-  vhdl <- vhdlCircuit ropts nlopts coreName fun
+mkTestbench ropts nlopts name base fun = do
+  vhdl <- vhdlCircuit ropts nlopts name fun
   (inputs,outputs,sequentials) <- ports ropts fun
-  waves <- genProbes coreName fun
-  mkTestbench' coreName base vhdl (inputs,outputs,sequentials) waves
+  waves <- genProbes name fun
+    -- TODO: Fix waves!
+  mkTestbench' name base vhdl (inputs,outputs,sequentials) [] -- waves
 
-testbenchBaseDir name = do
+testbenchBaseDir = do
   env <- getEnvironment
-  let base = case lookup "LAVA_SIM_PATH" env of
+  return $ case lookup "LAVA_SIM_PATH" env of
                Nothing -> "/tmp"
                Just dir -> dir
-  return $ base ++ "/" ++ name ++ "/"
 
 mkTestbench' :: String -- Name of circuit
-	     -> String -- Base directory
+	         -> FilePath -- Base directory
              -> String -- Generated VHDL
              -> ([(OVar, BaseTy)], [(OVar, BaseTy)], [(OVar, BaseTy)]) -- result of call to ports
              -> [String] -- result of call to genProbes
              -> IO ()
-mkTestbench' name base vhdl (inputs,outputs,sequentials) waves = do
-  let dir = base ++ "/" ++ name ++ "/"
+mkTestbench' name dir vhdl (inputs,outputs,sequentials) waves = do
   putStrLn $ "Base directory is " ++ dir
   createDirectoryIfMissing True dir
-  writeFile (dir ++ name ++ ".vhd") vhdl
-  writeFile (dir ++ name ++ "_tb.vhd") $
+  writeFile (dir </> name <.> "vhd") vhdl
+  writeFile (dir </> name ++ "_tb.vhd") $
             entity name ++ architecture name inputs outputs sequentials
 --  stim <- vectors inputs
 --  writeFile (dir ++ name ++ ".input") stim
   -- Get the probes
-  writeFile (dir ++ name ++ ".do") (doscript name waves)
+  writeFile (dir </> name <.> "do") (doscript name waves)
 
 entity :: String -> String
 entity coreName = unlines

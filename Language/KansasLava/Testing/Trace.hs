@@ -16,6 +16,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 type TraceMap k = M.Map k TraceStream
 
 -- instance Functor TraceStream where -- can we do this with proper types?
@@ -117,8 +119,9 @@ serialize (Trace c ins (TraceStream oty os) ps) = concat $ unlines [(show c), "I
 toXBit :: Maybe Bool -> Char
 toXBit = maybe 'X' (\b -> if b then '1' else '0')
 
+-- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]
-showTraceStream c (TraceStream _ s) = [map (toXBit . unX) val | val <- takeMaybe c s]
+showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | val <- takeMaybe c s]
 
 genShallow :: Trace -> [String]
 genShallow (Trace c ins out _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
@@ -162,11 +165,6 @@ readFromFile :: FilePath -> IO Trace
 readFromFile fp = do
     str <- readFile fp
     return $ deserialize str
-
-rcToGraph :: ReifiedCircuit -> G.Gr (MuE DRG.Unique) ()
-rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
-                                         | (n1,Entity _ _ ins _) <- theCircuit rc
-                                         , (_,_,Port _ n2) <- ins ]
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
 test :: (Run a) => a -> Trace -> (Bool, Trace)
@@ -224,6 +222,14 @@ instance (Run b) => Run (Env () -> b) where
 			{ resetEnv = getSeq key1 ins (witness :: Bool)
 			, enableEnv = getSeq key2 ins (witness :: Bool)
 			}
+
+-- TODO: generalize somehow?
+instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
+          Matrix.Size (Matrix.ADD (WIDTH a) (WIDTH b)),
+          RepWire a, RepWire b, Run c) => Run ((Seq a, Seq b) -> c) where
+    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+        where key = head $ sort $ M.keys ins
+              input = unpack $ getSeq key ins (witness :: (a,b))
 
 {- combinators for working with traces
 -- assuming ReifiedCircuit has probe data in it

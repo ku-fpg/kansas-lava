@@ -25,29 +25,19 @@ runT (Thunk circuit fn) = fn circuit
 
 mkTrace :: (Ports a) => Maybe Int -> Thunk a -> IO Trace
 mkTrace c (Thunk circuit k) = do
-    let probed = probe "wholeCircuit" circuit
+    let uname = "wholeCircuit5471" -- probably need a better solution than this
+    let probed = probe uname circuit
 
     rc <- reifyCircuit [] $ probed
     rc' <- reifyCircuit [] $ k $ probed -- this is essentially what probeCircuit does
 
-    let pdata = M.fromList [(k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
-                                  , ProbeValue k v <- attrs ]
-        entities = [(id,e) | (id,e@(Entity _ _ _ attrs)) <- theCircuit rc
-                           , ProbeValue n v <- attrs]
-        pnodes = map fst entities
-        ins = M.fromList [ (k,fromJust $ M.lookup name pdata)
-                         | (_,Entity _ _ [(_,_,Pad k)] attrs) <- entities
-                         , ProbeValue name _ <- attrs]
-        out = fromJust $ M.lookup
-                         (head [k | let order = G.bfsn [id | (_,_,Port _ id) <- theSinks rc] graph
-                                  , let sink = head $ intersect order pnodes
-                                  , Just (Entity _ _ _ attrs) <- [lookup sink $ theCircuit rc]
-                                  , ProbeValue k _ <- attrs ])
-                         pdata
-        graph :: G.Gr (MuE DRG.Unique) ()
-        graph = rcToGraph rc
+    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
+                       , ProbeValue k v <- attrs ]
+        io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, name == uname ]
+        ins = M.fromList $ init io
+        out = snd $ last io
 
-    return $ Trace { len = c, inputs = ins, outputs = out, probes = pdata }
+    return $ Trace { len = c, inputs = ins, outputs = out, probes = M.fromList pdata }
 
 mkThunk :: forall a b. (Ports a, Probe a, Run a, RepWire b) => Trace -> a -> Thunk (Seq b)
 mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
@@ -62,3 +52,10 @@ mkTarball tarfile thunk@(Thunk c k) = do
 
     writeFile (path </> "shallow") $ unlines $ genShallow trace
     writeFile (path </> "info") $ unlines $ genInfo trace
+
+    mkTestbench [] [] "circuit" path c
+
+rcToGraph :: ReifiedCircuit -> G.Gr (MuE DRG.Unique) ()
+rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
+                                         | (n1,Entity _ _ ins _) <- theCircuit rc
+                                         , (_,_,Port _ n2) <- ins ]

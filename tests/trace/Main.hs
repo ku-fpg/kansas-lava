@@ -25,6 +25,11 @@ main = do
         seq3 :: Seq U4
         seq3 = toSeq' $ cycle $ [Just x | x <- [0..14]] ++ [Nothing]
 
+        inp :: Seq U4
+        inp  = toSeq $ cycle [0..15]
+        inp2 :: Seq U4
+        inp2 = toSeq $ cycle $ reverse [0..15]
+
         -- here is how we build a trace from scratch
         trace = setCycles 100
               $ addInput pv1 seq1
@@ -34,6 +39,8 @@ main = do
               $ emptyTrace
 
         thunk = Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+        thunk2 = Thunk (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+        muxt = Thunk (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4) (\m -> m (toSeq (cycle [True,False,True,True,False])) (inp, inp2))
         limit = Just 100
 
     writeToFile "test.trace" trace
@@ -44,8 +51,7 @@ main = do
     putStrLn "After:"
     print newTrace
 
-
-    t <- mkTrace limit $ Thunk (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+    t <- mkTrace limit thunk2
     t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     t3 <- mkTrace limit thunk
 
@@ -67,3 +73,7 @@ main = do
     print res
 
     mkTarball "test/lavaFst" thunk
+    mkTarball "test/halfAdder" thunk2
+
+    t4 <- mkTrace limit muxt
+    mkTarball "test/mux2" muxt
