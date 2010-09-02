@@ -17,7 +17,7 @@ import Data.Sized.Unsigned as U
 ----------------------------------------------------------------------------------------------------
 -- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
 
-data Comb a = Comb (X a) (D a)
+data Comb a = Comb !(X a) (D a)
 
 combValue :: Comb a -> X a
 combValue (Comb a d) = a
