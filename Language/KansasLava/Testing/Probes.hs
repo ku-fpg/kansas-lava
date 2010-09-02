@@ -13,18 +13,9 @@ import Data.Char
 import Data.Bits
 import Data.List
 
-import Language.KansasLava.Circuit
-import Language.KansasLava.Comb
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Reify
-import Language.KansasLava.Seq
-import Language.KansasLava.Signal
-import Language.KansasLava.Stream hiding (head,zipWith)
-import Language.KansasLava.Trace
-import Language.KansasLava.Type
-import Language.KansasLava.Utils
-import Language.KansasLava.Wire
+import Language.KansasLava
+
+import Language.KansasLava.Testing.Trace
 
 -- | 'probeCircuit' takes a something that can be reified and
 -- | generates an association list of the values for the probes in

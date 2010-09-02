@@ -1,19 +1,11 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Thunk where
+module Language.KansasLava.Testing.Thunk where
 
-import Language.KansasLava.Circuit
-import Language.KansasLava.Comb
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Reify
-import Language.KansasLava.Seq
-import Language.KansasLava.Signal
-import Language.KansasLava.Stream hiding (head,zipWith)
-import Language.KansasLava.Trace
-import Language.KansasLava.Type
-import Language.KansasLava.Utils
-import Language.KansasLava.Wire
+import Language.KansasLava
+
+import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Probes
+import Language.KansasLava.Testing.Trace
 
 import Data.List
 import qualified Data.Map as M
@@ -22,6 +14,9 @@ import Data.Maybe
 import qualified Data.Graph.Inductive as G
 
 import qualified Data.Reify.Graph as DRG
+
+import System.Directory
+import System.FilePath.Posix
 
 data Thunk b = forall a. (Ports a, Probe a, Run a) => Thunk a (a -> b)
 
@@ -57,3 +52,13 @@ mkTrace c (Thunk circuit k) = do
 mkThunk :: forall a b. (Ports a, Probe a, Run a, RepWire b) => Trace -> a -> Thunk (Seq b)
 mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
 
+mkTarball :: (Ports b) => FilePath -> Thunk b -> IO ()
+mkTarball tarfile thunk@(Thunk c k) = do
+    let (path,_) = splitExtension tarfile
+
+    createDirectoryIfMissing True path
+
+    trace <- mkTrace (Just 100) thunk
+
+    writeFile (path </> "shallow") $ unlines $ genShallow trace
+    writeFile (path </> "info") $ unlines $ genInfo trace

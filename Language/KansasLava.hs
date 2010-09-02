@@ -7,14 +7,11 @@ module Language.KansasLava (
     module Language.KansasLava.Entity.Utils,
     module Language.KansasLava.Opt,
     module Language.KansasLava.Protocols,
-    module Language.KansasLava.Testing.Probes,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Stream,
     module Language.KansasLava.Simulate,
-    module Language.KansasLava.Thunk,
-    module Language.KansasLava.Trace,
     module Language.KansasLava.Type,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
@@ -33,14 +30,11 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Opt
 import Language.KansasLava.Protocols
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Simulate
 import Language.KansasLava.Stream hiding (head,tail,zipWith)
-import Language.KansasLava.Thunk
-import Language.KansasLava.Trace
 import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL

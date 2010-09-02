@@ -2,6 +2,8 @@ module Language.KansasLava.Testing.Unit where
 
 import Language.KansasLava
 import Language.KansasLava.Testing.Probes
+import Language.KansasLava.Testing.Thunk
+import Language.KansasLava.Testing.Trace
 
 import Control.Applicative
 

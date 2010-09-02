@@ -1,6 +1,5 @@
 import Language.KansasLava
-import Language.KansasLava.Testing.Probes
-import Language.KansasLava.Testing.Unit
+import Language.KansasLava.Testing
 
 import qualified Data.Map as M
 import Data.Sized.Unsigned
@@ -67,5 +66,4 @@ main = do
     res <- unitTest def "halfAdder" thunk
     print res
 
-    putStrLn "genInfo:"
-    mapM_ print $ genInfo trace
+    mkTarball "test/lavaFst" thunk

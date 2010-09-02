@@ -1,19 +1,10 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
-module Language.KansasLava.Trace where
+module Language.KansasLava.Testing.Trace where
 
-import Language.KansasLava.Circuit
-import Language.KansasLava.Comb
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Reify
-import Language.KansasLava.Seq
-import Language.KansasLava.Signal
-import Language.KansasLava.Stream hiding (head,zipWith)
+import Language.KansasLava
+
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Testing.Utils
-import Language.KansasLava.Type
-import Language.KansasLava.Utils
-import Language.KansasLava.Wire
 
 import qualified Data.Sized.Matrix as Matrix
 
