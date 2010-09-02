@@ -7,6 +7,7 @@ module Language.KansasLava (
     module Language.KansasLava.Entity.Utils,
     module Language.KansasLava.Opt,
     module Language.KansasLava.Protocols,
+    module Language.KansasLava.Testing.Probes,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
@@ -31,6 +32,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Opt
 import Language.KansasLava.Protocols
+import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal

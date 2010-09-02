@@ -9,6 +9,7 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream hiding (head,zipWith)
+import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Type
 import Language.KansasLava.Utils
 import Language.KansasLava.Wire
@@ -49,6 +50,10 @@ getStream name m witness = toXStream witness $ m M.! name
 
 getSeq :: (Ord a, RepWire w) => a -> TraceMap a -> w -> Seq w
 getSeq key m witness = shallowSeq $ getStream key m witness
+
+-- Note: this only gets the *first* value. Perhaps combs should be stored differently?
+getComb :: (Ord a, RepWire w) => a -> TraceMap a -> w -> Comb w
+getComb key m witness = shallowComb $ Stream.head $ getStream key m witness
 
 addStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
 addStream key m witness stream = M.insert key (fromXStream witness stream) m
@@ -196,6 +201,20 @@ instance (RepWire a, Run b) => Run (Seq a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ sort $ M.keys ins
               input = getSeq key ins (witness :: a)
+
+instance (RepWire a, Run b) => Run (Comb a -> b) where
+    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+        where key = head $ sort $ M.keys ins
+              input = getComb key ins (witness :: a)
+
+-- TODO: generalize over different clocks
+instance (Run b) => Run (Env () -> b) where
+    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
+        where [key1,key2] = take 2 $ sort $ M.keys ins
+              input = shallowEnv
+			{ resetEnv = getSeq key1 ins (witness :: Bool)
+			, enableEnv = getSeq key2 ins (witness :: Bool)
+			}
 
 {- combinators for working with traces
 -- assuming ReifiedCircuit has probe data in it
