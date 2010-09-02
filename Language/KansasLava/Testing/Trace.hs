@@ -82,7 +82,7 @@ instance Show Trace where
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
     (==) (Trace c1 i1 (TraceStream oty1 os1) p1) (Trace c2 i2 (TraceStream oty2 os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
-        where sorted m = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.toList m]
+        where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.assocs m]
               insEqual = (sorted i1) == (sorted i2)
               outEqual = (oty1 == oty2) && (takeMaybe c1 os1 == takeMaybe c2 os2)
               probesEqual = (sorted p1) == (sorted p2)
@@ -125,13 +125,11 @@ showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | val <-
 
 genShallow :: Trace -> [String]
 genShallow (Trace c ins out _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
-    where sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2)
-          alldata = (map snd $ sorted $ M.toList ins) ++ [out]
+    where alldata = (M.elems ins) ++ [out]
 
 genInfo :: Trace -> [String]
 genInfo (Trace c ins out _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
-    where sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2)
-          alldata = (map snd $ sorted $ M.toList ins) ++ [out]
+    where alldata = (M.elems ins) ++ [out]
           lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 deserialize :: String -> Trace
@@ -206,18 +204,18 @@ instance (Run a, Run b, Run c) => Run (a,b,c) where
 
 instance (RepWire a, Run b) => Run (Seq a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ sort $ M.keys ins
+        where key = head $ M.keys ins
               input = getSeq key ins (witness :: a)
 
 instance (RepWire a, Run b) => Run (Comb a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ sort $ M.keys ins
+        where key = head $ M.keys ins
               input = getComb key ins (witness :: a)
 
 -- TODO: generalize over different clocks
 instance (Run b) => Run (Env () -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
-        where [key1,key2] = take 2 $ sort $ M.keys ins
+        where [key1,key2] = take 2 $ M.keys ins
               input = shallowEnv
 			{ resetEnv = getSeq key1 ins (witness :: Bool)
 			, enableEnv = getSeq key2 ins (witness :: Bool)
@@ -228,31 +226,10 @@ instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
           Matrix.Size (Matrix.ADD (WIDTH a) (WIDTH b)),
           RepWire a, RepWire b, Run c) => Run ((Seq a, Seq b) -> c) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ sort $ M.keys ins
+        where key = head $ M.keys ins
               input = unpack $ getSeq key ins (witness :: (a,b))
 
-{- combinators for working with traces
--- assuming ReifiedCircuit has probe data in it
-mkTraceRC :: (..) => ReifiedCircuit -> Trace
-
--- this is just Eq, but maybe instead of Bool some kind of detailed diff
-unionTrace :: Trace -> Trace -> Trace
-remove :: OVar -> Trace -> Trace
-
--- testing?
-
--- take a trace and a path, compare trace to other serialized traces residing in that path
-unitTest :: FilePath -> Trace -> IO Bool -- or some rich exit code
-unitTest' :: (..) => FilePath -> a -> (a -> b) -> IO (Bool, b) -- same
-thing, but builds trace internally
-
--- create tarball for modelsim, much like mkTestbench
-genSim :: FilePath -> Trace -> IO ()
-
--- create tarball for use on togo, including the SimpleWrapper
-genWrapper :: FilePath -> Trace -> IO ()
-
--- output formats
+{- output formats
 latexWaveform :: Trace -> String
 truthTable :: Trace -> String -- or some truth table structure
 vcd :: Trace -> String -- or maybe FilePath -> Trace -> IO ()

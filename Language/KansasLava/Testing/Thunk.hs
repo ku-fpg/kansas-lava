@@ -50,8 +50,8 @@ mkTarball tarfile thunk@(Thunk c k) = do
 
     trace <- mkTrace (Just 100) thunk
 
-    writeFile (path </> "shallow") $ unlines $ genShallow trace
-    writeFile (path </> "info") $ unlines $ genInfo trace
+    writeFile (path </> "circuit" <.> "input") $ unlines $ genShallow trace
+    writeFile (path </> "circuit" <.> "info") $ unlines $ genInfo trace
 
     mkTestbench [] [] "circuit" path c
 
