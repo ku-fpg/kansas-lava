@@ -25,11 +25,12 @@ vhdlCircuit :: (Ports o) =>
                [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
             -> [NetlistOption] -- ^ Options for controlling the netlist generation.
             -> String         -- ^ The name of the generated entity.
+	    -> [String]	      -- ^ The extra module arguments needed
             -> o              -- ^ The Lava circuit.
             -> IO String
-vhdlCircuit opts nlOpts name circuit = do
+vhdlCircuit opts nlOpts name mods circuit = do
   mod <- netlistCircuit opts nlOpts name circuit
-  return $  render $ genVHDL  mod
+  return $ (render (genVHDL mod mods) ++ "\n")
 
 
 
