@@ -51,21 +51,21 @@ genInst i (Entity (Name "Lava" "thd3") outputs inputs other)
 
 -- identity
 
-genInst  i (Entity (Name "Lava" "id") [(Var vO,_)] [(Var vI,ty,d)] _) = 
+genInst  i (Entity (Name "Lava" "id") [(vO,_)] [(vI,ty,d)] _) = 
 	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
 
 -- Concat and index (join, project)
 
-genInst  i (Entity (Name "Lava" "concat") [(Var "o0",_)] inps _) =
+genInst  i (Entity (Name "Lava" "concat") [("o0",_)] inps _) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
-                [ toStdLogicExpr ty s | (Var _,ty, s) <- reverse inps]
+                [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps]
 
 genInst i (Entity (Name "Lava" "index")
-		  [(Var "o0",outTy)]
-		  [(Var "i0",_, (Lit idx)),
-		   (Var "i1",ty,input)] _
+		  [("o0",outTy)]
+		  [("i0",_, (Lit idx)),
+		   ("i1",ty,input)] _
 	   ) =
     [ NetAssign (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
   where tys = case ty of
@@ -76,18 +76,18 @@ genInst i (Entity (Name "Lava" "index")
 genInst i (Entity (Name "probe" _) ins outs _) = 
 	genInst i (Entity (Name "Lava" "id") ins outs [])
 
-genInst i e@(Entity (Name "Memory" "register") [(Var "o0",_)] inputs _) =
+genInst i e@(Entity (Name "Memory" "register") [("o0",_)] inputs _) =
           [NetAssign input (toStdLogicExpr ty d) ]
   where output = sigName "o0" i
         input =  next output
-	(ty,d) = head [ (ty,d) | (Var "i0",ty,d) <- inputs ]
+	(ty,d) = head [ (ty,d) | ("i0",ty,d) <- inputs ]
 
 -- Muxes
-genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,Lit 1),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit 1),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,Lit _),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit _),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
-genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,c),(Var "i1",tTy,t),(Var "i2",fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i)
                      (ExprCond cond
                       (toStdLogicExpr tTy t)
@@ -96,7 +96,7 @@ genInst i (Entity (Name _ "mux2") [(Var "o0",_)] [(Var "i0",cTy,c),(Var "i1",tTy
 
 
 -- This is only defined over constants that are powers of two.
-genInst i (Entity (Name "Sampled" "/") [(Var "o0",oTy)] [ (Var "i0",iTy,v), (Var "i1",iTy',Lit n)] _)
+genInst i (Entity (Name "Sampled" "/") [("o0",oTy)] [ ("i0",iTy,v), ("i1",iTy',Lit n)] _)
 --	= trace (show n) 
 	| n == 64	-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
 	= [ InstDecl "Sampled_shiftR" ("inst" ++ show i)
@@ -114,7 +114,7 @@ genInst i (Entity nm outputs inputs _)
 
 -- Logic assignments
 
-genInst i (Entity n@(Name _ "fromStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
+genInst i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)] _) =
 	case (t_in,t_out) of
 	   (V n,U m) | n == m -> 
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
@@ -123,7 +123,7 @@ genInst i (Entity n@(Name _ "fromStdLogicVector") [(Var "o0",t_out)] [(Var "i0",
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
-genInst i (Entity n@(Name "Lava" "toStdLogicVector") [(Var "o0",t_out)] [(Var "i0",t_in,w)] _) =
+genInst i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)] _) =
 	case (t_in,t_out) of
 	   (U n,V m) | n == m -> 
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
@@ -133,7 +133,7 @@ genInst i (Entity n@(Name "Lava" "toStdLogicVector") [(Var "o0",t_out)] [(Var "i
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
-genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [(Var "o0",V outs)] [(Var "i0",_,Lit x),(Var "i1",V ins,w)] _)
+genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Lit x),("i1",V ins,w)] _)
 	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
 	| otherwise = 
 	[ NetAssign  (sigName "o0" i) $ ExprSlice nm (ExprNum (fromIntegral x + fromIntegral outs - 1)) (ExprNum (fromIntegral x))
@@ -146,7 +146,7 @@ genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [(Var "o0",V outs)] [(V
 -- The specials (from a table)
 
 
-genInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
+genInst i (Entity n@(Name _ _) [("o0",oTy)] ins _)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
@@ -163,15 +163,15 @@ genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 			| mod_nms <- ["Sampled"]	-- hack
 			, mod_nm == mod_nms
 		]
-                [ (n,toStdLogicExpr nTy x)  | (Var n,nTy,x) <- inputs ]
-		[ (n,ExprVar $ sigName n i) | (Var n,nTy)   <- outputs ]
+                [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs ]
+		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
           ]
 
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
 -- TODO: Table should have a default, for space reasons
 
-genInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
+genInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 	[ NetAssign (sigName vout i)
 		(ExprCase (toStdLogicExpr tyin d)
 			[ ([toStdLogicExpr tyin ix],toStdLogicExpr tyout val)

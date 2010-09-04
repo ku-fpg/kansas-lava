@@ -52,8 +52,8 @@ regProc nlOpts (clk,rst,clk_en) es
      ]
     ]
 
-  where outName e i = toStdLogicExpr (lookupInputType "o0" e) (Port (Var "o0") i)
-        nextName e i = toStdLogicExpr  (lookupInputType "o0" e) $ next (Port (Var "o0") i)
+  where outName e i = toStdLogicExpr (lookupInputType "o0" e) (Port ("o0") i)
+        nextName e i = toStdLogicExpr  (lookupInputType "o0" e) $ next (Port ("o0") i)
         defaultDriver e = toStdLogicExpr (defaultDriverType e) $ lookupInput "def" e
         defaultDriverType e = lookupInputType "def" e
         driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
@@ -81,7 +81,7 @@ bramProc (clk,_,clk_en) es =
 	     ]
 	   ))]
   ]
-    where outName e i = toStdLogicExpr (lookupInputType "wData" e) (Port (Var "o0") i)
+    where outName e i = toStdLogicExpr (lookupInputType "wData" e) (Port ("o0") i)
           ramName i = "sig_" ++ show i ++ "_o0_ram"
           wEn e = toStdLogicExpr (lookupInputType "wEn" e) $ lookupInput "wEn" e
 	  clk_en e = toStdLogicExpr (lookupInputType "en" e) $ lookupInput "en" e

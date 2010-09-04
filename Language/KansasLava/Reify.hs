@@ -34,10 +34,10 @@ reifyCircuit opts circuit = do
 
 	let os = ports 0 circuit
 
-	let o = Port (Var "o0")
+	let o = Port ("o0")
             	$ E
-            	$ Entity (Name "Lava" "top") [(Var "o0",B)]	-- not really a Bit
-             	[ (Var $ "i_" ++ show i,tys, dr)
+            	$ Entity (Name "Lava" "top") [("o0",B)]	-- not really a Bit
+             	[ ("i_" ++ show i,tys, dr)
 	     	| (i,(tys,dr)) <- zip [0..] os
              	]
              	[]
@@ -67,7 +67,7 @@ reifyCircuit opts circuit = do
 				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
 		-- TODO: restore this
---                (Lit x) -> return ([],[(Var (head outputNames),ty,Lit x)])
+--                (Lit x) -> return ([],[((head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
         -- Search all of the enities, looking for input ports.
@@ -161,10 +161,10 @@ instance (InPorts a, Ports b) => Ports (a -> b) where
 
 {-
 input nm = liftS1 $ \ (Comb a d) ->
-	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
+	let res  = Comb a $ D $ Port ("o0") $ E $ entity
 	    entity = Entity (Name "Lava" "input")
-                    [(Var "o0", bitTypeOf res)]
-                    [(Var nm, bitTypeOf res, unD d)]
+                    [("o0", bitTypeOf res)]
+                    [(nm, bitTypeOf res, unD d)]
 		    []
 	in res
 
@@ -183,10 +183,10 @@ instance Wire a => InPorts (Comb a) where
       where (d,vs') = wireGenerate vs
 
     input nm (Comb a d) =
-	let res  = Comb a $ D $ Port (Var "o0") $ E $ entity
+	let res  = Comb a $ D $ Port ("o0") $ E $ entity
 	    entity = Entity (Name "Lava" "input")
-                    [(Var "o0", bitTypeOf res)]
-                    [(Var nm, bitTypeOf res, unD d)]
+                    [("o0", bitTypeOf res)]
+                    [(nm, bitTypeOf res, unD d)]
 		    []
 	in res
 {-
@@ -200,10 +200,10 @@ instance InPorts (Clock clk) where
       where (d,vs') = wireGenerate vs
 
     input nm (Clock f d) =
-	let res  = Clock f $ D $ Port (Var "o0") $ E $ entity
+	let res  = Clock f $ D $ Port ("o0") $ E $ entity
 	    entity = Entity (Name "Lava" "input")
-                    [(Var "o0", ClkTy)]
-                    [(Var nm, ClkTy, unD d)]
+                    [("o0", ClkTy)]
+                    [(nm, ClkTy, unD d)]
 		    []
 	in res
 
@@ -276,10 +276,10 @@ showOptCircuit opt c = do
 
 output :: (Signal seq, Wire a)  => String -> seq a -> seq a
 output nm = liftS1 $ \ (Comb a d) ->
-	let res  = Comb a $ D $ Port (Var nm) $ E $ entity
+	let res  = Comb a $ D $ Port (nm) $ E $ entity
 	    entity = Entity (Name "Lava" "output")
-                    [(Var nm, bitTypeOf res)]
-                    [(Var "i0", bitTypeOf res, unD d)]
+                    [(nm, bitTypeOf res)]
+                    [("i0", bitTypeOf res, unD d)]
 		    []
 	in res
 
@@ -307,8 +307,8 @@ resolveNames cir
 	newCircuit =
 		[ ( u
 		  , case e of
-		      Entity (Name "Lava" "input") outs [(Var oNm,oTy,Pad (OVar i _))] misc
-			-> Entity (Name "Lava" "id") outs [(Var oNm,oTy,Pad (OVar i oNm))] misc
+		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad (OVar i _))] misc
+			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad (OVar i oNm))] misc
 		      Entity (Name "Lava" io) outs ins misc
 			| io `elem` ["input","output"]
 			-> Entity (Name "Lava" "id") outs ins misc
@@ -332,7 +332,7 @@ resolveNames cir
 
 	newSinks :: [(OVar,Type,Driver Unique)]
 	newSinks = [ case dr of
-		      Port (Var nm') u | isOutput u -> (OVar i nm',ty,dr)
+		      Port (nm') u | isOutput u -> (OVar i nm',ty,dr)
 		      _ -> (nm,ty,dr)
 		   | (nm@(OVar i _),ty,dr) <- theSinks cir
 		   ]
@@ -343,7 +343,7 @@ resolveNames cir
 
 	mapInputs :: [(OVar,OVar)]
 	mapInputs = [ (OVar i inp,OVar i nm)
-		    | (_,Entity (Name "Lava" "input") _ [(Var nm,_,Pad (OVar i inp))] _) <- theCircuit cir
+		    | (_,Entity (Name "Lava" "input") _ [(nm,_,Pad (OVar i inp))] _) <- theCircuit cir
 		    ]
 
 

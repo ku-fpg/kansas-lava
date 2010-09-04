@@ -29,18 +29,18 @@ genDecl (i,Entity nm outputs _ _)
 	  [ [ NetDecl (next $ sigName n i) (sizedRange nTy) Nothing
 	    , MemDecl (sigName n i) Nothing (sizedRange nTy)
 	    ]
-	  | (Var n,nTy) <- outputs  ]
+	  | (n,nTy) <- outputs  ]
 genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Name "Memory" "BRAM"
 	= concat 
 	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
 	    , NetDecl (sigName n i) (sizedRange nTy) Nothing
 	    ]
-	  | (Var n,nTy) <- outputs ]
+	  | (n,nTy) <- outputs ]
   where
 	aTy = lookupInputType "wAddr" e
 -- General case
 genDecl (i,Entity nm outputs _ _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing
-	  | (Var n,nTy) <- outputs  ]
-genDecl (i,Table (Var n,nTy) _ _)
+	  | (n,nTy) <- outputs  ]
+genDecl (i,Table (n,nTy) _ _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing ]	  

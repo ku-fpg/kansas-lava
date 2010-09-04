@@ -27,7 +27,7 @@ class ToTypedExpr v where
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr ty (Lit n)             = toTypedExpr ty n
-	toTypedExpr ty (Port (Var v) n)    = toTypedExpr ty (sigName v (fromIntegral n))
+	toTypedExpr ty (Port (v) n)    = toTypedExpr ty (sigName v (fromIntegral n))
 	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
 
 instance ToTypedExpr String where
@@ -55,7 +55,7 @@ class ToStdLogicExpr v where
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
 	toStdLogicExpr ty (Lit n)            = toStdLogicExpr ty n
-	toStdLogicExpr ty (Port (Var v) n)   = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr ty (Port (v) n)   = ExprVar $ sigName v (fromIntegral n)
 	toStdLogicExpr ty (Pad (OVar _ v)) = ExprVar $ v
 	toStdLogicExpr ty other		     = error $ show other
 
@@ -151,7 +151,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
   where size = fromIntegral $ sum (map typeWidth tys) - 1
 
 	nm = case d of
-		Port (Var v) n -> sigName v n
+		Port (v) n -> sigName v n
 		Pad (OVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
 
@@ -163,18 +163,18 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 
 -- Find some specific (named) input inside the entity.
 lookupInput :: (Show a, Show b) => String -> Entity a a' b -> Driver b
-lookupInput i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
+lookupInput i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
                                       Just (_,_,d) -> d
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
 -- Find some specific (named) input's type inside the entity.
-lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps of
+lookupInputType i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
 
 -- TODO: should ty be GenericTy only here?
 addNum :: Integer -> [(Var,Type,Driver Unique)] -> [(Var,Type,Driver Unique)]
-addNum i [(Var "i0",ty,d)] = [(Var "i0",GenericTy,Lit i),(Var "i1",ty,d)]
+addNum i [("i0",ty,d)] = [("i0",GenericTy,Lit i),("i1",ty,d)]
 addNum _ _ = error "addNum"
 
 ------------------------------------------------------------------------
@@ -197,10 +197,6 @@ class AddNext s where
 
 instance AddNext String where
    next nm = nm ++ "_next"
-
-instance AddNext Var where
-   next (Var nm) = Var $ next nm
-
 
 instance AddNext (Driver i) where
    next (Port v i) = Port (next v) i
@@ -231,7 +227,7 @@ getSynchs nms ents = Map.fromListWith (++) synchs
         synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])
 		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents,
 		    n `elem` nms]
-        getInput nm is = case find (\(Var c,_,_) -> c == nm) is of
-                      Just (Var _,_,d) -> d
+        getInput nm is = case find (\(c,_,_) -> c == nm) is of
+                      Just (_,_,d) -> d
                       Nothing -> error $ "getSynchs: Can't find a signal " ++ show (nm,is,ents)
 

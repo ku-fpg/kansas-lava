@@ -27,11 +27,12 @@ instance Show Id where
     show (Function _)  = "<fn>"
 
 -- TODO: Just use String here
-data Var = Var String
-    deriving (Eq,Ord)
+type Var = String
+--data Var = Var String
+--    deriving (Eq,Ord)
 
-instance Show Var where
-    show (Var nm)     = nm
+--instance Show Var where
+--    show (Var nm)     = nm
 
 -------------------------------------------------------------------------
 -- Entity

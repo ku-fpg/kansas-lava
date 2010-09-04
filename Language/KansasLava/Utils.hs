@@ -67,6 +67,7 @@ isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
 -- TODO: maCombe over Signal
+-- Does not work!
 (.!.) :: (Size x, Wire a, Wire x) => Comb (Matrix x a) -> Comb x -> Comb a
 (.!.) = fun2 "!" (!)
 
@@ -165,10 +166,10 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 			-> Comb (case unX (a :: X a) :: Maybe a of
 				   Nothing -> optX (Nothing :: Maybe b) :: X b
 				   Just v -> optX (fn v :: Maybe b) :: X b)
-				     (D $ Port (Var "o0")
+				     (D $ Port ("o0")
 					$ E
-					$ Table (Var "o0",tB)
-						(Var "i0",tA,ae)
+					$ Table ("o0",tB)
+						("i0",tA,ae)
 						tab
 				     )
 	where tA = wireType (error "table" :: a)
@@ -468,7 +469,7 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 register :: forall a. (Wire a) => Env -> Comb a -> Seq a -> Seq a
 register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
    where
-	res = Seq sres (D $ Port (Var "o0") $ E $ entity)
+	res = Seq sres (D $ Port ("o0") $ E $ entity)
 	sres = S.zipWith (\ i v ->
 				case unX i :: Maybe Bool of
 				   Nothing -> optX (Nothing :: Maybe a)
@@ -476,11 +477,11 @@ register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
 				   Just (False) -> v
 			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)
         entity = Entity (Name "Memory" "register")
-                    [(Var "o0", bitTypeOf res)]
-                    [(Var "def", bitTypeOf res, unD $ edef),
-		     (Var "i0", bitTypeOf res, unD eline),
-		     (Var "rst", RstTy, unD $ seqDriver $ rst),
-		     (Var "clk", ClkTy, Pad (Var "clk"))] []
+                    [("o0", bitTypeOf res)]
+                    [("def", bitTypeOf res, unD $ edef),
+		     ("i0", bitTypeOf res, unD eline),
+		     ("rst", RstTy, unD $ seqDriver $ rst),
+		     ("clk", ClkTy, Pad ("clk"))] []
 
 -}
 
@@ -500,7 +501,7 @@ delay env = register env errorComb
 register :: forall a clk .  (Wire a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
 register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(Seq line eline) = res
    where
-	res = Seq sres1 (D $ Port (Var "o0") $ E $ entity)
+	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 
 	sres0 = (\ r e l old_l ->
@@ -519,12 +520,12 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(
 	sres1 = optX (Nothing :: Maybe a) :~ sres0
 
         entity = Entity (Name "Memory" "register")
-                    [(Var "o0", bitTypeOf res)]
-                    [(Var "def", bitTypeOf res, unD $ edef),
-		     (Var "i0", bitTypeOf res, unD eline),
-		     (Var "rst", B, unD $ erst),	-- use to be RstTy
-	             (Var "en",  B, unD $ een),
-		     (Var "clk", ClkTy, unD $ clk)
+                    [("o0", bitTypeOf res)]
+                    [("def", bitTypeOf res, unD $ edef),
+		     ("i0", bitTypeOf res, unD eline),
+		     ("rst", B, unD $ erst),	-- use to be RstTy
+	             ("en",  B, unD $ een),
+		     ("clk", ClkTy, unD $ clk)
 		    ] []
 
 

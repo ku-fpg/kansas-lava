@@ -54,7 +54,7 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 	(addr,dat) = unpack pipe'
 
     	res :: CSeq clk2 d
-    	res = Seq shallowRes (D $ Port (Var "o0") $ E $ entity)
+    	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
 
 	shallowRes :: Stream (X d)
 	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
@@ -113,14 +113,14 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
     	entity :: MuE E
     	entity =
 		Entity (Name "Memory" "BRAM")
-			[ (Var "o0",bitTypeOf res)]
-			[ (Var "clk",ClkTy,unD $ clk)
-			, (Var "rst",bitTypeOf rst,unD $ seqDriver rst)
-			, (Var "wEn",bitTypeOf wEn,unD $ seqDriver wEn)
-			, (Var "en",bitTypeOf clk_en,unD $ seqDriver clk_en)
-			, (Var "wAddr",bitTypeOf addr,unD $ seqDriver addr)
-			, (Var "wData",bitTypeOf dat,unD $ seqDriver dat)
-			, (Var "rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
+			[ ("o0",bitTypeOf res)]
+			[ ("clk",ClkTy,unD $ clk)
+			, ("rst",bitTypeOf rst,unD $ seqDriver rst)
+			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
+			, ("en",bitTypeOf clk_en,unD $ seqDriver clk_en)
+			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
+			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
+			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
 			]
 		[]
 
