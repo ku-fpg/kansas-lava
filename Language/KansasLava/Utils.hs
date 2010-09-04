@@ -101,8 +101,8 @@ instance (Show a, Bits a, RepWire a)
     s1 `rotateL` n = fun2 "rotateL" (rotateL) s1 (fromIntegral n)
     s1 `rotateR` n = fun2 "rotateR" (rotateR) s1 (fromIntegral n)
     complement s = fun1 "complement" (complement) s
-    bitSize s                       = baseTypeLength (bitTypeOf s)
-    isSigned s                      = baseTypeIsSigned (bitTypeOf s)
+    bitSize s                       = typeWidth (bitTypeOf s)
+    isSigned s                      = isTypeSigned (bitTypeOf s)
 
 instance (Show a, Bits a, RepWire a)
 	=> Bits (CSeq c a) where
@@ -114,8 +114,8 @@ instance (Show a, Bits a, RepWire a)
     rotateL s n = liftS1 (flip rotateL n) s
     rotateR s n = liftS1 (flip rotateR n) s
     complement = liftS1 complement
-    bitSize s                       = baseTypeLength (bitTypeOf s)
-    isSigned s                      = baseTypeIsSigned (bitTypeOf s)
+    bitSize s                       = typeWidth (bitTypeOf s)
+    isSigned s                      = isTypeSigned (bitTypeOf s)
 
 instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2

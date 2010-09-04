@@ -107,7 +107,7 @@ format maxTime seqs = unlines $ [
          -- timestamp section
          concatMap fmtTimeStep evts
   where decl (n,ProbeValue _ (ty,_)) ident =
-          "$var wire " ++ show (baseTypeLength ty) ++ " " ++ ident ++ " " ++ n ++ " $end"
+          "$var wire " ++ show (typeWidth ty) ++ " " ++ ident ++ " " ++ n ++ " $end"
         fmtTimeStep (t,vals) =
           ["#" ++ show t] ++
           [v++ident | (ident,v) <- vals] -- no space between value and identifier

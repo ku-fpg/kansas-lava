@@ -190,7 +190,7 @@ findOutputs opts = maybe [] names (find isOut opts)
 portType :: [(a, Type)] -> [Char]
 portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
 portLen :: [(a, Type)] -> Int
-portLen pts = sum (map (baseTypeLength .snd) pts)
+portLen pts = sum (map (typeWidth .snd) pts)
 
 portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
 portAssigns inputs outputs = imap ++ omap
@@ -200,8 +200,8 @@ portAssigns inputs outputs = imap ++ omap
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,baseTypeLength ty) | (OVar _ n,ty) <- inputs]
-        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,baseTypeLength ty) | (OVar _ n,ty) <- outputs]
+        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- inputs]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]
 
 -- Modelsim 'do' script
 doscript :: String -> [String] -> String

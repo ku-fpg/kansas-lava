@@ -34,7 +34,6 @@ instance ToTypedExpr String where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr B      nm = 		       ExprVar $ nm -- ExprBinary Equals (ExprVar nm) (ExprBit 1)
 	toTypedExpr ClkTy  nm = 		       ExprVar $ nm
-	toTypedExpr RstTy  nm = 	 	       ExprVar $ nm
 	toTypedExpr (V _)  nm = 	   	       ExprVar $ nm
 	toTypedExpr (S _)  nm = signed $ 	       ExprVar $ nm
 	toTypedExpr (U _)  nm = unsigned $ 	       ExprVar $ nm
@@ -72,7 +71,6 @@ instance ToStdLogicExpr Expr where
 	--
 	toStdLogicExpr B      e =      		     e
 	toStdLogicExpr ClkTy  e = 		     e
-	toStdLogicExpr RstTy  e = 	 	     e
 	toStdLogicExpr (V _)  e = 	   	     e
 	toStdLogicExpr (TupleTy _) e = 		     e
 	toStdLogicExpr (MatrixTy _ _) e =	     e
@@ -101,9 +99,8 @@ toStdLogicVectorExpr ty dr =
 toStdLogicTy :: Type -> Type
 toStdLogicTy B     = B
 toStdLogicTy ClkTy = B
-toStdLogicTy RstTy = B
 toStdLogicTy ty    = V (fromIntegral size)
-  where size = baseTypeLength ty
+  where size = typeWidth ty
 --
 
 -- Name a signal
@@ -137,7 +134,7 @@ to_integer e       = ExprFunCall "to_integer" [e]
 
 isHigh d = (ExprBinary Equals d (ExprBit 1))
 isLow d = (ExprBinary Equals d (ExprBit 0))
-allLow ty = ExprLit (baseTypeLength ty) 0
+allLow ty = ExprLit (typeWidth ty) 0
 zeros = ExprString "(others => '0')" -- HACK
 
 ---------------------------------------------------------------------------------------------------
@@ -151,7 +148,7 @@ zeros = ExprString "(others => '0')" -- HACK
 
 prodSlices :: Driver Unique -> [Type] -> [Expr]
 prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
-  where size = fromIntegral $ sum (map baseTypeLength tys) - 1
+  where size = fromIntegral $ sum (map typeWidth tys) - 1
 
 	nm = case d of
 		Port (Var v) n -> sigName v n
@@ -160,7 +157,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 
 	f :: Integer -> Type -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprNum i))
-        f i ty = let w = fromIntegral $ baseTypeLength ty
+        f i ty = let w = fromIntegral $ typeWidth ty
                      next = i - w
                  in (next, ExprSlice nm (ExprNum i) (ExprNum (next + 1)))
 
@@ -175,8 +172,9 @@ lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps 
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
 
+-- TODO: should ty be GenericTy only here?
 addNum :: Integer -> [(Var,Type,Driver Unique)] -> [(Var,Type,Driver Unique)]
-addNum i [(Var "i0",ty,d)] = [(Var "i0",IntegerTy,Lit i),(Var "i1",ty,d)]
+addNum i [(Var "i0",ty,d)] = [(Var "i0",GenericTy,Lit i),(Var "i1",ty,d)]
 addNum _ _ = error "addNum"
 
 ------------------------------------------------------------------------

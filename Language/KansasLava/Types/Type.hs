@@ -3,77 +3,52 @@ module Language.KansasLava.Types.Type where
 
 -- | Type captures HDL-representable types.
 data Type
+	-- basic representations
 	= B		-- | Bit
-	| CB		-- | Control Bit (currently unused)
-        | ClkTy         -- | Clock Signal
-        | RstTy         -- | Reset Signal
 	| S Int		-- | Signed vector, with a width
 	| U Int  	-- | Unsigned vector, with a width
 	| V Int		-- | std_logic_vector
+
+	-- type of bit, used only for clock (TODO: do we need this?)
+        | ClkTy         -- | Clock Signal
+
 	| GenericTy	-- | generics in VHDL, right now just Integer
 
-	| T		-- Time	TODO: remove
-			-- What about Float/Double, special, etc.
 	| TupleTy [Type]
 			-- | Tuple, represented as a larget std_logic_vector
 	| MatrixTy Int Type
 			-- | Matrix, vhdl array.
-	| IntegerTy	-- holds whatever, not realizable in hw
-			-- used to pass static arguments to
+
 	deriving (Eq, Ord)
 
 
--- | baseTypeLength returns the width of a type when represented in VHDL.
-baseTypeLength :: Type -> Int
-baseTypeLength B  = 1
-baseTypeLength CB = 1
-baseTypeLength ClkTy = 1
-baseTypeLength RstTy = 1
-baseTypeLength (S x) = x
-baseTypeLength (U x) = x
-baseTypeLength (V x) = x
-baseTypeLength T = 1
-baseTypeLength (TupleTy tys) = sum (map baseTypeLength tys)
-baseTypeLength (MatrixTy i ty) = i * baseTypeLength ty
-baseTypeLength other = error $ show ("baseTypeLength",other)
+-- | typeWidth returns the width of a type when represented in VHDL.
+typeWidth :: Type -> Int
+typeWidth B  = 1
+typeWidth ClkTy = 1
+typeWidth (S x) = x
+typeWidth (U x) = x
+typeWidth (V x) = x
+typeWidth (TupleTy tys) = sum (map typeWidth tys)
+typeWidth (MatrixTy i ty) = i * typeWidth ty
+typeWidth other = error $ show ("typeWidth",other)
 
--- | 'baseTypeIsSigned' determines if a type has a signed representation. This is
+-- | 'isTypeSigned' determines if a type has a signed representation. This is
 -- necessary for the implementation of 'isSigned' in the 'Bits' type class.
-baseTypeIsSigned :: Type -> Bool
-baseTypeIsSigned B     = False
-baseTypeIsSigned CB    = False
-baseTypeIsSigned ClkTy = False
-baseTypeIsSigned RstTy = False
-baseTypeIsSigned (S _) = True
-baseTypeIsSigned (U _) = False
-baseTypeIsSigned (V _) = False
-baseTypeIsSigned T     = False
+isTypeSigned :: Type -> Bool
+isTypeSigned B     = False
+isTypeSigned ClkTy = False
+isTypeSigned (S _) = True
+isTypeSigned (U _) = False
+isTypeSigned (V _) = False
 
 instance Show Type where
 	show B 		= "B"
-	show CB 	= "C"
         show ClkTy      = "CLK"
-        show RstTy      = "RST"
 	show (S i) 	= show i ++ "S"
 	show (U i) 	= show i ++ "U"
 	show (V i) 	= show i ++ "V"
 	show GenericTy  = "G"
-	show T		= "T"
 	show (TupleTy tys) = show tys
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
-	show IntegerTy	= "Integer"
 
-instance Read Type where
-    readsPrec _ "B" = [(B,"")]
-    readsPrec _ "C" = [(CB,"")]
-    readsPrec _ "T" = [(T,"")]
-    readsPrec _ "CLK" = [(ClkTy,"")]
-    readsPrec _ "RST" = [(RstTy,"")]
-    readsPrec _ "Integer" = [(IntegerTy,"")]
-    readsPrec _ str | (last str) `elem` ['U', 'S', 'V'] = [(con int,"")]
-        where con = case last str of
-                        'U' -> U
-                        'S' -> S
-                        'V' -> V
-              int = read (init str) :: Int
-    readsPrec _ _   = error "read Type: no parse"

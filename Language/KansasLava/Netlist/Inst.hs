@@ -159,7 +159,7 @@ genInst i (Entity n@(Name _ _) [(Var "o0",oTy)] ins _)
 genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
-  		[ ("width_size",ExprNum $ fromIntegral $ head [ baseTypeLength ty | (_,ty) <- outputs ])
+  		[ ("width_size",ExprNum $ fromIntegral $ head [ typeWidth ty | (_,ty) <- outputs ])
 			| mod_nms <- ["Sampled"]	-- hack
 			, mod_nm == mod_nms
 		]
