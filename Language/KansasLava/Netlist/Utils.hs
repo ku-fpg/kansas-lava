@@ -173,7 +173,7 @@ lookupInputType i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
                                           Nothing -> error "lookupInputType: Can't find input"
 
 -- TODO: should ty be GenericTy only here?
-addNum :: Integer -> [(Var,Type,Driver Unique)] -> [(Var,Type,Driver Unique)]
+addNum :: Integer -> [(String,Type,Driver Unique)] -> [(String,Type,Driver Unique)]
 addNum i [("i0",ty,d)] = [("i0",GenericTy,Lit i),("i1",ty,d)]
 addNum _ _ = error "addNum"
 

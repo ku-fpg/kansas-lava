@@ -26,21 +26,13 @@ instance Show Id where
     show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
 
--- TODO: Just use String here
-type Var = String
---data Var = Var String
---    deriving (Eq,Ord)
-
---instance Show Var where
---    show (Var nm)     = nm
-
 -------------------------------------------------------------------------
 -- Entity
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
-data Entity ty a s = Entity Id [(Var,ty)] [(Var,ty,Driver s)] [a]
+data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
 			-- specialized Entity, because tables (typically ROMs) are verbose.
-		   | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
+		   | Table (String,ty) (String,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
 instance T.Traversable (Entity ty a) where
@@ -59,7 +51,7 @@ instance Functor (Entity ty a) where
 -------------------------------------------------------------------------
 -- Driver
 
-data Driver s = Port Var s      -- a specific port on the entity
+data Driver s = Port String s      -- a specific port on the entity
               | Pad OVar       	  --
               | Lit Integer
 	      | Error String	-- A call to err, in Datatype format for reification purposes
