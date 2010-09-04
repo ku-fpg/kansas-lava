@@ -4,7 +4,7 @@
 module Language.KansasLava.Wire where
 
 import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Entity
 import Control.Applicative
 import Control.Monad
@@ -114,35 +114,6 @@ pureX = optX . Just
 
 
 -------------------------------------------------------------------------------------
-
--- Same as X Bool
--- To consider
--- type WireVal = SignalVal Bool
-
--- Should be called SignalVal? Par Cable? hmm.
-data WireVal a = WireUnknown | WireVal a
-    deriving (Eq) -- Useful for comparing [X a] lists in Trace.hs
-
-instance Monad WireVal where
-	return = WireVal
-	fail _ = WireUnknown
-	WireUnknown >>= _ = WireUnknown
-	WireVal a >>= f = f a
-
-instance Functor WireVal where
-	fmap f WireUnknown = WireUnknown
-	fmap f (WireVal a) = WireVal (f a)
-
-instance Applicative WireVal where
-	pure = WireVal
-	WireVal f <*> WireVal a = WireVal $ f a
-	_ <*> _ = WireUnknown
-
-instance Show a => Show (WireVal a) where
-	show WireUnknown = "?"
-	show (WireVal a) = show a
-
------------------------------------------------------------------------------------------
 
 instance Wire Bool where
 	type X Bool 	= WireVal Bool

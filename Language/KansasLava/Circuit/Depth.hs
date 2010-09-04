@@ -16,7 +16,7 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 
 -- assumes no bad loops.
 

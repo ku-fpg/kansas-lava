@@ -7,10 +7,10 @@ import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
 
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Data.Reify
 import qualified Data.Traversable as T
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
 import Language.KansasLava.Stream
@@ -18,49 +18,6 @@ import Language.KansasLava.Stream
 import Control.Applicative
 import Data.Dynamic
 
----------------------------------------------------------------------------------------------------------
-data TraceStream = TraceStream Type [[X Bool]] -- to recover type, eventually clock too?
-                 | Empty
-    deriving (Eq, Show)
-
-data Annotation = ProbeValue OVar TraceStream
-                | Ann String Dynamic
-		| Comment String		-- intended to arrive in the VHDL
-
-instance Eq Annotation where {}
-instance Ord Annotation where {}
-instance Show Annotation where
-    show (ProbeValue name _) = show name
-    show _                   = error "Show: Unknown Annotation"
-
----------------------------------------------------------------------------------------------------------
-
-newtype E = E (MuE E)
-
--- What should this be called. Pre-MuE?
-type MuE u = Entity Type Annotation u
-
--- You want to observe
-instance MuRef E where
-  type DeRef E = Entity Type Annotation
-  mapDeRef f (E s) = T.traverse f s
-
-instance Show E where
-    show (E s) = show s
-
--- Consider this carefully
-instance Eq E where
-   (E s1) == (E s2) = s1 == s2
-
----------------------------------------------------------------------------------------------------------
-
--- A pin to an E/Entity
-newtype D a = D (Driver E)
-	deriving Show
--- is this used?
-
-unD :: D a -> Driver E
-unD (D a) = a
 
 -----------------------------------------------------------------------------------------------
 -- And the utilties that get this done.

@@ -4,7 +4,7 @@
 module Language.KansasLava.Test where
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq

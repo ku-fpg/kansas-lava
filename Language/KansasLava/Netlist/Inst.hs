@@ -2,7 +2,7 @@
 
 module Language.KansasLava.Netlist.Inst where
 
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.Netlist.AST
 import Language.Netlist.Util
 import Language.Netlist.Inline

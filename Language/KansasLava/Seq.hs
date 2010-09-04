@@ -10,7 +10,7 @@ import Data.List
 
 import Data.Reify
 import qualified Data.Traversable as T
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Entity

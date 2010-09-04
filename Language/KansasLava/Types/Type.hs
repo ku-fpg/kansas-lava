@@ -1,5 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
-module Language.KansasLava.Types.Type where
+module Language.KansasLava.Types where
+
 
 -- | Type captures HDL-representable types.
 data Type

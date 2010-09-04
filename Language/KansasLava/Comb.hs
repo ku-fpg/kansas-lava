@@ -7,7 +7,7 @@ module Language.KansasLava.Comb where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Data.Sized.Unsigned as U
 

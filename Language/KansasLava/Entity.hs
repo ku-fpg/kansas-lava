@@ -2,12 +2,13 @@
  #-}
 module Language.KansasLava.Entity where
 
+{-
 import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
 
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Data.Reify
 import qualified Data.Traversable as T
 import Control.Applicative
@@ -95,7 +96,7 @@ instance Show OVar where
 	show (OVar i nm) = nm ++ "$" ++ show i
 
 -------------------------------------------------------------------------
-
+-}
 
 
 

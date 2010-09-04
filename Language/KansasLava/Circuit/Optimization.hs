@@ -1,9 +1,9 @@
 module Language.KansasLava.Circuit.Optimization where
 
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Data.Reify
 import qualified Data.Traversable as T
-import Language.KansasLava.Types.Type
+import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
