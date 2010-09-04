@@ -1,4 +1,4 @@
-module Language.KansasLava.Opt where
+module Language.KansasLava.Circuit.Optimization where
 
 import Language.KansasLava.Type
 import Data.Reify
@@ -62,8 +62,8 @@ instance Monad Opt where
 ----------------------------------------------------------------------
 
 -- copy elimination
-copyElimReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-copyElimReifiedCircuit rCir =  Opt rCir' (length renamings)
+copyElimCircuit :: Circuit -> Opt Circuit
+copyElimCircuit rCir =  Opt rCir' (length renamings)
     where
 	env0 = theCircuit rCir
 
@@ -103,8 +103,8 @@ copyElimReifiedCircuit rCir =  Opt rCir' (length renamings)
 
 -- 
 -- Starting CSE.
-cseReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
+cseCircuit :: Circuit -> Opt Circuit
+cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
    where
 
 	-- how many CSE's did we spot?
@@ -176,8 +176,8 @@ cseReifiedCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 			  | (uX,eX) <- rest
 			  ]
 
-dceReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-dceReifiedCircuit rCir = if optCount == 0
+dceCircuit :: Circuit -> Opt Circuit
+dceCircuit rCir = if optCount == 0
 			 then return rCir
 			 else Opt  rCir' optCount
   where
@@ -202,8 +202,8 @@ dceReifiedCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 -- return Nothing *if* no optimization can be found.
-optimizeReifiedCircuit :: ReifiedCircuit -> Opt ReifiedCircuit
-optimizeReifiedCircuit rCir = if optCount == 0
+optimizeCircuit :: Circuit -> Opt Circuit
+optimizeCircuit rCir = if optCount == 0
 			      then return rCir	-- no changes
 			      else Opt rCir' optCount
   where
@@ -223,19 +223,19 @@ optimizeReifiedCircuit rCir = if optCount == 0
 
 	rCir' = rCir { theCircuit = optCir }
 
-optimizeReifiedCircuits :: [(String,ReifiedCircuit -> Opt ReifiedCircuit)] -> ReifiedCircuit -> [(String,Opt ReifiedCircuit)]
-optimizeReifiedCircuits ((nm,fn):fns) c = (nm,opt) : optimizeReifiedCircuits fns c'
+optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt Circuit)]
+optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 	where opt@(Opt c' n) = case fn c of
 				 Opt c' 0 -> Opt c 0	-- If there was no opts, avoid churn
 				 Opt c' n' -> Opt c' n'
 
 
 -- Assumes reaching a fixpoint.
-optimize :: [ReifyOptions] -> ReifiedCircuit -> IO ReifiedCircuit
+optimize :: [CircuitOptions] -> Circuit -> IO Circuit
 optimize options rCir = do
 	when (DebugReify `elem` options) $ do
 		print rCir
-	loop (optimizeReifiedCircuits (cycle opts) rCir)
+	loop (optimizeCircuits (cycle opts) rCir)
    where
 	loop cs@((nm,Opt code n):_) = do
 		when (DebugReify `elem` options) $ do
@@ -246,8 +246,8 @@ optimize options rCir = do
 		    ((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] -> return c
 		    ((nm,Opt c v):cs) -> loop cs
 
-	opts = [ ("opt",optimizeReifiedCircuit)
-	       , ("cse",cseReifiedCircuit)
-	       , ("copy",copyElimReifiedCircuit)
-	       , ("dce",dceReifiedCircuit)
+	opts = [ ("opt",optimizeCircuit)
+	       , ("cse",cseCircuit)
+	       , ("copy",copyElimCircuit)
+	       , ("dce",dceCircuit)
 	       ]
