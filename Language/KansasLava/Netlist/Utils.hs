@@ -124,7 +124,7 @@ memRange ty = case toStdLogicTy ty of
 		  V n -> Just $ Range (ExprNum (2^(fromIntegral n) - 1)) (ExprNum 0)
 
 -- VHDL "macros"
-active_high d      = ExprFunCall "active_high" [d]
+active_high d      = ExprCond d (ExprBit 1) (ExprBit 0)
 std_logic_vector d = ExprFunCall "std_logic_vector" [d]
 to_unsigned x w    = ExprFunCall "to_unsigned" [x, w]		-- is this used now?
 unsigned x         = ExprFunCall "unsigned" [x]
@@ -138,7 +138,7 @@ to_integer e       = ExprFunCall "to_integer" [e]
 isHigh d = (ExprBinary Equals d (ExprBit 1))
 isLow d = (ExprBinary Equals d (ExprBit 0))
 allLow ty = ExprLit (baseTypeLength ty) 0
-zeros = ExprString "(others => '0')"
+zeros = ExprString "(others => '0')" -- HACK
 
 ---------------------------------------------------------------------------------------------------
 -- Other utils
