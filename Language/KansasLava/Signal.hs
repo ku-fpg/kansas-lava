@@ -4,7 +4,7 @@ module Language.KansasLava.Signal where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Language.KansasLava.Wire
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Entity.Utils

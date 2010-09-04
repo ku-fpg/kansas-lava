@@ -9,7 +9,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector as SLV
 import Language.KansasLava.Stream  as S
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Language.KansasLava.Wire
 
 import Data.Sized.Arith

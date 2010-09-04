@@ -12,7 +12,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Reify(reifyCircuit,Ports)
 import Language.KansasLava.Circuit
 import Language.KansasLava.Entity
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 
 import Data.Sized.Unsigned
 

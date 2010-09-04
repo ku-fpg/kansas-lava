@@ -1,7 +1,7 @@
 
 module Language.KansasLava.Netlist.Decl where
 
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Language.Netlist.AST
 import Language.Netlist.Util
 import Language.Netlist.Inline

@@ -7,10 +7,9 @@ import qualified Data.Foldable as F
 import Control.Applicative
 import Data.Monoid
 
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Data.Reify
 import qualified Data.Traversable as T
-import Language.KansasLava.Type
 import Control.Applicative
 import Data.Unique as U
 

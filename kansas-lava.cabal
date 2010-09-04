@@ -44,7 +44,7 @@ Library
        Language.KansasLava.Simulate
        Language.KansasLava.Stream
        Language.KansasLava.StdLogicVector
-       Language.KansasLava.Type
+       Language.KansasLava.Types.Type
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Wire

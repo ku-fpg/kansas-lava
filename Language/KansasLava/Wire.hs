@@ -4,7 +4,7 @@
 module Language.KansasLava.Wire where
 
 import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Language.KansasLava.Entity
 import Control.Applicative
 import Control.Monad

@@ -6,7 +6,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Entity
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
-import Language.KansasLava.Type
+import Language.KansasLava.Types.Type
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Signal
 
