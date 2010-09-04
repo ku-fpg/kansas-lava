@@ -5,7 +5,7 @@ module Language.KansasLava (
     module Language.KansasLava.Circuit,
     module Language.KansasLava.Entity,
     module Language.KansasLava.Entity.Utils,
-    module Language.KansasLava.Opt,
+    module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
@@ -28,7 +28,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Circuit
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Opt
+import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq

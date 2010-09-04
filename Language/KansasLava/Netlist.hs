@@ -10,7 +10,7 @@ import qualified Language.KansasLava.Seq as KL
 import Language.KansasLava.Comb
 import Language.KansasLava.Utils
 import Language.KansasLava.Reify(reifyCircuit,Ports)
-import Language.KansasLava.Circuit(ReifyOptions(..),ReifiedCircuit(..))
+import Language.KansasLava.Circuit
 import Language.KansasLava.Entity
 import Language.KansasLava.Type
 
@@ -45,7 +45,7 @@ import Language.KansasLava.Netlist.Sync
 --   exposed as input ports, and the result will be exposed as an output port
 --   (or ports, if it is a compound type).
 netlistCircuit :: (Ports o) =>
-               [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
             -> NetlistOptions -- ^ Options for controlling netlist generation
             -> String         -- ^ The name of the generated entity.
             -> o              -- ^ The Lava circuit.
@@ -55,13 +55,13 @@ netlistCircuit opts nlOpts name circuit = do
   netlistCircuit' opts nlOpts name rc
 
 -- This interface is used by the probe tools.
-netlistCircuit' :: [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+netlistCircuit' :: [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
                 -> NetlistOptions -- ^ Options for controlling netlist generation
                 -> String         -- ^ The name of the generated entity.
-                -> ReifiedCircuit -- ^ The Lava circuit.
+                -> Circuit -- ^ The Lava circuit.
                 -> IO Module
 netlistCircuit' opts nlOpts name circuit = do
-  let (ReifiedCircuit nodes srcs sinks) = circuit
+  let (Circuit nodes srcs sinks) = circuit
 
   let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
 	         -- need size info for each input, to declare length of std_logic_vector

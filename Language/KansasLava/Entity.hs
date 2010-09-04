@@ -27,10 +27,8 @@ instance Show Name where
     show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
 
--- TODO: Var
+-- TODO: Just use String here
 data Var = Var String
---	 | UqVar [Int]		-- uniquely generated name
---         | NoVar                -- not needed, because the default does fine???
     deriving (Eq,Ord)
 
 instance Show Var where
@@ -43,6 +41,7 @@ data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
               deriving (Show, Eq, Ord)
 
 
+-------------------------------------------------------------------------
 -- These can all be unshared without any problems.
 data Driver s = Port Var s      -- a specific port on the entity
               | Pad OVar       	  --
@@ -50,8 +49,21 @@ data Driver s = Port Var s      -- a specific port on the entity
 	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Show, Eq, Ord)
 
+
+showDriver :: Driver Data.Reify.Unique -> BaseTy -> String
+showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
+showDriver (Lit x) ty = show x ++ ":" ++ show ty
+showDriver (Pad (OVar n x)) ty = show x ++ "<" ++ show n ++ ">" ++ ":" ++ show ty
+showDriver (Error msg) ty = show msg ++ ":" ++ show ty
+showDriver l _ = error $ "showDriver: " ++ show l
+
+-------------------------------------------------------------------------
+
 data OVar = OVar Int String		-- The # is used purely for sorting order.
 	deriving (Show, Eq, Ord, Read)
+
+
+-------------------------------------------------------------------------
 
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =

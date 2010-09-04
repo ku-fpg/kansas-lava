@@ -5,7 +5,7 @@ module Language.KansasLava.VHDL(vhdlCircuit, NetlistOption(..)) where
 
 -- import qualified Language.KansasLava.Entity as E
 import Language.KansasLava.Reify(reifyCircuit,Ports)
-import Language.KansasLava.Circuit(ReifyOptions(..),ReifiedCircuit(..))
+import Language.KansasLava.Circuit
 import Language.KansasLava.Entity
 
 
@@ -22,7 +22,7 @@ import Language.Netlist.GenVHDL
 --   exposed as input ports, and the result will be exposed as an output port
 --   (or ports, if it is a compound type).
 vhdlCircuit :: (Ports o) =>
-               [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
             -> [NetlistOption] -- ^ Options for controlling the netlist generation.
             -> String         -- ^ The name of the generated entity.
 	    -> [String]	      -- ^ The extra module arguments needed

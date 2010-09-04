@@ -13,7 +13,8 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Type
 import Language.KansasLava.Circuit
-import Language.KansasLava.Opt
+import Language.KansasLava.Circuit.Depth
+import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
 
 import Data.Sized.Matrix as M
@@ -21,15 +22,15 @@ import Debug.Trace
 import qualified Data.Map as Map
 
 -- | reifyCircuit does reification and type inference.
--- reifyCircuit :: REIFY circuit => [ReifyOptions] -> circuit -> IO ReifiedCircuit
+-- reifyCircuit :: REIFY circuit => [CircuitOptions] -> circuit -> IO Circuit
 -- ([(Unique,Entity (Ty Var) Unique)],[(Var,Driver Unique)])
-reifyCircuit :: (Ports a) => [ReifyOptions] -> a -> IO ReifiedCircuit
+reifyCircuit :: (Ports a) => [CircuitOptions] -> a -> IO Circuit
 reifyCircuit opts circuit = do
         -- GenSym for input/output pad names
 	let inputNames = L.zipWith OVar [0..] $ head $
-		[ nms | InputNames nms <- opts ] ++ [[ "i" ++ show i | i <- [0..]]]
+		[[ "i" ++ show i | i <- [0..]]]
 	let outputNames =  L.zipWith OVar [0..] $ head $
-		[ nms | OutputNames nms <- opts ] ++ [[ "o" ++ show i | i <- [0..]]]
+		 [[ "o" ++ show i | i <- [0..]]]
 
 	let os = ports 0 circuit
 
@@ -73,7 +74,7 @@ reifyCircuit opts circuit = do
         let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr
 			       , (_,vTy,Pad v) <- ins]
 		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
-        let rCit = ReifiedCircuit { theCircuit = gr
+        let rCit = Circuit { theCircuit = gr
                                   , theSrcs = nub inputs
                                   , theSinks = outputs
                                   }
@@ -107,13 +108,13 @@ wireCapture :: forall w . (Wire w) => D w -> [(BaseTy, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 
-showReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
-showReifiedCircuit opt c = do
+showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
+showCircuit opt c = do
 	rCir <- reifyCircuit opt c
 	return $ show rCir
 
-debugCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO ()
-debugCircuit opt c = showReifiedCircuit opt c >>= putStr
+debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()
+debugCircuit opt c = showCircuit opt c >>= putStr
 
 -- | The 'Ports' class generates input pads for a function type, so that the
 -- function can be Reified. The result of the circuit, as a driver, as well as
@@ -249,8 +250,8 @@ instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
 
 ---------------------------------------
 
-showOptReifiedCircuit :: (Ports circuit) => [ReifyOptions] -> circuit -> IO String
-showOptReifiedCircuit opt c = do
+showOptCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
+showOptCircuit opt c = do
 	rCir <- reifyCircuit opt c
 	let loop n cs@((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take 3 cs ] = do
 		 putStrLn $ "## Answer " ++ show n ++ " ##############################"
@@ -261,12 +262,12 @@ showOptReifiedCircuit opt c = do
 		print c
 		loop (succ n) cs
 
-	let opts = cycle [ ("opt",optimizeReifiedCircuit)
-		       	 , ("copy",copyElimReifiedCircuit)
-			 , ("dce",dceReifiedCircuit)
+	let opts = cycle [ ("opt",optimizeCircuit)
+		       	 , ("copy",copyElimCircuit)
+			 , ("dce",dceCircuit)
 			 ]
 
-	rCir' <- loop 0 (("init",Opt rCir 0) : optimizeReifiedCircuits opts rCir)
+	rCir' <- loop 0 (("init",Opt rCir 0) : optimizeCircuits opts rCir)
 	return $ show rCir'
 
 
@@ -282,13 +283,13 @@ output nm = liftS1 $ \ (Comb a d) ->
 		    []
 	in res
 
-resolveNames :: ReifiedCircuit -> ReifiedCircuit
+resolveNames :: Circuit -> Circuit
 resolveNames cir
 	| error1 = error $ "The generated input/output names are non distinct: " ++
 			   show (map fst (theSrcs cir))
 	| not (null error2) = error $ "A name has been used both labeled and non labeled "
 	| error3 = error "The labled input/output names are non distinct"
-	| otherwise = ReifiedCircuit { theCircuit = newCircuit
+	| otherwise = Circuit { theCircuit = newCircuit
 			 	     , theSrcs = newSrcs
 				     , theSinks = newSinks
 		           	     }
