@@ -1,8 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 module Language.KansasLava.Types.Type where
 
--- | BaseTy captures HDL-representable types.
-data BaseTy
+-- | Type captures HDL-representable types.
+data Type
 	= B		-- | Bit
 	| CB		-- | Control Bit (currently unused)
         | ClkTy         -- | Clock Signal
@@ -14,9 +14,9 @@ data BaseTy
 
 	| T		-- Time	TODO: remove
 			-- What about Float/Double, special, etc.
-	| TupleTy [BaseTy]
+	| TupleTy [Type]
 			-- | Tuple, represented as a larget std_logic_vector
-	| MatrixTy Int BaseTy
+	| MatrixTy Int Type
 			-- | Matrix, vhdl array.
 	| IntegerTy	-- holds whatever, not realizable in hw
 			-- used to pass static arguments to
@@ -24,7 +24,7 @@ data BaseTy
 
 
 -- | baseTypeLength returns the width of a type when represented in VHDL.
-baseTypeLength :: BaseTy -> Int
+baseTypeLength :: Type -> Int
 baseTypeLength B  = 1
 baseTypeLength CB = 1
 baseTypeLength ClkTy = 1
@@ -39,7 +39,7 @@ baseTypeLength other = error $ show ("baseTypeLength",other)
 
 -- | 'baseTypeIsSigned' determines if a type has a signed representation. This is
 -- necessary for the implementation of 'isSigned' in the 'Bits' type class.
-baseTypeIsSigned :: BaseTy -> Bool
+baseTypeIsSigned :: Type -> Bool
 baseTypeIsSigned B     = False
 baseTypeIsSigned CB    = False
 baseTypeIsSigned ClkTy = False
@@ -49,7 +49,7 @@ baseTypeIsSigned (U _) = False
 baseTypeIsSigned (V _) = False
 baseTypeIsSigned T     = False
 
-instance Show BaseTy where
+instance Show Type where
 	show B 		= "B"
 	show CB 	= "C"
         show ClkTy      = "CLK"
@@ -63,7 +63,7 @@ instance Show BaseTy where
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
 	show IntegerTy	= "Integer"
 
-instance Read BaseTy where
+instance Read Type where
     readsPrec _ "B" = [(B,"")]
     readsPrec _ "C" = [(CB,"")]
     readsPrec _ "T" = [(T,"")]
@@ -76,4 +76,4 @@ instance Read BaseTy where
                         'S' -> S
                         'V' -> V
               int = read (init str) :: Int
-    readsPrec _ _   = error "read BaseTy: no parse"
+    readsPrec _ _   = error "read Type: no parse"

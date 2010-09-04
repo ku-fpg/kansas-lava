@@ -104,7 +104,7 @@ reifyCircuit opts circuit = do
 
 	return rCit3
 
-wireCapture :: forall w . (Wire w) => D w -> [(BaseTy, Driver E)]
+wireCapture :: forall w . (Wire w) => D w -> [(Type, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 
@@ -122,7 +122,7 @@ debugCircuit opt c = showCircuit opt c >>= putStr
 -- typeclass, but I'm not really sure.
 
 class Ports a where
-  ports :: Int -> a -> [(BaseTy, Driver E)]
+  ports :: Int -> a -> [(Type, Driver E)]
 
 class InPorts a where
     inPorts :: Int -> (a, Int)
@@ -156,7 +156,7 @@ instance (InPorts a, Ports b) => Ports (a -> b) where
      where (a,vs') = inPorts vs
 
 --class OutPorts a where
---    outPorts :: a ->  [(Var, BaseTy, Driver E)]
+--    outPorts :: a ->  [(Var, Type, Driver E)]
 
 
 {-
@@ -317,7 +317,7 @@ resolveNames cir
 		| (u,e) <- theCircuit cir
 		]
 
-	newSrcs :: [(OVar,BaseTy)]
+	newSrcs :: [(OVar,Type)]
 	newSrcs = [ case lookup nm mapInputs of
 		       Nothing -> (nm,ty)
 		       Just nm' -> (nm',ty)
@@ -330,7 +330,7 @@ resolveNames cir
 		  , not (nm `elem` (map fst newSrcs))
 		  ]
 
-	newSinks :: [(OVar,BaseTy,Driver Unique)]
+	newSinks :: [(OVar,Type,Driver Unique)]
 	newSinks = [ case dr of
 		      Port (Var nm') u | isOutput u -> (OVar i nm',ty,dr)
 		      _ -> (nm,ty,dr)

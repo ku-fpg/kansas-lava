@@ -20,7 +20,7 @@ class Signal f where
   liftS2 :: (Wire a, Wire b, Wire c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
   liftSL :: (Wire a, Wire b) => ([Comb a] -> Comb b) -> [f a] -> f b
 
-bitTypeOf :: forall f w . (Signal f, Wire w) => f w -> BaseTy
+bitTypeOf :: forall f w . (Signal f, Wire w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
 
 op :: forall f w . (Signal f, Wire w) => f w -> String -> Name

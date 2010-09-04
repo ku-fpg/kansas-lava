@@ -19,7 +19,7 @@ import Control.Applicative
 import Data.Dynamic
 
 ---------------------------------------------------------------------------------------------------------
-data TraceStream = TraceStream BaseTy [[X Bool]] -- to recover type, eventually clock too?
+data TraceStream = TraceStream Type [[X Bool]] -- to recover type, eventually clock too?
                  | Empty
     deriving (Eq, Show)
 
@@ -38,11 +38,11 @@ instance Show Annotation where
 newtype E = E (MuE E)
 
 -- What should this be called. Pre-MuE?
-type MuE u = Entity BaseTy Annotation u
+type MuE u = Entity Type Annotation u
 
 -- You want to observe
 instance MuRef E where
-  type DeRef E = Entity BaseTy Annotation
+  type DeRef E = Entity Type Annotation
   mapDeRef f (E s) = T.traverse f s
 
 instance Show E where

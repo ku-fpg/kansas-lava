@@ -55,7 +55,7 @@ testbenchBaseDir = do
 mkTestbench' :: String -- Name of circuit
 	         -> FilePath -- Base directory
              -> String -- Generated VHDL
-             -> ([(OVar, BaseTy)], [(OVar, BaseTy)], [(OVar, BaseTy)]) -- result of call to ports
+             -> ([(OVar, Type)], [(OVar, Type)], [(OVar, Type)]) -- result of call to ports
              -> [String] -- result of call to genProbes
              -> IO ()
 mkTestbench' name dir vhdl (inputs,outputs,sequentials) waves = do
@@ -82,7 +82,7 @@ entity coreName = unlines
    "end entity " ++ coreName ++ "_tb;"
   ]
 
-architecture :: String  -> [(OVar, BaseTy)] -> [(OVar, BaseTy)] -> [(OVar, BaseTy)] -> String
+architecture :: String  -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
 architecture coreName inputs outputs sequentials = unlines $
   ["architecture sim of " ++ coreName ++ "_tb is"] ++
    signals ++
@@ -98,7 +98,7 @@ architecture coreName inputs outputs sequentials = unlines $
          "signal output : " ++ portType (inputs ++ outputs) ++ ";"
           ]
 
-dut :: String -> [(OVar, BaseTy)] -> [(OVar, BaseTy)] -> [(OVar, BaseTy)] -> String
+dut :: String -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
 dut coreName inputs outputs sequentials = unlines $ [
  "dut: entity work." ++ coreName,
  "port map ("] ++
@@ -107,7 +107,7 @@ dut coreName inputs outputs sequentials = unlines $ [
  [");"]
 
 -- TODO: add clock speed argument
-stimulus :: String -> [(a, BaseTy)] -> [(a, BaseTy)] -> String
+stimulus :: String -> [(a, Type)] -> [(a, Type)] -> String
 stimulus coreName inputs outputs = unlines $ [
   "runtest: process  is",
   "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ coreName ++ ".input\";",
@@ -152,12 +152,12 @@ stimulus coreName inputs outputs = unlines $ [
 
 -- Manipulating ports
 ports :: (Ports a) =>
-         [ReifyOptions] -> a -> IO ([(OVar, BaseTy)],[(OVar, BaseTy)],[(OVar, BaseTy)])
+         [ReifyOptions] -> a -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports ropts fun = do
   reified <- reifyCircuit ropts fun
   ports' ropts reified
 
-ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(OVar, BaseTy)],[(OVar, BaseTy)],[(OVar, BaseTy)])
+ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports' ropts reified = do
   let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
@@ -187,12 +187,12 @@ findOutputs opts = maybe [] names (find isOut opts)
         names (OutputNames names) = names
 
 
-portType :: [(a, BaseTy)] -> [Char]
+portType :: [(a, Type)] -> [Char]
 portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
-portLen :: [(a, BaseTy)] -> Int
+portLen :: [(a, Type)] -> Int
 portLen pts = sum (map (baseTypeLength .snd) pts)
 
-portAssigns :: [(OVar, BaseTy)]-> [(OVar, BaseTy)] -> [String]
+portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
@@ -223,7 +223,7 @@ toBits size val = map (\i -> if testBit val i then '1' else '0') downto
   where downto = reverse upto
         upto = [0..size-1]
 
-vectors ::  [(a, BaseTy)] -> IO String
+vectors ::  [(a, Type)] -> IO String
 vectors inputs = do
     setStdGen (mkStdGen 0)
     let vector = liftM concat $ mapM stim types

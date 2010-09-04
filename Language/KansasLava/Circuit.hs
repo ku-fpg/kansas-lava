@@ -23,8 +23,8 @@ import Debug.Trace
 data Circuit = Circuit
 	{ theCircuit :: [(Unique,MuE Unique)]
 		-- ^ This the main graph. There is no actual node for the source or sink.
-	, theSrcs    :: [(OVar,BaseTy)]
-	, theSinks   :: [(OVar,BaseTy,Driver Unique)]
+	, theSrcs    :: [(OVar,Type)]
+	, theSinks   :: [(OVar,Type,Driver Unique)]
 	-- , theTypes   :: TypeEnv
 	}
 

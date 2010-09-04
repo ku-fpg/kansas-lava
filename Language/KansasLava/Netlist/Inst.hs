@@ -185,11 +185,11 @@ genInst i tab@(Table (Var vout,tyout) (vin,tyin,d) mp) =
 
 --------------------------------------------------------------
 
-data NetlistOperation = NetlistOp Int (BaseTy -> [(BaseTy,Driver Unique)] -> Expr)
+data NetlistOperation = NetlistOp Int (Type -> [(Type,Driver Unique)] -> Expr)
 
 mkSpecialUnary
-	:: (BaseTy -> Expr -> Expr)
-	-> (BaseTy -> Driver Unique -> Expr)
+	:: (Type -> Expr -> Expr)
+	-> (Type -> Driver Unique -> Expr)
 	-> [(String, UnaryOp)]
 	-> [(Name, NetlistOperation)]
 mkSpecialUnary coerceR coerceF ops =
@@ -203,8 +203,8 @@ mkSpecialUnary coerceR coerceF ops =
          ]
 
 mkSpecialBinary
-	:: (BaseTy -> Expr -> Expr)
-	-> (BaseTy -> Driver Unique -> Expr)
+	:: (Type -> Expr -> Expr)
+	-> (Type -> Driver Unique -> Expr)
 --	-> [String]
 	-> [(String, BinaryOp)]
 	-> [(Name, NetlistOperation)]

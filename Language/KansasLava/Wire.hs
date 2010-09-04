@@ -37,7 +37,7 @@ class {- Eq w => -} Wire w where
 	wireName _ = "Lava"		-- default to built in
 
 	-- | Each wire has a known type.
-    	wireType :: w -> BaseTy
+    	wireType :: w -> Type
 
 
 

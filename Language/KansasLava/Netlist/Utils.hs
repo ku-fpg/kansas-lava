@@ -22,7 +22,7 @@ import Data.List(intersperse,find,mapAccumL,nub)
 class ToTypedExpr v where
 	-- Turning a 'v' of (typically a std_logic_[vector] signal var) to a *typed* Expr,
 	-- that is we use signed and unsigned for our S and U.
-	toTypedExpr :: BaseTy -> v -> Expr
+	toTypedExpr :: Type -> v -> Expr
 
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
@@ -51,7 +51,7 @@ instance ToTypedExpr Integer where
 
 class ToStdLogicExpr v where
 	-- Turn a 'v' into a std_logic[_vector] Expr.
-	toStdLogicExpr :: BaseTy -> v -> Expr
+	toStdLogicExpr :: Type -> v -> Expr
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
@@ -81,7 +81,7 @@ instance ToStdLogicExpr Expr where
 	toStdLogicExpr _other e = error $ show ("toStdLogicExpr", _other,e)
 
 class ToIntegerExpr v where
-	toIntegerExpr :: BaseTy -> v -> Expr
+	toIntegerExpr :: Type -> v -> Expr
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
 	toIntegerExpr ty (Lit v) = ExprNum v
@@ -89,7 +89,7 @@ instance (Integral i) => ToIntegerExpr (Driver i) where
 
 -- NEVER USED
 {-
-toStdLogicVectorExpr :: (Integral a) => BaseTy -> Driver a -> Expr
+toStdLogicVectorExpr :: (Integral a) => Type -> Driver a -> Expr
 toStdLogicVectorExpr ty dr =
 	case toStdLogicTy ty of
 	   B   -> singleton $ toStdLogicExpr B dr
@@ -98,7 +98,7 @@ toStdLogicVectorExpr ty dr =
 
 -- Turn a Kansas Lava type into its std_logic[_vector] type (in KL format)
 -- Note this function does not have an inverse.
-toStdLogicTy :: BaseTy -> BaseTy
+toStdLogicTy :: Type -> Type
 toStdLogicTy B     = B
 toStdLogicTy ClkTy = B
 toStdLogicTy RstTy = B
@@ -112,13 +112,13 @@ sigName :: String -> Unique -> String
 sigName v d = "sig_" ++  show d ++ "_" ++ v
 
 -- figure out the size of a type.
-sizedRange :: BaseTy -> Maybe Range
+sizedRange :: Type -> Maybe Range
 sizedRange ty = case toStdLogicTy ty of
 		  B -> Nothing
 		  V n -> Just $ Range (ExprNum (fromIntegral n - 1)) (ExprNum 0)
 
 -- like sizedRange, but allowing 2^n elements (for building memories)
-memRange :: BaseTy -> Maybe Range
+memRange :: Type -> Maybe Range
 memRange ty = case toStdLogicTy ty of
 		  B -> Nothing
 		  V n -> Just $ Range (ExprNum (2^(fromIntegral n) - 1)) (ExprNum 0)
@@ -143,13 +143,13 @@ zeros = ExprString "(others => '0')" -- HACK
 ---------------------------------------------------------------------------------------------------
 -- Other utils
 
--- The BaseTy here goes from left to right, but we use it right to left.
+-- The Type here goes from left to right, but we use it right to left.
 -- So [B,U4] => <XXXX:4 to 1><X:0>, because of the convension ordering in our generated VHDL.
 -- Notice the result list is in the same order as the argument list.
 -- The result is written out as a std_logic[_vector].
 -- We assume that the input is *not* a constant (would cause lava-compile-time crash)
 
-prodSlices :: Driver Unique -> [BaseTy] -> [Expr]
+prodSlices :: Driver Unique -> [Type] -> [Expr]
 prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
   where size = fromIntegral $ sum (map baseTypeLength tys) - 1
 
@@ -158,7 +158,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 		Pad (OVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
 
-	f :: Integer -> BaseTy -> (Integer,Expr)
+	f :: Integer -> Type -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprNum i))
         f i ty = let w = fromIntegral $ baseTypeLength ty
                      next = i - w
@@ -175,7 +175,7 @@ lookupInputType i (Entity _ _ inps _) = case find (\(Var v,_,_) -> v == i) inps 
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
 
-addNum :: Integer -> [(Var,BaseTy,Driver Unique)] -> [(Var,BaseTy,Driver Unique)]
+addNum :: Integer -> [(Var,Type,Driver Unique)] -> [(Var,Type,Driver Unique)]
 addNum i [(Var "i0",ty,d)] = [(Var "i0",IntegerTy,Lit i),(Var "i1",ty,d)]
 addNum _ _ = error "addNum"
 
