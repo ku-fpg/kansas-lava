@@ -72,8 +72,8 @@ main = do
     res <- unitTest def "halfAdder" thunk
     print res
 
-    mkTarball "test/lavaFst" thunk
-    mkTarball "test/halfAdder" thunk2
+    mkTarball "test/lavaFst" 100 thunk
+    mkTarball "test/halfAdder" 100 thunk2
 
     t4 <- mkTrace limit muxt
-    mkTarball "test/mux2" muxt
+    mkTarball "test/mux2" 100 muxt

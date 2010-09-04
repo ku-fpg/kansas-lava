@@ -15,6 +15,7 @@ import qualified Data.Graph.Inductive as G
 
 import qualified Data.Reify.Graph as DRG
 
+import System.Cmd
 import System.Directory
 import System.FilePath.Posix
 
@@ -42,18 +43,48 @@ mkTrace c (Thunk circuit k) = do
 mkThunk :: forall a b. (Ports a, Probe a, Run a, RepWire b) => Trace -> a -> Thunk (Seq b)
 mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
 
-mkTarball :: (Ports b) => FilePath -> Thunk b -> IO ()
-mkTarball tarfile thunk@(Thunk c k) = do
+mkTarball :: (Ports b) => FilePath -> Int -> Thunk b -> IO ()
+mkTarball tarfile cycles thunk@(Thunk c k) = do
     let (path,_) = splitExtension tarfile
+        name = "circuit"
 
     createDirectoryIfMissing True path
 
-    trace <- mkTrace (Just 100) thunk
+    trace <- mkTrace (Just cycles) thunk
 
-    writeFile (path </> "circuit" <.> "input") $ unlines $ genShallow trace
-    writeFile (path </> "circuit" <.> "info") $ unlines $ genInfo trace
+    writeFile (path </> name <.> "input") $ unlines $ genShallow trace
+    writeFile (path </> name <.> "info") $ unlines $ genInfo trace
 
-    mkTestbench [] [] "circuit" path c
+    mkTestbench [] [] name path c
+
+    writeFile (path </> "test" <.> "sh") $ unlines
+        ["#!/bin/bash"
+        ,"LM_LICENSE_FILE=1800@carl.ittc.ku.edu:1717@carl.ittc.ku.edu"
+        ,"export LM_LICENSE_FILE"
+        ,"echo \"Simulating...\""
+        ,"/tools/modelsim/linux/6.3c/modeltech/bin/vsim -c -do circuit.do"
+        ,"echo \"10 lines from the info file...\""
+        ,"tail " ++ name ++ ".info"
+        ,"echo \"The same 10 lines from the input file...\""
+        ,"tail " ++ name ++ ".input"
+        ,"echo \"Ditto for the output file...\""
+        ,"tail " ++ name ++ ".output"
+        ,""
+        ,"THEDIFF=`diff " ++ name ++ ".input " ++ name ++ ".output`"
+        ,""
+        ,"if [[ -z \"$THEDIFF\" ]]; then"
+        ,"    echo \"Input/Output Files Are The Same\""
+        ,"    exit 0"
+        ,"else"
+        ,"    echo \"Warning: Differences Below:\""
+        ,"    echo \"$THEDIFF\""
+        ,"    exit 1"
+        ,"fi"
+        ]
+
+    system $ "chmod +x " ++ path </> "test.sh"
+
+    return ()
 
 rcToGraph :: ReifiedCircuit -> G.Gr (MuE DRG.Unique) ()
 rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
