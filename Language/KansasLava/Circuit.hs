@@ -19,11 +19,6 @@ import Language.KansasLava.Type
 
 import Debug.Trace
 
---------------------------------------------------------
--- Grab a set of drivers (the outputs), and give me a graph, please.
-
---data Uq = Uq Unique | Sink | Source
---	deriving (Eq,Ord,Show)
 
 data Circuit = Circuit
 	{ theCircuit :: [(Unique,MuE Unique)]
@@ -37,6 +32,8 @@ data Circuit = Circuit
 instance Show Circuit where
    show rCir = msg
      where
+	showDriver d t = show d ++ " : " ++ show t
+	
 	bar = (replicate 78 '-') ++ "\n"
 
 	inputs = unlines
