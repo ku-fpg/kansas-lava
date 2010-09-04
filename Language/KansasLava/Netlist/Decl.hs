@@ -14,7 +14,7 @@ import Data.Reify.Graph (Unique)
 import Language.KansasLava.Netlist.Utils
 
 -- Entities that need a _next special *extra* signal.
-toAddNextSignal :: [Name]
+toAddNextSignal :: [Id]
 toAddNextSignal = [Name "Memory" "delay",Name "Memory" "register"]
 
 -- We have a few exceptions, where we generate some extra signals,

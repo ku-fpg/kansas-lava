@@ -25,7 +25,7 @@ addDepthOp :: DepthOp -> Float -> Float
 addDepthOp (AddDepth n) m = n + m
 addDepthOp (NewDepth n) _ = n
 
-findChains :: [(Name,DepthOp)] -> Circuit -> [[(Float,Unique)]]
+findChains :: [(Id,DepthOp)] -> Circuit -> [[(Float,Unique)]]
 findChains fn cir = reverse
 		$ L.groupBy (\ x y -> fst x == fst y)
 		$ L.sort
@@ -53,7 +53,7 @@ findChains fn cir = reverse
 		findDriverChain (Lit _) = 0
 		findDriverChain (Error err) = error $ "Error: " ++ show err
 
-depthTable :: [(Name,DepthOp)]
+depthTable :: [(Id,DepthOp)]
 depthTable =
 	[ (Name "Memory" "register",NewDepth 0)
 	, (Name "Memory" "BRAM", NewDepth 0)

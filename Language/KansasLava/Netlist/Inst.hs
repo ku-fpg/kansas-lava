@@ -191,7 +191,7 @@ mkSpecialUnary
 	:: (Type -> Expr -> Expr)
 	-> (Type -> Driver Unique -> Expr)
 	-> [(String, UnaryOp)]
-	-> [(Name, NetlistOperation)]
+	-> [(Id, NetlistOperation)]
 mkSpecialUnary coerceR coerceF ops =
        [( Name "Lava" lavaName
 	, NetlistOp 1 $ \ fTy [(ity,i)] ->
@@ -207,7 +207,7 @@ mkSpecialBinary
 	-> (Type -> Driver Unique -> Expr)
 --	-> [String]
 	-> [(String, BinaryOp)]
-	-> [(Name, NetlistOperation)]
+	-> [(Id, NetlistOperation)]
 mkSpecialBinary coerceR coerceF ops =
        [( Name "Lava" lavaName
 	, NetlistOp 2 $ \ fTy [(lty,l),(rty,r)] ->
@@ -240,7 +240,7 @@ mkSpecialTestBit =
     ]
 
 
-specials :: [(Name, NetlistOperation)]
+specials :: [(Id, NetlistOperation)]
 specials =
       mkSpecialBinary (\ _t -> active_high) toTypedExpr
         [ (".<.",LessThan)

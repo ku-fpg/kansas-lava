@@ -23,7 +23,8 @@ class Signal f where
 bitTypeOf :: forall f w . (Signal f, Wire w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
 
-op :: forall f w . (Signal f, Wire w) => f w -> String -> Name
+-- TODO: remove
+op :: forall f w . (Signal f, Wire w) => f w -> String -> Id
 op _ nm = Name (wireName (error "op" :: w)) nm
 
 --class Constant a where

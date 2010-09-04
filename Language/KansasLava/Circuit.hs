@@ -83,7 +83,7 @@ data CircuitOptions
 	| OptimizeReify		-- ^ perform basic optimizations
 	| NoRenamingReify	-- ^ do not use renaming of variables
 	| CommentDepth 
-	      [(Name,DepthOp)] 	-- ^ add comments that denote depth
+	      [(Id,DepthOp)] 	-- ^ add comments that denote depth
 	deriving (Eq, Show)
 
 -- Does a specific thing 

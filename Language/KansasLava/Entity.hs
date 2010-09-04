@@ -13,13 +13,13 @@ import qualified Data.Traversable as T
 import Control.Applicative
 import Data.Unique as U
 
-data Name = Name String String			-- external thing
+data Id = Name String String			-- external thing
 	  | Prim String				-- built in thing
 	  | UniqNm U.Unique 			-- uniq name of an entity
 	  | Function [(Integer,Integer)] 	-- anonymous function
     deriving (Eq, Ord)
 
-instance Show Name where
+instance Show Id where
     show (Name "" nm)  = nm	-- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
     show (Prim nm)     = nm
@@ -37,7 +37,7 @@ instance Show Var where
 -- Entity
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
-data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
+data Entity ty a s = Entity Id [(Var,ty)] [(Var,ty,Driver s)] [a]
 			-- specialized Entity, because tables (typically ROMs) are verbose.
 		   | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
