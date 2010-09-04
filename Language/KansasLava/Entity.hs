@@ -34,42 +34,42 @@ data Var = Var String
 instance Show Var where
     show (Var nm)     = nm
 
+-------------------------------------------------------------------------
+-- Entity
+
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty a s = Entity Name [(Var,ty)] [(Var,ty,Driver s)] [a]
 			-- specialized Entity, because tables (typically ROMs) are verbose.
 		   | Table (Var,ty) (Var,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
-
--------------------------------------------------------------------------
--- These can all be unshared without any problems.
-data Driver s = Port Var s      -- a specific port on the entity
-              | Pad OVar       	  --
-              | Lit Integer
-	      | Error String	-- A call to err, in Datatype format for reification purposes
-              deriving (Show, Eq, Ord)
-
-
-showDriver :: Driver Data.Reify.Unique -> BaseTy -> String
-showDriver (Port v i) ty = show i ++ "." ++ show v ++ ":" ++ show ty
-showDriver (Lit x) ty = show x ++ ":" ++ show ty
-showDriver (Pad (OVar n x)) ty = show x ++ "<" ++ show n ++ ">" ++ ":" ++ show ty
-showDriver (Error msg) ty = show msg ++ ":" ++ show ty
-showDriver l _ = error $ "showDriver: " ++ show l
-
--------------------------------------------------------------------------
-
-data OVar = OVar Int String		-- The # is used purely for sorting order.
-	deriving (Show, Eq, Ord, Read)
-
-
--------------------------------------------------------------------------
-
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
   traverse f (Table (v0,t0) (v1,t1,d) tbl) =
 	(\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
+
+instance F.Foldable (Entity ty a) where
+  foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
+
+instance Functor (Entity ty a) where
+    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
+
+
+-------------------------------------------------------------------------
+-- Driver
+
+data Driver s = Port Var s      -- a specific port on the entity
+              | Pad OVar       	  --
+              | Lit Integer
+	      | Error String	-- A call to err, in Datatype format for reification purposes
+              deriving (Eq, Ord)
+
+instance Show i => Show (Driver i) where
+  show (Port v i) = "(" ++ show i ++ ")." ++ show v 
+  show (Lit x) = show x
+  show (Pad v) = show v 
+  show (Error msg) = show msg
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
@@ -78,10 +78,6 @@ instance T.Traversable Driver where
   traverse _ (Lit i)       = pure $ Lit i
   traverse _ (Error s)     = pure $ Error s
 
-
-instance F.Foldable (Entity ty a) where
-  foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
-
 instance F.Foldable Driver where
   foldMap f (Port _ s)    = f s
   foldMap _ (Pad _)       = mempty
@@ -89,13 +85,25 @@ instance F.Foldable Driver where
   foldMap _ (Lit _)       = mempty
   foldMap _ (Error s)     = mempty
 
-instance Functor (Entity ty a) where
-    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
-
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
     fmap _ (Pad v)       = Pad v
 --    fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
     fmap _ (Error s)     = Error s
+
+
+-------------------------------------------------------------------------
+-- OVar
+
+data OVar = OVar Int String		-- The # is used purely for sorting order.
+	deriving (Eq, Ord, Read)
+
+instance Show OVar where
+	show (OVar i nm) = nm ++ "$" ++ show i
+
+-------------------------------------------------------------------------
+
+
+
 
