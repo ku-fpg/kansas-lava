@@ -30,7 +30,7 @@ vhdlCircuit :: (Ports o) =>
             -> IO String
 vhdlCircuit opts nlOpts name mods circuit = do
   mod <- netlistCircuit opts nlOpts name circuit
-  return $ (render (genVHDL mod mods) ++ "\n")
+  return $ genVHDL mod mods
 
 
 
