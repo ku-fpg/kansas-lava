@@ -2,6 +2,8 @@
 module Language.KansasLava.Reify 
 	( reifyCircuit
 	, Ports(..)
+	, input
+	, output
 	) where
 
 import Data.Reify
