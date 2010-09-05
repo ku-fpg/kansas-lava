@@ -43,7 +43,7 @@ memoryToPipe clk enA mem = pack (delay clk en,pack (delay clk a,mem a))
 
 
 -- Does not work for two clocks, *YET*
-pipeToMemory :: forall a d clk1 clk2. (Size (WIDTH a), RepWire a, RepWire d) 
+pipeToMemory :: forall a d clk1 clk2. (Rep a, Rep d) 
 	=> Env clk1
 	-> Env clk2
 	-> CSeq clk1 (Pipe a d) 
@@ -57,9 +57,9 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
     	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
 
 	shallowRes :: Stream (X d)
-	shallowRes = pure (\ m a2 -> case unX a2 :: Maybe a of
+	shallowRes = pure (\ m a2 -> case getValidRepValue (toRep (witness :: a) a2) of
 				       Nothing -> optX (Nothing :: Maybe d)
-				       Just a' -> case lookupMEM (M.toList $ (fromWireRep a' :: Matrix (WIDTH a) Bool)) m of
+				       Just a' -> case lookupMEM a' m of
 						    Nothing -> optX (Nothing :: Maybe d)
 						    Just v -> optX (Just v)
 			  ) <*> (emptyMEM :~ mem)
@@ -105,7 +105,9 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 		[ case u of
 		    Nothing           -> emptyMEM	-- unknown again
 		    Just Nothing      -> m
-		    Just (Just (a,d)) -> ((insertMEM $! (M.toList $! (fromWireRep a :: Matrix (WIDTH a) Bool))) $! d) $! m
+		    Just (Just (a,d)) -> 
+			case getValidRepValue (toRep (witness :: a) (optX (Just a) :: X a)) of 
+			  Just bs -> m -- ((insertMEM $! bs) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
@@ -125,7 +127,7 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 		[]
 
 
-fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire b)
+fullEnabled :: forall a b sig . (Signal sig, Show a, Rep a, Show b, Rep b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
 
@@ -192,14 +194,11 @@ unpackX ab = {-# SCC "unpack(,)" #-}
 		    )
 -}
 
-phi :: forall a sig . (Signal sig, RepWire a) => sig a -> sig a -> sig a
+phi :: forall a sig . (Signal sig, Rep a) => sig a -> sig a -> sig a
 phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
-        Comb (optX
-		 $ do a' <- unX a :: Maybe a
-		      b' <- unX b :: Maybe a
-		      if fromWireRep a' == fromWireRep b'
-			then return a'
-			else fail "phi problem")	-- an internal error, like an assert
+        Comb (if toRep (witness :: a) a == toRep (witness :: a) b
+		then a
+		else optX $ (fail "phi problem" :: Maybe a))	-- an internal error, like an assert
 		(ea) -- pick one, they are the same
 			-- later, consider puting the phi nodes into the deep syntax
 
@@ -209,7 +208,7 @@ mapPacked f = pack . f . unpack
 enabledS :: (Rep a, Signal sig) => sig a -> sig (Enabled a)
 enabledS s = pack (pureS True,s)
 
-disabledS :: (RepWire a, Signal sig) => sig (Enabled a)
+disabledS :: (Rep a, Signal sig) => sig (Enabled a)
 disabledS = pack (pureS False,errorS)
 
 packEnabled :: (Rep a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
@@ -225,14 +224,14 @@ isEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
 
 -- a 'safe' delay that uses the disabled to give a default value.
-delayEnabled :: (RepWire a) => Env clk -> CSeq clk (Enabled a) -> CSeq clk (Enabled a)
+delayEnabled :: (Rep a) => Env clk -> CSeq clk (Enabled a) -> CSeq clk (Enabled a)
 delayEnabled env inp = register env disabledS inp
 
 {-
 -- to move into a counters module
 -- Count the number of ticks on a signal. Notice that we start at zero (no ticks),
 -- and bump the counter at each sighting.
-countTicks :: forall clk x . (RepWire x) => x -> (Comb x -> Comb x) -> Env clk -> CSeq clk Bool -> CSeq clk (Enabled x)
+countTicks :: forall clk x . (Rep x) => x -> (Comb x -> Comb x) -> Env clk -> CSeq clk Bool -> CSeq clk (Enabled x)
 countTicks init succ sysEnv enable = packEnabled enable ctr
    where
         ctr :: CSeq clk x
@@ -251,12 +250,12 @@ cmp env f inp = liftS2 f (delay env inp) inp
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
-mapPipe :: (Signal sig, Rep a, Rep b, RepWire x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
+mapPipe :: (Signal sig, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
 -- | only combines pipes when both inputs are enabled, and *assumes* the 
 -- x addresses are the same.
-zipPipe :: (Signal sig, Rep a, Rep b, Rep c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
+zipPipe :: (Signal sig, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
 
@@ -269,7 +268,7 @@ joinEnabled = liftS2 $ \ e1 e2 ->
 
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
-memoryToMatrix ::  (Rep a, Integral a, Size a, RepWire a, Rep d) => Memory clk a d -> CSeq clk (Matrix a d)
+memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d) => Memory clk a d -> CSeq clk (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
 shiftRegister :: (Rep d, Integral x, Size x) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
@@ -302,7 +301,7 @@ unShiftRegister env inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x y clk . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b) 
+runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b) 
 	 => Env clk 
 	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
 	 -> CSeq clk (Enabled a) 
@@ -327,7 +326,7 @@ runBlock env fn inp = unShiftRegister env
 -- next number in the sequence, in the *next* cycle.
 
 -- TODO: remove, its confusing
-counter :: (RepWire x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
+counter :: (Rep x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
 counter rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
 
@@ -341,13 +340,13 @@ counter rst inc = res
 --
 --  res = rom env inp $ \ a -> .... 
 --
-rom :: (RepWire a, RepWire b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
+rom :: (Rep a, Rep b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom env inp fn = delay env $ funMap fn inp
 
 ---------------------------------
 
 -- A latch that can cross clock domains
-latch :: forall clk1 clk2 a. (RepWire a) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
+latch :: forall clk1 clk2 a. (Rep a) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
 latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
     where 
 	wr :: CSeq clk1 (Pipe () a)
@@ -358,18 +357,19 @@ latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
 class Stepify a where
   stepify :: a -> a
 
---class RepWire a => Eval a where
-eval :: (RepWire a) => a -> ()
-eval a = count $ M.toList $ fromWireRep a
-  where count (True:rest) = count rest
-	count (False:rest) = count rest
+--class Rep a => Eval a where
+eval :: forall a . (Rep a) => a -> ()
+eval a = count $ unRepValue $ toRep (witness :: a) (optX (Just a) :: X a)
+  where count (WireVal True:rest) = count rest
+	count (WireVal False:rest) = count rest
+	count (WireUnknown:rest) = count rest
 	count [] = ()
 
---instance (RepWire a) => Stepify (Seq a) where 
+--instance (Rep a) => Stepify (Seq a) where 
 --  stepify (Seq a d) = Seq (stepify a) d
    
 -- one step behind, to allow knot tying.
---instance (RepWire a) => Stepify (Stream a) where 
+--instance (Rep a) => Stepify (Stream a) where 
 --  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
 
 stepifyStream :: (a -> ()) -> Stream a -> Stream a
@@ -377,7 +377,7 @@ stepifyStream f (a :~ r) = a :~ (f a `seq` stepifyStream f r)
 
 --instance Wire (Map [Bool] d) where {}
 
--- instance RepWireWire (Map (M.Matrix x Bool) d) where {}
+-- instance Rep (Map (M.Matrix x Bool) d) where {}
 
 
 {-
