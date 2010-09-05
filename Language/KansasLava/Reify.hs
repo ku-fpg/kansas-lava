@@ -113,7 +113,7 @@ reifyCircuit circuit = do
 
 	return rCit3
 
-wireCapture :: forall w . (RepWire w) => D w -> [(Type, Driver E)]
+wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 
@@ -139,10 +139,10 @@ class InPorts a where
     input :: String -> a -> a
 
 
-instance RepWire a => Ports (CSeq c a) where
+instance Rep a => Ports (CSeq c a) where
   ports _ sig = wireCapture (seqDriver sig)
 
-instance RepWire a => Ports (Comb a) where
+instance Rep a => Ports (Comb a) where
   ports _ sig = wireCapture (combDriver sig)
 
 instance (Ports a, Ports b) => Ports (a,b) where
@@ -182,12 +182,12 @@ input nm = liftS1 $ \ (Comb a d) ->
 wireGenerate :: Int -> (D w,Int)
 wireGenerate v = (D (Pad (OVar v ("i_" ++ show v))),succ v)
 
-instance RepWire a => InPorts (CSeq c a) where
+instance Rep a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
     input nm = liftS1 (input nm)
 
-instance RepWire a => InPorts (Comb a) where
+instance Rep a => InPorts (Comb a) where
     inPorts vs = (Comb (error "InPorts (Comb a)") d,vs')
       where (d,vs') = wireGenerate vs
 
@@ -283,7 +283,7 @@ showOptCircuit opt c = do
 -------------------------------------------------------------
 
 
-output :: (Signal seq, RepWire a)  => String -> seq a -> seq a
+output :: (Signal seq, Rep a)  => String -> seq a -> seq a
 output nm = liftS1 $ \ (Comb a d) ->
 	let res  = Comb a $ D $ Port (nm) $ E $ entity
 	    entity = Entity (Name "Lava" "output")

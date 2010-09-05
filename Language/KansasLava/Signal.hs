@@ -30,11 +30,11 @@ op _ nm = Name (wireName (error "op" :: w)) nm
 --class Constant a where
 --  pureS :: (Signal s) => a -> s a
 
-pureS :: (Signal s, RepWire a) => a -> s a
+pureS :: (Signal s, Rep a) => a -> s a
 pureS a = liftS0 (toComb a)
 
 -- An unknown (X) signal.
-errorS :: (Signal s, RepWire a) => s a
+errorS :: (Signal s, Rep a) => s a
 errorS = liftS0 errorComb
 
 -- | k is a constant

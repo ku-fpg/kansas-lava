@@ -151,8 +151,9 @@ instance (Dual b) => Dual (a -> b) where
 
 -----------------------------------------------------------------------------------
 
+-- Do we use this any more?
 -- Monomorphic box round wires.
-data IsRepWire = forall a c . (RepWire a) => IsRepWire (CSeq c a)
+data IsRepWire = forall a c . (Rep a) => IsRepWire (CSeq c a)
 
 -- The raw data
 showBitfile :: [IsRepWire] -> [String]
@@ -177,8 +178,8 @@ showBitfileInfo streams =
 		bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
 		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
 
-showSeqBits :: forall a c . (RepWire a) => CSeq c a -> [String]
-showSeqBits ss = [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))
+showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
+showSeqBits ss = [ (show $ toRep witness (i :: X a))
 		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
        where showX b = case unX b of
@@ -187,25 +188,9 @@ showSeqBits ss = [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i ::
 			Just False -> '0'
              witness = error "witness" :: a
 
-showSeqVals :: forall a c . (RepWire a) => CSeq c a -> [String]
-showSeqVals ss = [ showRepWire witness i
+showSeqVals :: forall a c . (Rep a) => CSeq c a -> [String]
+showSeqVals ss = [ showRep witness i
 	 	 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
 
      where witness = error "witness" :: a
-
-
-{-
-
-	let witness :: a
-	    witness = error "witness for writeBitfile"
-	writeFile filename 
-	      $ unlines 
-	      $ take count
-	      $ [ (map showX $ reverse $ M.toList $ (fromRepXRep witness (i :: X a)))
-			++ " -- " ++ showRepWire witness i
-		
-		| i <- fromSeqX (ss :: Seq a)
-       	        ]
-
--}

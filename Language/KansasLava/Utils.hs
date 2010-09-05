@@ -73,7 +73,7 @@ isPositive a = bitNot $ testABit a  msb
 
 -----------------------------------------------------------------------------------------------
 
-instance (Show a, RepWire a, Num a) => Num (Comb a) where
+instance (Show a, Rep a, Num a) => Num (Comb a) where
     s1 + s2 = fun2 "+" (+) s1 s2
     s1 - s2 = fun2 "-" (-) s1 s2
     s1 * s2 = fun2 "*" (*) s1 s2
@@ -82,7 +82,7 @@ instance (Show a, RepWire a, Num a) => Num (Comb a) where
     signum s = fun1 "signum" (signum) s
     fromInteger n = pureS (fromInteger n)
 
-instance (Show a, RepWire a, Num a) => Num (CSeq c a) where
+instance (Show a, Rep a, Num a) => Num (CSeq c a) where
     (+) = liftS2 (+)
     (-) = liftS2 (-)
     (*) = liftS2 (*)
@@ -92,7 +92,7 @@ instance (Show a, RepWire a, Num a) => Num (CSeq c a) where
     fromInteger n = pureS (fromInteger n)
 
 -- Somehow, these ignore the type name
-instance (Show a, Bits a, RepWire a)
+instance (Show a, Bits a, Rep a)
 	=> Bits (Comb a) where
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
     s1 .|. s2 = fun2 ".|." (.|.) s1 s2
@@ -105,7 +105,7 @@ instance (Show a, Bits a, RepWire a)
     bitSize s                       = typeWidth (bitTypeOf s)
     isSigned s                      = isTypeSigned (bitTypeOf s)
 
-instance (Show a, Bits a, RepWire a)
+instance (Show a, Bits a, Rep a)
 	=> Bits (CSeq c a) where
     (.&.)   = liftS2 (.&.)
     (.|.)  = liftS2 (.|.)
@@ -118,13 +118,13 @@ instance (Show a, Bits a, RepWire a)
     bitSize s                       = typeWidth (bitTypeOf s)
     isSigned s                      = isTypeSigned (bitTypeOf s)
 
-instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (Comb a) where
+instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Comb a) where
     s1 / s2 = fun2 "/" (/) s1 s2
     recip s1 = fun1 "recip" (recip) s1
     -- This should just fold down to the raw bits.
     fromRational r = toComb (fromRational r :: a)
 
-instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (CSeq c a) where
+instance (Eq a, Show a, Fractional a, Rep a) => Fractional (CSeq c a) where
     (/) = liftS2 (/)
     recip = liftS1 recip
     fromRational = liftS0 . fromRational
@@ -132,18 +132,20 @@ instance (Eq a, Show a, Fractional a, RepWire a) => Fractional (CSeq c a) where
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
 
-mapToBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig w -> sig (Matrix (WIDTH w) Bool)
+{-
+ - TO reinstall!
+mapToBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), Rep w) => sig w -> sig (Matrix (WIDTH w) Bool)
 mapToBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(( optX (liftM fromWireRep ((unX a) :: Maybe w
 		    ) :: Maybe (Matrix (WIDTH w) Bool))
 	 ) :: X (Matrix (WIDTH w) Bool))
 	(entity1 (Name "Lava" "toBoolMatrix") d)
 
-toBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), RepWire w)
+toBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
              => sig w -> Matrix (WIDTH w) (sig Bool)
 toBoolMatrix = unpack . mapToBoolMatrix
 
-mapFromBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig (Matrix (WIDTH w) Bool) -> sig w
+mapFromBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), Rep w) => sig (Matrix (WIDTH w) Bool) -> sig w
 mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(case unX (a :: X (Matrix (WIDTH w) Bool)) :: Maybe (Matrix (WIDTH w) Bool) of
 	     Nothing -> optX (Nothing :: Maybe w)
@@ -151,17 +153,19 @@ mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	)
 	(entity1 (Name "Lava" "fromBoolMatrix") d)
 
-fromBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), RepWire w)
+fromBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
 	       => Matrix (WIDTH w) (sig Bool) ->  sig w
 fromBoolMatrix = mapFromBoolMatrix . pack
+
+-}
 
 -----------------------------------------------------------------------------------------------
 -- Map Ops
 
 
--- Assumping that the domain is finite (beacause of RepWire), and *small* (say, < ~256 values).
+-- Assumping that the domain is finite (beacause of Rep), and *small* (say, < ~256 values).
 
-funMap :: forall sig a b . (Signal sig, RepWire a, RepWire b) => (a -> Maybe b) -> sig a -> sig b
+funMap :: forall sig a b . (Signal sig, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
 funMap fn = liftS1 $ \ (Comb a (D ae))
 			-> Comb (case unX (a :: X a) :: Maybe a of
 				   Nothing -> optX (Nothing :: Maybe b) :: X b
@@ -174,23 +178,31 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 				     )
 	where tA = wireType (error "table" :: a)
 	      tB = wireType (error "table" :: b)
-	      all_a_bitRep :: [Matrix (WIDTH a) Bool]
-	      all_a_bitRep = allWireReps
 
-	      tab = [ ( fromIntegral $ U.fromMatrix $ w_a
-		      , showRepWire (undefined "table" :: a) $ optX $ Just a
-		      , fromIntegral $ U.fromMatrix $ w_b
-		      , showRepWire (undefined "table" :: b) $ optX $ Just b
+	      all_a_bitRep :: [RepValue]
+	      all_a_bitRep = allReps (typeWidth tA)
+
+	      tab :: [(Integer,String,Integer,String)]
+	      tab = [ ( repValueToInteger $ w_a
+		      , error "" -- showRep (undefined "table" :: a) $ optX $ Just a
+		      , repValueToInteger $ w_b
+		      , error "" -- showRep (undefined "table" :: b) $ optX $ Just b
 		      )
 		    | w_a <- all_a_bitRep
-		    , a <- case toWireRep $ w_a :: Maybe a of
+		    , a <- case unX (fromRep (witness :: a) w_a :: X a) :: Maybe a of
 				 Nothing -> []
 				 Just a -> [a]
 		    , b <- case fn a of
 			     Nothing -> []
 			     Just b -> [b]
-		    , let w_b = fromWireRep b
+		    , let w_b = toRep (witness :: b) ((optX $ Just b) :: X b)
 		    ]
+
+repValueToInteger :: RepValue -> Integer
+repValueToInteger (RepValue []) = 0
+repValueToInteger (RepValue (WireVal True:xs)) = 1 + repValueToInteger (RepValue xs) * 2
+repValueToInteger (RepValue (WireVal False:xs)) = 0 + repValueToInteger (RepValue xs) * 2
+repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 
 
@@ -482,11 +494,11 @@ instance Wire SysEnv where
 	wireName _	= "SysEnv"
 	wireType _	= TupleTy [ClkTy, RstTy]
 
-instance RepWire SysEnv where
+instance Rep SysEnv where
   type WIDTH SysEnv = X2
-  toWireRep _ = error "RepWire.SysEnv(toWireRep)"
-  fromWireRep _ = error "RepWire.SysEnv(fromRepWire)"
-  showRepWire _ = error "RepWire.SysEnv(showRepWire)"
+  toWireRep _ = error "Rep.SysEnv(toWireRep)"
+  fromWireRep _ = error "Rep.SysEnv(fromRep)"
+  showRep _ = error "Rep.SysEnv(showRep)"
 
 
 instance (Signal sig) => Pack sig SysEnv where
@@ -528,7 +540,7 @@ toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (o
 
 
 -- TODO: way may have to lift these up to handle unknowns better.
-fromStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, RepWire w) => sig (StdLogicVector w2) -> sig w
+fromStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, Rep w) => sig (StdLogicVector w2) -> sig w
 fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) ->
 				  case unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w of
 				     Just r -> r

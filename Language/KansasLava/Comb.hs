@@ -67,7 +67,7 @@ applyComb2 f a b = unX c
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = shallowComb (optX (Just a) :: X a) -- Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
-toComb' :: forall a . (RepWire a) => Maybe a -> Comb a
+toComb' :: forall a . (Rep a) => Maybe a -> Comb a
 toComb' a = shallowComb (optX a)
 
 fromComb :: (Rep a) => Comb a -> Maybe a
