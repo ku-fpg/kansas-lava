@@ -1,4 +1,9 @@
-module Language.KansasLava.Circuit.Optimization where
+module Language.KansasLava.Circuit.Optimization
+	( optimizeCircuit
+	, OptimizationOpts(..)
+	, Opt
+	, runOpt
+	) where
 
 import Language.KansasLava.Types
 import Data.Reify
@@ -11,6 +16,7 @@ import Language.KansasLava.Circuit
 import Control.Monad
 
 import Data.List
+import Data.Default
 
 import Debug.Trace
 
@@ -58,6 +64,13 @@ instance Monad Opt where
     return a = Opt a 0
     (Opt a n) >>= k = case k a of
 	 		Opt r m -> Opt r (n + m)
+
+runOpt :: Opt a -> (a,[String])
+runOpt (Opt a i) = (a,if i == 0 
+		      then []
+		      else [show i ++ " optimizations"]
+		   )
+
 
 ----------------------------------------------------------------------
 
@@ -202,8 +215,8 @@ dceCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 -- return Nothing *if* no optimization can be found.
-optimizeCircuit :: Circuit -> Opt Circuit
-optimizeCircuit rCir = if optCount == 0
+patternMatchCircuit :: Circuit -> Opt Circuit
+patternMatchCircuit rCir = if optCount == 0
 			      then return rCir	-- no changes
 			      else Opt rCir' optCount
   where
@@ -230,15 +243,28 @@ optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 				 Opt c' n' -> Opt c' n'
 
 
--- Assumes reaching a fixpoint.
-optimize :: [CircuitOptions] -> Circuit -> IO Circuit
-optimize options rCir = do
-	when (DebugReify `elem` options) $ do
+
+data OptimizationOpts = OptimizationOpts
+	{ optDebugLevel :: Int
+	}
+
+instance Default OptimizationOpts
+   where
+	def = OptimizationOpts
+		{ optDebugLevel = 0 
+		}
+	
+
+-- Basic optimizations, and assumes reaching a fixpoint :-)
+optimizeCircuit :: OptimizationOpts -> Circuit -> IO Circuit
+optimizeCircuit options rCir = do
+	when debug $ do
 		print rCir
 	loop (optimizeCircuits (cycle opts) rCir)
    where
+	debug = optDebugLevel options > 0
 	loop cs@((nm,Opt code n):_) = do
-		when (DebugReify `elem` options) $ do
+		when debug $ do
 		  putStrLn $ "##[" ++ nm ++ "](" ++ show n ++ ")###################################"
 		  when (n > 0) $ do
 			print code
@@ -246,7 +272,7 @@ optimize options rCir = do
 		    ((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] -> return c
 		    ((nm,Opt c v):cs) -> loop cs
 
-	opts = [ ("opt",optimizeCircuit)
+	opts = [ ("opt",patternMatchCircuit)
 	       , ("cse",cseCircuit)
 	       , ("copy",copyElimCircuit)
 	       , ("dce",dceCircuit)

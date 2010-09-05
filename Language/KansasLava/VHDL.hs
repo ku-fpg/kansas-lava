@@ -21,15 +21,15 @@ import Language.Netlist.GenVHDL
 --   class.  If the circuit type is a function, the function arguments will be
 --   exposed as input ports, and the result will be exposed as an output port
 --   (or ports, if it is a compound type).
-vhdlCircuit :: (Ports o) =>
-               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
-            -> [NetlistOption] -- ^ Options for controlling the netlist generation.
+vhdlCircuit :: (Ports o)
+---               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
+            => [NetlistOption] -- ^ Options for controlling the netlist generation.
             -> String         -- ^ The name of the generated entity.
 	    -> [String]	      -- ^ The extra module arguments needed
             -> o              -- ^ The Lava circuit.
             -> IO String
-vhdlCircuit opts nlOpts name mods circuit = do
-  mod <- netlistCircuit opts nlOpts name circuit
+vhdlCircuit nlOpts name mods circuit = do
+  mod <- netlistCircuit [] nlOpts name circuit
   return $ genVHDL mod mods
 
 

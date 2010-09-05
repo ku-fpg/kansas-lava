@@ -20,9 +20,12 @@ import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
 
+import Data.Default
+
 import Data.Sized.Matrix as M
 import Debug.Trace
 import qualified Data.Map as Map
+
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
 --
@@ -87,7 +90,7 @@ reifyCircuit opts circuit = do
 	let rCit = rCit'
 
 --	print rCit
-	rCit2 <- if OptimizeReify `elem` opts then optimize opts rCit else return rCit
+	rCit2 <- if OptimizeReify `elem` opts then optimizeCircuit def rCit else return rCit
 
 	let depthss = [ mp | CommentDepth mp <- opts ]
 
@@ -251,7 +254,7 @@ instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
     input nm (a,b,c) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b,input (nm ++ "_thd") c)
 
 ---------------------------------------
-
+{-
 showOptCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
 showOptCircuit opt c = do
 	rCir <- reifyCircuit opt c
@@ -271,7 +274,7 @@ showOptCircuit opt c = do
 
 	rCir' <- loop 0 (("init",Opt rCir 0) : optimizeCircuits opts rCir)
 	return $ show rCir'
-
+-}
 
 -------------------------------------------------------------
 

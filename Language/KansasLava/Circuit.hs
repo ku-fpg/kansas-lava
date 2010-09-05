@@ -1,10 +1,7 @@
-module Language.KansasLava.Circuit 
-	( Circuit(..)
-	, CircuitOptions(..)
-	, DepthOp(..)
-	) where
+module Language.KansasLava.Circuit () where
 
 
+{-
 import Data.Reify
 import Data.List as L
 import qualified Data.Map as Map
@@ -21,3 +18,4 @@ import Debug.Trace
 
 -------------------------------------------------------------------------
 
+-}
