@@ -210,7 +210,7 @@ instance Show a => Show (WireVal a) where
 -- The least significant bit is at the front.
 -- TODO: call this StdLogicVector, because it is.
 
-newtype RepValue = RepValue [WireVal Bool]
+newtype RepValue = RepValue { unRepValue :: [WireVal Bool] }
 	deriving (Eq, Ord)
 
 instance Show RepValue where
