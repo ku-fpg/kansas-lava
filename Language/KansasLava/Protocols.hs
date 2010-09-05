@@ -24,19 +24,19 @@ type Pipe a d = Enabled (a,d)
 
 type Memory clk a d = CSeq clk a -> CSeq clk d
 
-enabledRegister :: forall a clk. (Wire a) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
+enabledRegister :: forall a clk. (Rep a) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
 enabledRegister sysEnv c inp = res
    where 
 	(en,v) = unpack inp
 	res    = register sysEnv c (mux2 en (v,res))
 
 -- | Turns a list of maybe values into enabled values.
-toEnabledSeq :: forall a . (Wire a) => [Maybe a] -> Seq (Enabled a)
+toEnabledSeq :: forall a . (Rep a) => [Maybe a] -> Seq (Enabled a)
 toEnabledSeq xs = toSeqX [ optX (Just x)
 			 | x <- xs
 			 ]
 
-memoryToPipe ::  forall a d clk . (Wire a, Wire d) => Env clk -> CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
+memoryToPipe ::  forall a d clk . (Rep a, Rep d) => Env clk -> CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
 memoryToPipe clk enA mem = pack (delay clk en,pack (delay clk a,mem a))
    where
 	(en,a) = unpack enA
@@ -129,23 +129,23 @@ fullEnabled :: forall a b sig . (Signal sig, Show a, RepWire a, Show b, RepWire 
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
 fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
 
-enabledToPipe :: (Wire x, Wire y, Wire z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe :: (Rep x, Rep y, Rep z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, (liftS1 f x))
    where (en,x) = unpack se
 
 -- This is lifting *Comb* because Comb is stateless, and the 'en' Bool being passed on assumes no history,
 -- in the 'a -> b' function.
-mapEnabled :: (Wire a, Wire b, Signal sig) => (Comb a -> Comb b) -> sig (Enabled a) -> sig (Enabled b)
+mapEnabled :: (Rep a, Rep b, Signal sig) => (Comb a -> Comb b) -> sig (Enabled a) -> sig (Enabled b)
 mapEnabled f en = pack (en_bool,liftS1 f en_val)
    where (en_bool,en_val) = unpack en
 
-zipEnabled :: (Wire a, Wire b, Wire c, Signal sig) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
+zipEnabled :: (Rep a, Rep b, Rep c, Signal sig) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
 zipEnabled f en1 en2 = packY (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
    where (en_bool1,en_val1) = unpackY en1
 	 (en_bool2,en_val2) = unpackY en2
 	
 
-packY :: forall a sig . (Wire a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
+packY :: forall a sig . (Rep a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
 packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) ->
 				    Comb (case unX (a :: X Bool) :: Maybe Bool of
@@ -159,7 +159,7 @@ packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
 					 )
 					 (entity2 (Name "Lava" "pair") ae be)
 			     ) a b
-unpackY :: forall a sig . (Wire a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a) 
+unpackY :: forall a sig . (Rep a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a) 
 unpackY ma = {-# SCC "unpack(MaybeY)" #-}
 		   ((,) $! 
 		    ( {-# SCC "unpack(MaybeY1)" #-}liftS1 ({-# SCC "a_1" #-} (\ (Comb a abe) -> {-# SCC "unpack(Maybe_B)" #-}
@@ -181,11 +181,11 @@ unpackY ma = {-# SCC "unpack(MaybeY)" #-}
 		    )
 			
 {-
-packX :: (Wire a, Wire b, Signal sig) => (sig a, sig b) -> sig (a,b)
+packX :: (Rep a, Rep b, Signal sig) => (sig a, sig b) -> sig (a,b)
 packX ~(a,b) = {-# SCC "pack(,)" #-}
 			liftS2 (\ ~(Comb a ae) ~(Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
 			    a b
-unpackX :: (Wire a, Wire b, Signal sig) => sig (a,b) -> (sig a, sig b)
+unpackX :: (Rep a, Rep b, Signal sig) => sig (a,b) -> (sig a, sig b)
 unpackX ab = {-# SCC "unpack(,)" #-}
 		    ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
@@ -206,22 +206,22 @@ phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
 
-enabledS :: (Wire a, Signal sig) => sig a -> sig (Enabled a)
+enabledS :: (Rep a, Signal sig) => sig a -> sig (Enabled a)
 enabledS s = pack (pureS True,s)
 
 disabledS :: (RepWire a, Signal sig) => sig (Enabled a)
 disabledS = pack (pureS False,errorS)
 
-packEnabled :: (Wire a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
+packEnabled :: (Rep a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
 packEnabled s1 s2 = pack (s1,s2)
 
-unpackEnabled :: (Wire a, Signal sig) => sig (Enabled a) -> (sig Bool, sig a)
+unpackEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> (sig Bool, sig a)
 unpackEnabled sig = unpack sig
 
-enabledVal :: (Wire a, Signal sig) => sig (Enabled a) -> sig a
+enabledVal :: (Rep a, Signal sig) => sig (Enabled a) -> sig a
 enabledVal = snd .  unpackEnabled
 
-isEnabled :: (Wire a, Signal sig) => sig (Enabled a) -> sig Bool
+isEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
 
 -- a 'safe' delay that uses the disabled to give a default value.
@@ -251,17 +251,17 @@ cmp env f inp = liftS2 f (delay env inp) inp
 zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
-mapPipe :: (Signal sig, Wire a, Wire b, RepWire x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
+mapPipe :: (Signal sig, Rep a, Rep b, RepWire x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
 -- | only combines pipes when both inputs are enabled, and *assumes* the 
 -- x addresses are the same.
-zipPipe :: (Signal sig, Wire a, Wire b, Wire c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
+zipPipe :: (Signal sig, Rep a, Rep b, Rep c, RepWire x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
 
 -- 
-joinEnabled :: (Signal sig, Wire a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
+joinEnabled :: (Signal sig, Rep a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
 joinEnabled = liftS2 $ \ e1 e2 -> 
 			let (en1,v1) = unpack e1
 	 		    (en2,v2) = unpack e2
@@ -269,10 +269,10 @@ joinEnabled = liftS2 $ \ e1 e2 ->
 
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
-memoryToMatrix ::  (Wire a, Integral a, Size a, RepWire a, Wire d) => Memory clk a d -> CSeq clk (Matrix a d)
+memoryToMatrix ::  (Rep a, Integral a, Size a, RepWire a, Rep d) => Memory clk a d -> CSeq clk (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
-shiftRegister :: (Wire d, Integral x, Size x) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
+shiftRegister :: (Rep d, Integral x, Size x) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
 shiftRegister sysEnv inp = pack m
   where
 	(en,val) = unpack inp
@@ -281,7 +281,7 @@ shiftRegister sysEnv inp = pack m
 		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
 
 
-unShiftRegister :: forall x d clk . (Integral x, Size x, Wire d) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
+unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
 unShiftRegister env inp = r
   where
 	en :: CSeq clk Bool
@@ -302,7 +302,7 @@ unShiftRegister env inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x y clk . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Wire a, Wire b) 
+runBlock :: forall a b x y clk . (RepWire x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b) 
 	 => Env clk 
 	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
 	 -> CSeq clk (Enabled a) 
@@ -377,7 +377,7 @@ stepifyStream f (a :~ r) = a :~ (f a `seq` stepifyStream f r)
 
 --instance Wire (Map [Bool] d) where {}
 
--- instance RepRepWire (Map (M.Matrix x Bool) d) where {}
+-- instance RepWireWire (Map (M.Matrix x Bool) d) where {}
 
 
 {-

@@ -22,7 +22,7 @@ import qualified Data.Maybe as Maybe
 import Data.Dynamic
 
 -- | A 'Wire a' is an 'a' value that we can push over a wire.
-class {- Eq w => -} Wire w where
+class {- Eq w => -} Rep w where
 	-- | a way of adding unknown inputs to this wire.
 	type X w
 
@@ -32,10 +32,6 @@ class {- Eq w => -} Wire w where
 	-- and, put the good or bad things back.
 	optX :: Maybe w -> X w
 
-	-- | Naming a component that generates this type of wire
-   	wireName :: w -> String
-	wireName _ = "Lava"		-- default to built in
-
 	-- | Each wire has a known type.
     	wireType :: w -> Type
 
@@ -44,7 +40,7 @@ class {- Eq w => -} Wire w where
 -- D w ->
 
 -- | "RepWire' is a wire where we know the represnetation used to encode the bits.
-class (Wire w, Size (WIDTH w)) => RepWire w where
+class (Rep w, Size (WIDTH w)) => RepWire w where
 	-- | What is the width of this wire, in X-bits.
 	type WIDTH w
 
@@ -102,10 +98,10 @@ allOkayRep m | okay      = return (fmap (\ (WireVal a) -> a) m)
 
 -- toWriteRep' :: (Size w) => (Matrix w Bool -> a) -> Matrix w (
 
-liftX0 :: (Wire w1) => w1 -> X w1
+liftX0 :: (Rep w1) => w1 -> X w1
 liftX0 = pureX
 
-pureX :: (Wire w) => w -> X w
+pureX :: (Rep w) => w -> X w
 pureX = optX . Just
 
 -- Not possible to use!
@@ -115,7 +111,7 @@ pureX = optX . Just
 
 -------------------------------------------------------------------------------------
 
-instance Wire Bool where
+instance Rep Bool where
 	type X Bool 	= WireVal Bool
 	optX (Just b) 	= return b
 	optX Nothing	= fail "Wire Bool"
@@ -132,7 +128,7 @@ instance RepWire Bool where
 	showRepWire _ (WireVal True) = "T"
 	showRepWire _ (WireVal False) = "F"
 
-instance Wire Int where
+instance Rep Int where
 	type X Int 	= WireVal Int
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Int"
@@ -148,7 +144,7 @@ instance RepWire Int where
 	fromWireRep = U.toMatrix . fromIntegral
 	showRepWire _ = show
 
-instance Wire Word8 where
+instance Rep Word8 where
 	type X Word8 	= WireVal Word8
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Word8"
@@ -163,7 +159,7 @@ instance RepWire Word8 where
 	fromWireRep = U.toMatrix . fromIntegral
 	showRepWire _ = show
 
-instance Wire Word32 where
+instance Rep Word32 where
 	type X Word32 	= WireVal Word32
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Word32"
@@ -178,7 +174,7 @@ instance RepWire Word32 where
 	fromWireRep = U.toMatrix . fromIntegral
 	showRepWire _ = show
 
-instance Wire () where
+instance Rep () where
 	type X () 	= WireVal ()
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire ()"
@@ -193,7 +189,7 @@ instance RepWire () where
 	fromWireRep () = M.matrix [True]
 	showRepWire _ = show
 
-instance Wire Integer where
+instance Rep Integer where
 	type X Integer 	= Maybe Integer
 	optX (Just b)	= return b
 	optX Nothing	= fail "Wire Integer"
@@ -209,7 +205,7 @@ instance RepWire Integer where
 -------------------------------------------------------------------------------------
 -- Now the containers
 
-instance (Wire a, Wire b) => Wire (a,b) where
+instance (Rep a, Rep b) => Rep (a,b) where
 	type X (a,b) 		= (X a, X b)
 	optX (Just (a,b)) 	= (pureX a, pureX b)
 	optX Nothing		= (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
@@ -255,7 +251,7 @@ instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => 
 	showRepWire ~(a,b) (x,y) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ ")"
 
 
-instance (Wire a, Wire b, Wire c) => Wire (a,b,c) where
+instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 	type X (a,b,c) 		= (X a, X b, X c)
 	optX (Just (a,b,c)) 	= (pureX a, pureX b,pureX c)
 	optX Nothing		= ( optX (Nothing :: Maybe a),
@@ -280,7 +276,7 @@ instance (t ~ ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c)), Size t, Enum t, RepWire a
 	showRepWire ~(a,b,c) (x,y,z) = "(" ++ showRepWire a x ++ "," ++ showRepWire b y ++ "," ++ showRepWire c z ++ ")"
 
 
-instance (Wire a) => Wire (Maybe a) where
+instance (Rep a) => Rep (Maybe a) where
 	-- not completely sure about this representation
 	type X (Maybe a) = (X Bool, X a)
 	optX b		= ( case b of
@@ -317,7 +313,7 @@ instance (RepWire a, Size (ADD X1 (WIDTH a))) => RepWire (Maybe a) where
 	showRepWire w (WireVal False,a) = "Nothing"
 
 
-instance (Size ix, Wire a) => Wire (Matrix ix a) where
+instance (Size ix, Rep a) => Rep (Matrix ix a) where
 	type X (Matrix ix a) = Matrix ix (X a)
 	optX (Just m)	= fmap (optX . Just) m
 	optX Nothing	= forAll $ \ ix -> optX (Nothing :: Maybe a)
@@ -331,7 +327,7 @@ instance (Size ix, Wire a) => Wire (Matrix ix a) where
 			a = error "a/Matrix"
 --	showWire _ = show
 
-instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t), RepWire a, Size ix, Wire a) => RepWire (Matrix ix a) where
+instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t), RepWire a, Size ix, Rep a) => RepWire (Matrix ix a) where
 	type WIDTH (Matrix ix a) = MUL ix (WIDTH a)
 
 --	toWireRep :: Matrix (WIDTH w) Bool -> Matrix ix a
@@ -348,7 +344,7 @@ instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t),
 
 	showRepWire _ = show . M.toList . fmap (M.S . showRepWire (error "show/Matrix" :: a))
 
-instance (Enum ix, Size ix) => Wire (Unsigned ix) where
+instance (Size ix) => Rep (Unsigned ix) where
 	type X (Unsigned ix) = WireVal (Unsigned ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire Int"
@@ -363,7 +359,7 @@ instance (Enum ix, Size ix) => RepWire (Unsigned ix) where
 	toWireRep = return . U.fromMatrix
 	showRepWire _ = show
 
-instance (Enum ix, Size ix) => Wire (Signed ix) where
+instance (Size ix) => Rep (Signed ix) where
 	type X (Signed ix) = WireVal (Signed ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire Int"
@@ -372,19 +368,19 @@ instance (Enum ix, Size ix) => Wire (Signed ix) where
 --	wireName _	    = "Signed"
 	wireType x   	    = S (size (error "Wire/Signed" :: ix))
 
-instance (Enum ix, Size ix) => RepWire (Signed ix) where
+instance (Size ix) => RepWire (Signed ix) where
 	type WIDTH (Signed ix) = ix
 	fromWireRep a = SS.toMatrix a
 	toWireRep = return . SS.fromMatrix
 	showRepWire _ = show
 
-instance (Size m, Enum ix, Size ix) => Wire (Sampled.Sampled m ix) where
+instance (Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire Sampled"
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Sampled"
-	wireName _	    = "Sampled"		-- We use a sub-module Sampled to implement Sampled
+--	wireName _	    = "Sampled"		-- We use a sub-module Sampled to implement Sampled
 	wireType x   	    = V (size (error "Sampled" :: ix))		-- err, we need to think about this! (TODO: should be V n!)
 
 instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) where
@@ -393,7 +389,7 @@ instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) wh
 	toWireRep = return . Sampled.fromMatrix
 	showRepWire _ = show
 
-instance (Size ix) => Wire (StdLogicVector ix) where 
+instance (Size ix) => Rep (StdLogicVector ix) where 
 	type X (StdLogicVector ix) = WireVal (StdLogicVector ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire StdLogicVector"
@@ -425,7 +421,7 @@ instance Wire X0 where
 	wireName _	    = "X0"
 	wireType _	    = U 0
 -}
-instance (Size x) => Wire (X0_ x) where
+instance (Size x) => Rep (X0_ x) where
 	type X (X0_ x)	= WireVal (X0_ x)
 	optX (Just x) 	= return x
 	optX Nothing	= fail "X0_"
@@ -441,7 +437,7 @@ instance (Size (WIDTH (X0_ x)), Enum (WIDTH (X0_ x)), Integral (X0_ x), Size x) 
 	fromWireRep = U.toMatrix . fromIntegral
 	showRepWire _ = show
 
-instance (Size x) => Wire (X1_ x) where
+instance (Size x) => Rep (X1_ x) where
 	type X (X1_ x)	= WireVal (X1_ x)
 	optX (Just x) 	= return x
 	optX Nothing	= fail "X1_"
@@ -482,7 +478,7 @@ data ALPHA = ALPHA String
 instance Show ALPHA where
 	show (ALPHA str) = str
 
-instance Wire ALPHA where
+instance Rep ALPHA where
 	type X ALPHA 	= WireVal ALPHA
 	optX (Just b) 	= return b
 	optX Nothing	= fail "Wire ALPHA"

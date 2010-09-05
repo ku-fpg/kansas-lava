@@ -57,7 +57,7 @@ xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (N
 bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Lava" "not") ae
 
-testABit :: forall sig a . (Bits a, Wire a, Signal sig) => sig a -> Int -> sig Bool
+testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS2 (\ (Comb a ae) (Comb b be) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
                                       $ entity2 (Name "Lava" "testBit") ae be) x (pureS y)
 
@@ -68,7 +68,7 @@ isPositive a = bitNot $ testABit a  msb
 
 -- TODO: maCombe over Signal
 -- Does not work!
-(.!.) :: (Size x, Wire a, Wire x) => Comb (Matrix x a) -> Comb x -> Comb a
+(.!.) :: (Size x, Rep a, Rep x) => Comb (Matrix x a) -> Comb x -> Comb a
 (.!.) = fun2 "!" (!)
 
 -----------------------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 witness :: a
 witness = error "witness"
 
-mux2 :: forall sig a . (Signal sig, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei)
 	 	    ~(Comb t et)
@@ -208,7 +208,7 @@ mux2 i (t,e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
 
-mux2' :: forall sig a . (Signal sig, sig a ~ Seq a, Wire a) => sig Bool -> (sig a,sig a) -> sig a
+mux2' :: forall sig a . (Signal sig, sig a ~ Seq a, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2' i (t,e)
 	= liftS3' (\ (Comb i ei)
 	 	    (Comb t et)
@@ -217,13 +217,13 @@ mux2' i (t,e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
 	
---liftS3' :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
+--liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
 --       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 {-
 liftS3' f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
 -}
 -- BUGGS?
-liftS3' :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
+liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
       where
@@ -233,7 +233,7 @@ liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
 		      Comb d _ -> d
 
 
-mux2shallow :: forall a . (Wire a) => a -> X Bool -> X a -> X a -> X a
+mux2shallow :: forall a . (Rep a) => a -> X Bool -> X a -> X a -> X a
 mux2shallow _ i t e =
    case unX i of
        Nothing -> optX (Nothing :: Maybe a)
@@ -243,7 +243,7 @@ mux2shallow _ i t e =
 class MUX a where
 	wideMux2 :: Comb Bool -> (a, a) -> a
 
-instance (Wire a) => MUX (Comb a) where
+instance (Rep a) => MUX (Comb a) where
 	wideMux2 = mux2
 
 
@@ -257,7 +257,7 @@ instance (MUX a) => MUX [a] where
 {-
 -- A varient of mux that works over
 -- Perhaps a bad idea?
-choose :: forall sig a . (Pack sig a, Wire a) => sig Bool -> Unpacked sig a -> Unpacked sig a ->  Unpacked sig a
+choose :: forall sig a . (Pack sig a, Rep a) => sig Bool -> Unpacked sig a -> Unpacked sig a ->  Unpacked sig a
 choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
 -}
 
@@ -275,7 +275,7 @@ choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
 -- If (2 ** (length selector)) > (length inputlist)
 --     the output for selector "value" >= (length inputlist) is
 --     not defined.
-muxList :: forall sig a . (Signal sig, Wire a) =>[sig Bool] -> [sig a] -> sig a
+muxList :: forall sig a . (Signal sig, Rep a) =>[sig Bool] -> [sig a] -> sig a
 muxList [s] [a0] = a0
 muxList [s] [a0, a1] = mux2 s  (a1,a0)
 muxList sel@(s:rest) as = if (aLength <= halfRange)
@@ -300,7 +300,7 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
 
 muxMatrix
 	:: forall sig x a
-	 . (Signal sig, Size x, Wire x, Wire a)
+	 . (Signal sig, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
@@ -317,7 +317,7 @@ muxMatrix m x = liftS2 (\
 
 -------------------------------------------------------------------------------------------------
 
-instance (Ord a, Wire a) => Ord (Comb a) where
+instance (Ord a, Rep a) => Ord (Comb a) where
   compare _ _ = error "compare not supported for Comb"
   (<) _ _ = error "(<) not supported for Comb"
   (>=) _ _ = error "(>=) not supported for Comb"
@@ -327,7 +327,7 @@ instance (Ord a, Wire a) => Ord (Comb a) where
   s1 `min` s2 = fun2 "min" min s1 s2
 
 
-instance (Ord a, Wire a) => Ord (CSeq c a) where
+instance (Ord a, Rep a) => Ord (CSeq c a) where
   compare _ _ = error "compare not supported for Seq"
   (<) _ _ = error "(<) not supported for Seq"
   (>=) _ _ = error "(>=) not supported for Seq"
@@ -336,7 +336,7 @@ instance (Ord a, Wire a) => Ord (CSeq c a) where
   max = liftS2 max
   min = liftS2 min
 
-boolOp :: forall a sig . (Wire a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
+boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
 	liftS2 $ \ (Comb a ea) (Comb b eb) ->
 		    Comb (optX $ do a' <- unX a :: Maybe a
@@ -344,19 +344,19 @@ boolOp nm fn =
 			            return $ a' `fn` b')
 		      (entity2 (Name (wireName (error "boolOp" :: a)) nm) ea eb)
 
-(.==.) :: forall a sig . (Wire a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
+(.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
 
-(.>=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 
-(.<=.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<=.) = boolOp ".<=." (<=)
 
-(.<.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
 
-(.>.) :: forall a sig . (Wire a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>.) = boolOp ".>." (>)
 
 -------------------------------------------------------------------------------
@@ -400,61 +400,6 @@ shallowEnv = toEnv (Clock 1 (D $ Error "no deep clock"))
 clkDriver :: Clock c -> D ()
 clkDriver (Clock _ d) = d
 
--- type Rst = Seq Bool
-
-{-
-
-instance Wire Bool where
-	type X Bool 	= WireVal Bool
-	optX (Just b) 	= return b
-	optX Nothing	= fail "Wire Bool"
-	unX (WireVal v)  = return v
-	unX (WireUnknown) = fail "Wire Bool"
-	wireName _	= 	
-	wireType _	= B
-
-instance RepWire Bool where
-	type WIDTH Bool	= X1
-	toWireRep m  		= return $ m ! 0
-	fromWireRep v 		= matrix [v]
-	showRepWire _ = show
-
-
-instance Wire Rst where
-	type X Rst = WireVal Rst
-	optX (Just b) 	= return b
-	optX Nothing	= fail "Wire Rst"
-	unX (WireVal v)  = return v
-	unX (WireUnknown) = fail "Wire Rst"
-	wireName _	= "Rst"
-	wireType _	= RstTy
-
-instance RepWire Rst where
-	type WIDTH Rst	= X1
-	toWireRep m		= return $ Rst $ m ! 0
-	fromWireRep (Rst v)	= matrix [v]
-	showRepWire _ = show
-
-instance Wire Clk where
-	type X Clk = WireVal Clk
-	optX (Just b) 	= return b
-	optX Nothing	= fail "Wire Clk"
-	unX (WireVal v)  = return v
-	unX (WireUnknown) = fail "Wire Clk"
-	wireName _	= "Clk"
-	wireType _	= ClkTy
-
-instance RepWire Clk where
-	type WIDTH Clk	= X0
-	toWireRep m		= return $ Clk 0	-- hu?
-	fromWireRep (Clk _)	= matrix []
-	showRepWire _ = show
-
-instance Eq Clk where
-	_ == _ = False
-
-
--}
 
 {-
 -- for use only with shallow
@@ -466,7 +411,7 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 -- zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
 
 {-
-register :: forall a. (Wire a) => Env -> Comb a -> Seq a -> Seq a
+register :: forall a. (Rep a) => Env -> Comb a -> Seq a -> Seq a
 register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
    where
 	res = Seq sres (D $ Port ("o0") $ E $ entity)
@@ -489,16 +434,16 @@ register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
 
 
 
-delay :: forall a . (Wire a) => Seq a -> Seq a
+delay :: forall a . (Rep a) => Seq a -> Seq a
 delay = register' low errorComb
 -}
 
-delay :: (Wire a) => Env clk -> CSeq clk a -> CSeq clk a
+delay :: (Rep a) => Env clk -> CSeq clk a -> CSeq clk a
 delay env = register env errorComb
 
 -- register rst def v = mux2 rst (liftS0 def,delay v)
 
-register :: forall a clk .  (Wire a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
+register :: forall a clk .  (Rep a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
 register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(Seq line eline) = res
    where
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)

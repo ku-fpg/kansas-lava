@@ -10,14 +10,14 @@ import Language.KansasLava.Wire
 
 
 -- look at a seq signal.
-peek :: (Wire a) => Seq a -> [Maybe a]
+peek :: (Rep a) => Seq a -> [Maybe a]
 peek ~(Seq xs _) = map unX $ S.toList xs
 
 -- A seq signal, that changes over time
-with :: (Wire a) => String -> [a] -> Seq a
+with :: (Rep a) => String -> [a] -> Seq a
 with sigName xs = poke sigName (map Just xs ++ repeat Nothing)
 
 -- A seq signal with possible unknown values, that changes over time.
-poke :: (Wire a) => String -> [Maybe a] -> Seq a
+poke :: (Rep a) => String -> [Maybe a] -> Seq a
 poke sigName xs = shallowSeq (S.fromList $ map optX xs) 
 

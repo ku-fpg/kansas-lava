@@ -15,16 +15,16 @@ import Data.Sized.Unsigned as U
 import Data.Sized.Matrix as M
 
 class Signal f where
-  liftS0 :: (Wire a) => Comb a -> f a
-  liftS1 :: (Wire a, Wire b) => (Comb a -> Comb b) -> f a -> f b
-  liftS2 :: (Wire a, Wire b, Wire c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
-  liftSL :: (Wire a, Wire b) => ([Comb a] -> Comb b) -> [f a] -> f b
+  liftS0 :: (Rep a) => Comb a -> f a
+  liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
+  liftS2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
+  liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
 
-bitTypeOf :: forall f w . (Signal f, Wire w) => f w -> Type
+bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
 
 -- TODO: remove
-op :: forall f w . (Signal f, Wire w) => f w -> String -> Id
+op :: forall f w . (Signal f, Rep w) => f w -> String -> Id
 op _ nm = Name (wireName (error "op" :: w)) nm
 
 --class Constant a where
@@ -41,7 +41,7 @@ errorS = liftS0 errorComb
 
 ----------------------------------------------------------------------------------------------------
 
-comment :: (Signal sig, Wire a) => String -> sig a -> sig a
+comment :: (Signal sig, Rep a) => String -> sig a -> sig a
 comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $
 			   case d of
 			     Port v (E e) -> Port v $ E $
@@ -66,26 +66,30 @@ class (Signal sig) => Pack sig a where
 
 --------------------------------------------------------------------------------
 
-liftS3 :: forall a b c d sig . (Signal sig, Wire a, Wire b, Wire c, Wire d)
+liftS3 :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
 
 --------------------------------------------------------------------------------
 
-fun0 :: forall a sig . (Signal sig, Wire a) => String -> a -> sig a
+fun0 :: forall a sig . (Signal sig, Rep a) => String -> a -> sig a
 fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Name (wireName (error "fun1" :: a)) nm)
 
-fun1 :: forall a b sig . (Signal sig, Wire a, Wire b) => String -> (a -> b) -> sig a -> sig b
+fun1 :: forall a b sig . (Signal sig, Rep a, Rep b) => String -> (a -> b) -> sig a -> sig b
 fun1 nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA f (unX a)) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
 
-fun2 :: forall a b c sig . (Signal sig, Wire a, Wire b, Wire c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
+fun2 :: forall a b c sig . (Signal sig, Rep a, Rep b, Rep c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b))
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
 
+-- Hack for now
+wireName :: (Rep a) => a -> String
+wireName a = case wireType a of
+		ty -> error $ "Type Name not found for " ++ show ty
 
 -----------------------------------------------------------------------------------------------
 
-instance (Wire a, Signal sig) => Pack sig (Maybe a) where
+instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
 	pack (a,b) = {-# SCC "pack(Maybe)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) ->
@@ -117,7 +121,7 @@ instance (Wire a, Signal sig) => Pack sig (Maybe a) where
 			      ) ma
 		    )
 
-instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where
+instance (Rep a, Rep b, Signal sig) => Pack sig (a,b) where
 	type Unpacked sig (a,b) = (sig a, sig b)
 	pack (a,b) = {-# SCC "pack(,)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
@@ -127,7 +131,7 @@ instance (Wire a, Wire b, Signal sig) => Pack sig (a,b) where
 		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
-instance (Wire a, Wire b, Wire c, Signal sig) => Pack sig (a,b,c) where
+instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 	type Unpacked sig (a,b,c) = (sig a, sig b,sig c)
 	pack (a,b,c) = liftS3 (\ (Comb a ae) (Comb b be) (Comb c ce) ->
 				Comb (a,b,c)
@@ -140,7 +144,7 @@ instance (Wire a, Wire b, Wire c, Signal sig) => Pack sig (a,b,c) where
 
 
 
-instance (Wire a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
+instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m  _ <- ms ]
 				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]

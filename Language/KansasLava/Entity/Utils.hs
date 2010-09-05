@@ -23,14 +23,14 @@ import Data.Dynamic
 -- And the utilties that get this done.
 
 
-entity0 :: forall o . (Wire o) => Id -> D o
+entity0 :: forall o . (Rep o) => Id -> D o
 entity0 nm = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  []
 		  []
    where oTy = wireType (error "entity0" :: o)
 
-entity1 :: forall a o . (Wire a, Wire o) => Id -> D a -> D o
+entity1 :: forall a o . (Rep a, Rep o) => Id -> D a -> D o
 entity1 nm (D w1) = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  [(inp,ty,val) | inp <- ["i0","i1"]
@@ -40,7 +40,7 @@ entity1 nm (D w1) = D $ Port ("o0") $ E $
    where aTy = wireType (error "entity1" :: a)
          oTy = wireType (error "entity1" :: o)
 
-entity2 :: forall a b o . (Wire a, Wire b, Wire o) => Id -> D a -> D b -> D o
+entity2 :: forall a b o . (Rep a, Rep b, Rep o) => Id -> D a -> D b -> D o
 entity2 nm (D w1) (D w2) = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  [(inp,ty,val) | inp <- ["i0","i1"]
@@ -51,7 +51,7 @@ entity2 nm (D w1) (D w2) = D $ Port ("o0") $ E $
          bTy = wireType (error "entity2" :: b)
          oTy = wireType (error "entity2" :: o)
 
-entity3 :: forall a b c o . (Wire a, Wire b, Wire c, Wire o) => Id -> D a -> D b -> D c -> D o
+entity3 :: forall a b c o . (Rep a, Rep b, Rep c, Rep o) => Id -> D a -> D b -> D c -> D o
 entity3 nm (D w1) (D w2) (D w3) = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  [(inp,ty,val) | inp <- ["i0","i1","i2"]
@@ -63,7 +63,7 @@ entity3 nm (D w1) (D w2) (D w3) = D $ Port ("o0") $ E $
          cTy = wireType (error "entity3" :: c)
          oTy = wireType (error "entity3" :: o)
 
-entityN :: forall a b o . (Wire a, Wire o) => Id -> [D a] -> D o
+entityN :: forall a b o . (Rep a, Rep o) => Id -> [D a] -> D o
 entityN nm ds = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  [(inp,ty,val) | inp <- ["i" ++ show n | n <- [0..]]

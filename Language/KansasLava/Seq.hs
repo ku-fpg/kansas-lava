@@ -52,7 +52,7 @@ instance forall a c . (RepWire a, Show a) => Show (CSeq c a) where
                           | x <- take 20 $ toList vs
                           ] ++ "..."
 
-instance forall a c . (Wire a, Eq a) => Eq (CSeq c a) where
+instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.
 	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
 
@@ -62,7 +62,7 @@ deepSeq d = Seq (error "incorrect use of shallow Seq") d
 shallowSeq :: Stream (X a) -> CSeq c a
 shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 
-errorSeq ::  forall a c . (Wire a) => CSeq c a
+errorSeq ::  forall a c . (Rep a) => CSeq c a
 errorSeq = liftS0 errorComb
 
 instance Signal (CSeq c) where
@@ -94,19 +94,19 @@ instance Signal (CSeq c) where
 
 -- Small DSL's for declaring signals
 
-toSeq :: (Wire a) => [a] -> CSeq c a
+toSeq :: (Rep a) => [a] -> CSeq c a
 toSeq xs = shallowSeq (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
-toSeq' :: (Wire a) => [Maybe a] -> CSeq c a
+toSeq' :: (Rep a) => [Maybe a] -> CSeq c a
 toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
 
-toSeqX :: forall a c . (Wire a) => [X a] -> CSeq c a
+toSeqX :: forall a c . (Rep a) => [X a] -> CSeq c a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
 takeThenSeq :: Int -> CSeq c a -> CSeq c a -> CSeq c a
 takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++  (S.toList (seqValue sq2))))
 
-encSeq :: (Wire a) =>  (Char -> Maybe a) -> String -> CSeq c a
+encSeq :: (Rep a) =>  (Char -> Maybe a) -> String -> CSeq c a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
 
 encSeqBool :: String -> CSeq c Bool
@@ -121,10 +121,10 @@ showStreamList ss =
 	| x <- toList (seqValue ss)
 	]
 
-fromSeq :: (Wire a) => CSeq c a -> [Maybe a]
+fromSeq :: (Rep a) => CSeq c a -> [Maybe a]
 fromSeq = fmap unX . toList . seqValue
 
-fromSeqX :: (Wire a) => CSeq c a -> [X a]
+fromSeqX :: (Rep a) => CSeq c a -> [X a]
 fromSeqX = toList . seqValue
 
 -----------------------------------------------------------------------------------
@@ -202,7 +202,7 @@ showSeqVals ss = [ showRepWire witness i
 	writeFile filename 
 	      $ unlines 
 	      $ take count
-	      $ [ (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))
+	      $ [ (map showX $ reverse $ M.toList $ (fromRepXRep witness (i :: X a)))
 			++ " -- " ++ showRepWire witness i
 		
 		| i <- fromSeqX (ss :: Seq a)
