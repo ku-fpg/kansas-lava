@@ -177,6 +177,9 @@ instance Functor Driver where
 ---------------------------------------------------------------------------------------------------------
 
 -- Should be called SignalVal? Par Cable? hmm.
+-- TODO: call StdLogic?
+-- data StdLogicValue a = Unknown | Value a
+
 data WireVal a = WireUnknown | WireVal a
     deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
 
@@ -200,7 +203,44 @@ instance Show a => Show (WireVal a) where
 	show (WireVal a) = show a
 
 ---------------------------------------------------------------------------------------------------------
+--
+-- | Our representation value is a list of WireVal.
+--
+
+-- The least significant bit is at the front.
+-- TODO: call this StdLogicVector, because it is.
+
+newtype RepValue = RepValue [WireVal Bool]
+	deriving (Eq, Ord)
+
+instance Show RepValue where
+	show (RepValue vals) = [ case v of
+				   WireUnknown   -> 'X'
+				   WireVal True  -> '1'
+				   WireVal False -> '0'
+			       | v <- vals
+			       ]
+
+-- Read for RepValue?
+
+isValidRepValue :: RepValue -> Bool
+isValidRepValue (RepValue m) = and $ fmap isGood $ m
+   where
+	isGood :: WireVal Bool -> Bool
+	isGood WireUnknown  = False
+	isGood (WireVal {}) = True
+
+-- Returns a binary rep, or Nothing is any bits are 'X'.
+getValidRepValue :: RepValue -> Maybe [Bool]
+getValidRepValue r@(RepValue m) 
+	| isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
+	| otherwise	    = Nothing
+
+---------------------------------------------------------------------------------------------------------
 -- 
+--
+
+-- TODO: change to use RepValue/StdLogicVector
 
 data TraceStream = TraceStream Type [[WireVal Bool]] -- to recover type, eventually clock too?
                  | Empty
@@ -324,4 +364,12 @@ data CircuitOptions
 data DepthOp = AddDepth Float
 	     | NewDepth Float
 	deriving (Eq, Show)
+
+-------------------------------------------------------------------------------------
+-- 
+
+-- Not a type, but used as a first class type.
+
+witness :: a
+witness = error "witness"
 

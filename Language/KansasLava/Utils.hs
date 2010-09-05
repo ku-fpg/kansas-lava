@@ -196,9 +196,6 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 
 -----------------------------------------------------------------------------------------------
 
-witness :: a
-witness = error "witness"
-
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
 	= liftS3 (\ ~(Comb i ei)
@@ -522,14 +519,18 @@ coerceSized a  = (b, err)
 ---------------------------------------------------------------------------------------------
 -- A StdLogicVector is just an array of bits, but will be represented using
 -- std_logic_vector for its Lava *and* IEEE type.
+-- These will fail at LRT if the sizes are incorrect, and this could be handled by including .
+--
+
+toStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, Rep w) => sig w -> sig (StdLogicVector w2)
+toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (optX (return v) :: X w) of
+						       RepValue v -> StdLogicVector $ M.matrix $ v
 
 
-toStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig w -> sig (StdLogicVector (WIDTH w))
-toStdLogicVector = fun1 "toStdLogicVector" (StdLogicVector . fromWireRep)
-
-fromStdLogicVector :: forall sig w . (Signal sig, Size (WIDTH w), RepWire w) => sig (StdLogicVector (WIDTH w)) -> sig w
+-- TODO: way may have to lift these up to handle unknowns better.
+fromStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, RepWire w) => sig (StdLogicVector w2) -> sig w
 fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) ->
-				  case toWireRep (v :: Matrix (WIDTH w) Bool) of
+				  case unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w of
 				     Just r -> r
 				     Nothing -> error "fromStdLogicVector problem"
 

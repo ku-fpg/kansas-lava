@@ -159,7 +159,7 @@ instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ a b -> b) (M.indices mx) [0..])
 
-
+{-
 instance (Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
 	pack m = liftS1 matrixBool2slv (pack m)
@@ -177,3 +177,4 @@ matrixBool2slv (Comb s d) = Comb (case unX (s :: X (Matrix ix Bool)) of
 		        Just  m -> optX (Just $ StdLogicVector m)
 	                Nothing -> optX (Nothing :: Maybe (StdLogicVector ix)))
 		     (entity1 (Name "Lava" "id") d)
+-}
