@@ -46,9 +46,9 @@ seqValue (Seq a d) = a
 seqDriver :: CSeq c a -> D a
 seqDriver (Seq a d) = d
 
-instance forall a c . (RepWire a, Show a) => Show (CSeq c a) where
+instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
-         	= concat [ showRepWire (undefined :: a) x ++ " "
+         	= concat [ showRep (undefined :: a) x ++ " "
                          | x <- take 20 $ toList vs
                          ] ++ "..."
 
@@ -115,9 +115,9 @@ encSeqBool = encSeq enc
 	      enc 'L' = return False
 	      enc  _   = Nothing
 
-showStreamList :: forall a c . (RepWire a) => CSeq c a -> [String]
+showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
 showStreamList ss = 
-	[ showRepWire (undefined :: a) x
+	[ showRep (witness :: a) x
 	| x <- toList (seqValue ss)
 	]
 

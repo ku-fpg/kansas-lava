@@ -25,9 +25,11 @@ combValue (Comb a d) = a
 combDriver :: Comb a -> D a
 combDriver (Comb a d) = d
 
-instance forall a . (RepWire a, Show a) => Show (Comb a) where
-	show (Comb x _) = showRepWire (undefined :: a) x
+instance forall a . (Rep a) => Show (Comb a) where
+	show (Comb x _) = showRep (witness :: a) x
 
+
+-- This is required for Arithmetic to be overloaded.
 instance forall a . (Rep a, Eq a) => Eq (Comb a) where
 	(Comb x _) == (Comb y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
 
@@ -62,12 +64,13 @@ applyComb2 f a b = unX c
 	              (Comb (pureX b) (D $ Error "deep embedding problem in apply2"))
 
 -- Hmm, not the same deep side as toSeq; why?
-toComb :: (RepWire a) => a -> Comb a
-toComb a = Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
+toComb :: forall a . (Rep a) => a -> Comb a
+toComb a = shallowComb (optX (Just a) :: X a) -- Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
 
 toComb' :: forall a . (RepWire a) => Maybe a -> Comb a
 toComb' a = shallowComb (optX a)
 
-
+fromComb :: (Rep a) => Comb a -> Maybe a
+fromComb comb = unX (combValue comb)
 
 ----------------------------------------------------------------------------------------------------
