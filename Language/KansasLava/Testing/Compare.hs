@@ -166,7 +166,7 @@ testOnly opts name circuit apply = do
 
 algDebug :: DebugOpts
          -> String
-         -> ReifiedCircuit
+         -> Circuit
          -> [(String, Annotation)]
          -> String
          -> [ProbeTree]
@@ -219,15 +219,15 @@ testSubcircuit opts wholeName rc pdata name = do
 
     return code
 
-extractSubcircuit :: String -> ReifiedCircuit -> ReifiedCircuit
+extractSubcircuit :: String -> Circuit -> Circuit
 extractSubcircuit pname rc = extract root leaves rc
     where (root:leaves) = map fst $ sortBy (\(_,n1) (_,n2) -> compare n2 n1)
                         $ [ (node, name) | (node, Entity _ _ _ attrs) <- theCircuit rc
                                          , ProbeValue (PadVar _ name) _ <- attrs
                                          , pname == name ]
 
-extract :: Unique -> [Unique] -> ReifiedCircuit -> ReifiedCircuit
-extract n ls rc = ReifiedCircuit { theCircuit = newGraph
+extract :: Unique -> [Unique] -> Circuit -> Circuit
+extract n ls rc = Circuit { theCircuit = newGraph
                                  , theSrcs = newPads
                                  , theSinks = newSinks
                                  }
@@ -251,7 +251,7 @@ extract n ls rc = ReifiedCircuit { theCircuit = newGraph
 data ProbeTree = Node String Unique [ProbeTree]
     deriving (Eq, Show)
 
-probeForest :: ReifiedCircuit -> [ProbeTree]
+probeForest :: Circuit -> [ProbeTree]
 probeForest rc = [ go (last $ probesOn n circuit) n | n <- initial ]
     where circuit = theCircuit rc
           initial = findProbes bfsProbes (sinkNames rc) rc

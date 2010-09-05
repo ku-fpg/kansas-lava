@@ -7,6 +7,7 @@ module Language.KansasLava.Testing.Output.Dot
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Testing.Probes
+import Language.KansasLava.Types
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit
 
@@ -16,7 +17,7 @@ import Text.Dot
 --   circuit type must implement the 'Ports' class, so that the circuit
 --   inputs/outpus can be represented in the output graph.
 writeDotCircuit :: (Ports circuit) =>
-                   [ReifyOptions] -- ^ Options for controlling the observable-sharing reification.
+                   [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
                 -> String  -- ^ The name of the circuit. The graph will be
                            -- written a file with this name (with a .dot extension).
                 -> circuit  -- ^ The Lava circuit.
@@ -27,18 +28,18 @@ writeDotCircuit opts filename circuit = do
 
 writeDotCircuit' :: String  -- ^ The name of the circuit. The graph will be
                            -- written a file with this name (with a .dot extension).
-                 -> ReifiedCircuit  -- ^ The reified Lava circuit.
+                 -> Circuit  -- ^ The reified Lava circuit.
                  -> IO ()
 writeDotCircuit' filename circuit = do
 {-
    let (inputs',blob) = output' circuit
    let inputs = map fst inputs'
 -}
-   let (ReifiedCircuit nodes inputs' outputs) = circuit
+   let (Circuit nodes inputs' outputs) = circuit
    print (nodes,inputs',outputs)
    let inputs = inputs'
 
-   let showP (_,(v,ty)) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
+   let showP (v,ty) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
 
    let mkLabel nm ins outs =
               (concatMap addSpecial $ show nm) ++ "|{{"
@@ -59,14 +60,14 @@ writeDotCircuit' filename circuit = do
    writeFile filename $ showDot $ do
         attribute ("rankdir","LR")
 
-        input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP (Source,i) | i <- inputs] ++ "}}")
+        input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP i | i <- inputs] ++ "}}")
                                          , ("shape","record")
                                          , ("style","filled")
                                          ]
 
 
-        nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
-                                                              [ (n,(v,ty)) | (v,ty) <- outs] )
+        nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (v,ty) |(v,ty,_) <- ins ]
+                                                              [ (v,ty) | (v,ty) <- outs] )
                                          , ("shape","record")
                                          , ("style","rounded")
                                          ]
@@ -74,8 +75,8 @@ writeDotCircuit' filename circuit = do
                         | (n,Entity nm outs ins []) <- nodes ]
 
         nds1 <- sequence [ do nd <- node [ ("label",mkLabel "TABLE"
-                                                               [ (n,(vin,tyin)) ]
-                                                               [ (n,(vout,tyout)) ])
+                                                               [ (vin,tyin) ]
+                                                               [ (vout,tyout) ])
                                          , ("shape","record")
                                          , ("style","rounded")
                                          ]
@@ -96,16 +97,14 @@ writeDotCircuit' filename circuit = do
 
         let nds = nds0 ++ nds1 ++ probed
 
-        output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (Sink,(i,ty)) | (i,ty,_) <- outputs ] ++ "}}")
+        output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (i,ty) | (i,ty,_) <- outputs ] ++ "}}")
                                          , ("shape","record")
                                          , ("style","filled")
                                          ]
 
-        let findNd (Uq n) = case lookup n nds of
+        let findNd n = case lookup n nds of
                              Nothing -> error $ "strange port: " ++ show (n,nds)
                              Just nd -> nd
-            findNd Source = input_bar
-            findNd Sink   = output_bar
 
         let drawEdge dr n v = case dr of
                      Port nm' n' -> let (Just nd) = lookup n' nds
@@ -122,11 +121,11 @@ writeDotCircuit' filename circuit = do
                  | (v,_,dr) <- outputs
                  ]
 
-        sequence [ drawEdge dr (findNd (Uq n)) v
+        sequence [ drawEdge dr (findNd n) v
                  | (n,Entity _ _ ins _) <- nodes
                  , (v,_,dr) <- ins
                  ]
-        sequence [ drawEdge dr (findNd (Uq n)) v
+        sequence [ drawEdge dr (findNd n) v
                  | (n,Table _ (v,_,dr) _) <- nodes
                  ]
 

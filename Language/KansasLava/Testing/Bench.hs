@@ -33,7 +33,7 @@ import Control.Monad(liftM)
 --
 --   [@name.do@] A @modelsim@ script that will compile the vhd and execute the testbench.
 mkTestbench :: Ports fun =>
-               [ReifyOptions] -- Options for controlling the observable-sharing reification, of dut
+               [CircuitOptions] -- Options for controlling the observable-sharing reification, of dut
             -> [NetlistOption] -- Options for controlling the netlist generation
             -> String -- ^ The name of the function
             -> FilePath -- ^ Base directory
@@ -152,12 +152,12 @@ stimulus coreName inputs outputs = unlines $ [
 
 -- Manipulating ports
 ports :: (Ports a) =>
-         [ReifyOptions] -> a -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
+         [CircuitOptions] -> a -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports ropts fun = do
   reified <- reifyCircuit ropts fun
   ports' ropts reified
 
-ports' :: [ReifyOptions] -> ReifiedCircuit -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
+ports' :: [CircuitOptions] -> Circuit -> IO ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports' ropts reified = do
   let inputs = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
       outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
@@ -167,7 +167,7 @@ ports' ropts reified = do
 
 -- sortInputs
 sortPorts names ports = sortBy comp ports
-  where comp (Var a, aTy) (Var b, bTy) =
+  where comp ( a, aTy) ( b, bTy) =
             case (elemIndex a names, elemIndex b names) of
               (Just x, Just y) -> compare x y
               (Just x, Nothing) -> LT
@@ -177,6 +177,7 @@ sortPorts names ports = sortBy comp ports
                                      ('o':as, 'o':bs) -> compare (read as :: Int) (read bs)	-- HACK?
                                      _ -> error $ "sortInputs:" ++ show (a,b,names,ports)
 
+{-
 findInputs opts = maybe [] names (find isInp opts)
   where isInp (InputNames names) = True
         isInp _ = False
@@ -185,7 +186,7 @@ findOutputs opts = maybe [] names (find isOut opts)
   where isOut (OutputNames names) = True
         isOut _ = False
         names (OutputNames names) = names
-
+-}
 
 portType :: [(a, Type)] -> [Char]
 portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
@@ -195,8 +196,6 @@ portLen pts = sum (map (typeWidth .snd) pts)
 portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (B,n,1) =
-          (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
-        assign sig idx (RstTy,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
@@ -232,16 +231,12 @@ vectors inputs = do
 
   where stim B = do (v :: Int) <- randomRIO (0,1)
                     return $ toBits 1 v
-        stim CB = do (v :: Int) <- randomRIO (0,1)
-                     return $ toBits 1 v
         stim (S x) = do let bound = 2^(x-1)
                         (v :: Int) <- randomRIO (-bound,bound - 1)
                         return $ toBits x v
         stim (U x) = do (v :: Int) <- randomRIO (0,2^x- 1)
                         return $ toBits x v
         stim ClkTy = return $ toBits 1 (0 :: Int)
-        stim RstTy = return $ toBits 1 (0 :: Int)
-        stim T     = error "vectors.stim T not supported"
 	stim (TupleTy tys) = do
 		ss <- mapM stim tys
 		return $ concat ss
@@ -255,11 +250,11 @@ genProbes top fun = do
     c <- reifyCircuit [] fun
     genProbes' top c
 
-genProbes' :: String -> ReifiedCircuit -> IO [String]
+genProbes' :: String -> Circuit -> IO [String]
 genProbes' top c = do
     let graph = theCircuit c
     return (concatMap getProbe graph)
-  where getProbe (ident, (Entity _ [(Var v, _)] _ attrs)) =
+  where getProbe (ident, (Entity _ [( v, _)] _ attrs)) =
             ["add wave -label " ++ show name ++ " " ++ sig
             | ProbeValue name _ <- attrs
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]

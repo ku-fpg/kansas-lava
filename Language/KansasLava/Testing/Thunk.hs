@@ -86,7 +86,7 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
 
     return ()
 
-rcToGraph :: ReifiedCircuit -> G.Gr (MuE DRG.Unique) ()
+rcToGraph :: Circuit -> G.Gr (MuE DRG.Unique) ()
 rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                          | (n1,Entity _ _ ins _) <- theCircuit rc
                                          , (_,_,Port _ n2) <- ins ]

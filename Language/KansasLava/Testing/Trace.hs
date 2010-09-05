@@ -26,7 +26,7 @@ data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap OVar
                    , outputs :: TraceStream
                    , probes :: TraceMap OVar
---                   , circuit :: ReifiedCircuit
+--                   , circuit :: Circuit
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    -- what else? keep the vhdl here?
                    }

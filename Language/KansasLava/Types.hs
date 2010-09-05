@@ -67,6 +67,20 @@ instance Show Type where
 	show (TupleTy tys) = show tys
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
 
+-- This is required for the deserialization of Trace objects.
+instance Read Type where
+    readsPrec _ "B" = [(B,"")]
+    readsPrec _ "CLK" = [(ClkTy,"")]
+    readsPrec _ "G" = [(GenericTy,"")]
+    readsPrec _ str | (last str) `elem` ['U', 'S', 'V'] = [(con int,"")]
+        where con = case last str of
+                        'U' -> U
+                        'S' -> S
+                        'V' -> V
+              int = read (init str) :: Int
+    readsPrec _ _   = error "read BaseTy: no parse"
+
+
 -------------------------------------------------------------------------
 -- OVar
 
@@ -103,6 +117,7 @@ instance Show Id where
 
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
+-- TODO: remove Table, remove annotations
 data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
 			-- specialized Entity, because tables (typically ROMs) are verbose.
 		   | Table (String,ty) (String,ty,Driver s) [(Integer,String,Integer,String)]

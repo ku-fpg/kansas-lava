@@ -14,6 +14,7 @@ import Data.Bits
 import Data.List
 
 import Language.KansasLava
+import Language.KansasLava.Types
 
 import Language.KansasLava.Testing.Trace
 
@@ -112,16 +113,16 @@ addAttr value (Port v (E (Entity n outs ins attrs))) =
 -- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
 -- multiple names, since each probe will always observe the same sequence.
 addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Pad (OVar _ v)) =
-  (Port (Var "o0")
-          (E (Entity (Name "probe" v) [(Var "o0", ty)] [(Var "i0", ty,d)]
+  (Port ("o0")
+          (E (Entity (Name "probe" v) [("o0", ty)] [("i0", ty,d)]
                        [value])))
 addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Lit x) =
-            (Port (Var "o0")
-             (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
+            (Port ("o0")
+             (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
                  [value])))
 addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
-            (Port (Var "o0")
-             (E (Entity (Name "probe" "lit") [(Var "o0", ty)] [(Var "i0", ty,d)]
+            (Port ("o0")
+             (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
                  [value])))
 addAttr _ driver = error $ "Can't probe " ++ show driver
 
