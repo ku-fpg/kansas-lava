@@ -40,7 +40,7 @@ mkTestbench :: Ports fun =>
             -> fun    -- ^ The Lava circuit
             -> IO ()
 mkTestbench ropts nlopts name base fun = do
-  vhdl <- vhdlCircuit ropts nlopts name ["work.all"] fun
+  vhdl <- vhdlCircuit {- ropts -} nlopts name ["work.all"] fun
   (inputs,outputs,sequentials) <- ports ropts fun
   waves <- genProbes name fun
     -- TODO: Fix waves!
