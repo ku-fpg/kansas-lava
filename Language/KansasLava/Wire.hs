@@ -100,6 +100,15 @@ allWireReps = [U.toMatrix count | count <- counts ]
 	counts = [0..2^(fromIntegral sz)-1]
 	sz = size (error "allWireRep" :: width)
 
+-- Give me all possible (non-X) representations (2^n of them).
+allReps :: Int -> [RepValue]
+allReps n = [ RepValue (fmap WireVal count) | count <- counts n ]
+   where
+	counts :: Int -> [[Bool]]
+	counts 0 = [[]] 
+	counts n = [ x : xs |  xs <- counts (n-1), x <- [False,True] ]
+
+
 allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
 allOkayRep m | okay      = return (fmap (\ (WireVal a) -> a) m)
 	     | otherwise = Nothing
