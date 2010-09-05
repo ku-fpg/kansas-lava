@@ -76,22 +76,31 @@ data OVar = OVar Int String		-- The # is used purely for sorting order.
 instance Show OVar where
 	show (OVar i nm) = nm ++ "$" ++ show i
 
+-------------------------------------------------------------------------
+-- Id
 
 data Id = Name String String			-- external thing
-	  | Prim String				-- built in thing
-	  | UniqNm U.Unique 			-- uniq name of an entity
-	  | Function [(Integer,Integer)] 	-- anonymous function
+	| Prim String				-- built in thing
+	| Tracer String [[WireVal Bool]]	-- tracer (probes, etc)
+						-- This is type of identity
+						-- that records its shallow value,
+						-- for later inspection
+	| Function [(Integer,Integer)] 	-- anonymous function
     deriving (Eq, Ord)
 
 instance Show Id where
     show (Name "" nm)  = nm	-- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
     show (Prim nm)     = nm
-    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
+    show (Tracer str _) = "^" ++ str
+--    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
 
 -------------------------------------------------------------------------
 -- Entity
+
+-- An Entity is our central "BOX" of compuation.
+
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
 data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
@@ -114,6 +123,9 @@ instance Functor (Entity ty a) where
 
 -------------------------------------------------------------------------
 -- Driver
+
+-- A Driver is a specific driven 'wire' (signal in VHDL),
+-- which types contains a value that changes over time.
 
 data Driver s = Port String s      -- a specific port on the entity
               | Pad OVar       	  --
@@ -152,7 +164,7 @@ instance Functor Driver where
 
 -- Should be called SignalVal? Par Cable? hmm.
 data WireVal a = WireUnknown | WireVal a
-    deriving (Eq) -- Useful for comparing [X a] lists in Trace.hs
+    deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
 
 instance Monad WireVal where
 	return = WireVal
@@ -174,9 +186,15 @@ instance Show a => Show (WireVal a) where
 	show (WireVal a) = show a
 
 ---------------------------------------------------------------------------------------------------------
+-- 
+
 data TraceStream = TraceStream Type [[WireVal Bool]] -- to recover type, eventually clock too?
                  | Empty
     deriving (Eq, Show)
+
+
+---------------------------------------------------------------------------------------------------------
+-- 
 
 data Annotation = ProbeValue OVar TraceStream
                 | Ann String Dynamic
