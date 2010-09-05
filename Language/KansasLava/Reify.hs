@@ -1,5 +1,8 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp, ScopedTypeVariables #-}
-module Language.KansasLava.Reify where
+module Language.KansasLava.Reify 
+	( reifyCircuit
+	, Ports(..)
+	) where
 
 import Data.Reify
 import Data.List as L
@@ -21,9 +24,8 @@ import Data.Sized.Matrix as M
 import Debug.Trace
 import qualified Data.Map as Map
 
--- | reifyCircuit does reification and type inference.
--- reifyCircuit :: REIFY circuit => [CircuitOptions] -> circuit -> IO Circuit
--- ([(Unique,Entity (Ty Var) Unique)],[(Var,Driver Unique)])
+-- | 'reifyCircuit' does reification on a function into a 'Circuit'.
+--
 reifyCircuit :: (Ports a) => [CircuitOptions] -> a -> IO Circuit
 reifyCircuit opts circuit = do
         -- GenSym for input/output pad names

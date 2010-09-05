@@ -1,18 +1,16 @@
-{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ParallelListComp, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses  #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Language.KansasLava.Types where
 
-
+import Data.List as L
 import qualified Data.Traversable as T
 import qualified Data.Foldable as F
 import Control.Applicative
-import Data.Monoid
 
-import Data.Reify
-import qualified Data.Traversable as T
 import Control.Applicative
-import Data.Unique as U
+import Data.Monoid
 import Data.Dynamic
+import Data.Reify
 
 -- Key internal type
 
@@ -99,6 +97,7 @@ data Id = Name String String			-- external thing
 						-- This is type of identity
 						-- that records its shallow value,
 						-- for later inspection
+	| Comment' String			-- an identity with a message
 	| Function [(Integer,Integer)] 	-- anonymous function
     deriving (Eq, Ord)
 
@@ -212,7 +211,7 @@ data TraceStream = TraceStream Type [[WireVal Bool]] -- to recover type, eventua
 -- 
 
 data Annotation = ProbeValue OVar TraceStream
-                | Ann String Dynamic
+--                | Ann String Dynamic
 		| Comment String		-- intended to arrive in the VHDL
 
 instance Eq Annotation where {}
@@ -249,4 +248,80 @@ newtype D a = D (Driver E)
 -- TODO: is this used?
 unD :: D a -> Driver E
 unD (D a) = a
+
+---------------------------------------------------------------------------------------------------------
+
+data Circuit = Circuit
+	{ theCircuit :: [(Unique,MuE Unique)]
+		-- ^ This the main graph. There is no actual node for the source or sink.
+	, theSrcs    :: [(OVar,Type)]
+		-- ^ this is a (convenence) list of the src values.
+	, theSinks   :: [(OVar,Type,Driver Unique)]
+		-- ^ these are the sinks; all values are generated from here.
+	}
+
+
+instance Show Circuit where
+   show rCir = msg
+     where
+	showDriver d t = show d ++ " : " ++ show t
+	
+	bar = (replicate 78 '-') ++ "\n"
+
+	inputs = unlines
+		[ show var ++ " : " ++ show ty
+		| (var,ty) <- theSrcs rCir
+		]
+	outputs = unlines
+		[ show var   ++ " <- " ++ showDriver dr ty
+		| (var,ty,dr) <- theSinks rCir
+		]
+	circuit = unlines
+		[ case e of
+		    Entity nm outs ins ann ->
+			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
+			    ++ unlines [ "      out    " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in     " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+ 			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (OVar i name) _ <- ann ] ]
+			    ++ unlines [ "      comment " ++ str | Comment str <- ann ]
+		    Table (v0,ty0) (v1,ty1,dr) mapping ->
+			"(" ++ show uq ++ ") TABLE \n"
+			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
+			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
+			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2
+				       | (i,e1,o,e2) <- mapping
+				       ]
+		| (uq,e) <- theCircuit rCir
+		]
+
+	msg = bar
+		++ "-- Inputs                                                                   --\n"
+		++ bar
+		++ inputs
+		++ bar
+		++ "-- Outputs                                                                  --\n"
+		++ bar
+		++ outputs
+		++ bar
+		++ "-- Entities                                                                 --\n"
+		++ bar
+		++ circuit
+		++ bar
+
+-----
+
+-- These are here for now
+
+data CircuitOptions
+	= DebugReify		-- ^ show debugging output of the reification stage
+	| OptimizeReify		-- ^ perform basic optimizations
+	| NoRenamingReify	-- ^ do not use renaming of variables
+	| CommentDepth 
+	      [(Id,DepthOp)] 	-- ^ add comments that denote depth
+	deriving (Eq, Show)
+
+-- Does a specific thing 
+data DepthOp = AddDepth Float
+	     | NewDepth Float
+	deriving (Eq, Show)
 
