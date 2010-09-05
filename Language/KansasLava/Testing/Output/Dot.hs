@@ -1,18 +1,18 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
 module Language.KansasLava.Testing.Output.Dot
         ( writeDotCircuit
-        , writeDotCircuit'
+--        , writeDotCircuit'
         ) where
 
 import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Types
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit
 
+import Data.Reify.Graph
 import Text.Dot
 
+{-
 -- | The 'writeDot' function converts a Lava circuit into a graphviz output. The
 --   circuit type must implement the 'Ports' class, so that the circuit
 --   inputs/outpus can be represented in the output graph.
@@ -25,49 +25,50 @@ writeDotCircuit :: (Ports circuit) =>
 writeDotCircuit opts filename circuit = do
    rc <- reifyCircuit opts circuit
    writeDotCircuit' filename rc
+-}
 
-writeDotCircuit' :: String  -- ^ The name of the circuit. The graph will be
+-- | The 'writeDot' function converts a Lava circuit into a graphviz output.
+
+writeDotCircuit :: String  -- ^ The name of the circuit. The graph will be
                            -- written a file with this name (with a .dot extension).
                  -> Circuit  -- ^ The reified Lava circuit.
                  -> IO ()
-writeDotCircuit' filename circuit = do
+writeDotCircuit filename circuit = do
 {-
    let (inputs',blob) = output' circuit
    let inputs = map fst inputs'
 -}
    let (Circuit nodes inputs' outputs) = circuit
-   print (nodes,inputs',outputs)
    let inputs = inputs'
 
-   let showP (v,ty) = "<" ++ show v ++ ">" ++ show v ++ "::" ++ show ty
+   let showP :: (String,Type) -> String
+       showP (v,ty) = "<" ++ v ++ ">" ++ v ++ "::" ++ show ty
 
-   let mkLabel nm ins outs =
-              (concatMap addSpecial $ show nm) ++ "|{{"
+   let mkLabel :: String -> [(String,Type)] -> [(String,Type)] -> String
+       mkLabel nm ins outs =
+              (concatMap addSpecial $ nm) ++ "|{{"
            ++ join (map showP ins) ++ "}|{"
            ++ join (map showP outs) ++ "}}"
+   let
+       -- TODO: insert types
        mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
            ++ join (map showP ins) ++ "}|{"
            ++ join (map showP outs) ++ "}}"
 
-   print ("INPUTS:" ,inputs)
-   print ("NODES:" ,nodes)
-   print ("OUTPUTS:" ,outputs)
-   -- print ("TYPES:" ,types)
-
---   print (inputs,inputs',nodes,outputs,types)
 
 
    writeFile filename $ showDot $ do
         attribute ("rankdir","LR")
 
-        input_bar <- node [ ("label","INPUTS|{{" ++ join [ showP i | i <- inputs] ++ "}}")
+        input_bar <- node [  ("label","INPUTS|{{" ++ join [ showP (show o,i) | (o,i) <- inputs] ++ "}}")
                                          , ("shape","record")
                                          , ("style","filled")
                                          ]
 
 
-        nds0 <- sequence [ do nd <- node [ ("label",mkLabel nm [ (v,ty) |(v,ty,_) <- ins ]
-                                                              [ (v,ty) | (v,ty) <- outs] )
+        nds0 <- sequence [ do nd <- node [ ("label",mkLabel (show nm)
+							       [ (v,ty) |(v,ty,_) <- ins ]
+                                                               [ (v,ty) | (v,ty) <- outs] )
                                          , ("shape","record")
                                          , ("style","rounded")
                                          ]
@@ -83,8 +84,11 @@ writeDotCircuit' filename circuit = do
                               return (n,nd)
                         | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
 
+	probed <- return []
+
+{- TODO: fix
         probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
-                                                              [ (n,(v,ty)) | (v,ty) <- outs] )
+                                                                       [ (n,(v,ty)) | (v,ty) <- outs] )
                                            , ("shape","record")
                                            , ("style","rounded,filled")
                                            , ("fillcolor","#bbbbbb")
@@ -94,10 +98,10 @@ writeDotCircuit' filename circuit = do
                            , not $ null attrs
                            , let pnms = [ nm ++ "_" ++ show i | ProbeValue (OVar i nm) _ <- attrs ]
                            ]
-
+-}
         let nds = nds0 ++ nds1 ++ probed
 
-        output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (i,ty) | (i,ty,_) <- outputs ] ++ "}}")
+        output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (show i,ty) | (i,ty,_) <- outputs ] ++ "}}")
                                          , ("shape","record")
                                          , ("style","filled")
                                          ]
@@ -106,18 +110,19 @@ writeDotCircuit' filename circuit = do
                              Nothing -> error $ "strange port: " ++ show (n,nds)
                              Just nd -> nd
 
-        let drawEdge dr n v = case dr of
+        let drawEdge :: Driver Unique -> NodeId -> String -> Dot ()
+	    drawEdge dr n v = case dr of
                      Port nm' n' -> let (Just nd) = lookup n' nds
-                                    in edge' nd (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
+                                    in edge' nd (Just (nm' ++ ":e")) n (Just (show v ++ ":w")) []
                      Pad v' | v' `elem` (map fst inputs)
-                                         -> edge' input_bar (Just (show v' ++ ":e")) n (Just (show v ++ ":w")) []
+                                         -> edge' input_bar (Just (show (show v') ++ ":e")) n (Just (v ++ ":w")) []
                             | otherwise  -> do nd' <- node [ ("label",show v')
                                                            ]
                                                edge' nd' Nothing n (Just (show v ++ ":w")) []
                      Lit i -> do nd' <- node [("label",show i),("shape","none")]
                                  edge' nd' Nothing n (Just (show v ++ ":w")) []
 
-        sequence [ drawEdge dr output_bar v
+        sequence [ drawEdge dr output_bar (show v)
                  | (v,_,dr) <- outputs
                  ]
 

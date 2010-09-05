@@ -17,6 +17,8 @@ module Language.KansasLava (
     module Language.KansasLava.VHDL,
     module Language.KansasLava.Wire,
     module Language.KansasLava.StdLogicVector,
+
+    module Language.KansasLava.Testing.Output.Dot,
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
     -- hacks
@@ -39,6 +41,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 import Language.KansasLava.Wire
+import Language.KansasLava.Testing.Output.Dot
 
 import Language.KansasLava.StdLogicVector
 

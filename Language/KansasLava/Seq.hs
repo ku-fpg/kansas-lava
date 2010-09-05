@@ -48,9 +48,9 @@ seqDriver (Seq a d) = d
 
 instance forall a c . (RepWire a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
-         	= unwords [ showRepWire (undefined :: a) x ++ " :~ "
-                          | x <- take 20 $ toList vs
-                          ] ++ "..."
+         	= concat [ showRepWire (undefined :: a) x ++ " "
+                         | x <- take 20 $ toList vs
+                         ] ++ "..."
 
 instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.

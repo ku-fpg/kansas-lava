@@ -31,8 +31,10 @@ import qualified Data.Map as Map
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
 --
-reifyCircuit :: (Ports a) => [CircuitOptions] -> a -> IO Circuit
-reifyCircuit opts circuit = do
+reifyCircuit :: (Ports a) => a -> IO Circuit
+reifyCircuit circuit = do
+	
+	let opts = []
         -- GenSym for input/output pad names
 	let inputNames = L.zipWith OVar [0..] $ head $
 		[[ "i" ++ show i | i <- [0..]]]
@@ -117,7 +119,7 @@ wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
 
 showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
 showCircuit opt c = do
-	rCir <- reifyCircuit opt c
+	rCir <- reifyCircuit c
 	return $ show rCir
 
 debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()

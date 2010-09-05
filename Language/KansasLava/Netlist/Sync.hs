@@ -17,8 +17,8 @@ import qualified Data.Map as Map
 
 -- TODO: change into uncurried.
 
-genSync :: NetlistOptions -> [(Unique,MuE Unique)] -> [Decl]
-genSync nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ Map.toList regs) ++
+genSync :: [(Unique,MuE Unique)] -> [Decl]
+genSync  nodes  = (concatMap (uncurry $ regProc ) $ Map.toList regs) ++
                           (concatMap (uncurry bramProc ) $ Map.toList brams)
   where -- Handling registers
         regs = getSynchs ["register", "delay"] nodes
@@ -26,12 +26,11 @@ genSync nlOpts nodes  = (concatMap (uncurry $ regProc nlOpts ) $ Map.toList regs
 
 -- genSync nlOpts _ _ = []
 
-regProc :: NetlistOptions 
-        -> (Driver Unique, Driver Unique,  Driver Unique)
+regProc :: (Driver Unique, Driver Unique,  Driver Unique)
         -> [(Unique, MuE Unique)]
 	-> [Decl]
-regProc _ (clk,rst,clk_en) [] = []
-regProc nlOpts (clk,rst,clk_en) es
+regProc (clk,rst,clk_en) [] = []
+regProc (clk,rst,clk_en) es
 {-
   | asynchResets nlOpts =
     [ProcessDecl

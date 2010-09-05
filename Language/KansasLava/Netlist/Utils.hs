@@ -179,7 +179,8 @@ addNum _ _ = error "addNum"
 
 ------------------------------------------------------------------------
 
-
+{-
+-- GONE
 data NetlistOption
 		= LoadEnable 			-- add an enable signal to the entity, and each gate.
 		| AsynchResets
@@ -189,6 +190,7 @@ type NetlistOptions = [NetlistOption]
 
 addEnabled opts = LoadEnable `elem` opts
 asynchResets opts = AsynchResets `elem` opts
+-}
 
 ------------------------------------------------------------------------------
 

@@ -44,26 +44,23 @@ import Language.KansasLava.Netlist.Sync
 --   class.  If the circuit type is a function, the function arguments will be
 --   exposed as input ports, and the result will be exposed as an output port
 --   (or ports, if it is a compound type).
-netlistCircuit :: (Ports o) =>
-               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
-            -> NetlistOptions -- ^ Options for controlling netlist generation
-            -> String         -- ^ The name of the generated entity.
+netlistCircuit' :: (Ports o) =>
+--               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
+              String         -- ^ The name of the generated entity.
             -> o              -- ^ The Lava circuit.
             -> IO Module
-netlistCircuit opts nlOpts name circuit = do
-  rc <- reifyCircuit (opts {- ++ [DebugReify] -}) circuit
-  netlistCircuit' opts nlOpts name rc
+netlistCircuit' name circuit = do
+  rc <- reifyCircuit {- ++ [DebugReify] -} circuit
+  netlistCircuit name rc
 
 -- This interface is used by the probe tools.
-netlistCircuit' :: [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
-                -> NetlistOptions -- ^ Options for controlling netlist generation
-                -> String         -- ^ The name of the generated entity.
-                -> Circuit -- ^ The Lava circuit.
-                -> IO Module
-netlistCircuit' opts nlOpts name circuit = do
+netlistCircuit :: String         -- ^ The name of the generated entity.
+               -> Circuit 	 -- ^ The Lava circuit.
+               -> IO Module
+netlistCircuit name circuit = do
   let (Circuit nodes srcs sinks) = circuit
 
-  let loadEnable = if addEnabled nlOpts then [("enable",Nothing)] else []
+  let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
 	         -- need size info for each input, to declare length of std_logic_vector
   let inports = loadEnable ++ [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort srcs]
                  -- need size info for each output, to declare length of std_logic_vector
@@ -74,8 +71,7 @@ netlistCircuit' opts nlOpts name circuit = do
   let mod = Module name inports outports []
 		(concatMap genDecl nodes ++
 		 concatMap (uncurry genInst) nodes ++
---		 concatMap (uncurry (genSync nlOpts)) nodes ++
-		genSync nlOpts nodes ++
+		genSync nodes ++
 		 finals)
   return mod
 

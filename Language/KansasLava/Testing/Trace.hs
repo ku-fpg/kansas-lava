@@ -1,9 +1,15 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
 module Language.KansasLava.Testing.Trace where
 
-import Language.KansasLava
+import Language.KansasLava.Types
+import Language.KansasLava.Wire
+import Language.KansasLava.Utils
+import Language.KansasLava.Seq
+import Language.KansasLava.Comb
+import Language.KansasLava.Signal
 
 import qualified Language.KansasLava.Stream as Stream
+import  Language.KansasLava.Stream (Stream)
 import Language.KansasLava.Testing.Utils
 
 import qualified Data.Sized.Matrix as Matrix
@@ -33,11 +39,11 @@ data Trace = Trace { len :: Maybe Int
 
 -- Some combinators to get stuff in and out of the map
 fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> TraceStream
-fromXStream witness stream = TraceStream (wireType witness) [Matrix.toList $ fromWireXRep witness xVal | xVal <- toList stream ]
+fromXStream witness stream = TraceStream (wireType witness) [Matrix.toList $ fromWireXRep witness xVal | xVal <- Stream.toList stream ]
 
 -- oh to have dependent types!
 toXStream :: forall w. (RepWire w) => w -> TraceStream -> Stream (X w)
-toXStream witness (TraceStream _ list) = fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
+toXStream witness (TraceStream _ list) = Stream.fromList [toWireXRep witness $ Matrix.fromList val | val <- list]
 
 getStream :: forall a w. (Ord a, RepWire w) => a -> TraceMap a -> w -> Stream (X w)
 getStream name m witness = toXStream witness $ m M.! name
