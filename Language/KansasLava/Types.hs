@@ -148,7 +148,7 @@ data Driver s = Port String s      -- a specific port on the entity
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
-  show (Port v i) = "(" ++ show i ++ ")." ++ show v 
+  show (Port v i) = "(" ++ show i ++ ")." ++ v 
   show (Lit x) = show x
   show (Pad v) = show v 
   show (Error msg) = show msg
@@ -280,8 +280,8 @@ instance Show Circuit where
 		[ case e of
 		    Entity nm outs ins ann ->
 			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			    ++ unlines [ "      out    " ++ show v ++ ":" ++ show ty | (v,ty) <- outs ]
- 			    ++ unlines [ "      in     " ++ show v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+			    ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
+ 			    ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
  			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (OVar i name) _ <- ann ] ]
 			    ++ unlines [ "      comment " ++ str | Comment str <- ann ]
 		    Table (v0,ty0) (v1,ty1,dr) mapping ->
