@@ -36,10 +36,10 @@ data Trace = Trace { len :: Maybe Int
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    -- what else? keep the vhdl here?
                    }
-
+{-
 -- Some combinators to get stuff in and out of the map
 fromXStream :: forall w. (RepWire w) => w -> Stream (X w) -> TraceStream
-fromXStream witness stream = TraceStream (wireType witness) [Matrix.toList $ fromWireXRep witness xVal | xVal <- Stream.toList stream ]
+fromXStream witness stream = TraceStream (wireType witness) [toRep witness xVal | xVal <- Stream.toList stream ]
 
 -- oh to have dependent types!
 toXStream :: forall w. (RepWire w) => w -> TraceStream -> Stream (X w)
@@ -240,4 +240,5 @@ latexWaveform :: Trace -> String
 truthTable :: Trace -> String -- or some truth table structure
 vcd :: Trace -> String -- or maybe FilePath -> Trace -> IO ()
 vhdl :: Trace -> String
+-}
 -}

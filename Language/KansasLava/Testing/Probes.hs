@@ -25,11 +25,12 @@ probeCircuit :: (Ports a) =>
            a        -- ^ The Lava circuit.
            -> IO [(String,Annotation)]
 probeCircuit circuit = do
-    rc <- reifyCircuit [] circuit
+    rc <- reifyCircuit circuit
     let evts = [(n ++ "_" ++ show i,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
                        , pv@(ProbeValue (OVar i n) v) <- attrs]
     return evts
 
+{-
 -- | 'getProbe' takes an association list of probe values and a probe
 -- | name, and returns the trace (wrapped in a ProbeValue) from the probe.
 getProbe :: [(String,Annotation)] -> String ->  Maybe Annotation
@@ -150,4 +151,5 @@ showXStreamBits (XStream ss) =
 			Just False -> '0'
              witness = error "witness" :: a
 
+-}
 -}

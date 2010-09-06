@@ -1,10 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
-module Language.KansasLava.Testing.Bench
-  (mkTestbench,mkTestbench',testbenchBaseDir, genProbes',ports') where
+module Language.KansasLava.Testing.Bench where
+--  (mkTestbench,mkTestbench',testbenchBaseDir, genProbes',ports') where
 
 import Language.KansasLava hiding (ports)
-import Language.KansasLava.Netlist.Utils(NetlistOption(..))
+import Language.KansasLava.Netlist.Utils
 import Language.KansasLava.Testing.Probes
 import Data.List(mapAccumL,sortBy, elemIndex,find,sort)
 import Data.Bits
@@ -15,6 +15,7 @@ import System.Directory
 import System.FilePath.Posix
 import Control.Monad(liftM)
 
+{-
 -- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
 --   circuit. Given a circuit (with a given name), this will generate a series
 --   of support files. The files will place in a directory with the name of the
@@ -259,3 +260,4 @@ genProbes' top c = do
             | ProbeValue name _ <- attrs
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
         getProbe _ = []
+-}
