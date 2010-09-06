@@ -105,13 +105,23 @@ allWireReps = [U.toMatrix count | count <- counts ]
 -}
 
 -- Give me all possible (non-X) representations (2^n of them).
-allReps :: Int -> [RepValue]
-allReps n = [ RepValue (fmap WireVal count) | count <- counts n ]
+allReps :: (Rep w) => w -> [RepValue]
+allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
    where
+	n = repWidth w
 	counts :: Int -> [[Bool]]
 	counts 0 = [[]] 
 	counts n = [ x : xs |  xs <- counts (n-1), x <- [False,True] ]
 
+-- | Figure out the width in bits of a type.
+
+repWidth :: (Rep w) => w -> Int
+repWidth w = typeWidth (wireType w)
+
+
+-- | unknownRepValue returns a RepValue that is completely filled with 'X'.
+unknownRepValue :: (Rep w) => w -> RepValue
+unknownRepValue w = RepValue [ WireUnknown | _ <- [1..repWidth w]]
 
 allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
 allOkayRep m | okay      = return (fmap (\ (WireVal a) -> a) m)
@@ -161,7 +171,29 @@ fromRepToUnsigned :: forall w v . (Rep v, Integral v, Size w) => w -> v -> RepVa
 fromRepToUnsigned w1 w2 r = optX (fmap (\ xs -> fromIntegral $ U.fromMatrix (M.matrix xs :: Matrix w Bool)) 
 				     (getValidRepValue r) :: Maybe v)
 
--------------------------------------------------------------------------------------
+
+toRepFromIntegral :: forall v . (Rep v, Integral v) => v -> X v -> RepValue
+toRepFromIntegral w v = case unX v :: Maybe v of
+			     Nothing -> unknownRepValue w
+			     Just v' -> RepValue 
+					$ take (repWidth w) 
+					$ map WireVal
+					$ map odd 
+					$ iterate (`div` 2) 
+					$ fromIntegral v'
+
+fromRepToIntegral :: forall v . (Rep v, Integral v) => v -> RepValue -> X v 
+fromRepToIntegral w1 r =
+	optX (fmap (\ xs -> 
+		sum [ n	
+	      	    | (n,b) <- zip (iterate (* 2) 1)
+			           xs
+	      	    , b
+	      	    ])
+	      (getValidRepValue r) :: Maybe v)
+
+
+------------------------------------------------------------------------------------
 
 instance Rep Bool where
 	type X Bool 	= WireVal Bool
@@ -193,8 +225,8 @@ instance Rep Int where
 --	wireName _	= "Int"
 	wireType _	= S 32		-- hmm. Not really on 64 bit machines.
 
-	toRep = toRepFromSigned (witness :: X32)
-	fromRep = fromRepToSigned (witness :: X32)	
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
 	showRep = showRepDefault
 
 {-
@@ -212,8 +244,8 @@ instance Rep Word8 where
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word8"
 	wireType _	= U 8
-	toRep = toRepFromUnsigned (witness :: X8)
-	fromRep = fromRepToUnsigned (witness :: X8)	
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
 	showRep = showRepDefault
 
 {-
@@ -231,8 +263,8 @@ instance Rep Word32 where
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire Word32"
 	wireType _	= U 32
-	toRep = toRepFromUnsigned (witness :: X32)
-	fromRep = fromRepToUnsigned (witness :: X32)	
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
 	showRep = showRepDefault
 
 {-
@@ -461,8 +493,8 @@ instance (Size ix) => Rep (Unsigned ix) where
 	unX (WireVal a)     = return a
 	unX (WireUnknown)   = fail "Wire Int"
 	wireType x   	    = U (size (error "Wire/Unsigned" :: ix))
-	toRep = toRepFromUnsigned (witness :: ix)
-	fromRep = fromRepToUnsigned (witness :: ix)	
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
 	showRep = showRepDefault
 {-
 instance (Enum ix, Size ix) => RepWire (Unsigned ix) where
@@ -479,8 +511,8 @@ instance (Size ix) => Rep (Signed ix) where
 	unX (WireUnknown)   = fail "Wire Int"
 --	wireName _	    = "Signed"
 	wireType x   	    = S (size (error "Wire/Signed" :: ix))
-	toRep = toRepFromSigned (witness :: ix)
-	fromRep = fromRepToSigned (witness :: ix)	
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
 	showRep = showRepDefault
 {-
 instance (Size ix) => RepWire (Signed ix) where
@@ -543,7 +575,8 @@ instance Wire X0 where
 	wireName _	    = "X0"
 	wireType _	    = U 0
 -}
-instance (Size x) => Rep (X0_ x) where
+
+instance (Integral x, Size x) => Rep (X0_ x) where
 	type X (X0_ x)	= WireVal (X0_ x)
 	optX (Just x) 	= return x
 	optX Nothing	= fail "X0_"
@@ -551,15 +584,11 @@ instance (Size x) => Rep (X0_ x) where
 	unX WireUnknown = fail "X0_"
 --	wireName _ 	= "X" ++ show (size (error "wireName" :: X0_ x))
 	wireType _ 	= U (log2 $ (size (error "wireType" :: X0_ x) - 1))
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
+	showRep = showRepDefault
 
-{-
-instance (Size (WIDTH (X0_ x)), Enum (WIDTH (X0_ x)), Integral (X0_ x), Size x) => RepWire (X0_ x) where
-	type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
-	toWireRep = return . fromIntegral . U.fromMatrix
-	fromWireRep = U.toMatrix . fromIntegral
-	showRepWire _ = show
--}
-instance (Size x) => Rep (X1_ x) where
+instance (Integral x, Size x) => Rep (X1_ x) where
 	type X (X1_ x)	= WireVal (X1_ x)
 	optX (Just x) 	= return x
 	optX Nothing	= fail "X1_"
@@ -567,31 +596,11 @@ instance (Size x) => Rep (X1_ x) where
 	unX WireUnknown = fail "X1_"
 --	wireName _ 	= "X" ++ show (size (error "wireName" :: X1_ x))
 	wireType _ 	= U (log2 $ (size (error "wireType" :: X1_ x) - 1))	
-{-
-instance (Size (WIDTH (X1_ x)), Enum (WIDTH (X1_ x)), Integral (X1_ x), Size x) => RepWire (X1_ x) where
-	type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
-	toWireRep = return . fromIntegral . U.fromMatrix
-	fromWireRep = U.toMatrix . fromIntegral
-	showRepWire _ = show
--}
+	toRep = toRepFromIntegral
+	fromRep = fromRepToIntegral
+	showRep = showRepDefault
 
--- Some tests
-{-
-test1 :: (WIDTH X1 ~ X0) => ()
-test1 = ()
 
-test2 :: (WIDTH X2 ~ X1) => ()
-test2 = ()
-
-test3 :: (WIDTH X3 ~ X2) => ()
-test3 = ()
-
-test4 :: (WIDTH X4 ~ X2) => ()
-test4 = ()
-
-test5 :: (WIDTH X5 ~ X3) => ()
-test5 = ()
--}
 -----------------------------------------------------------------------------------------
 
 -- Wire used in simulation *only*, to show ideas.
