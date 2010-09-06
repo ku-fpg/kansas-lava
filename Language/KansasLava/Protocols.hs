@@ -107,7 +107,7 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 		    Just Nothing      -> m
 		    Just (Just (a,d)) -> 
 			case getValidRepValue (toRep (witness :: a) (optX (Just a) :: X a)) of 
-			  Just bs -> m -- ((insertMEM $! bs) $! d) $! m
+			  Just bs -> ((insertMEM $! bs) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
