@@ -91,6 +91,7 @@ fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) 
 -- Hack for now
 wireName :: (Rep a) => a -> String
 wireName a = case wireType a of
+		_ -> "Lava"
 		ty -> error $ "Type Name not found for " ++ show ty
 
 -----------------------------------------------------------------------------------------------
