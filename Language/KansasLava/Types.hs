@@ -83,10 +83,18 @@ instance Read Type where
 -- OVar
 
 data OVar = OVar Int String		-- The # is used purely for sorting order.
-	deriving (Eq, Ord, Read)
+	deriving (Eq, Ord)
 
 instance Show OVar where
 	show (OVar i nm) = nm ++ "$" ++ show i
+
+instance Read OVar where
+	readsPrec _ xs = case span (/= '$') xs of
+		 	  (n,'$':r1) -> [ (OVar i n,r2)
+				        | (i,r2) <- reads r1
+				        ]
+			  _         -> [] -- no parse
+
 
 -------------------------------------------------------------------------
 -- Id
@@ -223,6 +231,9 @@ instance Show RepValue where
 
 -- Read for RepValue?
 
+appendRepValue :: RepValue -> RepValue -> RepValue
+appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
+
 isValidRepValue :: RepValue -> Bool
 isValidRepValue (RepValue m) = and $ fmap isGood $ m
    where
@@ -240,7 +251,7 @@ getValidRepValue r@(RepValue m)
 -- 
 --
 
--- TODO: change to use RepValue/StdLogicVector
+-- TODO: Consider why the Empty?
 
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
                  | Empty
