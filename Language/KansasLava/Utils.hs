@@ -549,11 +549,11 @@ instance StdLogic X0 where
    type WIDTH X0 = X0
 
 -- MESSSSYYYYY.
-instance (Size (ADD X1 (WIDTH x)),StdLogic x) => StdLogic (X1_ x) where
-   type WIDTH (X1_ x) = ADD X1 (WIDTH x)
+instance (Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
+   type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
 
-instance (Size (ADD X1 (WIDTH x)),StdLogic x) => StdLogic (X0_ x) where
-   type WIDTH (X0_ x) = ADD X1 (WIDTH x)
+instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
+   type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
