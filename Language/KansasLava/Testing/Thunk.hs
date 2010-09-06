@@ -29,8 +29,8 @@ mkTrace c (Thunk circuit k) = do
     let uname = "wholeCircuit5471" -- probably need a better solution than this
     let probed = probe uname circuit
 
-    rc <- reifyCircuit [] $ probed
-    rc' <- reifyCircuit [] $ k $ probed -- this is essentially what probeCircuit does
+    rc <- reifyCircuit $ probed
+    rc' <- reifyCircuit $ k $ probed -- this is essentially what probeCircuit does
 
     let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
                        , ProbeValue k v <- attrs ]
@@ -40,7 +40,7 @@ mkTrace c (Thunk circuit k) = do
 
     return $ Trace { len = c, inputs = ins, outputs = out, probes = M.fromList pdata }
 
-mkThunk :: forall a b. (Ports a, Probe a, Run a, RepWire b) => Trace -> a -> Thunk (Seq b)
+mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b) => Trace -> a -> Thunk (Seq b)
 mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
 
 mkTarball :: (Ports b) => FilePath -> Int -> Thunk b -> IO ()
@@ -55,7 +55,7 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
     writeFile (path </> name <.> "input") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
 
-    mkTestbench [] [] name path c
+--    mkTestbench name path c
 
     writeFile (path </> "test" <.> "sh") $ unlines
         ["#!/bin/bash"

@@ -30,7 +30,7 @@ probeCircuit circuit = do
                        , pv@(ProbeValue (OVar i n) v) <- attrs]
     return evts
 
-{-
+
 -- | 'getProbe' takes an association list of probe values and a probe
 -- | name, and returns the trace (wrapped in a ProbeValue) from the probe.
 getProbe :: [(String,Annotation)] -> String ->  Maybe Annotation
@@ -57,11 +57,11 @@ class Probe a where
     probe' :: String -> [Int] -> a -> a
     probe' name (i:_) s = attach i name s
 
-instance (Show a, RepWire a) => Probe (CSeq c a) where
+instance (Show a, Rep a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
         where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
 
-instance (Show a, RepWire a) => Probe (Comb a) where
+instance (Show a, Rep a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
         where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
 
@@ -76,7 +76,7 @@ instance Probe (Env c) where
  						                         (attach i (name ++ "_1clk_en") clk_en)
 
 instance (Show a, Show b,
-          RepWire a, RepWire b,
+          Rep a, Rep b,
           Size (ADD (WIDTH a) (WIDTH b)),
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b)),
@@ -88,7 +88,7 @@ instance (Show a, Show b,
               val = unpack packed
 
 instance (Show a, Show b, Show c,
-          RepWire a, RepWire b, RepWire c,
+          Rep a, Rep b, Rep c,
           Size (ADD (WIDTH a) (WIDTH b)),
           Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b,c)),
@@ -128,21 +128,21 @@ addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
 addAttr _ driver = error $ "Can't probe " ++ show driver
 
 {- showXStream is a utility function for printing out stream representations.
-instance RepWire a => Show (XStream a) where
+instance Rep a => Show (XStream a) where
     show xs = show $ foldr (\i r -> i ++ ", " ++ r) "..." $ take 30 $ valsXStream xs
 
-showXStream :: forall a. RepWire a => XStream a -> Stream String
-showXStream (XStream strm) = fmap (showRepWire (undefined :: a)) strm
+showXStream :: forall a. Rep a => XStream a -> Stream String
+showXStream (XStream strm) = fmap (showRep (undefined :: a)) strm
 
 -- bitsXStream creates a list of binary representations of the values in the stream.
-bitsXStream :: forall a. RepWire a => XStream a -> [String]
+bitsXStream :: forall a. Rep a => XStream a -> [String]
 bitsXStream (XStream strm) = showSeqBits ((shallowSeq strm) :: Seq a)
 
 -- valsXStream creates a list of string representations of the values in the stream.
-valsXStream :: forall a. RepWire a => XStream a -> [String]
+valsXStream :: forall a. Rep a => XStream a -> [String]
 valsXStream (XStream strm) = showSeqVals ((shallowSeq strm) :: Seq a)
 
-showXStreamBits :: forall a . (RepWire a) => XStream a -> Stream String
+showXStreamBits :: forall a . (Rep a) => XStream a -> Stream String
 showXStreamBits (XStream ss) =
     fmap (\i -> (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))) ss
        where showX b = case unX b of
@@ -152,4 +152,4 @@ showXStreamBits (XStream ss) =
              witness = error "witness" :: a
 
 -}
--}
+

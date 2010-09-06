@@ -15,7 +15,7 @@ import System.Directory
 import System.FilePath.Posix
 import Control.Monad(liftM)
 
-{-
+
 -- | The 'mkTestbench' function will generate a VHDL testbench for a Lava
 --   circuit. Given a circuit (with a given name), this will generate a series
 --   of support files. The files will place in a directory with the name of the
@@ -35,11 +35,13 @@ import Control.Monad(liftM)
 --   [@name.do@] A @modelsim@ script that will compile the vhd and execute the testbench.
 mkTestbench :: Ports fun =>
                [CircuitOptions] -- Options for controlling the observable-sharing reification, of dut
-            -> [NetlistOption] -- Options for controlling the netlist generation
+--            -> [NetlistOption] -- Options for controlling the netlist generation
             -> String -- ^ The name of the function
             -> FilePath -- ^ Base directory
             -> fun    -- ^ The Lava circuit
             -> IO ()
+mkTestbench = undefined
+{-
 mkTestbench ropts nlopts name base fun = do
   vhdl <- vhdlCircuit {- ropts -} nlopts name ["work.all"] fun
   (inputs,outputs,sequentials) <- ports ropts fun

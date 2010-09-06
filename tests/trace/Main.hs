@@ -39,7 +39,7 @@ main = do
               $ emptyTrace
 
         thunk = Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
-        thunk2 = Thunk (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
+--        thunk2 = Thunk (halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool, Seq Bool)) (\h -> h (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
         muxt = Thunk (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4) (\m -> m (toSeq (cycle [True,False,True,True,False])) (inp, inp2))
         limit = Just 100
 
@@ -51,7 +51,7 @@ main = do
     putStrLn "After:"
     print newTrace
 
-    t <- mkTrace limit thunk2
+--    t <- mkTrace limit thunk2
     t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     t3 <- mkTrace limit thunk
 
@@ -62,18 +62,18 @@ main = do
     putStrLn "lavaFst Result:"
     print $ test lavaFst t2
     putStrLn "halfAdder Result:"
-    print $ test halfAdder t
+--    print $ test halfAdder t
     putStrLn "halfAdder Run:"
-    print $ run halfAdder t
+--    print $ run halfAdder t
     putStrLn "halfAdder Execute:"
-    print $ execute halfAdder t
+--    print $ execute halfAdder t
 
     putStrLn "unit test:"
     res <- unitTest def "halfAdder" thunk
     print res
 
     mkTarball "test/lavaFst" 100 thunk
-    mkTarball "test/halfAdder" 100 thunk2
+--    mkTarball "test/halfAdder" 100 thunk2
 
     t4 <- mkTrace limit muxt
     mkTarball "test/mux2" 100 muxt
