@@ -143,7 +143,7 @@ genInfo (Trace c ins out _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] 
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
     where (cstr:"INPUTS":ls) = lines str
-          c = read3 cstr :: Maybe Int
+          c = read cstr :: Maybe Int
           (ins,"OUTPUT":r1) = readMap ls
           (out,"PROBES":r2) = readStrm r1
           (ps,_) = readMap r2
@@ -157,16 +157,12 @@ readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
 readMap ls = trace (show ("readMap",ls)) (go $ takeWhile cond ls, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
           rest = dropWhile cond ls
-          go (k:ty:strm:r) = M.union (M.singleton (read1 k) (TraceStream (read2 ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
+          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
           go _             = M.empty
           toXBool :: Char -> X Bool
           toXBool 'T' = return True
           toXBool 'F' = return False
           toXBool _   = fail "unknown"
-
-read1 xs = trace (show ("read1",xs)) $ read xs
-read2 xs = trace "read1" $ read xs
-read3 xs = trace "read1" $ read xs
 
 writeToFile :: FilePath -> Trace -> IO ()
 writeToFile fp t = writeFile fp $ serialize t
