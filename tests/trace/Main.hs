@@ -8,6 +8,9 @@ import Data.Default
 import Data.List
 
 import Data.Word
+import Data.Sized.Ix
+import Data.Sized.Arith
+
 
 -- TODO: Add Ports/InPorts instance for Signal? Otherwise probe below won't work
 -- halfAdder :: (Signal sig) => sig Bool -> sig Bool -> (sig Bool, sig Bool)
