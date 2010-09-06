@@ -242,7 +242,7 @@ getValidRepValue r@(RepValue m)
 
 -- TODO: change to use RepValue/StdLogicVector
 
-data TraceStream = TraceStream Type [[WireVal Bool]] -- to recover type, eventually clock too?
+data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
                  | Empty
     deriving (Eq, Show)
 
