@@ -37,14 +37,15 @@ class Rep w where
     	wireType :: w -> Type
 
 
-	-- convert to binary (rep) format
+	-- | convert to binary (rep) format
 	toRep   :: w -> X w -> RepValue
-	-- convert from binary (rep) format
+	-- | convert from binary (rep) format
 	fromRep :: w -> RepValue -> X w
 
 	-- show the value (in its Haskell form, default is the bits)
 	showRep :: w -> X w -> String
 	showRep w x = show (toRep w x)
+
 
 -- D w ->
 
@@ -521,17 +522,6 @@ instance (Size ix) => RepWire (Signed ix) where
 	toWireRep = return . S.fromMatrix
 	showRepWire _ = show
 -}
-instance (Size m, Size ix) => Rep (Sampled.Sampled m ix) where
-	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
-	optX (Just b)	    = return b
-	optX Nothing	    = fail "Wire Sampled"
-	unX (WireVal a)     = return a
-	unX (WireUnknown)   = fail "Wire Sampled"
---	wireName _	    = "Sampled"		-- We use a sub-module Sampled to implement Sampled
-	wireType x   	    = V (size (error "Sampled" :: ix))
---	toRep = toRepFromSigned (witness :: X32)
---	fromRep = fromRepToSigned (witness :: X32)	
-	showRep = showRepDefault
 {-
 instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = ix

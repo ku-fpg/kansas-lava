@@ -78,6 +78,12 @@ fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Name (wireName (error "fu
 fun1 :: forall a b sig . (Signal sig, Rep a, Rep b) => String -> (a -> b) -> sig a -> sig b
 fun1 nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA f (unX a)) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
 
+fun1' :: forall a b sig . (Signal sig, Rep a, Rep b) => String -> (a -> Maybe b) -> sig a -> sig b
+fun1' nm f = liftS1 $ \ (Comb a ae) -> Comb (optX $ case liftA f (unX a) of
+						    Nothing -> Nothing
+						    Just v  -> v) $ entity1 (Name (wireName (error "fun1" :: b)) nm) ae
+
+
 fun2 :: forall a b c sig . (Signal sig, Rep a, Rep b, Rep c) => String -> (a -> b -> c) -> sig a -> sig b -> sig c
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b))
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be

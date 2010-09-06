@@ -12,6 +12,11 @@ import Language.KansasLava.Types
 data StdLogicVector a = StdLogicVector (Matrix a (WireVal Bool))
 	deriving (Eq,Ord)
 
+
+undefinedStdLogicVector :: (Size x) => StdLogicVector x
+undefinedStdLogicVector = StdLogicVector $ forAll $ \ _ 	-> WireUnknown
+
+
 -- NOTE: This used to be reversed
 instance (Size a) => Show (StdLogicVector a) where
 	show (StdLogicVector m) = show $ RepValue $ M.toList m

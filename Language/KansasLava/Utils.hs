@@ -15,8 +15,9 @@ import Language.KansasLava.Wire
 import Data.Sized.Arith
 import Data.Sized.Matrix	as M
 import qualified Data.Sized.Sampled	as Sam
-import Data.Sized.Signed
+import Data.Sized.Signed	as SI
 import Data.Sized.Unsigned	as U
+import qualified Data.Sized.Sampled as Sampled
 
 import Control.Applicative
 import Control.Monad
@@ -534,19 +535,39 @@ coerceSized a  = (b, err)
 -- These will fail at LRT if the sizes are incorrect, and this could be handled by including .
 --
 
-toStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, Rep w) => sig w -> sig (StdLogicVector w2)
+class Size (WIDTH w) => StdLogic w where
+  type WIDTH w
+
+instance Size w => StdLogic (U.Unsigned w) where
+   type WIDTH (U.Unsigned w) = w
+
+instance Size w => StdLogic (SI.Signed w) where
+   type WIDTH (SI.Signed w)  = w
+
+
+instance StdLogic X0 where
+   type WIDTH X0 = X0
+
+-- MESSSSYYYYY.
+instance (Size (ADD X1 (WIDTH x)),StdLogic x) => StdLogic (X1_ x) where
+   type WIDTH (X1_ x) = ADD X1 (WIDTH x)
+
+instance (Size (ADD X1 (WIDTH x)),StdLogic x) => StdLogic (X0_ x) where
+   type WIDTH (X0_ x) = ADD X1 (WIDTH x)
+
+
+--  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
+--  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
+	
+toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (optX (return v) :: X w) of
 						       RepValue v -> StdLogicVector $ M.matrix $ v
 
-
 -- TODO: way may have to lift these up to handle unknowns better.
-fromStdLogicVector :: forall sig w w2 . (Signal sig, Size w2, Rep w) => sig (StdLogicVector w2) -> sig w
-fromStdLogicVector = fun1 "fromStdLogicVector" $ \ (StdLogicVector v) ->
-				  case unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w of
-				     Just r -> r
-				     Nothing -> error "fromStdLogicVector problem"
-
-
+fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
+fromStdLogicVector = fun1' "fromStdLogicVector" $ \ x@(StdLogicVector v) ->
+				  unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+				
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
 coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
@@ -562,3 +583,19 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 			            return $ (SLV.splice i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Lit (fromIntegral i) :: D Int) ea)
 
+
+-- This is the funny one, needed for our application
+instance (Size m) => StdLogic (Sampled.Sampled m ix) where
+	type WIDTH (Sampled.Sampled m ix) = m
+
+instance (Size m, Size ix) => Rep (Sampled.Sampled m ix) where
+	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
+	optX (Just b)	    = return b
+	optX Nothing	    = fail "Wire Sampled"
+	unX (WireVal a)     = return a
+	unX (WireUnknown)   = fail "Wire Sampled"
+	wireType x   	    = V (size (error "Sampled" :: ix))
+	toRep w (WireUnknown) = unknownRepValue w
+	toRep w (WireVal a)   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
+	fromRep w r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
+	showRep = showRepDefault
