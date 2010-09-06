@@ -77,8 +77,8 @@ instance Probe (Env c) where
 
 instance (Show a, Show b,
           Rep a, Rep b,
-          Size (ADD (WIDTH a) (WIDTH b)),
-          Enum (ADD (WIDTH a) (WIDTH b)),
+--          Size (ADD (WIDTH a) (WIDTH b)),
+--          Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b)),
           Pack f (a,b)) => Probe (f a, f b) where
     attach i name c = val
@@ -89,8 +89,8 @@ instance (Show a, Show b,
 
 instance (Show a, Show b, Show c,
           Rep a, Rep b, Rep c,
-          Size (ADD (WIDTH a) (WIDTH b)),
-          Enum (ADD (WIDTH a) (WIDTH b)),
+--          Size (ADD (WIDTH a) (WIDTH b)),
+--          Enum (ADD (WIDTH a) (WIDTH b)),
           Probe (f (a,b,c)),
           Pack f (a,b,c)) => Probe (f a, f b, f c) where
     attach i name c = val
