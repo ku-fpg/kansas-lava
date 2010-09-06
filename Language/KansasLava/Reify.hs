@@ -188,7 +188,7 @@ instance Rep a => InPorts (CSeq c a) where
     input nm = liftS1 (input nm)
 
 instance Rep a => InPorts (Comb a) where
-    inPorts vs = (Comb (error "InPorts (Comb a)") d,vs')
+    inPorts vs = (deepComb d,vs')
       where (d,vs') = wireGenerate vs
 
     input nm (Comb a d) =
