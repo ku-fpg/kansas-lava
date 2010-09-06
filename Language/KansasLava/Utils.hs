@@ -599,3 +599,10 @@ instance (Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	toRep w (WireVal a)   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
 	fromRep w r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
+
+
+-------------------------------------------------------------------------------------
+
+
+lavaId :: (Signal sig, Rep a) => sig a -> sig a
+lavaId = fun1 "id" id
