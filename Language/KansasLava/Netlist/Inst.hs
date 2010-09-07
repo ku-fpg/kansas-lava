@@ -9,6 +9,7 @@ import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Wire
 
 import Data.Reify.Graph (Unique)
 
@@ -64,7 +65,7 @@ genInst  i (Entity (Name "Lava" "concat") [("o0",_)] inps _) =
 
 genInst i (Entity (Name "Lava" "index")
 		  [("o0",outTy)]
-		  [("i0",_, (Lit idx)),
+		  [("i0",_, (Generic idx)),
 		   ("i1",ty,input)] _
 	   ) =
     [ NetAssign (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
@@ -83,9 +84,9 @@ genInst i e@(Entity (Name "Memory" "register") [("o0",_)] inputs _) =
 	(ty,d) = head [ (ty,d) | ("i0",ty,d) <- inputs ]
 
 -- Muxes
-genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit 1),("i1",tTy,t),("i2",fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit _),("i1",tTy,t),("i2",fTy,f)] _)
+genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal False])),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
 genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)] _)
 	= [NetAssign (sigName "o0" i)
@@ -96,9 +97,11 @@ genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fT
 
 
 -- This is only defined over constants that are powers of two.
-genInst i (Entity (Name "Sampled" "/") [("o0",oTy)] [ ("i0",iTy,v), ("i1",iTy',Lit n)] _)
+genInst i (Entity (Name "Sampled" "/") [("o0",oTy)] [ ("i0",iTy,v), ("i1",iTy',Lit lit)] _)
 --	= trace (show n) 
-	| n == 64	-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
+	| case fromRepToInteger lit of
+	    Nothing -> False
+	    Just n -> n == 64	-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
 	= [ InstDecl "Sampled_shiftR" ("inst" ++ show i)
   		[ ("shift_by",ExprNum $ fromIntegral $ 2) ]
                 [ ("i0",toStdLogicExpr iTy v) ]
@@ -133,7 +136,7 @@ genInst i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
-genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Lit x),("i1",V ins,w)] _)
+genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)] _)
 	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
 	| otherwise = 
 	[ NetAssign  (sigName "o0" i) $ ExprSlice nm (ExprNum (fromIntegral x + fromIntegral outs - 1)) (ExprNum (fromIntegral x))

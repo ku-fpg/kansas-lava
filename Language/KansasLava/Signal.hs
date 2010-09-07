@@ -34,8 +34,8 @@ pureS :: (Signal s, Rep a) => a -> s a
 pureS a = liftS0 (toComb a)
 
 -- An unknown (X) signal.
-errorS :: (Signal s, Rep a) => s a
-errorS = liftS0 errorComb
+undefinedS :: (Signal s, Rep a) => s a
+undefinedS = liftS0 undefinedComb
 
 -- | k is a constant
 
@@ -159,7 +159,7 @@ instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	unpack s = forAll $ \ ix ->
 			liftS1 (\ (Comb s d) -> Comb (s ! ix)
 					       (entity2 (Name "Lava" "index")
-							(D $ Lit $ (mx ! ix) :: D Integer)
+							(D $ Generic $ (mx ! ix) :: D Integer)
 							d
 					       )
 			        ) s

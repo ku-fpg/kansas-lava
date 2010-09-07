@@ -149,15 +149,17 @@ instance Functor (Entity ty a) where
 -- A Driver is a specific driven 'wire' (signal in VHDL),
 -- which types contains a value that changes over time.
 
-data Driver s = Port String s      -- a specific port on the entity
-              | Pad OVar       	  --
-              | Lit Integer
+data Driver s = Port String s   -- a specific port on the entity
+              | Pad OVar       	--
+              | Lit RepValue	-- A representable Value (including unknowns)
+	      | Generic Integer	-- A generic argument, always fully defined
 	      | Error String	-- A call to err, in Datatype format for reification purposes
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
   show (Port v i) = "(" ++ show i ++ ")." ++ v 
-  show (Lit x) = show x
+  show (Lit x) = "'" ++ show x ++ "'"
+  show (Generic x) = show x
   show (Pad v) = show v 
   show (Error msg) = show msg
 
@@ -166,6 +168,7 @@ instance T.Traversable Driver where
   traverse _ (Pad v)       = pure $ Pad v
 --  traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
+  traverse _ (Generic i)   = pure $ Generic i
   traverse _ (Error s)     = pure $ Error s
 
 instance F.Foldable Driver where
@@ -173,6 +176,7 @@ instance F.Foldable Driver where
   foldMap _ (Pad _)       = mempty
 --  foldMap _ (PathPad _)   = mempty
   foldMap _ (Lit _)       = mempty
+  foldMap _ (Generic _)       = mempty
   foldMap _ (Error s)     = mempty
 
 instance Functor Driver where
@@ -180,6 +184,7 @@ instance Functor Driver where
     fmap _ (Pad v)       = Pad v
 --    fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
+    fmap _ (Generic i)   = Generic i
     fmap _ (Error s)     = Error s
 
 ---------------------------------------------------------------------------------------------------------

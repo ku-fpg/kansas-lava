@@ -445,11 +445,11 @@ register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
 
 
 delay :: forall a . (Rep a) => Seq a -> Seq a
-delay = register' low errorComb
+delay = register' low undefinedComb
 -}
 
 delay :: (Rep a) => Env clk -> CSeq clk a -> CSeq clk a
-delay env = register env errorComb
+delay env = register env undefinedComb
 
 -- register rst def v = mux2 rst (liftS0 def,delay v)
 
@@ -581,7 +581,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
 		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
 			            return $ (SLV.splice i a' :: StdLogicVector b))
-		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Lit (fromIntegral i) :: D Int) ea)
+		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Int) ea)
 
 
 -- This is the funny one, needed for our application

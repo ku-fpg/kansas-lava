@@ -43,8 +43,8 @@ regProc (clk,rst,clk_en) es
     [ProcessDecl
      [(Event (toStdLogicExpr ClkTy clk) PosEdge,
         (case rst of
-          Lit 0 -> regNext
-          Lit 1 -> error "opps, bad delay code (reset *always* set)"
+          Lit (RepValue [WireVal True]) -> regNext
+          Lit _ -> error "opps, bad delay code (reset *always* set)"
           _ -> If (isHigh (toTypedExpr B rst))
                            (statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es])
                            (Just regNext)))
@@ -58,8 +58,8 @@ regProc (clk,rst,clk_en) es
         driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
         regAssigns = statements [Assign (outName e i) (nextName e i)  | (i,e) <- es]
         regNext = case clk_en of
-		    Lit 1 -> regAssigns
-		    Lit 0 -> error "opps, en_clk is never enabled (boring?)"
+		    Lit (RepValue [WireVal True]) -> regAssigns
+		    Lit _ -> error "opps, en_clk is never enabled (boring?)"
 		    _     -> If (isHigh (toTypedExpr B clk_en)) regAssigns Nothing
 
 

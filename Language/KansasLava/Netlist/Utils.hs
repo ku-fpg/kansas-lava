@@ -7,6 +7,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 import Language.KansasLava.Entity
+import Language.KansasLava.Wire
 import Language.KansasLava.Entity.Utils
 
 import qualified Data.Map as Map
@@ -26,8 +27,9 @@ class ToTypedExpr v where
 
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
-	toTypedExpr ty (Lit n)             = toTypedExpr ty n
-	toTypedExpr ty (Port (v) n)    = toTypedExpr ty (sigName v (fromIntegral n))
+	toTypedExpr ty (Lit n)           = toTypedExpr ty n
+	toTypedExpr ty (Generic n)       = toTypedExpr ty n
+	toTypedExpr ty (Port (v) n)      = toTypedExpr ty (sigName v (fromIntegral n))
 	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
 
 instance ToTypedExpr String where
@@ -43,10 +45,23 @@ instance ToTypedExpr String where
 
 instance ToTypedExpr Integer where
 	-- From a literal into a typed Expr
-	toTypedExpr B     i = ExprBit (fromInteger i)
-	toTypedExpr (V n) i = ExprLit n i
-	-- A bit of a hack, perhapse use case
-	toTypedExpr ty    i = toTypedExpr (toStdLogicTy ty) i
+	toTypedExpr = fromIntegerToExpr
+
+-- Integer is untyped.
+fromIntegerToExpr :: Type -> Integer -> Expr
+fromIntegerToExpr t i =
+	case toStdLogicTy t of
+	     B   -> ExprBit (fromInteger i)
+	     V n -> ExprLit n i
+	     other -> error "fromIntegerToExpr: was expecting B or V from normalized number"
+
+
+instance ToTypedExpr RepValue where
+	-- From a literal into a typed Expr
+	toTypedExpr t r = case fromRepToInteger $ zeroUnknownRepValue r of
+			    Nothing -> error "zero'd RepValue can not be undefined"
+			    Just i -> toTypedExpr t i
+
 
 class ToStdLogicExpr v where
 	-- Turn a 'v' into a std_logic[_vector] Expr.
@@ -54,17 +69,20 @@ class ToStdLogicExpr v where
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
-	toStdLogicExpr ty (Lit n)            = toStdLogicExpr ty n
-	toStdLogicExpr ty (Port (v) n)   = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
+	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n	
+	toStdLogicExpr ty (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
 	toStdLogicExpr ty (Pad (OVar _ v)) = ExprVar $ v
-	toStdLogicExpr ty other		     = error $ show other
+	toStdLogicExpr ty other		   = error $ show other
 
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
-	toStdLogicExpr B     i = ExprBit (fromInteger i)
-	toStdLogicExpr (V n) i = ExprLit n i
-	-- A bit of a hack, perhapse use case
-	toStdLogicExpr ty    i = toStdLogicExpr (toStdLogicTy ty) i
+	toStdLogicExpr = fromIntegerToExpr
+
+instance ToStdLogicExpr RepValue where
+	toStdLogicExpr t r = case fromRepToInteger $ zeroUnknownRepValue r of
+			    Nothing -> error "zero'd RepValue can not be undefined"
+			    Just i -> toTypedExpr t i
 
 instance ToStdLogicExpr Expr where
 	-- Convert from a typed expression (as noted by the type) back into a std_logic*
@@ -82,7 +100,7 @@ class ToIntegerExpr v where
 	toIntegerExpr :: Type -> v -> Expr
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
-	toIntegerExpr ty (Lit v) = ExprNum v
+	toIntegerExpr ty (Lit v) = error "ABCVCD" -- ExprNum v
 	toIntegerExpr ty other   = to_integer (toTypedExpr ty other)
 
 -- NEVER USED
@@ -99,6 +117,7 @@ toStdLogicVectorExpr ty dr =
 toStdLogicTy :: Type -> Type
 toStdLogicTy B     = B
 toStdLogicTy ClkTy = B
+toStdLogicTy (V n) = V n
 toStdLogicTy ty    = V (fromIntegral size)
   where size = typeWidth ty
 --
@@ -174,7 +193,7 @@ lookupInputType i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
 
 -- TODO: should ty be GenericTy only here?
 addNum :: Integer -> [(String,Type,Driver Unique)] -> [(String,Type,Driver Unique)]
-addNum i [("i0",ty,d)] = [("i0",GenericTy,Lit i),("i1",ty,d)]
+addNum i [("i0",ty,d)] = [("i0",GenericTy,Generic i),("i1",ty,d)]
 addNum _ _ = error "addNum"
 
 ------------------------------------------------------------------------

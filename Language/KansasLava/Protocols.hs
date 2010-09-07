@@ -209,7 +209,7 @@ enabledS :: (Rep a, Signal sig) => sig a -> sig (Enabled a)
 enabledS s = pack (pureS True,s)
 
 disabledS :: (Rep a, Signal sig) => sig (Enabled a)
-disabledS = pack (pureS False,errorS)
+disabledS = pack (pureS False,undefinedS)
 
 packEnabled :: (Rep a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
 packEnabled s1 s2 = pack (s1,s2)
@@ -277,7 +277,7 @@ shiftRegister sysEnv inp = pack m
 	(en,val) = unpack inp
 	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
 	fn (v,()) = (reg,reg)
-		where reg = enabledRegister sysEnv (errorComb) (pack (en,v))
+		where reg = enabledRegister sysEnv (undefinedComb) (pack (en,v))
 
 
 unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
@@ -287,7 +287,7 @@ unShiftRegister env inp = r
 	m :: CSeq clk (Matrix x d)
 	(en,m) = unpack inp
 	r :: CSeq clk (Enabled d)
-	(_, r) = scanR fn (pack (low,errorSeq), unpack m)
+	(_, r) = scanR fn (pack (low,undefinedSeq), unpack m)
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry

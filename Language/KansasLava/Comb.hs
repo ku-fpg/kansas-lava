@@ -45,11 +45,12 @@ shallowComb :: X a -> Comb a
 shallowComb a = Comb a (D $ Error "deep argument being used incorrectly")
 
 -- ACF: We should probably redefine this with dual:
---      errorComb = dual (deepComb $ error "errorComb") (shallowComb $ error "errorComb")
+--      undefinedComb = dual (deepComb $ error "undefinedComb") (shallowComb $ error "undefinedComb")
 --      (the calls to error get thrown away by dual)
 --      but this would require some major module rearrangement to avoid circular imports
-errorComb ::  forall a . (Rep a) => Comb a
-errorComb = Comb (optX $ (Nothing :: Maybe a)) (D $ Error "errorComb")
+undefinedComb ::  forall a . (Rep a) => Comb a
+undefinedComb = Comb (optX $ (Nothing :: Maybe a)) 
+		     (D $ Lit $ toRep (witness :: a) (optX (Nothing :: Maybe a)))
 
 applyComb0 :: (Rep a) => Comb a -> Maybe a
 applyComb0 (Comb a _) = unX a
@@ -65,7 +66,14 @@ applyComb2 f a b = unX c
 
 -- Hmm, not the same deep side as toSeq; why?
 toComb :: forall a . (Rep a) => a -> Comb a
-toComb a = shallowComb (optX (Just a) :: X a) -- Comb (pureX a) $ D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
+toComb a = Comb (pureX a) $ D $ Lit $ toRep (witness :: a) (pureX a)
+
+--case (fromRepToInteger $ toRep (witness :: a) (pureX a)) of
+--					Just v -> v
+--					Nothing -> error $ "toComb has undefined value" ++ show (toRep (witness :: a) (pureX a))
+
+-- D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
+-- shallowComb (optX (Just a) :: X a) -- 
 
 toComb' :: forall a . (Rep a) => Maybe a -> Comb a
 toComb' a = shallowComb (optX a)

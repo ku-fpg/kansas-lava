@@ -193,6 +193,26 @@ fromRepToIntegral w1 r =
 	      	    ])
 	      (getValidRepValue r) :: Maybe v)
 
+-- always a +ve number, unknowns defin	
+fromRepToInteger :: RepValue -> Maybe Integer
+fromRepToInteger r = 
+	(fmap (\ xs -> 
+		sum [ n	
+	      	    | (n,b) <- zip (iterate (* 2) 1)
+			           xs
+	      	    , b
+	      	    ])
+	      (getValidRepValue r) :: Maybe Integer)
+
+-- | zeroUnknownRepValue  turn a RepValue into a RepValue with no unknowns (by using zeros)
+
+zeroUnknownRepValue :: RepValue -> RepValue 
+zeroUnknownRepValue (RepValue bs) = RepValue [ case b of
+						  WireUnknown -> WireVal False
+						  _ -> b 
+					     | b <- bs 
+					     ]
+
 
 ------------------------------------------------------------------------------------
 
