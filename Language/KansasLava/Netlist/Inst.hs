@@ -99,9 +99,9 @@ genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fT
 -- This is only defined over constants that are powers of two.
 genInst i (Entity (Name "Sampled" "/") [("o0",oTy)] [ ("i0",iTy,v), ("i1",iTy',Lit lit)] _)
 --	= trace (show n) 
-	| case fromRepToInteger lit of
-	    Nothing -> False
-	    Just n -> n == 64	-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
+	|  fromRepToInteger lit == 64
+		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
+    		-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
 	= [ InstDecl "Sampled_shiftR" ("inst" ++ show i)
   		[ ("shift_by",ExprNum $ fromIntegral $ 2) ]
                 [ ("i0",toStdLogicExpr iTy v) ]

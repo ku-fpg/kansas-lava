@@ -181,13 +181,13 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 	      tB = wireType (error "table" :: b)
 
 	      all_a_bitRep :: [RepValue]
-	      all_a_bitRep = allReps (typeWidth tA)
+	      all_a_bitRep = allReps (witness :: a)
 
 	      tab :: [(Integer,String,Integer,String)]
-	      tab = [ ( repValueToInteger $ w_a
-		      , error "" -- showRep (undefined "table" :: a) $ optX $ Just a
-		      , repValueToInteger $ w_b
-		      , error "" -- showRep (undefined "table" :: b) $ optX $ Just b
+	      tab = [ ( fromRepToInteger w_a
+		      , showRep (witness :: a) $ optX $ Just a
+		      , fromRepToInteger w_b
+		      , showRep (witness :: b) $ optX $ Just b
 		      )
 		    | w_a <- all_a_bitRep
 		    , a <- case unX (fromRep (witness :: a) w_a :: X a) :: Maybe a of

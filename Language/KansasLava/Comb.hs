@@ -68,13 +68,6 @@ applyComb2 f a b = unX c
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (witness :: a) (pureX a)
 
---case (fromRepToInteger $ toRep (witness :: a) (pureX a)) of
---					Just v -> v
---					Nothing -> error $ "toComb has undefined value" ++ show (toRep (witness :: a) (pureX a))
-
--- D $ Lit $ fromIntegral $ U.fromMatrix $ fromWireRep a
--- shallowComb (optX (Just a) :: X a) -- 
-
 toComb' :: forall a . (Rep a) => Maybe a -> Comb a
 toComb' a = shallowComb (optX a)
 

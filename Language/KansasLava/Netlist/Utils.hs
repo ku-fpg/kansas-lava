@@ -58,9 +58,7 @@ fromIntegerToExpr t i =
 
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
-	toTypedExpr t r = case fromRepToInteger $ zeroUnknownRepValue r of
-			    Nothing -> error "zero'd RepValue can not be undefined"
-			    Just i -> toTypedExpr t i
+	toTypedExpr t r = toTypedExpr t (fromRepToInteger r)
 
 
 class ToStdLogicExpr v where
@@ -80,9 +78,7 @@ instance ToStdLogicExpr Integer where
 	toStdLogicExpr = fromIntegerToExpr
 
 instance ToStdLogicExpr RepValue where
-	toStdLogicExpr t r = case fromRepToInteger $ zeroUnknownRepValue r of
-			    Nothing -> error "zero'd RepValue can not be undefined"
-			    Just i -> toTypedExpr t i
+	toStdLogicExpr t r = toTypedExpr t (fromRepToInteger r)
 
 instance ToStdLogicExpr Expr where
 	-- Convert from a typed expression (as noted by the type) back into a std_logic*
