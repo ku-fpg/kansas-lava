@@ -226,7 +226,7 @@ mux2' i (t,e)
 			-> Comb (mux2shallow (witness :: a) i t e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
-	
+
 --liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
 --       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 {-
@@ -558,7 +558,7 @@ instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
 
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
-	
+
 toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (optX (return v) :: X w) of
 						       RepValue v -> StdLogicVector $ M.matrix $ v
@@ -567,7 +567,7 @@ toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (o
 fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
 fromStdLogicVector = fun1' "fromStdLogicVector" $ \ x@(StdLogicVector v) ->
 				  unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
-				
+
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
 coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
@@ -588,7 +588,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 instance (Size m) => StdLogic (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = m
 
-instance (Size m, Size ix) => Rep (Sampled.Sampled m ix) where
+instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
 	optX (Just b)	    = return b
 	optX Nothing	    = fail "Wire Sampled"
