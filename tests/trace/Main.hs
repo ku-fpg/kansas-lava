@@ -62,57 +62,51 @@ main = do
 
     -- TODO: Fix mkThunk to handle -> mkThunk t halfAdder :: Thunk (Seq Bool, Seq Bool)
     putStrLn "mkThunk test:"
-    print $ runT (mkThunk t2 lavaFst :: Thunk (Seq Bool))
+    print $ runShallow (mkThunk t2 lavaFst :: Thunk (Seq Bool))
 
     putStrLn "lavaFst Result:"
-    print $ test lavaFst t2
+    print $ checkExpected lavaFst t2
     putStrLn "halfAdder Result:"
-    print $ test halfAdder t
+    print $ checkExpected halfAdder t
     putStrLn "halfAdder Run:"
     print $ run halfAdder t
     putStrLn "halfAdder Execute:"
     print $ execute halfAdder t
 
-    putStrLn "unit test:"
-    res <- unitTest def "halfAdder" thunk
-    print res
+    debug "halfAdder" 100 thunk2
 
-    mkTarball "test/lavaFst" 100 thunk
-    mkTarball "test/halfAdder" 100 thunk2
+    putStrLn "unit test:"
+    test "lavaFst" 100 thunk (toSeq $ cycle [True,False])
+
+    mkTarball "test/lavaFst.tgz" 100 thunk
 
     t4 <- mkTrace limit muxt
-    mkTarball "test/mux2" 100 muxt
 
 
 -- Andy's tests
--- Can be moved or removed
+    -- The lavaId is because we can not annotate funMap
+    let funThunk =  Thunk (lavaId . funMap (\ x -> return (x + 1)) . lavaId :: Seq Word8 -> Seq Word8)
+                          (\ f -> f (toSeq [1..100]))
 
-    do -- hack to get tabbed do
+    debug "funMap" 200 funThunk
 
+    debug "pipeToMemory" 20 $ Thunk (pipeToMemory :: Env () -> Env () -> Seq (Pipe Word8 Int) -> Seq Word8 -> Seq Int)
+                            $ \ cir -> cir shallowEnv
+                                           shallowEnv
+                                           (toSeq $ [Nothing,Nothing,Nothing,Nothing,Nothing]
+                                                    ++ [ return (0,100)
+                                                       , return (1,101)
+                                                       , return (2,102)
+                                                       , return (3,103)
+                                                       , return (4,104)
+                                                       ]
+                                                    ++ cycle [Nothing])
+                                           (toSeq $ cycle [0..2])
 
-	-- The lavaId is because we can not annotate funMap
-	let thunk5 = Thunk (lavaId . funMap (\ x -> return (x + 1)) . lavaId :: Seq Word8 -> Seq Word8)
-		       (\ f -> f (toSeq [1..100]))
+    -- test each separately
+    mkTarball "test/mux2.tgz" 100 muxt
+    runTarball "test/mux2.tgz"
 
-	print $ runT thunk5
-	trace5 <- mkTrace (return 200) thunk5
-	print $ trace5
-
-	let thunk6 = Thunk (pipeToMemory :: Env () -> Env () -> Seq (Pipe Word8 Int) -> Seq Word8 -> Seq Int)
-	       $ \ cir -> cir shallowEnv 
-			      shallowEnv 
-			      (toSeq $ [Nothing,Nothing,Nothing,Nothing,Nothing]
-				    ++ [ return (0,100)
-				       , return (1,101)
-				       , return (2,102)
-				       , return (3,103)
-				       , return (4,104)
-			       	       ]
-			 	    ++ cycle [Nothing])
-			      (toSeq $ cycle [0..2])
-
-	print $ runT thunk6
-	trace6 <- mkTrace (return 20) thunk6
-        print $ trace6
-
-    return ()
+    -- now test them combined
+    runDeep "halfAdder" 100 thunk2
+    runDeep "funMap" 200 funThunk

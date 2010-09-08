@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Testing.Thunk where
+module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, mkTarball, runTarball) where
 
 import Language.KansasLava
 
@@ -14,11 +14,23 @@ import Data.Maybe
 import System.Cmd
 import System.Directory
 import System.FilePath.Posix
+import System.Posix.Directory
 
-data Thunk b = forall a. (Ports a, Probe a, Run a) => Thunk a (a -> b)
+data Thunk b = forall a. (Ports a, Probe a, Run a, Ports b) => Thunk a (a -> b)
 
-runT :: Thunk b -> b
-runT (Thunk circuit fn) = fn circuit
+runShallow :: Thunk b -> b
+runShallow (Thunk circuit fn) = fn circuit
+
+runDeep :: (Ports b) => String -> Int -> Thunk b -> IO ()
+runDeep name cycles thunk = do
+    tmp <- getTemporaryDirectory
+
+    let tarfile = tmp </> name <.> "tgz"
+
+    mkTarball tarfile cycles thunk
+    runTarball tarfile
+
+    removeFile tarfile
 
 mkTrace :: (Ports a) => Maybe Int -> Thunk a -> IO Trace
 mkTrace c (Thunk circuit k) = do
@@ -38,14 +50,42 @@ mkTrace c (Thunk circuit k) = do
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b) => Trace -> a -> Thunk (Seq b)
 mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
 
+runTarball :: FilePath -> IO ()
+runTarball tarfile = do
+    exists <- doesFileExist tarfile
+
+    if exists
+        then do
+            tmp <- getTemporaryDirectory
+
+            let path = tmp </> name
+                name = last $ splitPath $ dropExtensions tarfile
+
+            system $ unwords ["tar -xzf",tarfile,"-C",tmp,"--transform='s,/?" ++ dropDrive tmp ++ ",,ix'"]
+
+            cwd <- getWorkingDirectory
+            changeWorkingDirectory path
+
+            system $ path </> "run"
+
+            changeWorkingDirectory cwd -- restore cwd to previous state
+
+            -- path better not contain symlinks!!! (or this will follow them)
+            removeDirectoryRecursive path
+
+        else return ()
+
 mkTarball :: (Ports b) => FilePath -> Int -> Thunk b -> IO ()
 mkTarball tarfile cycles thunk@(Thunk c k) = do
-    let (path,_) = splitExtension tarfile
-        name = "circuit"
+    tmp <- getTemporaryDirectory
 
-    createDirectoryIfMissing True path
+    let path = tmp </> name
+        name = last $ splitPath $ dropExtensions tarfile
 
-    trace <- mkTrace (Just cycles) thunk
+    createDirectoryIfMissing True path -- create workspace in temp directory
+    createDirectoryIfMissing True $ dropFileName tarfile -- make sure tar file can be created
+
+    trace <- mkTrace (return cycles) thunk
 
     writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
@@ -57,8 +97,8 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
         ["#!/bin/bash"
         ,"LM_LICENSE_FILE=1800@carl.ittc.ku.edu:1717@carl.ittc.ku.edu"
         ,"export LM_LICENSE_FILE"
-        ,"echo \"Simulating...\""
-        ,"/tools/modelsim/linux/6.3c/modeltech/bin/vsim -c -do circuit.do"
+        ,"echo \"Simulating " ++ name ++ "...\""
+        ,"/tools/modelsim/linux/6.3c/modeltech/bin/vsim -c -do " ++ name ++ ".do"
         ,"echo \"10 lines from the info file...\""
         ,"tail " ++ name ++ ".info"
         ,"echo \"The same 10 lines from the shallow trace...\""
@@ -79,5 +119,10 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
         ]
 
     system $ "chmod +x " ++ path </> "run"
+
+    system $ unwords ["tar -czf", tarfile, path]
+
+    -- path better not contain symlinks!!! (or this will follow them)
+    removeDirectoryRecursive path
 
     return ()

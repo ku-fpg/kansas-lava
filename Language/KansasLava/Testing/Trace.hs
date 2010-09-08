@@ -14,10 +14,6 @@ import Language.KansasLava.Testing.Utils
 
 import qualified Data.Sized.Matrix as Matrix
 
-import qualified Data.Graph.Inductive as G
-
-import qualified Data.Reify.Graph as DRG
-
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -117,9 +113,9 @@ dropTrace i t@(Trace c ins (TraceStream oty os) ps)
 
 -- need to change format to be vertical
 serialize :: Trace -> String
-serialize (Trace c ins (TraceStream oty os) ps) = concat $ 
-			unlines [(show c), "INPUTS"] : showMap ins ++ 
-			[unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++ 
+serialize (Trace c ins (TraceStream oty os) ps) = concat $
+			unlines [(show c), "INPUTS"] : showMap ins ++
+			[unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++
 			showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRep (witness :: Bool)) $ val | RepValue val <- takeMaybe c s]
@@ -173,8 +169,8 @@ readFromFile fp = do
     return $ deserialize str
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
-test :: (Run a) => a -> Trace -> (Bool, Trace)
-test circuit trace = (trace == result, result)
+checkExpected :: (Run a) => a -> Trace -> (Bool, Trace)
+checkExpected circuit trace = (trace == result, result)
     where result = execute circuit trace
 
 execute :: (Run a) => a -> Trace -> Trace

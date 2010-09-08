@@ -1,4 +1,4 @@
-module Language.KansasLava.Testing.Unit where
+module Language.KansasLava.Testing.Unit (debug, test) where
 
 import Language.KansasLava
 import Language.KansasLava.Testing.Probes
@@ -12,20 +12,41 @@ import Data.Default
 import System.Directory
 import System.FilePath.Posix
 
+debug :: (Ports b) => String -> Int -> Thunk b -> IO ()
+debug name cycles thunk = do
+    trace <- mkTrace (return cycles) thunk
+    putStrLn $ "Debug output for " ++ name
+    print trace
+
+-- TODO: Remove restriction to Seq b that we have on Thunks
+test :: (Rep b) => String -> Int -> Thunk (Seq b) -> Seq b -> IO ()
+test name c t e = test' c t e (defAction name)
+
+test' :: (Rep b) => Int -> Thunk (Seq b) -> Seq b -> ((Bool, Trace) -> IO ()) -> IO ()
+test' cycles thunk expected action = do
+    trace <- mkTrace (return cycles) thunk
+
+    let e = setCycles cycles $ setOutput expected $ trace
+
+    action (trace == e, trace)
+
+defAction :: String -> (Bool, Trace) -> IO ()
+defAction name (True,_) = putStrLn $ name ++ " passed."
+defAction name (False,trace) = do
+    putStrLn $ name ++ " failed!"
+    putStrLn "Actual trace results:"
+    print trace
+{-
 data Options = Options { cycles :: Maybe Int
                        , forceWrite :: Bool
                        , ignoreFile :: Bool
                        , testDir :: FilePath
                        , runTests :: [String]
-                       , testAction :: Bool -> String -> Trace -> IO ()
+--                       , testAction :: Bool -> String -> Trace -> IO ()
                        }
 
 instance Default Options where
-    def = Options (Just 100) False False "tests/" [] defAction
-
-defAction :: Bool -> String -> Trace -> IO ()
-defAction True name _ = putStrLn $ name ++ " passed."
-defAction False name _ = putStrLn $ name ++ " failed!"
+    def = Options (return 100) False False "tests/" [] -- defAction
 
 {-
 forceAction :: Bool -> String -> Trace -> IO ()
@@ -65,4 +86,4 @@ unitTest opts name thunk@(Thunk circuit fn) = do
             putStrLn $ "Writing execution result to: " ++ tFile
             writeFile tFile $ serialize result
         else return ()
-
+-}
