@@ -11,10 +11,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import qualified Data.Graph.Inductive as G
-
-import qualified Data.Reify.Graph as DRG
-
 import System.Cmd
 import System.Directory
 import System.FilePath.Posix
@@ -29,10 +25,9 @@ mkTrace c (Thunk circuit k) = do
     let uname = "wholeCircuit5471" -- probably need a better solution than this
     let probed = probe uname circuit
 
-    rc <- reifyCircuit $ probed
-    rc' <- reifyCircuit $ k $ probed -- this is essentially what probeCircuit does
+    rc <- reifyCircuit $ k $ probed -- this is essentially what probeCircuit does
 
-    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc'
+    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc
                        , ProbeValue k v <- attrs ]
         io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, name == uname ]
         ins = M.fromList $ init io
@@ -52,12 +47,13 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
 
     trace <- mkTrace (Just cycles) thunk
 
-    writeFile (path </> name <.> "input") $ unlines $ genShallow trace
+    writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
 
---    mkTestbench name path c
+    rc <- reifyCircuit c
+    mkTestbench name path rc
 
-    writeFile (path </> "test" <.> "sh") $ unlines
+    writeFile (path </> "run") $ unlines
         ["#!/bin/bash"
         ,"LM_LICENSE_FILE=1800@carl.ittc.ku.edu:1717@carl.ittc.ku.edu"
         ,"export LM_LICENSE_FILE"
@@ -65,15 +61,15 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
         ,"/tools/modelsim/linux/6.3c/modeltech/bin/vsim -c -do circuit.do"
         ,"echo \"10 lines from the info file...\""
         ,"tail " ++ name ++ ".info"
-        ,"echo \"The same 10 lines from the input file...\""
-        ,"tail " ++ name ++ ".input"
-        ,"echo \"Ditto for the output file...\""
-        ,"tail " ++ name ++ ".output"
+        ,"echo \"The same 10 lines from the shallow trace...\""
+        ,"tail " ++ name ++ ".shallow"
+        ,"echo \"Ditto for the deep trace...\""
+        ,"tail " ++ name ++ ".deep"
         ,""
-        ,"THEDIFF=`diff " ++ name ++ ".input " ++ name ++ ".output`"
+        ,"THEDIFF=`diff " ++ name ++ ".shallow " ++ name ++ ".deep`"
         ,""
         ,"if [[ -z \"$THEDIFF\" ]]; then"
-        ,"    echo \"Input/Output Files Are The Same\""
+        ,"    echo \"Shallow/Deep Traces Are The Same\""
         ,"    exit 0"
         ,"else"
         ,"    echo \"Warning: Differences Below:\""
@@ -82,11 +78,6 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
         ,"fi"
         ]
 
-    system $ "chmod +x " ++ path </> "test.sh"
+    system $ "chmod +x " ++ path </> "run"
 
     return ()
-
-rcToGraph :: Circuit -> G.Gr (MuE DRG.Unique) ()
-rcToGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
-                                         | (n1,Entity _ _ ins _) <- theCircuit rc
-                                         , (_,_,Port _ n2) <- ins ]

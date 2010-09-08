@@ -29,7 +29,7 @@ vhdlCircuit' nlOpts name mods circuit = do
   return $ genVHDL mod mods
 -}
 
-writeVhdlCircuit :: [String] -> String -> String -> Circuit -> IO ()
+writeVhdlCircuit :: [String] -> String -> FilePath -> Circuit -> IO ()
 writeVhdlCircuit mods nm file cir = do
 	mod <- netlistCircuit nm cir
 	writeFile file (genVHDL mod mods)
