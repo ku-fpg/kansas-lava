@@ -23,12 +23,14 @@ Flag all
 Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.5, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types,
-                 directory, random, netlist==0.2, netlist-to-VHDL==0.2, process,
+                 directory, random, netlist==0.2, netlist-to-vhdl==0.2, process,
                  fgl, filepath, data-default
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
        Language.KansasLava.Circuit
+       Language.KansasLava.Circuit.Depth
+       Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
        Language.KansasLava.Netlist
@@ -36,7 +38,6 @@ Library
        Language.KansasLava.Netlist.Inst
        Language.KansasLava.Netlist.Sync
        Language.KansasLava.Netlist.Utils
-       Language.KansasLava.Opt
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
        Language.KansasLava.Seq
