@@ -364,6 +364,23 @@ instance Show Circuit where
 		++ circuit
 		++ bar
 
+
+data Signature = Signature 
+	{ sigInputs   :: [(OVar,Type)]
+	, sigOutputs  :: [(OVar,Type)]
+	, sigGenerics :: [(OVar,Integer)]
+        }
+	deriving (Show, Read)
+
+
+circuitSignature :: Circuit -> Signature
+circuitSignature cir = Signature 
+	{ sigInputs   = theSrcs cir
+	, sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
+	, sigGenerics = []
+        }
+-- for now, we just use the show and read
+
 -----
 
 -- These are here for now
