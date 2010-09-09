@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, mkTarball, runTarball) where
+module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, mkTarball, runTarball, exportThunk) where
 
 import Language.KansasLava
 
@@ -124,5 +124,48 @@ mkTarball tarfile cycles thunk@(Thunk c k) = do
 
     -- path better not contain symlinks!!! (or this will follow them)
     removeDirectoryRecursive path
+
+    return ()
+
+-- Take a directory, and populate it with a thunk.
+exportThunk :: (Ports b) => FilePath -> Int -> Thunk b -> IO ()
+exportThunk path cycles thunk@(Thunk c k) = do
+    let name = "thunk"
+
+    createDirectoryIfMissing True path -- create workspace in temp directory
+
+    trace <- mkTrace (return cycles) thunk
+
+    writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
+    writeFile (path </> name <.> "info") $ unlines $ genInfo trace
+
+    rc <- reifyCircuit c
+    mkTestbench name path rc
+
+    -- still not happy about this bit yet
+    writeFile (path </> "run") $ unlines
+        ["#!/bin/bash"
+        ,"LM_LICENSE_FILE=1800@carl.ittc.ku.edu:1717@carl.ittc.ku.edu"
+        ,"export LM_LICENSE_FILE"
+        ,"echo \"Simulating " ++ name ++ "...\""
+        ,"/tools/modelsim/linux/6.3c/modeltech/bin/vsim -c -do " ++ name ++ ".do"
+        ,"echo \"10 lines from the info file...\""
+        ,"tail " ++ name ++ ".info"
+        ,"echo \"The same 10 lines from the shallow trace...\""
+        ,"tail " ++ name ++ ".shallow"
+        ,"echo \"Ditto for the deep trace...\""
+        ,"tail " ++ name ++ ".deep"
+        ,""
+        ,"THEDIFF=`diff " ++ name ++ ".shallow " ++ name ++ ".deep`"
+        ,""
+        ,"if [[ -z \"$THEDIFF\" ]]; then"
+        ,"    echo \"Shallow/Deep Traces Are The Same\""
+        ,"    exit 0"
+        ,"else"
+        ,"    echo \"Warning: Differences Below:\""
+        ,"    echo \"$THEDIFF\""
+        ,"    exit 1"
+        ,"fi"
+        ]
 
     return ()
