@@ -1,5 +1,12 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
-module Language.KansasLava.Testing.Trace where
+module Language.KansasLava.Testing.Trace (Trace(..), Run, run, setCycles
+                                         ,addInput, getInput, remInput
+                                         ,setOutput, getOutput, clearOutput
+                                         ,addProbe, getProbe, remProbe
+                                         ,toXStream, fromXStream -- needed in Probes, but should not be re-exported to user
+                                         ,diff, emptyTrace, takeTrace, dropTrace
+                                         ,serialize, deserialize, genShallow, genInfo
+                                         ,writeToFile, readFromFile, checkExpected, execute) where
 
 import Language.KansasLava.Types
 import Language.KansasLava.Wire
@@ -29,34 +36,8 @@ data Trace = Trace { len :: Maybe Int
                    , outputs :: TraceStream
                    , probes :: TraceMap OVar
                    , signature :: Signature
---                   , circuit :: Circuit
 --                   , opts :: DebugOpts -- can see a case for this eventually
-                   -- what else? keep the vhdl here?
                    }
--- Some combinators to get stuff in and out of the map
-fromXStream :: forall w. (Rep w) => w -> Stream (X w) -> TraceStream
-fromXStream witness stream = TraceStream (wireType witness) [toRep witness xVal | xVal <- Stream.toList stream ]
-
--- oh to have dependent types!
-toXStream :: forall w. (Rep w) => w -> TraceStream -> Stream (X w)
-toXStream witness (TraceStream _ list) = Stream.fromList [fromRep witness $ val | val <- list]
-
-getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w)
-getStream name m witness = toXStream witness $ m M.! name
-
-getSeq :: (Ord a, Rep w) => a -> TraceMap a -> w -> Seq w
-getSeq key m witness = shallowSeq $ getStream key m witness
-
--- Note: this only gets the *first* value. Perhaps combs should be stored differently?
-getComb :: (Ord a, Rep w) => a -> TraceMap a -> w -> Comb w
-getComb key m witness = shallowComb $ Stream.head $ getStream key m witness
-
-addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
-addStream key m witness stream = M.insert key (fromXStream witness stream) m
-
-addSeq :: forall a b. (Ord a, Rep b) => a -> Seq b -> TraceMap a -> TraceMap a
-addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
-
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
@@ -64,14 +45,26 @@ setCycles i t = t { len = Just i }
 addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _ _) = t { inputs = addSeq key seq ins }
 
+getInput :: (Rep w) => OVar -> w -> Trace -> Seq w
+getInput key witness trace = getSeq key (inputs trace) witness
+
 remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _ _) = t { inputs = M.delete key ins }
 
 setOutput :: forall a. (Rep a) => Seq a -> Trace -> Trace
 setOutput (Seq s _) t = t { outputs = fromXStream (witness :: a) s }
 
+getOutput :: (Rep w) => w -> Trace -> Seq w
+getOutput witness trace = shallowSeq $ toXStream witness $ outputs trace
+
+clearOutput :: Trace -> Trace
+clearOutput t = t { outputs = Empty }
+
 addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps _) = t { probes = addSeq key seq ps }
+
+getProbe :: (Rep w) => OVar -> w -> Trace -> Seq w
+getProbe key witness trace = getSeq key (probes trace) witness
 
 remProbe :: OVar -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps _) = t { probes = M.delete key ps }
@@ -121,22 +114,6 @@ serialize (Trace c ins (TraceStream oty os) ps sig) = concat $
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRep (witness :: Bool)) $ val | RepValue val <- takeMaybe c s]
 
-toXBit :: Maybe Bool -> Char
-toXBit = maybe 'X' (\b -> if b then '1' else '0')
-
--- note the reverse here is crucial due to way vhdl indexes stuff
-showTraceStream :: Maybe Int -> TraceStream -> [String]
-showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | RepValue val <- takeMaybe c s]
-
-genShallow :: Trace -> [String]
-genShallow (Trace c ins out _ _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
-    where alldata = (M.elems ins) ++ [out]
-
-genInfo :: Trace -> [String]
-genInfo (Trace c ins out _ _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
-    where alldata = (M.elems ins) ++ [out]
-          lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
-
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps, signature = s }
     where (sig:cstr:"INPUTS":ls) = lines str
@@ -146,21 +123,14 @@ deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps, sig
           (out,"PROBES":r2) = readStrm r1
           (ps,_) = readMap r2
 
-readStrm :: [String] -> (TraceStream, [String])
-readStrm ls = (strm,rest)
-    where (m,rest) = readMap ls
-          [(_,strm)] = M.toList (m :: TraceMap OVar)
+genShallow :: Trace -> [String]
+genShallow (Trace c ins out _ _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
+    where alldata = (M.elems ins) ++ [out]
 
-readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
-readMap ls = (go $ takeWhile cond ls, rest)
-    where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
-          rest = dropWhile cond ls
-          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
-          go _             = M.empty
-          toXBool :: Char -> X Bool
-          toXBool '1' = return True
-          toXBool '0' = return False
-          toXBool _   = fail "unknown"
+genInfo :: Trace -> [String]
+genInfo (Trace c ins out _ _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
+    where alldata = (M.elems ins) ++ [out]
+          lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 writeToFile :: FilePath -> Trace -> IO ()
 writeToFile fp t = writeFile fp $ serialize t
@@ -184,10 +154,6 @@ class Run a where
 instance (Rep a) => Run (CSeq c a) where
     run (Seq s _) (Trace c _ _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = fromXStream (witness :: a) s
-
--- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
-takeMaybe :: Maybe Int -> [a] -> [a]
-takeMaybe = maybe id take
 
 {- eventually
 instance (Rep a) => Run (Comb a) where
@@ -234,3 +200,59 @@ instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
     run fn t@(Trace c ins _ _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
               input = unpack $ getSeq key ins (witness :: (a,b))
+
+-- These are exported, but are not intended for the end user.
+
+-- Some combinators to get stuff in and out of the map
+fromXStream :: forall w. (Rep w) => w -> Stream (X w) -> TraceStream
+fromXStream witness stream = TraceStream (wireType witness) [toRep witness xVal | xVal <- Stream.toList stream ]
+
+-- oh to have dependent types!
+toXStream :: forall w. (Rep w) => w -> TraceStream -> Stream (X w)
+toXStream witness (TraceStream _ list) = Stream.fromList [fromRep witness $ val | val <- list]
+
+-- Functions below are not exported.
+
+-- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
+takeMaybe :: Maybe Int -> [a] -> [a]
+takeMaybe = maybe id take
+
+toXBit :: Maybe Bool -> Char
+toXBit = maybe 'X' (\b -> if b then '1' else '0')
+
+-- note the reverse here is crucial due to way vhdl indexes stuff
+showTraceStream :: Maybe Int -> TraceStream -> [String]
+showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | RepValue val <- takeMaybe c s]
+
+readStrm :: [String] -> (TraceStream, [String])
+readStrm ls = (strm,rest)
+    where (m,rest) = readMap ls
+          [(_,strm)] = M.toList (m :: TraceMap OVar)
+
+readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
+readMap ls = (go $ takeWhile cond ls, rest)
+    where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
+          rest = dropWhile cond ls
+          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
+          go _             = M.empty
+          toXBool :: Char -> X Bool
+          toXBool '1' = return True
+          toXBool '0' = return False
+          toXBool _   = fail "unknown"
+
+getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w)
+getStream name m witness = toXStream witness $ m M.! name
+
+getSeq :: (Ord a, Rep w) => a -> TraceMap a -> w -> Seq w
+getSeq key m witness = shallowSeq $ getStream key m witness
+
+-- Note: this only gets the *first* value. Perhaps combs should be stored differently?
+getComb :: (Ord a, Rep w) => a -> TraceMap a -> w -> Comb w
+getComb key m witness = shallowComb $ Stream.head $ getStream key m witness
+
+addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
+addStream key m witness stream = M.insert key (fromXStream witness stream) m
+
+addSeq :: forall a b. (Ord a, Rep b) => a -> Seq b -> TraceMap a -> TraceMap a
+addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
+
