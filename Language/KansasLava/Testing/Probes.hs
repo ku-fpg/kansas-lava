@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
--- | The VCD module logs the shallow-embedding signals of a Lava circuit in the
--- deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes where -- (Probe,fromXStream,toXStream,mkTrace,run,probeCircuit,probe,getProbe,probesFor) where
+-- | Probes log the shallow-embedding signals of a Lava circuit in the
+-- | deep embedding, so that the results can be observed post-mortem.
+module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,probesFor) where
 
 import Data.Sized.Arith(X1_,X0_)
 import Data.Sized.Ix
@@ -29,12 +29,6 @@ probeCircuit circuit = do
     let evts = [(n ++ "_" ++ show i,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
                        , pv@(ProbeValue (OVar i n) v) <- attrs]
     return evts
-
-
--- | 'getProbe' takes an association list of probe values and a probe
--- | name, and returns the trace (wrapped in a ProbeValue) from the probe.
-getProbe :: [(String,Annotation)] -> String ->  Maybe Annotation
-getProbe ps nm = lookup nm ps
 
 -- | 'probesFor' takes an association list of probe values and a probe
 -- | name, and returns an association list containing only those probes
@@ -126,30 +120,3 @@ addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
              (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
                  [value])))
 addAttr _ driver = error $ "Can't probe " ++ show driver
-
-{- showXStream is a utility function for printing out stream representations.
-instance Rep a => Show (XStream a) where
-    show xs = show $ foldr (\i r -> i ++ ", " ++ r) "..." $ take 30 $ valsXStream xs
-
-showXStream :: forall a. Rep a => XStream a -> Stream String
-showXStream (XStream strm) = fmap (showRep (undefined :: a)) strm
-
--- bitsXStream creates a list of binary representations of the values in the stream.
-bitsXStream :: forall a. Rep a => XStream a -> [String]
-bitsXStream (XStream strm) = showSeqBits ((shallowSeq strm) :: Seq a)
-
--- valsXStream creates a list of string representations of the values in the stream.
-valsXStream :: forall a. Rep a => XStream a -> [String]
-valsXStream (XStream strm) = showSeqVals ((shallowSeq strm) :: Seq a)
-
-showXStreamBits :: forall a . (Rep a) => XStream a -> Stream String
-showXStreamBits (XStream ss) =
-    fmap (\i -> (map showX $ reverse $ M.toList $ (fromWireXRep witness (i :: X a)))) ss
-       where showX b = case unX b of
-			Nothing -> 'X'
-			Just True -> '1'
-			Just False -> '0'
-             witness = error "witness" :: a
-
--}
-
