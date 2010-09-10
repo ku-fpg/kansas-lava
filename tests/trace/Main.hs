@@ -123,7 +123,7 @@ main = do
     putStrLn "unit test:"
     test "lavaFst" 100 thunk (toSeq $ cycle [True,False])
 
-    mkDeepThunk "test/lavaFst" 100 thunk
+    recordThunk "test/lavaFst" 100 thunk
 
     t4 <- mkTrace limit muxt
 
@@ -149,8 +149,8 @@ main = do
                                            (toSeq $ cycle [0..2])
 
     -- test each separately
-    mkDeepThunk "test/mux2" 100 muxt
-    runDeepThunk "test/mux2" modelsim
+    recordThunk "test/mux2" 100 muxt
+    runTestBench "test/mux2" modelsim
 
     -- now test them combined
     runDeep "halfAdder" 100 thunk2 modelsim
