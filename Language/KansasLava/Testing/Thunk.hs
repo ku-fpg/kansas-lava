@@ -29,11 +29,18 @@ mkTrace c (Thunk circuit k) = do
 
     rc <- reifyCircuit $ k $ probed
 
+    print rc
+
     let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc
                        , ProbeValue k v <- attrs ]
-        io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, name == uname ]
+        io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
         ins = M.fromList $ init io
         out = snd $ last io
+
+--    print $ take 10 pdata
+--    print $ take 10 io
+--    print $ map (take 10) $ take 10 $ M.toList ins
+    print $ Trace { len = c, inputs = ins, outputs = out, probes = M.fromList pdata, signature = circuitSignature rc }
 
     -- signature generation is broken (no inputs) because rc is circuit with inputs applied
     return $ Trace { len = c, inputs = ins, outputs = out, probes = M.fromList pdata, signature = circuitSignature rc }
@@ -64,6 +71,9 @@ recordThunk path cycles thunk@(Thunk c k) = do
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
 
     rc <- reifyCircuit c
+
+    print rc
+
     mkTestbench name path rc
 
     return trace
