@@ -74,4 +74,3 @@ mkDeepThunk path cycles thunk@(Thunk c k) = do
     mkTestbench name path rc
 
     return trace
-
