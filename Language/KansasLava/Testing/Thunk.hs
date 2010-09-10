@@ -59,8 +59,8 @@ runDeepThunk path invoker = do
         then invoker path
         else putStrLn $ "runDeepThunk: " ++ path ++ " does not exist!"
 
-mkDeepThunk :: (Ports b) => FilePath -> Int -> Thunk b -> IO Trace
-mkDeepThunk path cycles thunk@(Thunk c k) = do
+recordThunk :: (Ports b) => FilePath -> Int -> Thunk b -> IO Trace
+recordThunk path cycles thunk@(Thunk c k) = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
