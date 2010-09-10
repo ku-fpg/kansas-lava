@@ -369,7 +369,7 @@ instance (Rep a, Rep b) => Rep (a,b) where
 	fromRep w (RepValue vs) = ( fromRep (witness :: a) (RepValue (take size_a vs))
 				  , fromRep (witness :: b) (RepValue (drop size_a vs))
 				  )
-		where size_a = typeWidth (wireType w)
+		where size_a = typeWidth (wireType (witness :: a))
 	showRep _ (a,b) = "(" ++ showRep (witness :: a) a ++ "," ++ showRep (witness :: b) b ++ ")"
 
 {-
@@ -405,9 +405,22 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 -}
 
 	wireType ~(a,b,c) = TupleTy [wireType a, wireType b,wireType c]
+	toRep _ (a,b,c) = RepValue (avals ++ bvals ++ cvals)
+		where (RepValue avals) = toRep (witness :: a) a
+		      (RepValue bvals) = toRep (witness :: b) b
+		      (RepValue cvals) = toRep (witness :: c) c
+	fromRep w (RepValue vs) = ( fromRep (witness :: a) (RepValue (take size_a vs))
+				  , fromRep (witness :: b) (RepValue (drop size_a vs))
+				  , fromRep (witness :: c) (RepValue (drop (size_a + size_b) vs))
+				  )
+		where size_a = typeWidth (wireType (witness :: a))
+		      size_b = typeWidth (wireType (witness :: b))
 	showRep _ (a,b,c) = "(" ++ showRep (witness :: a) a ++ 
 			    "," ++ showRep (witness :: b) b ++ 
 			    "," ++ showRep (witness :: c) c ++ ")"
+
+
+
 
 {-
 instance (t ~ ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c)), Size t, Enum t, RepWire a, RepWire b,RepWire c) => RepWire (a,b,c) where
