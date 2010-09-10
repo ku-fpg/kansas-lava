@@ -97,18 +97,36 @@ genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fT
 
 -- Sampled
 
-genInst i (Entity (Name "Lava" "+") [("o0",ty@(SampledTy m n))] [ ("i0",iTy0,v0),("i1",iTy1,v1) ] _)
-	| ty == iTy0 && ty == iTy1
-	= genInst i (Entity (Name "Sampled" "addition") [("o0",ty)] [ ("i0",iTy0,v0),("i1",iTy1,v1)
-								    , ("max_value", GenericTy, Generic $ fromIntegral m)  
-								    , ("width_size",GenericTy, Generic $ fromIntegral n)
-								    ] [])
-genInst i (Entity (Name "Lava" "-") [("o0",ty@(SampledTy m n))] [ ("i0",iTy0,v0),("i1",iTy1,v1) ] _)
-	| ty == iTy0 && ty == iTy1
-	= genInst i (Entity (Name "Sampled" "subtract") [("o0",ty)] [ ("i0",iTy0,v0),("i1",iTy1,v1)
-								    , ("max_value", GenericTy, Generic $ fromIntegral m)  
-								    , ("width_size",GenericTy, Generic $ fromIntegral n)
-								    ] [])
+-- TODO: check all arguments types are the same
+genInst i (Entity (Name "Lava" op) [("o0",ty@(SampledTy m n))] ins _)
+	| op `elem` (map fst mappings)
+	= genInst i (Entity (Name "Sampled" nm) [("o0",ty)] 
+				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)  
+					        , ("width_size",GenericTy, Generic $ fromIntegral n)
+					        ]) [])
+
+  where
+	Just nm = lookup op mappings
+
+	mappings = 
+		[ ("+","addition")
+		, ("-","subtraction")
+		, ("negate","negate")
+		]
+-- For compares, we need to use one of the arguments.
+genInst i (Entity (Name "Lava" op) [("o0",B)] ins@(("i0",SampledTy m n,_):_) _)
+	| op `elem` (map fst mappings)
+	= genInst i (Entity (Name "Sampled" nm) [("o0",B)] 
+				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)  
+					        , ("width_size",GenericTy, Generic $ fromIntegral n)
+					        ]) [])
+
+  where
+	Just nm = lookup op mappings
+
+	mappings = 
+		[ (".>.","greaterThan")
+		]		
 
 
 -- This is only defined over constants that are powers of two.
