@@ -9,7 +9,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Signal
 
 import qualified Language.KansasLava.Stream as Stream
-import  Language.KansasLava.Stream (Stream)
+import Language.KansasLava.Stream (Stream)
 import Language.KansasLava.Testing.Utils
 
 import qualified Data.Sized.Matrix as Matrix
@@ -28,6 +28,7 @@ data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap OVar
                    , outputs :: TraceStream
                    , probes :: TraceMap OVar
+                   , signature :: Signature
 --                   , circuit :: Circuit
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    -- what else? keep the vhdl here?
@@ -61,28 +62,28 @@ setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
 addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
-addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
+addInput key seq t@(Trace _ ins _ _ _) = t { inputs = addSeq key seq ins }
 
 remInput :: OVar -> Trace -> Trace
-remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
+remInput key t@(Trace _ ins _ _ _) = t { inputs = M.delete key ins }
 
 setOutput :: forall a. (Rep a) => Seq a -> Trace -> Trace
 setOutput (Seq s _) t = t { outputs = fromXStream (witness :: a) s }
 
 addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
-addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
+addProbe key seq t@(Trace _ _ _ ps _) = t { probes = addSeq key seq ps }
 
 remProbe :: OVar -> Trace -> Trace
-remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
+remProbe key t@(Trace _ _ _ ps _) = t { probes = M.delete key ps }
 
 -- instances for Trace
 instance Show Trace where
-    show (Trace c i (TraceStream oty os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,takeMaybe c os), "probes"], printer p]
+    show (Trace c i (TraceStream oty os) p sig) = unlines $ concat [[show sig,show c,"inputs"], printer i, ["outputs", show (oty,takeMaybe c os), "probes"], printer p]
         where printer m = [show (k,TraceStream ty $ takeMaybe c val) | (k,TraceStream ty val) <- M.toList m]
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
-    (==) (Trace c1 i1 (TraceStream oty1 os1) p1) (Trace c2 i2 (TraceStream oty2 os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
+    (==) (Trace c1 i1 (TraceStream oty1 os1) p1 sig1) (Trace c2 i2 (TraceStream oty2 os2) p2 sig2) = (sig1 == sig2) && (c1 == c2) && insEqual && outEqual && probesEqual
         where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.assocs m]
               insEqual = (sorted i1) == (sorted i2)
               outEqual = (oty1 == oty2) && (takeMaybe c1 os1 == takeMaybe c2 os2)
@@ -93,7 +94,7 @@ diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
 emptyTrace :: Trace
-emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = Empty, probes = M.empty }
+emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = Empty, probes = M.empty, signature = Signature [] [] [] }
 
 takeTrace :: Int -> Trace -> Trace
 takeTrace i t = t { len = Just newLen }
@@ -102,7 +103,7 @@ takeTrace i t = t { len = Just newLen }
                     Nothing -> i
 
 dropTrace :: Int -> Trace -> Trace
-dropTrace i t@(Trace c ins (TraceStream oty os) ps)
+dropTrace i t@(Trace c ins (TraceStream oty os) ps _)
     | newLen > 0 = t { len = Just newLen
                      , inputs = dropStream ins
                      , outputs = TraceStream oty $ drop i os
@@ -113,8 +114,8 @@ dropTrace i t@(Trace c ins (TraceStream oty os) ps)
 
 -- need to change format to be vertical
 serialize :: Trace -> String
-serialize (Trace c ins (TraceStream oty os) ps) = concat $
-			unlines [(show c), "INPUTS"] : showMap ins ++
+serialize (Trace c ins (TraceStream oty os) ps sig) = concat $
+			unlines [show sig, show c, "INPUTS"] : showMap ins ++
 			[unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++
 			showMap ps
     where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
@@ -128,18 +129,19 @@ showTraceStream :: Maybe Int -> TraceStream -> [String]
 showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | RepValue val <- takeMaybe c s]
 
 genShallow :: Trace -> [String]
-genShallow (Trace c ins out _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
+genShallow (Trace c ins out _ _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
     where alldata = (M.elems ins) ++ [out]
 
 genInfo :: Trace -> [String]
-genInfo (Trace c ins out _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
+genInfo (Trace c ins out _ _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
     where alldata = (M.elems ins) ++ [out]
           lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 deserialize :: String -> Trace
-deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
-    where (cstr:"INPUTS":ls) = lines str
+deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps, signature = s }
+    where (sig:cstr:"INPUTS":ls) = lines str
           c = read cstr :: Maybe Int
+          s = read sig :: Signature
           (ins,"OUTPUT":r1) = readMap ls
           (out,"PROBES":r2) = readStrm r1
           (ps,_) = readMap r2
@@ -180,7 +182,7 @@ class Run a where
     run :: a -> Trace -> TraceStream
 
 instance (Rep a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+    run (Seq s _) (Trace c _ _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = fromXStream (witness :: a) s
 
 -- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
@@ -189,7 +191,7 @@ takeMaybe = maybe id take
 
 {- eventually
 instance (Rep a) => Run (Comb a) where
-    run (Comb s _) (Trace c _ _ _) = (wireType witness, take c $ fromXStream witness (fromList $ repeat s))
+    run (Comb s _) (Trace c _ _ _ _) = (wireType witness, take c $ fromXStream witness (fromList $ repeat s))
         where witness = (error "run trace" :: a)
 -}
 
@@ -207,18 +209,18 @@ instance (Run a, Run b, Run c) => Run (a,b,c) where
               TraceStream ty3 strm3 = run z t
 
 instance (Rep a, Run b) => Run (Seq a -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+    run fn t@(Trace c ins _ _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
               input = getSeq key ins (witness :: a)
 
 instance (Rep a, Run b) => Run (Comb a -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+    run fn t@(Trace c ins _ _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
               input = getComb key ins (witness :: a)
 
 -- TODO: generalize over different clocks
 instance (Run b) => Run (Env () -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
+    run fn t@(Trace c ins _ _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
         where [key1,key2] = take 2 $ M.keys ins
               input = shallowEnv
 			{ resetEnv = getSeq key1 ins (witness :: Bool)
@@ -229,14 +231,6 @@ instance (Run b) => Run (Env () -> b) where
 instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
           Matrix.Size (Matrix.ADD (WIDTH a) (WIDTH b)),
           Rep a, Rep b, Run c) => Run ((Seq a, Seq b) -> c) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
+    run fn t@(Trace c ins _ _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
               input = unpack $ getSeq key ins (witness :: (a,b))
-
-{- output formats
-latexWaveform :: Trace -> String
-truthTable :: Trace -> String -- or some truth table structure
-vcd :: Trace -> String -- or maybe FilePath -> Trace -> IO ()
-vhdl :: Trace -> String
--}
-

@@ -164,10 +164,10 @@ data Driver s = Port String s   -- a specific port on the entity
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
-  show (Port v i) = "(" ++ show i ++ ")." ++ v 
+  show (Port v i) = "(" ++ show i ++ ")." ++ v
   show (Lit x) = "'" ++ show x ++ "'"
   show (Generic x) = show x
-  show (Pad v) = show v 
+  show (Pad v) = show v
   show (Error msg) = show msg
 
 instance T.Traversable Driver where
@@ -255,12 +255,12 @@ isValidRepValue (RepValue m) = and $ fmap isGood $ m
 
 -- Returns a binary rep, or Nothing is any bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
-getValidRepValue r@(RepValue m) 
+getValidRepValue r@(RepValue m)
 	| isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
 	| otherwise	    = Nothing
 
 ---------------------------------------------------------------------------------------------------------
--- 
+--
 --
 
 -- TODO: Consider why the Empty?
@@ -271,7 +271,7 @@ data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually cl
 
 
 ---------------------------------------------------------------------------------------------------------
--- 
+--
 
 data Annotation = ProbeValue OVar TraceStream
 --                | Ann String Dynamic
@@ -328,7 +328,7 @@ instance Show Circuit where
    show rCir = msg
      where
 	showDriver d t = show d ++ " : " ++ show t
-	
+
 	bar = (replicate 78 '-') ++ "\n"
 
 	inputs = unlines
@@ -372,16 +372,16 @@ instance Show Circuit where
 		++ bar
 
 
-data Signature = Signature 
+data Signature = Signature
 	{ sigInputs   :: [(OVar,Type)]
 	, sigOutputs  :: [(OVar,Type)]
 	, sigGenerics :: [(OVar,Integer)]
         }
-	deriving (Show, Read)
+	deriving (Show, Read, Eq)
 
 
 circuitSignature :: Circuit -> Signature
-circuitSignature cir = Signature 
+circuitSignature cir = Signature
 	{ sigInputs   = theSrcs cir
 	, sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
 	, sigGenerics = []
@@ -396,17 +396,17 @@ data CircuitOptions
 	= DebugReify		-- ^ show debugging output of the reification stage
 	| OptimizeReify		-- ^ perform basic optimizations
 	| NoRenamingReify	-- ^ do not use renaming of variables
-	| CommentDepth 
+	| CommentDepth
 	      [(Id,DepthOp)] 	-- ^ add comments that denote depth
 	deriving (Eq, Show)
 
--- Does a specific thing 
+-- Does a specific thing
 data DepthOp = AddDepth Float
 	     | NewDepth Float
 	deriving (Eq, Show)
 
 -------------------------------------------------------------------------------------
--- 
+--
 
 -- Not a type, but used as a first class type.
 
