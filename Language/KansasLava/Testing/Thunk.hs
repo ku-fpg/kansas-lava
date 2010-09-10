@@ -1,5 +1,9 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
+<<<<<<< HEAD
 module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench) where
+=======
+module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runDeepThunk) where
+>>>>>>> Fixing usage of recordThunk
 
 import Language.KansasLava
 
