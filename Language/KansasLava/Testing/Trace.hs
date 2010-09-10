@@ -152,14 +152,14 @@ readStrm ls = (strm,rest)
           [(_,strm)] = M.toList (m :: TraceMap OVar)
 
 readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
-readMap ls = trace (show ("readMap",ls)) (go $ takeWhile cond ls, rest)
+readMap ls = (go $ takeWhile cond ls, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
           rest = dropWhile cond ls
           go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
           go _             = M.empty
           toXBool :: Char -> X Bool
-          toXBool 'T' = return True
-          toXBool 'F' = return False
+          toXBool '1' = return True
+          toXBool '0' = return False
           toXBool _   = fail "unknown"
 
 writeToFile :: FilePath -> Trace -> IO ()
