@@ -37,10 +37,11 @@ instance ToTypedExpr String where
 	toTypedExpr B      nm = 		       ExprVar $ nm -- ExprBinary Equals (ExprVar nm) (ExprBit 1)
 	toTypedExpr ClkTy  nm = 		       ExprVar $ nm
 	toTypedExpr (V _)  nm = 	   	       ExprVar $ nm
-	toTypedExpr (S _)  nm = signed $ 	       ExprVar $ nm
-	toTypedExpr (U _)  nm = unsigned $ 	       ExprVar $ nm
+	toTypedExpr (S _)  nm = 	signed $       ExprVar $ nm
+	toTypedExpr (U _)  nm = 	unsigned $     ExprVar $ nm
 	toTypedExpr (TupleTy _) nm =		       ExprVar $ nm
 	toTypedExpr (MatrixTy _ _) nm =		       ExprVar $ nm
+	toTypedExpr (SampledTy {}) nm =		       ExprVar $ nm
 	toTypedExpr _other nm = error $ (show ("toTypedExpr",_other,nm))
 
 instance ToTypedExpr Integer where
@@ -90,6 +91,7 @@ instance ToStdLogicExpr Expr where
 	toStdLogicExpr (MatrixTy _ _) e =	     e
 	toStdLogicExpr (S _)  e = std_logic_vector $ e
 	toStdLogicExpr (U _)  e = std_logic_vector $ e
+	toStdLogicExpr(SampledTy {}) e =	     e
 	toStdLogicExpr _other e = error $ show ("toStdLogicExpr", _other,e)
 
 class ToIntegerExpr v where

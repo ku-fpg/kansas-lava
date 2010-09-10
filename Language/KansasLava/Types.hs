@@ -32,6 +32,10 @@ data Type
 	| MatrixTy Int Type
 			-- | Matrix, vhdl array.
 
+	| SampledTy Int Int
+			-- | Our "floating" values. 
+			--    The first number is the precision/scale (+/- N)
+			--    The second number is the bits used to represent this number
 	deriving (Eq, Ord)
 
 
@@ -44,6 +48,7 @@ typeWidth (U x) = x
 typeWidth (V x) = x
 typeWidth (TupleTy tys) = sum (map typeWidth tys)
 typeWidth (MatrixTy i ty) = i * typeWidth ty
+typeWidth (SampledTy _ i) = i
 typeWidth other = error $ show ("typeWidth",other)
 
 -- | 'isTypeSigned' determines if a type has a signed representation. This is
@@ -54,6 +59,7 @@ isTypeSigned ClkTy = False
 isTypeSigned (S _) = True
 isTypeSigned (U _) = False
 isTypeSigned (V _) = False
+isTypeSigned (SampledTy {}) = True
 
 instance Show Type where
 	show B 		= "B"
@@ -64,6 +70,7 @@ instance Show Type where
 	show GenericTy  = "G"
 	show (TupleTy tys) = show tys
 	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
+	show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
 
 -- This is required for the deserialization of Trace objects.
 instance Read Type where

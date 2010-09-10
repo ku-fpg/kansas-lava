@@ -95,15 +95,30 @@ genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fT
                       (toStdLogicExpr fTy f))]
   where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprBit 1)
 
+-- Sampled
+
+genInst i (Entity (Name "Lava" "+") [("o0",ty@(SampledTy m n))] [ ("i0",iTy0,v0),("i1",iTy1,v1) ] _)
+	| ty == iTy0 && ty == iTy1
+	= genInst i (Entity (Name "Sampled" "addition") [("o0",ty)] [ ("i0",iTy0,v0),("i1",iTy1,v1)
+								    , ("max_value", GenericTy, Generic $ fromIntegral m)  
+								    , ("width_size",GenericTy, Generic $ fromIntegral n)
+								    ] [])
+genInst i (Entity (Name "Lava" "-") [("o0",ty@(SampledTy m n))] [ ("i0",iTy0,v0),("i1",iTy1,v1) ] _)
+	| ty == iTy0 && ty == iTy1
+	= genInst i (Entity (Name "Sampled" "subtract") [("o0",ty)] [ ("i0",iTy0,v0),("i1",iTy1,v1)
+								    , ("max_value", GenericTy, Generic $ fromIntegral m)  
+								    , ("width_size",GenericTy, Generic $ fromIntegral n)
+								    ] [])
+
 
 -- This is only defined over constants that are powers of two.
-genInst i (Entity (Name "Sampled" "/") [("o0",oTy)] [ ("i0",iTy,v), ("i1",iTy',Lit lit)] _)
+genInst i (Entity (Name "Lava" "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)] _)
 --	= trace (show n) 
-	|  fromRepToInteger lit == 64
+	|  fromRepToInteger lit == 16 * 4
 		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
     		-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
-	= [ InstDecl "Sampled_shiftR" ("inst" ++ show i)
-  		[ ("shift_by",ExprNum $ fromIntegral $ 2) ]
+	= [ InstDecl "Sampled_fixedDivPowOfTwo" ("inst" ++ show i)
+  		[ ("shift_by",ExprNum $ fromIntegral $ 2) ] -- because / 4 is same as >> 2
                 [ ("i0",toStdLogicExpr iTy v) ]
 		[ ("o0",ExprVar $ sigName "o0" i) ]
           ]
@@ -162,14 +177,18 @@ genInst i (Entity n@(Name _ _) [("o0",oTy)] ins _)
 genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
-  		[ ("width_size",ExprNum $ fromIntegral $ head [ typeWidth ty | (_,ty) <- outputs ])
-			| mod_nms <- ["Sampled"]	-- hack
-			, mod_nm == mod_nms
+		[ (n,case x of
+			Generic v -> ExprNum v
+			_ -> error $ "genInst, Generic, " ++ show (n,nTy,x)
+	          )
+		| (n,nTy,x) <- inputs, isGenericTy nTy 
 		]
-                [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs ]
+                [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
 		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
           ]
-
+   where isGenericTy GenericTy = True
+         isGenericTy _         = False
+	
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
 -- TODO: Table should have a default, for space reasons
