@@ -51,9 +51,10 @@ mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: 
 recordThunk :: (Ports b)
             => FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
             -> Int      -- ^ Generate inputs for this many cycles.
+	    -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL gener5ation
             -> Thunk b
             -> IO Trace
-recordThunk path cycles thunk@(Thunk c k) = do
+recordThunk path cycles circuitMod thunk@(Thunk c k) = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
@@ -65,7 +66,9 @@ recordThunk path cycles thunk@(Thunk c k) = do
 
     rc <- reifyCircuit c
 
-    mkTestbench name path rc
+    rc' <- circuitMod rc
+
+    mkTestbench name path rc'
 
     return trace
 
@@ -79,14 +82,15 @@ runDeep :: (Ports b)
         => String              -- ^ User significant name for the Thunk
         -> Int                 -- ^ Number of cycles to simulate.
         -> Thunk b
+	-> (Circuit -> IO Circuit) -- ^ what operations to perform on the deep embedding
         -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and charged with actually executing the test. Can assume path exists.
         -> IO ()
-runDeep name cycles thunk invoker = do
+runDeep name cycles thunk circuitMod invoker = do
     tmp <- getTemporaryDirectory
 
     let target = tmp </> name
 
-    recordThunk target cycles thunk
+    recordThunk target cycles circuitMod thunk
     runTestBench target invoker
 
     -- there better not be any symlinks in here!
