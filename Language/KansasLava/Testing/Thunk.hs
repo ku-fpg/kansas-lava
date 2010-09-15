@@ -18,6 +18,9 @@ import System.Posix.Directory
 
 data Thunk b = forall a. (Ports a, Probe a, Run a, Ports b) => Thunk a (a -> b)
 
+instance (Show b) => Show (Thunk b) where
+   show thunk = show $ runShallow thunk
+
 -- | Make a Trace from a Thunk
 mkTrace :: (Ports a)
         => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
@@ -34,9 +37,10 @@ mkTrace c (Thunk circuit k) = do
         io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
         ins = M.fromList $ init io
         out = snd $ last io
+        ps = M.fromList pdata M.\\ M.fromList io
 
     -- signature generation is broken (no inputs) because rc is circuit with inputs applied
-    return $ Trace { len = c, inputs = ins, outputs = out, probes = M.fromList pdata, signature = circuitSignature rc }
+    return $ Trace { len = c, inputs = ins, outputs = out, probes = ps, signature = circuitSignature rc }
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)

@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
-module Language.KansasLava.Testing.Trace (Trace(..), Run, run, setCycles
+module Language.KansasLava.Testing.Trace (Trace(..), Run(..), setCycles
                                          ,addInput, getInput, remInput
                                          ,setOutput, getOutput, clearOutput
                                          ,addProbe, getProbe, remProbe
