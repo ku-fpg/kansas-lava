@@ -96,7 +96,6 @@ main = do
         muxt = Thunk (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4) (\m -> m (toSeq (cycle [True,False,True,True,False])) (inp, inp2))
         limit = Just 100
 
-{-
     writeToFile "test.trace" trace
     newTrace <- readFromFile "test.trace"
     putStrLn "Serialization Test:"
@@ -127,7 +126,7 @@ main = do
     putStrLn "unit test:"
     test "lavaFst" 100 thunk (toSeq $ cycle [True,False])
 
-    recordThunk "test/lavaFst" 100 thunk
+    recordThunk "test/lavaFst" 100 (return) thunk
 
     t4 <- mkTrace limit muxt
 
@@ -153,13 +152,12 @@ main = do
                                            (toSeq $ cycle [0..2])
 
     -- test each separately
-    recordThunk "test/mux2" 100 muxt
+    recordThunk "test/mux2" 100 (return) muxt
     runTestBench "test/mux2" modelsim
 
     -- now test them combined
-    runDeep "halfAdder" 100 thunk2 modelsim
-    runDeep "funMap" 200 funThunk modelsim
--}
+    runDeep "halfAdder" 100 thunk2 (return) modelsim
+    runDeep "funMap" 200 funThunk (return) modelsim
 
     let foo :: Env () -> Seq FLOAT -> Seq FLOAT
         foo = delay
