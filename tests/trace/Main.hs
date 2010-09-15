@@ -8,8 +8,9 @@ import Data.Default
 import Data.List
 
 import Data.Word
-import Data.Sized.Ix
 import Data.Sized.Arith
+import Data.Sized.Ix
+import Data.Sized.Sampled
 
 import System.Cmd
 import System.Directory
@@ -23,6 +24,8 @@ halfAdder a b = (a `xor2` b, probe "and2" and2 a b)
 
 lavaFst :: Seq Bool -> Seq Bool -> Seq Bool
 lavaFst a b = a
+
+type FLOAT = Sampled X8 X8
 
 -- this is the callback we will use when running deep thunks.
 -- the user must supply this, and it can be customized to do
@@ -93,6 +96,7 @@ main = do
         muxt = Thunk (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4) (\m -> m (toSeq (cycle [True,False,True,True,False])) (inp, inp2))
         limit = Just 100
 
+{-
     writeToFile "test.trace" trace
     newTrace <- readFromFile "test.trace"
     putStrLn "Serialization Test:"
@@ -155,3 +159,10 @@ main = do
     -- now test them combined
     runDeep "halfAdder" 100 thunk2 modelsim
     runDeep "funMap" 200 funThunk modelsim
+-}
+
+    let foo :: Env () -> Seq FLOAT -> Seq FLOAT
+        foo = delay
+
+    dtrace <- mkTrace (return 100) $ Thunk foo $ \ cir -> cir shallowEnv (toSeq  [1..4])
+    print dtrace

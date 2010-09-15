@@ -51,7 +51,7 @@ mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: 
 recordThunk :: (Ports b)
             => FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
             -> Int      -- ^ Generate inputs for this many cycles.
-	    -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL gener5ation
+            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
             -> Thunk b
             -> IO Trace
 recordThunk path cycles circuitMod thunk@(Thunk c k) = do
@@ -82,7 +82,7 @@ runDeep :: (Ports b)
         => String              -- ^ User significant name for the Thunk
         -> Int                 -- ^ Number of cycles to simulate.
         -> Thunk b
-	-> (Circuit -> IO Circuit) -- ^ what operations to perform on the deep embedding
+        -> (Circuit -> IO Circuit) -- ^ any operations on the circuit before VHDL generation
         -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and charged with actually executing the test. Can assume path exists.
         -> IO ()
 runDeep name cycles thunk circuitMod invoker = do
