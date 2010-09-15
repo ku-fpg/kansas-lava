@@ -3,7 +3,7 @@
 module Language.KansasLava.Netlist.Inst where
 
 import Language.KansasLava.Types
-import Language.Netlist.AST
+import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
@@ -52,7 +52,7 @@ genInst i (Entity (Name "Lava" "thd3") outputs inputs other)
 
 -- identity
 
-genInst  i (Entity (Name "Lava" "id") [(vO,_)] [(vI,ty,d)] _) = 
+genInst  i (Entity (Name "Lava" "id") [(vO,_)] [(vI,ty,d)] _) =
 	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
 
 -- Concat and index (join, project)
@@ -74,7 +74,7 @@ genInst i (Entity (Name "Lava" "index")
 		TupleTy tys -> tys
 
 -- For Probes, consider adding a comment
-genInst i (Entity (Name "probe" _) ins outs _) = 
+genInst i (Entity (Name "probe" _) ins outs _) =
 	genInst i (Entity (Name "Lava" "id") ins outs [])
 
 genInst i e@(Entity (Name "Memory" "register") [("o0",_)] inputs _) =
@@ -93,22 +93,22 @@ genInst i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fT
                      (ExprCond cond
                       (toStdLogicExpr tTy t)
                       (toStdLogicExpr fTy f))]
-  where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprBit 1)
+  where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprLit Nothing (ExprBit T))
 
 -- Sampled
 
 -- TODO: check all arguments types are the same
 genInst i (Entity (Name "Lava" op) [("o0",ty@(SampledTy m n))] ins _)
 	| op `elem` (map fst mappings)
-	= genInst i (Entity (Name "Sampled" nm) [("o0",ty)] 
-				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)  
+	= genInst i (Entity (Name "Sampled" nm) [("o0",ty)]
+				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
 					        , ("width_size",GenericTy, Generic $ fromIntegral n)
 					        ]) [])
 
   where
 	Just nm = lookup op mappings
 
-	mappings = 
+	mappings =
 		[ ("+","addition")
 		, ("-","subtraction")
 		, ("negate","negate")
@@ -116,27 +116,27 @@ genInst i (Entity (Name "Lava" op) [("o0",ty@(SampledTy m n))] ins _)
 -- For compares, we need to use one of the arguments.
 genInst i (Entity (Name "Lava" op) [("o0",B)] ins@(("i0",SampledTy m n,_):_) _)
 	| op `elem` (map fst mappings)
-	= genInst i (Entity (Name "Sampled" nm) [("o0",B)] 
-				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)  
+	= genInst i (Entity (Name "Sampled" nm) [("o0",B)]
+				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
 					        , ("width_size",GenericTy, Generic $ fromIntegral n)
 					        ]) [])
 
   where
 	Just nm = lookup op mappings
 
-	mappings = 
+	mappings =
 		[ (".>.","greaterThan")
-		]		
+		]
 
 
 -- This is only defined over constants that are powers of two.
 genInst i (Entity (Name "Lava" "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)] _)
---	= trace (show n) 
+--	= trace (show n)
 	|  fromRepToInteger lit == 16 * 4
 		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
     		-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
 	= [ InstDecl "Sampled_fixedDivPowOfTwo" ("inst" ++ show i)
-  		[ ("shift_by",ExprNum $ fromIntegral $ 2) ] -- because / 4 is same as >> 2
+  		[ ("shift_by",ExprLit Nothing (ExprNum $ fromIntegral $ 2)) ] -- because / 4 is same as >> 2
                 [ ("i0",toStdLogicExpr iTy v) ]
 		[ ("o0",ExprVar $ sigName "o0" i) ]
           ]
@@ -152,32 +152,34 @@ genInst i (Entity nm outputs inputs _)
 
 genInst i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)] _) =
 	case (t_in,t_out) of
-	   (V n,U m) | n == m -> 
-		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
+	   (V n,U m) | n == m ->
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
-	   (V n,V m) | n == m -> 
-		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w) 
+	   (V n,V m) | n == m ->
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
 genInst i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)] _) =
 	case (t_in,t_out) of
-	   (U n,V m) | n == m -> 
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
+	   (U n,V m) | n == m ->
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
-	   (V n,V m) | n == m -> 
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w) 
+	   (V n,V m) | n == m ->
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
 genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)] _)
 	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
-	| otherwise = 
-	[ NetAssign  (sigName "o0" i) $ ExprSlice nm (ExprNum (fromIntegral x + fromIntegral outs - 1)) (ExprNum (fromIntegral x))
+	| otherwise =
+	[ NetAssign  (sigName "o0" i) $ ExprSlice nm sliceHigh sliceLow
 	]
   where
      nm = case toTypedExpr (V ins) w of
   	    ExprVar n -> n
 	    other -> error $ " problem with spliceStdLogicVector " ++ show w
+     sliceHigh = ExprLit Nothing (ExprNum (fromIntegral x + fromIntegral outs - 1))
+     sliceLow = ExprLit Nothing (ExprNum (fromIntegral x))
 
 -- The specials (from a table)
 
@@ -196,17 +198,17 @@ genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
 		[ (n,case x of
-			Generic v -> ExprNum v
+			Generic v -> ExprLit Nothing (ExprNum v)
 			_ -> error $ "genInst, Generic, " ++ show (n,nTy,x)
 	          )
-		| (n,nTy,x) <- inputs, isGenericTy nTy 
+		| (n,nTy,x) <- inputs, isGenericTy nTy
 		]
                 [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
 		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
           ]
    where isGenericTy GenericTy = True
          isGenericTy _         = False
-	
+
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
 -- TODO: Table should have a default, for space reasons

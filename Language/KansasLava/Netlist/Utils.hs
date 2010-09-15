@@ -2,7 +2,7 @@
 module Language.KansasLava.Netlist.Utils where
 
 import Language.KansasLava.Types
-import Language.Netlist.AST
+import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
@@ -52,9 +52,11 @@ instance ToTypedExpr Integer where
 fromIntegerToExpr :: Type -> Integer -> Expr
 fromIntegerToExpr t i =
 	case toStdLogicTy t of
-	     B   -> ExprBit (fromInteger i)
-	     V n -> ExprLit n i
+	     B   -> ExprLit (Just 1) (ExprBit (b (fromInteger i)))
+	     V n -> ExprLit (Just n) (ExprNum i)
 	     other -> error "fromIntegerToExpr: was expecting B or V from normalized number"
+  where b 0 = F
+        b 1 = T
 
 
 instance ToTypedExpr RepValue where
@@ -69,7 +71,7 @@ class ToStdLogicExpr v where
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
-	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n	
+	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
 	toStdLogicExpr ty (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
 	toStdLogicExpr ty (Pad (OVar _ v)) = ExprVar $ v
 	toStdLogicExpr ty other		   = error $ show other
@@ -129,16 +131,20 @@ sigName v d = "sig_" ++  show d ++ "_" ++ v
 sizedRange :: Type -> Maybe Range
 sizedRange ty = case toStdLogicTy ty of
 		  B -> Nothing
-		  V n -> Just $ Range (ExprNum (fromIntegral n - 1)) (ExprNum 0)
+		  V n -> Just $ Range high low
+                    where high = ExprLit Nothing (ExprNum (fromIntegral n - 1))
+                          low = ExprLit Nothing (ExprNum 0)
 
 -- like sizedRange, but allowing 2^n elements (for building memories)
 memRange :: Type -> Maybe Range
 memRange ty = case toStdLogicTy ty of
 		  B -> Nothing
-		  V n -> Just $ Range (ExprNum (2^(fromIntegral n) - 1)) (ExprNum 0)
+		  V n -> Just $ Range high low
+                    where high = ExprLit Nothing (ExprNum (2^(fromIntegral n) - 1))
+                          low = ExprLit Nothing (ExprNum 0)
 
 -- VHDL "macros"
-active_high d      = ExprCond d (ExprBit 1) (ExprBit 0)
+active_high d      = ExprCond d  (ExprLit Nothing (ExprBit T)) (ExprLit Nothing (ExprBit F))
 std_logic_vector d = ExprFunCall "std_logic_vector" [d]
 to_unsigned x w    = ExprFunCall "to_unsigned" [x, w]		-- is this used now?
 unsigned x         = ExprFunCall "unsigned" [x]
@@ -149,9 +155,9 @@ to_integer e       = ExprFunCall "to_integer" [e]
 --singleton x 	   = ExprFunCall "singleton" [x]
 -- Others
 
-isHigh d = (ExprBinary Equals d (ExprBit 1))
-isLow d = (ExprBinary Equals d (ExprBit 0))
-allLow ty = ExprLit (typeWidth ty) 0
+isHigh d = (ExprBinary Equals d (ExprLit Nothing (ExprBit T)))
+isLow d = (ExprBinary Equals d (ExprLit Nothing (ExprBit F)))
+allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
 zeros = ExprString "(others => '0')" -- HACK
 
 ---------------------------------------------------------------------------------------------------
@@ -173,10 +179,11 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
 
 	f :: Integer -> Type -> (Integer,Expr)
-        f i B = (i-1,ExprIndex nm (ExprNum i))
+        f i B = (i-1,ExprIndex nm (ExprLit Nothing (ExprNum i)))
         f i ty = let w = fromIntegral $ typeWidth ty
                      next = i - w
-                 in (next, ExprSlice nm (ExprNum i) (ExprNum (next + 1)))
+                 in (next, ExprSlice nm (ExprLit Nothing (ExprNum i))
+                                        (ExprLit Nothing (ExprNum (next + 1))))
 
 -- Find some specific (named) input inside the entity.
 lookupInput :: (Show a, Show b) => String -> Entity a a' b -> Driver b
