@@ -51,11 +51,11 @@ class Probe a where
     probe' :: String -> [Int] -> a -> a
     probe' name (i:_) s = attach i name s
 
-instance (Show a, Rep a) => Probe (CSeq c a) where
+instance (Rep a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
         where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
 
-instance (Show a, Rep a) => Probe (Comb a) where
+instance (Rep a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
         where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
 
@@ -69,10 +69,7 @@ instance Probe (Env c) where
     attach i name (Env clk rst clk_en) = Env clk (attach i (name ++ "_0rst") rst)
  						                         (attach i (name ++ "_1clk_en") clk_en)
 
-instance (Show a, Show b,
-          Rep a, Rep b,
---          Size (ADD (WIDTH a) (WIDTH b)),
---          Enum (ADD (WIDTH a) (WIDTH b)),
+instance (Rep a, Rep b,
           Probe (f (a,b)),
           Pack f (a,b)) => Probe (f a, f b) where
     attach i name c = val
@@ -81,10 +78,7 @@ instance (Show a, Show b,
               val :: (f a, f b)
               val = unpack packed
 
-instance (Show a, Show b, Show c,
-          Rep a, Rep b, Rep c,
---          Size (ADD (WIDTH a) (WIDTH b)),
---          Enum (ADD (WIDTH a) (WIDTH b)),
+instance (Rep a, Rep b, Rep c,
           Probe (f (a,b,c)),
           Pack f (a,b,c)) => Probe (f a, f b, f c) where
     attach i name c = val
@@ -93,7 +87,7 @@ instance (Show a, Show b, Show c,
               val :: (f a, f b, f c)
               val = unpack packed
 
-instance (Show a, Probe a, Probe b) => Probe (a -> b) where
+instance (Probe a, Probe b) => Probe (a -> b) where
     -- this shouldn't happen, but if it does, discard int and generate fresh order
     attach _ = probe
 
