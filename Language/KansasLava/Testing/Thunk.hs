@@ -39,8 +39,7 @@ mkTrace c (Thunk circuit k) = do
         out = snd $ last io
         ps = M.fromList pdata M.\\ M.fromList io
 
-    -- signature generation is broken (no inputs) because rc is circuit with inputs applied
-    return $ Trace { len = c, inputs = ins, outputs = out, probes = ps, signature = circuitSignature rc }
+    return $ Trace { len = c, inputs = ins, outputs = out, probes = ps }
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)
