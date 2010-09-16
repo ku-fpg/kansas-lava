@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
 module Language.KansasLava.Testing.Trace (Trace(..), Run(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
-                                         ,setOutput, getOutput, clearOutput
+                                         ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
                                          ,toXStream, fromXStream -- needed in Probes, but should not be re-exported to user
                                          ,diff, emptyTrace, takeTrace, dropTrace
@@ -33,16 +33,15 @@ type TraceMap k = M.Map k TraceStream
 
 data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap OVar
-                   , outputs :: TraceStream
+                   , outputs :: TraceMap OVar
                    , probes :: TraceMap OVar
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    }
 
 traceSignature :: Trace -> Signature
-traceSignature (Trace _ ins out _) = Signature inps outs []
+traceSignature (Trace _ ins outs _) = Signature inps outps []
     where inps = [ (k,ty) | (k,TraceStream ty _) <- M.toList ins ]
-          outs = [(OVar 0 "o0", oty)]
-          TraceStream oty _ = out
+          outps = [ (k,ty) | (k,TraceStream ty _) <- M.toList outs ]
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
@@ -57,14 +56,14 @@ getInput key witness trace = getSeq key (inputs trace) witness
 remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
-setOutput :: forall a. (Rep a) => Seq a -> Trace -> Trace
-setOutput (Seq s _) t = t { outputs = fromXStream (witness :: a) s }
+addOutput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addOutput key seq t@(Trace _ _ outs _) = t { outputs = addSeq key seq outs }
 
-getOutput :: (Rep w) => w -> Trace -> Seq w
-getOutput witness trace = shallowSeq $ toXStream witness $ outputs trace
+getOutput :: (Rep w) => OVar -> w -> Trace -> Seq w
+getOutput key witness trace = getSeq key (outputs trace) witness
 
-clearOutput :: Trace -> Trace
-clearOutput t = t { outputs = Empty }
+remOutput :: OVar -> Trace -> Trace
+remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
 
 addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
@@ -77,15 +76,15 @@ remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
 instance Show Trace where
-    show (Trace c i (TraceStream oty os) p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs", show (oty,takeMaybe c os), "probes"], printer p]
+    show (Trace c i o p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs"], printer o, ["probes"], printer p]
         where printer m = [show (k,TraceStream ty $ takeMaybe c val) | (k,TraceStream ty val) <- M.toList m]
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
-    (==) (Trace c1 i1 (TraceStream oty1 os1) p1) (Trace c2 i2 (TraceStream oty2 os2) p2) = (c1 == c2) && insEqual && outEqual && probesEqual
+    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 == c2) && insEqual && outEqual && probesEqual
         where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.assocs m]
               insEqual = (sorted i1) == (sorted i2)
-              outEqual = (oty1 == oty2) && (takeMaybe c1 os1 == takeMaybe c2 os2)
+              outEqual = (sorted o1) == (sorted o2)
               probesEqual = (sorted p1) == (sorted p2)
 
 -- something more intelligent someday?
@@ -93,7 +92,7 @@ diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
 emptyTrace :: Trace
-emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = Empty, probes = M.empty }
+emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = M.empty, probes = M.empty }
 
 takeTrace :: Int -> Trace -> Trace
 takeTrace i t = t { len = Just newLen }
@@ -102,10 +101,10 @@ takeTrace i t = t { len = Just newLen }
                     Nothing -> i
 
 dropTrace :: Int -> Trace -> Trace
-dropTrace i t@(Trace c ins (TraceStream oty os) ps)
+dropTrace i t@(Trace c ins outs ps)
     | newLen > 0 = t { len = Just newLen
                      , inputs = dropStream ins
-                     , outputs = TraceStream oty $ drop i os
+                     , outputs = dropStream outs
                      , probes = dropStream ps }
     | otherwise = emptyTrace
     where dropStream m = M.fromList [ (k,TraceStream ty (drop i s)) | (k,TraceStream ty s) <- M.toList m ]
@@ -113,28 +112,32 @@ dropTrace i t@(Trace c ins (TraceStream oty os) ps)
 
 -- need to change format to be vertical
 serialize :: Trace -> String
-serialize (Trace c ins (TraceStream oty os) ps) = concat $
-			unlines [show c, "INPUTS"] : showMap ins ++
-			[unlines ["OUTPUT", show $ OVar 0 "placeholder", show oty, showStrm os, "PROBES"]] ++
-			showMap ps
-    where showMap m = [unlines [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
+serialize (Trace c ins outs ps) = unlines
+                                $ [show c, "INPUTS"]
+                               ++ showMap ins
+                               ++ ["OUTPUTS"]
+                               ++ showMap outs
+                               ++ ["PROBES"]
+                               ++ showMap ps
+    where showMap :: TraceMap OVar -> [String]
+          showMap m = concat [[show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap (showRep (witness :: Bool)) $ val | RepValue val <- takeMaybe c s]
 
 deserialize :: String -> Trace
-deserialize str = Trace { len = c, inputs = ins, outputs = out, probes = ps }
+deserialize str = Trace { len = c, inputs = ins, outputs = outs, probes = ps }
     where (cstr:"INPUTS":ls) = lines str
           c = read cstr :: Maybe Int
-          (ins,"OUTPUT":r1) = readMap ls
-          (out,"PROBES":r2) = readStrm r1
+          (ins,"OUTPUTS":r1) = readMap ls
+          (outs,"PROBES":r2) = readMap r1
           (ps,_) = readMap r2
 
 genShallow :: Trace -> [String]
-genShallow (Trace c ins out _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
-    where alldata = (M.elems ins) ++ [out]
+genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
+    where alldata = (M.elems ins) ++ (M.elems outs)
 
 genInfo :: Trace -> [String]
-genInfo (Trace c ins out _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
-    where alldata = (M.elems ins) ++ [out]
+genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
+    where alldata = (M.elems ins) ++ (M.elems outs)
           lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 writeToFile :: FilePath -> Trace -> IO ()
@@ -151,7 +154,8 @@ checkExpected circuit trace = (trace == result, result)
     where result = execute circuit trace
 
 execute :: (Run a) => a -> Trace -> Trace
-execute circuit trace = trace { outputs = run circuit trace }
+execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit t) k outs }
+    where k = head $ M.keys outs
 
 class Run a where
     run :: a -> Trace -> TraceStream
@@ -236,7 +240,7 @@ readStrm ls = (strm,rest)
 
 readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
 readMap ls = (go $ takeWhile cond ls, rest)
-    where cond = (not . (flip elem) ["INPUTS","OUTPUT","PROBES"])
+    where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
           rest = dropWhile cond ls
           go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
           go _             = M.empty

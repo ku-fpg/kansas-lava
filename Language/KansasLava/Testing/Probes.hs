@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,probesFor) where
+module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,probesFor,probeNames,probeValue) where
+
+import qualified Data.Reify.Graph as DRG
 
 import Data.Sized.Arith(X1_,X0_)
 import Data.Sized.Ix
@@ -38,6 +40,14 @@ probesFor name plist =
     sortBy (\(n1, _) (n2, _) -> compare n1 n2) $
     filter (\(n, _) -> name `isPrefixOf` n) plist
 
+probeNames :: DRG.Unique -> Circuit -> [OVar]
+probeNames n circuit = nub [ nm | Just (Entity _ _ _ attrs) <- [lookup n $ theCircuit circuit]
+                              , (ProbeValue nm _) <- attrs ]
+
+probeValue :: DRG.Unique -> Circuit -> TraceStream
+probeValue n circuit = head [ ts | Just (Entity _ _ _ attrs) <- [lookup n $ theCircuit circuit]
+                                 , (ProbeValue _ ts) <- attrs ]
+
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class Probe a where
     -- this is the public facing method
@@ -69,23 +79,17 @@ instance Probe (Env c) where
     attach i name (Env clk rst clk_en) = Env clk (attach i (name ++ "_0rst") rst)
  						                         (attach i (name ++ "_1clk_en") clk_en)
 
+-- ACF: TODO: As you can see with tuples, we have name supply issues to solve.
 instance (Rep a, Rep b,
-          Probe (f (a,b)),
-          Pack f (a,b)) => Probe (f a, f b) where
-    attach i name c = val
-        where packed :: f (a,b)
-              packed = attach i name $ pack c
-              val :: (f a, f b)
-              val = unpack packed
+          Probe (f a), Probe (f b)) => Probe (f a, f b) where
+    attach i name (x,y) = (attach i (name ++ "_1") x,
+                           attach i (name ++ "_0") y)
 
 instance (Rep a, Rep b, Rep c,
-          Probe (f (a,b,c)),
-          Pack f (a,b,c)) => Probe (f a, f b, f c) where
-    attach i name c = val
-        where packed :: f (a,b,c)
-              packed = attach i name $ pack c
-              val :: (f a, f b, f c)
-              val = unpack packed
+          Probe (f a), Probe (f b), Probe (f c)) => Probe (f a, f b, f c) where
+    attach i name (x,y,z) = (attach i (name ++ "_2") x,
+                             attach i (name ++ "_1") y,
+                             attach i (name ++ "_0") z)
 
 instance (Probe a, Probe b) => Probe (a -> b) where
     -- this shouldn't happen, but if it does, discard int and generate fresh order

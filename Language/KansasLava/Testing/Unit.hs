@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Language.KansasLava.Testing.Unit (debug, test) where
 
 import Language.KansasLava
@@ -8,6 +9,7 @@ import Language.KansasLava.Testing.Trace
 import Control.Applicative
 
 import Data.Default
+import qualified Data.Map as M
 
 import System.Directory
 import System.FilePath.Posix
@@ -22,11 +24,13 @@ debug name cycles thunk = do
 test :: (Rep b) => String -> Int -> Thunk (Seq b) -> Seq b -> IO ()
 test name c t e = test' c t e (defAction name)
 
-test' :: (Rep b) => Int -> Thunk (Seq b) -> Seq b -> ((Bool, Trace) -> IO ()) -> IO ()
-test' cycles thunk expected action = do
+test' :: forall b. (Rep b) => Int -> Thunk (Seq b) -> Seq b -> ((Bool, Trace) -> IO ()) -> IO ()
+test' cycles thunk (Seq s _) action = do
     trace <- mkTrace (return cycles) thunk
 
-    let e = setCycles cycles $ setOutput expected $ trace
+    let e = setCycles cycles $ trace { outputs = M.adjust (\_ -> fromXStream (witness :: b) s) k outs }
+        k = head $ M.keys outs
+        outs = outputs trace
 
     action (trace == e, trace)
 

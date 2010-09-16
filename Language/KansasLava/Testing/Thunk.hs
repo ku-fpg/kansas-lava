@@ -1,11 +1,13 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench) where
+module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench, exposeProbes) where
 
 import Language.KansasLava
 
 import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Trace
+
+import Control.Monad
 
 import Data.List
 import qualified Data.Map as M
@@ -26,20 +28,30 @@ mkTrace :: (Ports a)
         => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
         -> Thunk a   -- ^ The thunk we are executing.
         -> IO Trace
-mkTrace c (Thunk circuit k) = do
+mkTrace c thunk = mkTraceCM c thunk (return)
+
+-- | Make a Trace from a Thunk
+mkTraceCM :: (Ports a)
+          => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+          -> Thunk a   -- ^ The thunk we are executing.
+          -> (Circuit -> IO Circuit) -- Circuit Mod
+          -> IO Trace
+mkTraceCM c (Thunk circuit k) circuitMod = do
     let uname = "wholeCircuit5471" -- probably need a better solution than this
     let probed = probe uname circuit
 
-    rc <- reifyCircuit $ k $ probed
+    rc <- (reifyCircuit >=> circuitMod) $ k $ probed
+    rc' <- (reifyCircuit >=> circuitMod) probed
 
     let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc
-                       , ProbeValue k v <- attrs ]
+                        , ProbeValue k v <- attrs ]
         io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
-        ins = M.fromList $ init io
-        out = snd $ last io
+        (OVar outPNum _, _) = last io
+        ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
+        outs = M.fromList [ (k,probeValue n rc) | (k,_,Port _ n) <- sort $ theSinks rc ]
         ps = M.fromList pdata M.\\ M.fromList io
 
-    return $ Trace { len = c, inputs = ins, outputs = out, probes = ps }
+    return $ Trace { len = c, inputs = ins, outputs = outs, probes = ps }
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)
@@ -62,7 +74,7 @@ recordThunk path cycles circuitMod thunk@(Thunk c k) = do
 
     createDirectoryIfMissing True path
 
-    trace <- mkTrace (return cycles) thunk
+    trace <- mkTraceCM (return cycles) thunk circuitMod
 
     writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
@@ -113,3 +125,18 @@ runTestBench path invoker = do
 
     -- eventually we will read the deep file here and return it as a trace
 
+exposeProbes :: [String] -> Circuit -> IO Circuit
+exposeProbes names rc = do
+    let oldSinks = theSinks rc
+        n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
+        probes = nub [ (oty, Port onm n)
+                     | (n, Entity _ outs _ attrs) <- theCircuit rc
+                     , ProbeValue (OVar _ pname) _ <- attrs
+                     , or [ nm `isPrefixOf` pname | nm <- names ]
+                     , (onm,oty) <- outs ]
+        showPNames :: Int -> [OVar] -> String
+        showPNames x = concatMap (\(OVar i n) -> n ++ "_" ++ show i ++ "_" ++ show x)
+
+        newSinks = [ (OVar i $ showPNames i $ probeNames node rc, ty, d) | (i,(ty,d@(Port _ node))) <- zip [n..] probes ]
+
+    return $ rc { theSinks = oldSinks ++ newSinks }
