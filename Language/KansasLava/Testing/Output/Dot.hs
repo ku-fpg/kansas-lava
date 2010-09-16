@@ -1,8 +1,5 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
-module Language.KansasLava.Testing.Output.Dot
-        ( writeDotCircuit
---        , writeDotCircuit'
-        ) where
+module Language.KansasLava.Testing.Output.Dot (writeDotCircuit) where
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Types
@@ -12,50 +9,31 @@ import Language.KansasLava.Circuit
 import Data.Reify.Graph
 import Text.Dot
 
-{-
--- | The 'writeDot' function converts a Lava circuit into a graphviz output. The
---   circuit type must implement the 'Ports' class, so that the circuit
---   inputs/outpus can be represented in the output graph.
-writeDotCircuit :: (Ports circuit) =>
-                   [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
-                -> String  -- ^ The name of the circuit. The graph will be
-                           -- written a file with this name (with a .dot extension).
-                -> circuit  -- ^ The Lava circuit.
-                -> IO ()
-writeDotCircuit opts filename circuit = do
-   rc <- reifyCircuit opts circuit
-   writeDotCircuit' filename rc
--}
-
--- | The 'writeDot' function converts a Lava circuit into a graphviz output.
-
-writeDotCircuit :: String  -- ^ The name of the circuit. The graph will be
-                           -- written a file with this name (with a .dot extension).
-                 -> Circuit  -- ^ The reified Lava circuit.
-                 -> IO ()
+-- | The 'writeDotCircuit' function converts a Lava circuit into a graphviz output.
+writeDotCircuit :: FilePath  -- ^ Name of output dot file, can be relative or absolute path.
+                -> Circuit   -- ^ The reified Lava circuit.
+                -> IO Circuit
 writeDotCircuit filename circuit = do
 {-
    let (inputs',blob) = output' circuit
    let inputs = map fst inputs'
 -}
    let (Circuit nodes inputs' outputs) = circuit
-   let inputs = inputs'
+       inputs = inputs'
 
-   let showP :: (String,Type) -> String
+       showP :: (String,Type) -> String
        showP (v,ty) = "<" ++ v ++ ">" ++ v ++ "::" ++ show ty
 
-   let mkLabel :: String -> [(String,Type)] -> [(String,Type)] -> String
+       mkLabel :: String -> [(String,Type)] -> [(String,Type)] -> String
        mkLabel nm ins outs =
               (concatMap addSpecial $ nm) ++ "|{{"
            ++ join (map showP ins) ++ "}|{"
            ++ join (map showP outs) ++ "}}"
-   let
+
        -- TODO: insert types
        mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
            ++ join (map showP ins) ++ "}|{"
            ++ join (map showP outs) ++ "}}"
-
-
 
    writeFile filename $ showDot $ do
         attribute ("rankdir","LR")
@@ -67,7 +45,7 @@ writeDotCircuit filename circuit = do
 
 
         nds0 <- sequence [ do nd <- node [ ("label",mkLabel (show nm)
-							       [ (v,ty) |(v,ty,_) <- ins ]
+                                                               [ (v,ty) |(v,ty,_) <- ins ]
                                                                [ (v,ty) | (v,ty) <- outs] )
                                          , ("shape","record")
                                          , ("style","rounded")
@@ -84,11 +62,8 @@ writeDotCircuit filename circuit = do
                               return (n,nd)
                         | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
 
-	probed <- return []
-
-{- TODO: fix
-        probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (n,(v,ty)) |(v,ty,_) <- ins ]
-                                                                       [ (n,(v,ty)) | (v,ty) <- outs] )
+        probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (v,ty) | (v,ty,_) <- ins ]
+                                                                       [ (v,ty) | (v,ty) <- outs] )
                                            , ("shape","record")
                                            , ("style","rounded,filled")
                                            , ("fillcolor","#bbbbbb")
@@ -98,7 +73,6 @@ writeDotCircuit filename circuit = do
                            , not $ null attrs
                            , let pnms = [ nm ++ "_" ++ show i | ProbeValue (OVar i nm) _ <- attrs ]
                            ]
--}
         let nds = nds0 ++ nds1 ++ probed
 
         output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (show i,ty) | (i,ty,_) <- outputs ] ++ "}}")
@@ -111,7 +85,7 @@ writeDotCircuit filename circuit = do
                              Just nd -> nd
 
         let drawEdge :: Driver Unique -> NodeId -> String -> Dot ()
-	    drawEdge dr n v = case dr of
+            drawEdge dr n v = case dr of
                      Port nm' n' -> let (Just nd) = lookup n' nds
                                     in edge' nd (Just (nm' ++ ":e")) n (Just (show v ++ ":w")) []
                      Pad v' | v' `elem` (map fst inputs)
@@ -136,6 +110,7 @@ writeDotCircuit filename circuit = do
 
         return ()
 
+   return circuit -- for chaining purposes
 
 -- addSpecial '>' = ['\\','>']
 addSpecial :: Char -> String
