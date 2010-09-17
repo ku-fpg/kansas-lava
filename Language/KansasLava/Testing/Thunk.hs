@@ -28,30 +28,34 @@ mkTrace :: (Ports a)
         => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
         -> Thunk a   -- ^ The thunk we are executing.
         -> IO Trace
-mkTrace c thunk = mkTraceCM c thunk (return)
+mkTrace c thunk = do
+    (trace, _) <- mkTraceCM c thunk (return)
+    return trace
 
 -- | Make a Trace from a Thunk
 mkTraceCM :: (Ports a)
           => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
           -> Thunk a   -- ^ The thunk we are executing.
           -> (Circuit -> IO Circuit) -- Circuit Mod
-          -> IO Trace
+          -> IO (Trace, Circuit)
 mkTraceCM c (Thunk circuit k) circuitMod = do
     let uname = "wholeCircuit5471" -- probably need a better solution than this
     let probed = probe uname circuit
 
-    rc <- (reifyCircuit >=> circuitMod) $ k $ probed
-    rc' <- (reifyCircuit >=> circuitMod) probed
+    rc <- (reifyCircuit >=> circuitMod) probed
 
-    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rc
+    -- we can't apply circuitMods to applied circuit, because our pads disappear!
+    rcWithData <- reifyCircuit $ k probed
+
+    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rcWithData
                         , ProbeValue k v <- attrs ]
-        io = sortBy (\(k1,_) (k2,_) -> compare k1 k2) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
-        (OVar outPNum _, _) = last io
+        io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
+        (OVar outPNum _, _) = head io
         ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
-        outs = M.fromList [ (k,probeValue n rc) | (k,_,Port _ n) <- sort $ theSinks rc ]
+        outs = M.fromList [ (k,probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
         ps = M.fromList pdata M.\\ M.fromList io
 
-    return $ Trace { len = c, inputs = ins, outputs = outs, probes = ps }
+    return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)
@@ -74,16 +78,12 @@ recordThunk path cycles circuitMod thunk@(Thunk c k) = do
 
     createDirectoryIfMissing True path
 
-    trace <- mkTraceCM (return cycles) thunk circuitMod
+    (trace, rc) <- mkTraceCM (return cycles) thunk circuitMod
 
     writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
 
-    rc <- reifyCircuit c
-
-    rc' <- circuitMod rc
-
-    mkTestbench name path rc'
+    mkTestbench name path rc
 
     return trace
 
