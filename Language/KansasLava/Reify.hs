@@ -296,7 +296,9 @@ resolveNames :: Circuit -> Circuit
 resolveNames cir
 	| error1 = error $ "The generated input/output names are non distinct: " ++
 			   show (map fst (theSrcs cir))
-	| not (null error2) = error $ "A name has been used both labeled and non labeled "
+	| not (null error2) = error $ ("A name has been used both labeled and non labeled " ++ show 
+				(error2,oldSrcs,newSrcs))
+	
 	| error3 = error "The labled input/output names are non distinct"
 	| otherwise = Circuit { theCircuit = newCircuit
 			 	     , theSrcs = newSrcs
