@@ -17,25 +17,25 @@ import Data.Reify
 -- | Type captures HDL-representable types.
 data Type
 	-- basic representations
-	= B		-- | Bit
-	| S Int		-- | Signed vector, with a width
-	| U Int  	-- | Unsigned vector, with a width
-	| V Int		-- | std_logic_vector
+	= B		-- ^ Bit
+	| S Int		-- ^  Signed vector, with a width
+	| U Int  	-- ^ Unsigned vector, with a width
+	| V Int		-- ^ std_logic_vector
 
 	-- type of bit, used only for clock (TODO: do we need this?)
-        | ClkTy         -- | Clock Signal
+        | ClkTy         -- ^ Clock Signal
 
-	| GenericTy	-- | generics in VHDL, right now just Integer
+	| GenericTy	-- ^ generics in VHDL, right now just Integer
 
 	| TupleTy [Type]
-			-- | Tuple, represented as a larget std_logic_vector
+			-- ^ Tuple, represented as a larget std_logic_vector
 	| MatrixTy Int Type
-			-- | Matrix, vhdl array.
+			-- ^ Matrix, vhdl array.
 
 	| SampledTy Int Int
-			-- | Our "floating" values. 
-			--    The first number is the precision/scale (+/- N)
-			--    The second number is the bits used to represent this number
+			-- ^ Our "floating" values.
+			--   The first number is the precision/scale (+/- N)
+			--   The second number is the bits used to represent this number
 	deriving (Eq, Ord)
 
 

@@ -66,7 +66,7 @@ instance Monad Opt where
 	 		Opt r m -> Opt r (n + m)
 
 runOpt :: Opt a -> (a,[String])
-runOpt (Opt a i) = (a,if i == 0 
+runOpt (Opt a i) = (a,if i == 0
 		      then []
 		      else [show i ++ " optimizations"]
 		   )
@@ -114,7 +114,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 	fixInPort (i,t,o) = (i,t,o)
 
 
--- 
+--
 -- Starting CSE.
 cseCircuit :: Circuit -> Opt Circuit
 cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
@@ -131,11 +131,11 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 
 	rCirX :: [[(Unique, MuE Unique)]]
 	rCirX = map canonicalize
-		-- We want to combine anything *except* idents's 
+		-- We want to combine anything *except* idents's
 		-- because we would just replace them with new idents's (not a problem)
-		-- *and* say we've found some optimization (which *is* a problem).
+		-- _and_ say we've found some optimization (which *is* a problem).
 	      $ groupBy (\ (a,b) (a',b') -> (b `mycompare` b') == EQ && not (isId b))
-	      $ sortBy (\ (a,b) (a',b') -> b `mycompare` b') 
+	      $ sortBy (\ (a,b) (a',b') -> b `mycompare` b')
 	      $ theCircuit rCir
 
 
@@ -146,7 +146,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	-- because they *can* be different, without effecting
 	-- the CSE opertunity.
 	mycompare (Entity nm outs ins misc)
-	 	  (Entity nm' outs' ins' misc') = 
+	 	  (Entity nm' outs' ins' misc') =
 		chain
 		  [ nm `compare` nm'
 		  , ins `compare` ins'
@@ -154,27 +154,27 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		  ]
 	mycompare (Table {}) (Entity {}) = GT
 	mycompare (Entity {}) (Table {}) = LT
-	mycompare (Table o ins tab) 
-		  (Table o' ins' tab') = 
-		chain 
+	mycompare (Table o ins tab)
+		  (Table o' ins' tab') =
+		chain
 		   [ ins `compare` ins'
 		   , tab `compare` tab'	-- allows us to share ROMs that
 					-- always get used at the same time
 		   ]
 
-			
+
 	chain (LT:_ ) = LT
 	chain (GT:_ ) = GT
 	chain (EQ:xs) = chain xs
 	chain []      = EQ
-	
+
 	-- Build the identites
 
-	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) = 
+	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) =
 		(u0,e0) : [ ( uX
 		            , case eX of
 		 	     	Table {} -> error "found Table, expecting entity"
-			     	Entity nm' outs' _ _ | length outs == length outs' 
+			     	Entity nm' outs' _ _ | length outs == length outs'
 				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ] []
 			    )
 			  | (uX,eX) <- rest
@@ -251,9 +251,9 @@ data OptimizationOpts = OptimizationOpts
 instance Default OptimizationOpts
    where
 	def = OptimizationOpts
-		{ optDebugLevel = 0 
+		{ optDebugLevel = 0
 		}
-	
+
 
 -- Basic optimizations, and assumes reaching a fixpoint :-)
 optimizeCircuit :: OptimizationOpts -> Circuit -> IO Circuit
