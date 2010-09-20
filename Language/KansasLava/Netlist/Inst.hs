@@ -65,11 +65,26 @@ genInst  i (Entity (Name "Lava" "concat") [("o0",_)] inps _) =
 
 genInst i (Entity (Name "Lava" "index")
 		  [("o0",outTy)]
-		  [("i0",_, (Generic idx)),
+		  [("i0", GenericTy, (Generic idx)),
 		   ("i1",ty,input)] _
 	   ) =
     [ NetAssign (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
   where tys = case ty of
+		MatrixTy sz eleTy -> take sz $ repeat eleTy
+		TupleTy tys -> tys
+genInst i (Entity (Name "Lava" "index")
+		  [("o0",outTy)]
+		  [("i0", ixTy, ix),
+		   ("i1",eleTy,input)] _) =
+	[ NetAssign (sigName "o0" i)
+		(ExprCase (toStdLogicExpr ixTy ix)
+			[ ([toStdLogicExpr ixTy (i :: Integer)],toStdLogicExpr outTy val)
+			| (i,val) <- zip [0..] $ prodSlices input tys
+			]
+			(Just $ toStdLogicExpr outTy (0 :: Integer))
+		)
+	]
+  where tys = case eleTy of
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
 
@@ -167,6 +182,12 @@ genInst i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,
 	   (V n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
+	   (SampledTy _ n,V m) | n == m ->
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		]		
+	   (B,V 1) ->
+		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
+		]		
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
 genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)] _)
