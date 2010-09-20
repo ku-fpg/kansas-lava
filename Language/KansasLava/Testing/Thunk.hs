@@ -140,3 +140,4 @@ exposeProbes names rc = do
         newSinks = [ (OVar i $ showPNames i $ probeNames node rc, ty, d) | (i,(ty,d@(Port _ node))) <- zip [n..] probes ]
 
     return $ rc { theSinks = oldSinks ++ newSinks }
+
