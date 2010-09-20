@@ -33,6 +33,7 @@ Library
        Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Entity
        Language.KansasLava.Entity.Utils
+       Language.KansasLava.Internals
        Language.KansasLava.Netlist
        Language.KansasLava.Netlist.Decl
        Language.KansasLava.Netlist.Inst
@@ -53,6 +54,11 @@ Library
        Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
+       Language.KansasLava.Testing.Probes
+       Language.KansasLava.Testing.Thunk
+       Language.KansasLava.Testing.Trace
+       Language.KansasLava.Testing.Unit
+       Language.KansasLava.Testing.Utils
   Other-modules:
 
 -- hack for now
