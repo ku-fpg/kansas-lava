@@ -64,8 +64,10 @@ instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
 					     WireVal b -> b
 					     _ -> error "testBit unknown bit"
 
+-- AJG: this was reverseed m2 ++ m1, for some reason. Restored to m1 ++ m2
+
 append :: (Size x, Size y, Size (ADD x y)) => StdLogicVector x -> StdLogicVector y -> StdLogicVector (ADD x y)
-append (StdLogicVector m1) (StdLogicVector m2) = (StdLogicVector $ M.matrix (M.toList m2 ++ M.toList m1))
+append (StdLogicVector m1) (StdLogicVector m2) = (StdLogicVector $ M.matrix (M.toList m1 ++ M.toList m2))
 
 {-
 splice :: (Integral inp, Integral res, Size high, Size low, Size res, Size inp, res ~ ADD (SUB high low) X1) 
