@@ -491,6 +491,8 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
 			ix = error "ix/Matrix"
 			a :: Matrix ix a -> a
 			a = error "a/Matrix"
+	toRep _ m = RepValue (concatMap (unRepValue . toRep (witness :: a)) $ M.toList m)
+	fromRep _ _ = error "TODO: write fromRep for Matrix"
 --	showWire _ = show
 
 {-
