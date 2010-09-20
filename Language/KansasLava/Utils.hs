@@ -67,11 +67,6 @@ isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (
 isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
--- TODO: maCombe over Signal
--- Does not work!
-(.!.) :: (Size x, Rep a, Rep x) => Comb (Matrix x a) -> Comb x -> Comb a
-(.!.) = fun2 "!" (!)
-
 -----------------------------------------------------------------------------------------------
 
 instance (Show a, Rep a, Num a) => Num (Comb a) where
@@ -314,13 +309,18 @@ muxMatrix
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
-muxMatrix m x = liftS2 (\
+muxMatrix = (.!.)
+(.!.)	:: forall sig x a
+	 . (Signal sig, Size x, Rep x, Rep a)
+	=> sig (Matrix x a)
+	-> sig x
+	-> sig a
+(.!.) m x = liftS2 (\
 		    ~(Comb m me)
 	 	    ~(Comb x xe)
-			-> Comb (optX $
-				 do x' <- unX x :: Maybe x
-				    m' <- unX m :: Maybe (Matrix x a)
-				    return $ m' M.! x'
+			-> Comb (case (unX x :: Maybe x) of
+				    Just x' -> m M.! x'
+				    Nothing -> optX (Nothing :: Maybe a)
 				)
 			     (entity2 (Name "Lava" "index") xe me) -- order reversed
 	         ) m x
@@ -538,12 +538,17 @@ coerceSized a  = (b, err)
 class Size (WIDTH w) => StdLogic w where
   type WIDTH w
 
+instance StdLogic Bool where
+   type WIDTH Bool = X1
+
 instance Size w => StdLogic (U.Unsigned w) where
    type WIDTH (U.Unsigned w) = w
 
 instance Size w => StdLogic (SI.Signed w) where
    type WIDTH (SI.Signed w)  = w
 
+instance Size w => StdLogic (M.Matrix w Bool) where
+   type WIDTH (M.Matrix w Bool)  = w
 
 instance StdLogic X0 where
    type WIDTH X0 = X0
@@ -582,6 +587,17 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
 			            return $ (SLV.splice i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Int) ea)
+
+
+appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
+	=> sig (StdLogicVector a) 
+	-> sig (StdLogicVector b) 
+	-> sig (StdLogicVector (ADD a b))
+appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
+			Comb (optX $ do a' <- unX a ::Maybe (StdLogicVector a)
+					b' <- unX b ::Maybe (StdLogicVector b)
+					return $ SLV.append a' b')
+			     (entity2 (Name "Lava" "concat") ea eb)
 
 
 -- This is the funny one, needed for our application
