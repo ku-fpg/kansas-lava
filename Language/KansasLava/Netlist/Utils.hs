@@ -54,6 +54,7 @@ fromIntegerToExpr t i =
 	case toStdLogicTy t of
 	     B   -> ExprLit (Just 1) (ExprBit (b (fromInteger i)))
 	     V n -> ExprLit (Just n) (ExprNum i)
+	     GenericTy   -> ExprLit Nothing  (ExprNum i)
 	     other -> error "fromIntegerToExpr: was expecting B or V from normalized number"
   where b 0 = F
         b 1 = T
@@ -100,8 +101,8 @@ class ToIntegerExpr v where
 	toIntegerExpr :: Type -> v -> Expr
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
-	toIntegerExpr ty (Lit v) = error "ABCVCD" -- ExprNum v
-	toIntegerExpr ty other   = to_integer (toTypedExpr ty other)
+	toIntegerExpr ty (Lit v) = toStdLogicExpr ty v
+	toIntegerExpr ty other   = {- to_integer-} (toTypedExpr ty other)
 
 -- NEVER USED
 {-
@@ -118,6 +119,7 @@ toStdLogicTy :: Type -> Type
 toStdLogicTy B     = B
 toStdLogicTy ClkTy = B
 toStdLogicTy (V n) = V n
+toStdLogicTy GenericTy = GenericTy
 toStdLogicTy ty    = V (fromIntegral size)
   where size = typeWidth ty
 --
