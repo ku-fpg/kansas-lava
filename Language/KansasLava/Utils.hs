@@ -59,8 +59,9 @@ bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Lava" "not") ae
 
 testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
-testABit x y = liftS2 (\ (Comb a ae) (Comb b be) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
-                                      $ entity2 (Name "Lava" "testBit") ae be) x (pureS y)
+testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
+                                      $ entity2 (Name "Lava" "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
+		      ) x
 
 
 isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
@@ -586,7 +587,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
 		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
 			            return $ (SLV.splice i a' :: StdLogicVector b))
-		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Int) ea)
+		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 
 
 appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
