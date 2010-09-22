@@ -16,6 +16,12 @@ import Data.Reify.Graph (Unique)
 
 import Data.List(intersperse,find,mapAccumL,nub)
 
+-- There are three type "classes" in our generated VHDL.
+--  1. std_logic_vector
+--  2. signed/unsigned
+--  3. integer, as used to index into arrays, etc.
+
+
 -- Turn a signal of std_logic[_vector], and
 -- turn it into a Typed logic Expr. (signed, unsigned, or as is)
 -- based on the given type.
@@ -102,7 +108,8 @@ class ToIntegerExpr v where
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
 	toIntegerExpr ty (Lit v) = toStdLogicExpr ty v
-	toIntegerExpr ty other   = {- to_integer-} (toTypedExpr ty other)
+	toIntegerExpr GenericTy other = (toTypedExpr GenericTy other) -- HACK
+	toIntegerExpr ty other        = to_integer (toTypedExpr ty other)
 
 -- NEVER USED
 {-
