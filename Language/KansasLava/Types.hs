@@ -16,28 +16,27 @@ import Data.Reify
 
 -- | Type captures HDL-representable types.
 data Type
-	-- basic representations
-	= B		-- ^ Bit
-	| S Int		-- ^  Signed vector, with a width
-	| U Int  	-- ^ Unsigned vector, with a width
-	| V Int		-- ^ std_logic_vector
+        -- basic representations
+        = B             -- ^ Bit
+        | S Int         -- ^ Signed vector, with a width
+        | U Int         -- ^ Unsigned vector, with a width
+        | V Int         -- ^ std_logic_vector
 
-	-- type of bit, used only for clock (TODO: do we need this?)
+        -- type of bit, used only for clock (TODO: do we need this?)
         | ClkTy         -- ^ Clock Signal
 
-	| GenericTy	-- ^ generics in VHDL, right now just Integer
+        | GenericTy     -- ^ generics in VHDL, right now just Integer
 
-	| TupleTy [Type]
-			-- ^ Tuple, represented as a larget std_logic_vector
-	| MatrixTy Int Type
-			-- ^ Matrix, vhdl array.
+        | TupleTy [Type]
+                        -- ^ Tuple, represented as a larget std_logic_vector
+        | MatrixTy Int Type
+                        -- ^ Matrix, vhdl array.
 
-	| SampledTy Int Int
-			-- ^ Our "floating" values.
-			--   The first number is the precision/scale (+/- N)
-			--   The second number is the bits used to represent this number
-	deriving (Eq, Ord)
-
+        | SampledTy Int Int
+                        -- ^ Our "floating" values.
+                        --   The first number is the precision/scale (+/- N)
+                        --   The second number is the bits used to represent this number
+        deriving (Eq, Ord)
 
 -- | typeWidth returns the width of a type when represented in VHDL.
 typeWidth :: Type -> Int
@@ -62,15 +61,15 @@ isTypeSigned (V _) = False
 isTypeSigned (SampledTy {}) = True
 
 instance Show Type where
-	show B 		= "B"
+        show B          = "B"
         show ClkTy      = "CLK"
-	show (S i) 	= show i ++ "S"
-	show (U i) 	= show i ++ "U"
-	show (V i) 	= show i ++ "V"
-	show GenericTy  = "G"
-	show (TupleTy tys) = show tys
-	show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
-	show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
+        show (S i)      = show i ++ "S"
+        show (U i)      = show i ++ "U"
+        show (V i)      = show i ++ "V"
+        show GenericTy  = "G"
+        show (TupleTy tys) = show tys
+        show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
+        show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
 
 -- This is required for the deserialization of Trace objects.
 instance Read Type where
@@ -89,38 +88,39 @@ instance Read Type where
 -------------------------------------------------------------------------
 -- OVar
 
-data OVar = OVar Int String		-- The # is used purely for sorting order.
-	deriving (Eq, Ord)
+data OVar = OVar Int String             -- The # is used purely for sorting order.
+        deriving (Eq, Ord)
 
 instance Show OVar where
-	show (OVar i nm) = nm ++ "$" ++ show i
+        show (OVar i nm) = nm ++ "$" ++ show i
 
 instance Read OVar where
-	readsPrec _ xs = case span (/= '$') xs of
-		 	  (n,'$':r1) -> [ (OVar i n,r2)
-				        | (i,r2) <- reads r1
-				        ]
-			  _         -> [] -- no parse
+        readsPrec _ xs = case span (/= '$') xs of
+                          (n,'$':r1) -> [ (OVar i n,r2)
+                                        | (i,r2) <- reads r1
+                                        ]
+                          _         -> [] -- no parse
 
 
 -------------------------------------------------------------------------
 -- Id
 
-data Id = Name String String			-- external thing
-	| Prim String				-- built in thing
-	| Tracer String [[WireVal Bool]]	-- tracer (probes, etc)
-						-- This is type of identity
-						-- that records its shallow value,
-						-- for later inspection
-	| Comment' String			-- an identity with a message
-	| Function [(Integer,Integer)] 	-- anonymous function
+data Id = Name String String                    -- external thing
+        | Prim String                           -- built in thing
+        | TraceVal [OVar] TraceStream           -- trace (probes, etc)
+                                                -- may have multiple names matching same data
+                                                -- This is type of identity
+                                                -- that records its shallow value,
+                                                -- for later inspection
+        | Comment' String                       -- an identity with a message
+        | Function [(Integer,Integer)]          -- anonymous function
     deriving (Eq, Ord)
 
 instance Show Id where
-    show (Name "" nm)  = nm	-- do we use "" or "Lava" for the magic built-in?
+    show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
     show (Prim nm)     = nm
-    show (Tracer str _) = "^" ++ str
+    show (TraceVal ovar _) = "^" ++ show ovar
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
 
@@ -133,15 +133,15 @@ instance Show Id where
 -- We tie the knot at the 'Entity' level, for observable sharing.
 -- TODO: remove Table, remove annotations
 data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
-			-- specialized Entity, because tables (typically ROMs) are verbose.
-		   | Table (String,ty) (String,ty,Driver s) [(Integer,String,Integer,String)]
+                        -- specialized Entity, because tables (typically ROMs) are verbose.
+                   | Table (String,ty) (String,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
   traverse f (Table (v0,t0) (v1,t1,d) tbl) =
-	(\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
+        (\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
 
 instance F.Foldable (Entity ty a) where
   foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
@@ -157,10 +157,10 @@ instance Functor (Entity ty a) where
 -- which types contains a value that changes over time.
 
 data Driver s = Port String s   -- a specific port on the entity
-              | Pad OVar       	--
-              | Lit RepValue	-- A representable Value (including unknowns)
-	      | Generic Integer	-- A generic argument, always fully defined
-	      | Error String	-- A call to err, in Datatype format for reification purposes
+              | Pad OVar        --
+              | Lit RepValue    -- A representable Value (including unknowns)
+              | Generic Integer -- A generic argument, always fully defined
+              | Error String    -- A call to err, in Datatype format for reification purposes
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
@@ -168,7 +168,7 @@ instance Show i => Show (Driver i) where
   show (Lit x) = "'" ++ show x ++ "'"
   show (Generic x) = show x
   show (Pad v) = show v
-  show (Error msg) = show msg
+  show (Error msg) = show $ "Error: " ++ msg
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
@@ -204,23 +204,23 @@ data WireVal a = WireUnknown | WireVal a
     deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
 
 instance Monad WireVal where
-	return = WireVal
-	fail _ = WireUnknown
-	WireUnknown >>= _ = WireUnknown
-	WireVal a >>= f = f a
+        return = WireVal
+        fail _ = WireUnknown
+        WireUnknown >>= _ = WireUnknown
+        WireVal a >>= f = f a
 
 instance Functor WireVal where
-	fmap f WireUnknown = WireUnknown
-	fmap f (WireVal a) = WireVal (f a)
+        fmap f WireUnknown = WireUnknown
+        fmap f (WireVal a) = WireVal (f a)
 
 instance Applicative WireVal where
-	pure = WireVal
-	WireVal f <*> WireVal a = WireVal $ f a
-	_ <*> _ = WireUnknown
+        pure = WireVal
+        WireVal f <*> WireVal a = WireVal $ f a
+        _ <*> _ = WireUnknown
 
 instance Show a => Show (WireVal a) where
-	show WireUnknown = "?"
-	show (WireVal a) = show a
+        show WireUnknown = "?"
+        show (WireVal a) = show a
 
 ---------------------------------------------------------------------------------------------------------
 --
@@ -231,15 +231,15 @@ instance Show a => Show (WireVal a) where
 -- TODO: call this StdLogicVector, because it is.
 
 newtype RepValue = RepValue { unRepValue :: [WireVal Bool] }
-	deriving (Eq, Ord)
+        deriving (Eq, Ord)
 
 instance Show RepValue where
-	show (RepValue vals) = [ case v of
-				   WireUnknown   -> 'X'
-				   WireVal True  -> '1'
-				   WireVal False -> '0'
-			       | v <- vals
-			       ]
+        show (RepValue vals) = [ case v of
+                                   WireUnknown   -> 'X'
+                                   WireVal True  -> '1'
+                                   WireVal False -> '0'
+                               | v <- vals
+                               ]
 
 -- Read for RepValue?
 
@@ -249,15 +249,15 @@ appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
 isValidRepValue :: RepValue -> Bool
 isValidRepValue (RepValue m) = and $ fmap isGood $ m
    where
-	isGood :: WireVal Bool -> Bool
-	isGood WireUnknown  = False
-	isGood (WireVal {}) = True
+        isGood :: WireVal Bool -> Bool
+        isGood WireUnknown  = False
+        isGood (WireVal {}) = True
 
 -- Returns a binary rep, or Nothing is any bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
 getValidRepValue r@(RepValue m)
-	| isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
-	| otherwise	    = Nothing
+        | isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
+        | otherwise         = Nothing
 
 ---------------------------------------------------------------------------------------------------------
 --
@@ -267,21 +267,20 @@ getValidRepValue r@(RepValue m)
 
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
                  | Empty
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 
 ---------------------------------------------------------------------------------------------------------
 --
 
-data Annotation = ProbeValue OVar TraceStream
+data Annotation = Comment String                -- intended to arrive in the VHDL
 --                | Ann String Dynamic
-		| Comment String		-- intended to arrive in the VHDL
 
 instance Eq Annotation where {}
 instance Ord Annotation where {}
 instance Show Annotation where
-    show (ProbeValue name _) = show name
-    show _                   = error "Show: Unknown Annotation"
+    show (Comment str) = "Comment: " ++ str
+    show _             = error "Show: Unknown Annotation"
 
 ---------------------------------------------------------------------------------------------------------
 
@@ -306,7 +305,7 @@ instance Eq E where
 
 -- A pin to an E/Entity
 newtype D a = D (Driver E)
-	deriving Show
+        deriving Show
 
 -- TODO: is this used?
 unD :: D a -> Driver E
@@ -315,76 +314,75 @@ unD (D a) = a
 ---------------------------------------------------------------------------------------------------------
 
 data Circuit = Circuit
-	{ theCircuit :: [(Unique,MuE Unique)]
-		-- ^ This the main graph. There is no actual node for the source or sink.
-	, theSrcs    :: [(OVar,Type)]
-		-- ^ this is a (convenence) list of the src values.
-	, theSinks   :: [(OVar,Type,Driver Unique)]
-		-- ^ these are the sinks; all values are generated from here.
-	}
+        { theCircuit :: [(Unique,MuE Unique)]
+                -- ^ This the main graph. There is no actual node for the source or sink.
+        , theSrcs    :: [(OVar,Type)]
+                -- ^ this is a (convenence) list of the src values.
+        , theSinks   :: [(OVar,Type,Driver Unique)]
+                -- ^ these are the sinks; all values are generated from here.
+        }
 
 
 instance Show Circuit where
    show rCir = msg
      where
-	showDriver d t = show d ++ " : " ++ show t
+        showDriver d t = show d ++ " : " ++ show t
 
-	bar = (replicate 78 '-') ++ "\n"
+        bar = (replicate 78 '-') ++ "\n"
 
-	inputs = unlines
-		[ show var ++ " : " ++ show ty
-		| (var,ty) <- theSrcs rCir
-		]
-	outputs = unlines
-		[ show var   ++ " <- " ++ showDriver dr ty
-		| (var,ty,dr) <- theSinks rCir
-		]
-	circuit = unlines
-		[ case e of
-		    Entity nm outs ins ann ->
-			"(" ++ show uq ++ ") " ++ show nm ++ "\n"
-			    ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
- 			    ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
- 			    ++ unlines [ "      probes " ++ intercalate ", " [name ++ "_" ++ show i | ProbeValue (OVar i name) _ <- ann ] ]
-			    ++ unlines [ "      comment " ++ str | Comment str <- ann ]
-		    Table (v0,ty0) (v1,ty1,dr) mapping ->
-			"(" ++ show uq ++ ") TABLE \n"
-			    ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
-			    ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
-			    ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2
-				       | (i,e1,o,e2) <- mapping
-				       ]
-		| (uq,e) <- theCircuit rCir
-		]
+        inputs = unlines
+                [ show var ++ " : " ++ show ty
+                | (var,ty) <- theSrcs rCir
+                ]
+        outputs = unlines
+                [ show var   ++ " <- " ++ showDriver dr ty
+                | (var,ty,dr) <- theSinks rCir
+                ]
+        circuit = unlines
+                [ case e of
+                    Entity nm outs ins ann ->
+                        "(" ++ show uq ++ ") " ++ show nm ++ "\n"
+                            ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
+                            ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+                            ++ unlines [ "      comment " ++ str | Comment str <- ann ]
+                    Table (v0,ty0) (v1,ty1,dr) mapping ->
+                        "(" ++ show uq ++ ") TABLE \n"
+                            ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
+                            ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
+                            ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2
+                                       | (i,e1,o,e2) <- mapping
+                                       ]
+                | (uq,e) <- theCircuit rCir
+                ]
 
-	msg = bar
-		++ "-- Inputs                                                                   --\n"
-		++ bar
-		++ inputs
-		++ bar
-		++ "-- Outputs                                                                  --\n"
-		++ bar
-		++ outputs
-		++ bar
-		++ "-- Entities                                                                 --\n"
-		++ bar
-		++ circuit
-		++ bar
+        msg = bar
+                ++ "-- Inputs                                                                   --\n"
+                ++ bar
+                ++ inputs
+                ++ bar
+                ++ "-- Outputs                                                                  --\n"
+                ++ bar
+                ++ outputs
+                ++ bar
+                ++ "-- Entities                                                                 --\n"
+                ++ bar
+                ++ circuit
+                ++ bar
 
 
 data Signature = Signature
-	{ sigInputs   :: [(OVar,Type)]
-	, sigOutputs  :: [(OVar,Type)]
-	, sigGenerics :: [(OVar,Integer)]
+        { sigInputs   :: [(OVar,Type)]
+        , sigOutputs  :: [(OVar,Type)]
+        , sigGenerics :: [(OVar,Integer)]
         }
-	deriving (Show, Read, Eq)
+        deriving (Show, Read, Eq)
 
 
 circuitSignature :: Circuit -> Signature
 circuitSignature cir = Signature
-	{ sigInputs   = theSrcs cir
-	, sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
-	, sigGenerics = []
+        { sigInputs   = theSrcs cir
+        , sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
+        , sigGenerics = []
         }
 -- for now, we just use the show and read
 
@@ -393,17 +391,17 @@ circuitSignature cir = Signature
 -- These are here for now
 
 data CircuitOptions
-	= DebugReify		-- ^ show debugging output of the reification stage
-	| OptimizeReify		-- ^ perform basic optimizations
-	| NoRenamingReify	-- ^ do not use renaming of variables
-	| CommentDepth
-	      [(Id,DepthOp)] 	-- ^ add comments that denote depth
-	deriving (Eq, Show)
+        = DebugReify            -- ^ show debugging output of the reification stage
+        | OptimizeReify         -- ^ perform basic optimizations
+        | NoRenamingReify       -- ^ do not use renaming of variables
+        | CommentDepth
+              [(Id,DepthOp)]    -- ^ add comments that denote depth
+        deriving (Eq, Show)
 
 -- Does a specific thing
 data DepthOp = AddDepth Float
-	     | NewDepth Float
-	deriving (Eq, Show)
+             | NewDepth Float
+        deriving (Eq, Show)
 
 -------------------------------------------------------------------------------------
 --

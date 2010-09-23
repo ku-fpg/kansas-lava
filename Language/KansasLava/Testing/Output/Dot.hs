@@ -48,7 +48,9 @@ writeDotCircuit filename circuit = do
                                                                [ (v,ty) |(v,ty,_) <- ins ]
                                                                [ (v,ty) | (v,ty) <- outs] )
                                          , ("shape","record")
-                                         , ("style","rounded")
+                                         , ("style",case nm of
+                                                        TraceVal _ _ -> "rounded,filled"
+                                                        _ -> "rounded")
                                          ]
                               return (n,nd)
                         | (n,Entity nm outs ins []) <- nodes ]
@@ -62,18 +64,7 @@ writeDotCircuit filename circuit = do
                               return (n,nd)
                         | (n,Table (vout,tyout) (vin,tyin,_) _) <- nodes ]
 
-        probed <- sequence [ do nd <- node [ ("label",mkPLabel pnms nm [ (v,ty) | (v,ty,_) <- ins ]
-                                                                       [ (v,ty) | (v,ty) <- outs] )
-                                           , ("shape","record")
-                                           , ("style","rounded,filled")
-                                           , ("fillcolor","#bbbbbb")
-                                           ]
-                                return (n,nd)
-                           | (n,Entity nm outs ins attrs) <- nodes
-                           , not $ null attrs
-                           , let pnms = [ nm ++ "_" ++ show i | ProbeValue (OVar i nm) _ <- attrs ]
-                           ]
-        let nds = nds0 ++ nds1 ++ probed
+        let nds = nds0 ++ nds1
 
         output_bar <- node [ ("label","OUTPUTS|{{" ++ join [ showP (show i,ty) | (i,ty,_) <- outputs ] ++ "}}")
                                          , ("shape","record")
@@ -87,9 +78,9 @@ writeDotCircuit filename circuit = do
         let drawEdge :: Driver Unique -> NodeId -> String -> Dot ()
             drawEdge dr n v = case dr of
                      Port nm' n' -> let (Just nd) = lookup n' nds
-                                    in edge' nd (Just (nm' ++ ":e")) n (Just (show v ++ ":w")) []
+                                    in edge' nd (Just (show nm' ++ ":e")) n (Just (show v ++ ":w")) []
                      Pad v' | v' `elem` (map fst inputs)
-                                         -> edge' input_bar (Just (show (show v') ++ ":e")) n (Just (v ++ ":w")) []
+                                         -> edge' input_bar (Just (show (show v') ++ ":e")) n (Just (show v ++ ":w")) []
                             | otherwise  -> do nd' <- node [ ("label",show v')
                                                            ]
                                                edge' nd' Nothing n (Just (show v ++ ":w")) []

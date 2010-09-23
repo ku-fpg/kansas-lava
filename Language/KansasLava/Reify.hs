@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp, ScopedTypeVariables #-}
-module Language.KansasLava.Reify 
+module Language.KansasLava.Reify
 	( reifyCircuit
 	, Ports(..)
 	, input
@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 --
 reifyCircuit :: (Ports a) => a -> IO Circuit
 reifyCircuit circuit = do
-	
+
 	let opts = []
         -- GenSym for input/output pad names
 	let inputNames = L.zipWith OVar [0..] $ head $
@@ -111,7 +111,7 @@ reifyCircuit circuit = do
 						     ]}
 		    []        -> return rCit2
 
-	return rCit3
+	return $ rCit3
 
 wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
@@ -296,9 +296,9 @@ resolveNames :: Circuit -> Circuit
 resolveNames cir
 	| error1 = error $ "The generated input/output names are non distinct: " ++
 			   show (map fst (theSrcs cir))
-	| not (null error2) = error $ ("A name has been used both labeled and non labeled " ++ show 
+	| not (null error2) = error $ ("A name has been used both labeled and non labeled " ++ show
 				(error2,oldSrcs,newSrcs))
-	
+
 	| error3 = error "The labled input/output names are non distinct"
 	| otherwise = Circuit { theCircuit = newCircuit
 			 	     , theSrcs = newSrcs

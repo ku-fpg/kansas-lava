@@ -81,7 +81,7 @@ instance Show Trace where
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
-    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 == c2) && insEqual && outEqual && probesEqual
+    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 /= Nothing || c2 /= Nothing) && (c1 == c2) && insEqual && outEqual && probesEqual
         where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.assocs m]
               insEqual = (sorted i1) == (sorted i2)
               outEqual = (sorted o1) == (sorted o2)
@@ -232,6 +232,7 @@ toXBit = maybe 'X' (\b -> if b then '1' else '0')
 -- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]
 showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | RepValue val <- takeMaybe c s]
+showTraceStream c Empty = repeat "Empty"
 
 readStrm :: [String] -> (TraceStream, [String])
 readStrm ls = (strm,rest)

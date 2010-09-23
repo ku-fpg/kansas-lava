@@ -146,8 +146,8 @@ doscript name circuit = unlines $
 genProbes :: String -> Circuit -> [String]
 genProbes top c = concatMap getProbe graph
     where graph = theCircuit c
-          getProbe (ident, (Entity _ [( v, _)] _ attrs)) =
+          getProbe (ident, (Entity (TraceVal nms _) [( v, _)] _ _)) =
             ["add wave -label " ++ name ++ "_" ++ show i ++ " " ++ sig
-            | ProbeValue (OVar i name) _ <- attrs
+            | OVar i name <- nms
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
           getProbe _ = []

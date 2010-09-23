@@ -11,6 +11,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Wire
 
+import Data.List
 import Data.Reify.Graph (Unique)
 
 import Language.KansasLava.Netlist.Utils
@@ -25,7 +26,11 @@ genInst i (Entity name outputs inputs (Comment msg:rest)) =
 	[ CommentDecl msg
 	] ++ genInst i (Entity name outputs inputs rest)
 
--- TODO: check for Probes, etc.
+-- Probes are turned into id nodes, add comments to indicate
+-- which probes are on which signals in the vhdl.
+genInst i (Entity (TraceVal nms _) ins outs _) =
+	genInst i (Entity (Name "Lava" "id") ins outs [Comment (intercalate ", " $ map show nms)])
+
 
 genInst i (Entity (Name "Lava" "pair") outputs inputs other)
 	= genInst i (Entity (Name "Lava" "concat") outputs inputs other)
@@ -87,10 +92,6 @@ genInst i (Entity (Name "Lava" "index")
   where tys = case eleTy of
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
-
--- For Probes, consider adding a comment
-genInst i (Entity (Name "probe" _) ins outs _) =
-	genInst i (Entity (Name "Lava" "id") ins outs [])
 
 genInst i e@(Entity (Name "Memory" "register") [("o0",_)] inputs _) =
           [NetAssign input (toStdLogicExpr ty d) ]
@@ -184,10 +185,10 @@ genInst i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,
 		]
 	   (SampledTy _ n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
-		]		
+		]
 	   (B,V 1) ->
 		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
-		]		
+		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
 genInst i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)] _)

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probeCircuit,probe,probesFor,probeNames,probeValue) where
+module Language.KansasLava.Testing.Probes where -- (Probe,probeCircuit,probe,probesFor,probeNames,probeValue) where
 
 import qualified Data.Reify.Graph as DRG
 
@@ -16,37 +16,21 @@ import Data.Bits
 import Data.List
 
 import Language.KansasLava
-import Language.KansasLava.Types
+import Language.KansasLava.Internals
 
 import Language.KansasLava.Testing.Trace
 
--- | 'probeCircuit' takes a something that can be reified and
--- | generates an association list of the values for the probes in
--- | that circuit.
-probeCircuit :: (Ports a) =>
-           a        -- ^ The Lava circuit.
-           -> IO [(String,Annotation)]
-probeCircuit circuit = do
-    rc <- reifyCircuit circuit
-    let evts = [(n ++ "_" ++ show i,pv) | (_,Entity _ _ _ attrs) <- theCircuit rc
-                       , pv@(ProbeValue (OVar i n) v) <- attrs]
-    return evts
-
--- | 'probesFor' takes an association list of probe values and a probe
--- | name, and returns an association list containing only those probes
--- | related to the probed function, in argument order.
-probesFor :: String -> [(String,Annotation)] -> [(String,Annotation)]
-probesFor name plist =
-    sortBy (\(n1, _) (n2, _) -> compare n1 n2) $
-    filter (\(n, _) -> name `isPrefixOf` n) plist
+import Debug.Trace
 
 probeNames :: DRG.Unique -> Circuit -> [OVar]
-probeNames n circuit = nub [ nm | Just (Entity _ _ _ attrs) <- [lookup n $ theCircuit circuit]
-                              , (ProbeValue nm _) <- attrs ]
+probeNames n circuit = case lookup n $ theCircuit circuit of
+                        Just (Entity (TraceVal nms _) _ _ _) -> nms
+                        _ -> []
 
 probeValue :: DRG.Unique -> Circuit -> TraceStream
-probeValue n circuit = head [ ts | Just (Entity _ _ _ attrs) <- [lookup n $ theCircuit circuit]
-                                 , (ProbeValue _ ts) <- attrs ]
+probeValue n circuit = case lookup n $ theCircuit circuit of
+                        Just (Entity (TraceVal _ strm) _ _ _) -> strm
+                        _ -> Empty
 
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class Probe a where
@@ -62,12 +46,18 @@ class Probe a where
     probe' name (i:_) s = attach i name s
 
 instance (Rep a) => Probe (CSeq c a) where
-    attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
-        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
+    attach i name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+        where n = OVar i name
+              strm = fromXStream (witness :: a) s
+--    attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
+--        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
 
 instance (Rep a) => Probe (Comb a) where
-    attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
-        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
+    attach i name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
+        where n = OVar i name
+              strm = fromXStream (witness :: a) $ fromList $ repeat s
+--    attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
+--        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
@@ -80,19 +70,18 @@ instance Probe (Env c) where
  						                         (attach i (name ++ "_1clk_en") clk_en)
 
 -- ACF: TODO: As you can see with tuples, we have name supply issues to solve.
-instance (Rep a, Rep b,
-          Probe (f a), Probe (f b)) => Probe (f a, f b) where
+instance (Rep a, Rep b, Probe (f a), Probe (f b)) => Probe (f a, f b) where
     attach i name (x,y) = (attach i (name ++ "_1") x,
                            attach i (name ++ "_0") y)
 
-instance (Rep a, Rep b, Rep c,
-          Probe (f a), Probe (f b), Probe (f c)) => Probe (f a, f b, f c) where
+instance (Rep a, Rep b, Rep c, Probe (f a), Probe (f b), Probe (f c)) => Probe (f a, f b, f c) where
     attach i name (x,y,z) = (attach i (name ++ "_2") x,
                              attach i (name ++ "_1") y,
                              attach i (name ++ "_0") z)
 
 instance (Probe a, Probe b) => Probe (a -> b) where
-    -- this shouldn't happen, but if it does, discard int and generate fresh order
+    -- this shouldn't happen (maybe a higher order KL function?),
+    -- but if it does, discard int and generate fresh order
     attach _ = probe
 
     -- The default behavior for probing functions is to generate fresh ordering
@@ -100,6 +89,14 @@ instance (Probe a, Probe b) => Probe (a -> b) where
 
     probe' name (i:is) f x = probe' name is $ f (attach i name x)
 
+insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
+insertProbe n s@(TraceStream ty _) = mergeNested
+    where mergeNested :: Driver E -> Driver E
+          mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins attrs)))
+                        = Port nm (E (Entity (TraceVal (n:names) strm) outs ins attrs))
+          mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)] []))
+
+{-
 addAttr :: Annotation -> Driver E -> Driver E
 addAttr value (Port v (E (Entity n outs ins attrs))) =
             Port v (E (Entity n outs ins $ attrs ++ [value]))
@@ -118,3 +115,4 @@ addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
              (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
                  [value])))
 addAttr _ driver = error $ "Can't probe " ++ show driver
+-}

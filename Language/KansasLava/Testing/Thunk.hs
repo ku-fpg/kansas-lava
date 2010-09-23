@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench, exposeProbes) where
+module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench, exposeProbes, exposeProbesIO) where
 
 import Language.KansasLava
 
@@ -31,31 +31,6 @@ mkTrace :: (Ports a)
 mkTrace c thunk = do
     (trace, _) <- mkTraceCM c thunk (return)
     return trace
-
--- | Make a Trace from a Thunk
-mkTraceCM :: (Ports a)
-          => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
-          -> Thunk a   -- ^ The thunk we are executing.
-          -> (Circuit -> IO Circuit) -- Circuit Mod
-          -> IO (Trace, Circuit)
-mkTraceCM c (Thunk circuit k) circuitMod = do
-    let uname = "wholeCircuit5471" -- probably need a better solution than this
-    let probed = probe uname circuit
-
-    rc <- (reifyCircuit >=> circuitMod) probed
-
-    -- we can't apply circuitMods to applied circuit, because our pads disappear!
-    rcWithData <- reifyCircuit $ k probed
-
-    let pdata = [ (k,v) | (_,Entity _ _ _ attrs) <- theCircuit rcWithData
-                        , ProbeValue k v <- attrs ]
-        io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
-        (OVar outPNum _, _) = head io
-        ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
-        outs = M.fromList [ (k,probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
-        ps = M.fromList pdata M.\\ M.fromList io
-
-    return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
 mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)
@@ -125,19 +100,45 @@ runTestBench path invoker = do
 
     -- eventually we will read the deep file here and return it as a trace
 
-exposeProbes :: [String] -> Circuit -> IO Circuit
-exposeProbes names rc = do
-    let oldSinks = theSinks rc
-        n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
-        probes = nub [ (oty, Port onm n)
-                     | (n, Entity _ outs _ attrs) <- theCircuit rc
-                     , ProbeValue (OVar _ pname) _ <- attrs
-                     , or [ nm `isPrefixOf` pname | nm <- names ]
-                     , (onm,oty) <- outs ]
-        showPNames :: Int -> [OVar] -> String
-        showPNames x = concatMap (\(OVar i n) -> n ++ "_" ++ show i ++ "_" ++ show x)
+exposeProbesIO :: [String] -> Circuit -> IO Circuit
+exposeProbesIO names = return . (exposeProbes names) -- seems like return . exposeProbes should work
 
-        newSinks = [ (OVar i $ showPNames i $ probeNames node rc, ty, d) | (i,(ty,d@(Port _ node))) <- zip [n..] probes ]
+-- This doesn't need IO, so we keep the flexibility here.
+exposeProbes :: [String] -> Circuit -> Circuit
+exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
+    where oldSinks = theSinks rc
+          n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
+          probes = sort [ (pname, n, outs)
+                        | (n, Entity (TraceVal pnames _) outs _ _) <- theCircuit rc
+                        , pname <- pnames ]
+          exposed = nub [ (p, oty, Port onm n)
+                        | (p@(OVar _ pname), n, outs) <- probes
+                        , or [ nm `isPrefixOf` pname | nm <- names ]
+                        , (onm,oty) <- outs ]
+          showPNames x (OVar i n) = n ++ "_" ++ show i ++ "_" ++ show x
 
-    return $ rc { theSinks = oldSinks ++ newSinks }
+          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ node))) <- zip [n..] exposed ]
 
+mkTraceCM :: (Ports a)
+          => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+          -> Thunk a   -- ^ The thunk we are executing.
+          -> (Circuit -> IO Circuit) -- Circuit Mod
+          -> IO (Trace, Circuit)
+mkTraceCM c (Thunk circuit k) circuitMod = do
+    let uname = "wholeCircuit5471" -- probably need a better solution than this
+    let probed = probe uname circuit
+
+    rc <- (reifyCircuit >=> mergeProbesIO >=> circuitMod) probed
+
+    -- we can't apply circuitMods to applied circuit, because our pads disappear!
+    -- TODO: figure out why we can't call mergeProbes on this
+    rcWithData <- reifyCircuit $ k probed
+
+    let pdata = [ (k,v) | (_,Entity (TraceVal ks v) _ _ _) <- theCircuit rcWithData , k <- ks ]
+        io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
+        (OVar outPNum _, _) = head io
+        ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
+        outs = M.fromList [ (k,probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
+        ps = M.fromList pdata M.\\ M.fromList io
+
+    return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
