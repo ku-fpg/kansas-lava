@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes where -- (Probe,probeCircuit,probe,probesFor,probeNames,probeValue) where
+module Language.KansasLava.Testing.Probes (Probe,probe,probeNames,probeValue) where
 
 import qualified Data.Reify.Graph as DRG
 
@@ -19,8 +19,6 @@ import Language.KansasLava
 import Language.KansasLava.Internals
 
 import Language.KansasLava.Testing.Trace
-
-import Debug.Trace
 
 probeNames :: DRG.Unique -> Circuit -> [OVar]
 probeNames n circuit = case lookup n $ theCircuit circuit of
@@ -49,15 +47,11 @@ instance (Rep a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where n = OVar i name
               strm = fromXStream (witness :: a) s
---    attach i name (Seq s (D d)) = Seq s (D (addAttr pdata d))
---        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) s)
 
 instance (Rep a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where n = OVar i name
               strm = fromXStream (witness :: a) $ fromList $ repeat s
---    attach i name c@(Comb s (D d)) = Comb s (D (addAttr pdata d))
---        where pdata = ProbeValue (OVar i name) (fromXStream (witness :: a) (fromList $ repeat s))
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
@@ -95,24 +89,3 @@ insertProbe n s@(TraceStream ty _) = mergeNested
           mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins attrs)))
                         = Port nm (E (Entity (TraceVal (n:names) strm) outs ins attrs))
           mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)] []))
-
-{-
-addAttr :: Annotation -> Driver E -> Driver E
-addAttr value (Port v (E (Entity n outs ins attrs))) =
-            Port v (E (Entity n outs ins $ attrs ++ [value]))
--- TODO: Above is a hack for multiple probes on single node. Idealy want to just store this once with
--- multiple names, since each probe will always observe the same sequence.
-addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Pad (OVar _ v)) =
-  (Port ("o0")
-          (E (Entity (Name "probe" v) [("o0", ty)] [("i0", ty,d)]
-                       [value])))
-addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Lit x) =
-            (Port ("o0")
-             (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
-                 [value])))
-addAttr value@(ProbeValue _ (TraceStream ty _)) d@(Error _) =
-            (Port ("o0")
-             (E (Entity (Name "probe" "lit") [("o0", ty)] [("i0", ty,d)]
-                 [value])))
-addAttr _ driver = error $ "Can't probe " ++ show driver
--}
