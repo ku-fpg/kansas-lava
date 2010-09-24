@@ -274,6 +274,7 @@ data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually cl
 --
 
 data Annotation = Comment String                -- intended to arrive in the VHDL
+                | Ann String Int
 --                | Ann String Dynamic
 
 instance Eq Annotation where {}
