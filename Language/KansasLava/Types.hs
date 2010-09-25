@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, Rank2Types #-}
 
 module Language.KansasLava.Types where
 
@@ -101,20 +101,37 @@ instance Read OVar where
                                         ]
                           _         -> [] -- no parse
 
-
 -------------------------------------------------------------------------
 -- Id
 
 data Id = Name String String                    -- external thing
         | Prim String                           -- built in thing
+        | Function [(Integer,Integer)]          -- anonymous function
+
+
+						-- Why are the OVar's here?
         | TraceVal [OVar] TraceStream           -- trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
                                                 -- for later inspection
-        | Comment' String                       -- an identity with a message
-        | Function [(Integer,Integer)]          -- anonymous function
+
+	| Comment' [String]
+	| BlackBox (Box Dynamic)		-- These can be removed without harm
+						-- The rule is you can only insert you own
+						-- types in here (or use newtype).
+						-- Prelude or other peoples types
+						-- are not allowed (because typecase becomes ambigious)
     deriving (Eq, Ord)
+
+-- The type indirection to to allow the Eq/Ord to be provided without
+-- crashing the Dynamic Eq/Ord space.
+newtype Box a = Box a
+
+-- I do not like this, but at least it is defined.
+-- All black boxes are the same.
+instance Eq (Box a) where { (==) _ _ = True }
+instance Ord (Box a) where { compare _ _ = EQ }
 
 instance Show Id where
     show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
