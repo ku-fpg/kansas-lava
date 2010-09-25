@@ -18,6 +18,7 @@ module Language.KansasLava (
     module Language.KansasLava.Wire,
     module Language.KansasLava.StdLogicVector,
 
+    module Language.KansasLava.Dynamic,
     module Language.KansasLava.Testing.Output.Dot,
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
@@ -45,6 +46,8 @@ import Language.KansasLava.Testing.Output.Dot
 
 import Language.KansasLava.StdLogicVector
 
+
+import Language.KansasLava.Dynamic
 
 -- TODO Add StdLogicVector
 
