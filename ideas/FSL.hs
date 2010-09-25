@@ -47,7 +47,13 @@ toVariableFSL stutter xs env isRead = toSeq (fn stutter xs (fromSeq isRead))
 			(Just (IsRead True):rs)  -> error "FSL/Read: bad protocol state (3)"
 			(Just (IsRead False):rs) -> fn (pred p:ps) xs rs -- nothing read
 
-newtype HasCapacity = HasCapacity Bool
+newtype IsFull = IsFull Bool
+
+mkIsFull :: Seq Bool -> Seq IsFull
+mkIsFull = liftS1 $ \ (Comb a (D ea)) 
+	              -> (Comb (optX $ fmap IsFull $ unX a) (D ea :: D IsFull))
+
+instance Rep IsFull where
 
 -- A test, that takes the output from our FSL generator, and returns the back edge (the IsRead, and 
 testFSLRead :: Env () -> Seq (Enabled Int) -> (Seq IsRead,Seq Int)
@@ -65,6 +71,53 @@ dut env generator = result
 main = do
 	print (dut shallowEnv (toVariableFSL [1..] [1..10] shallowEnv))
 
+-- A one-cell mvar-like FIFO.
+
+
+--				Seq (IsFull -> Enabled a)	
+
+mvar :: (Rep a) => Env () -> (Seq IsFull -> Seq (Enabled a)) -> (Seq IsRead -> Seq (Enabled a))
+mvar env f isRead = value
+  where 
+	value = register env (pureS Nothing) $
+			cASE [ ( (state .==. low) `and2` (isEnabled inp)
+			       , inp		-- load new value
+			       )
+			     , ( (state .==. low) `and2` (not (isEnabled inp))
+			       , Nothing	-- load no value
+			       )
+			     , ( (state .==. high) `and2` (isRead .==. pureS (IsRead True))
+			       , Nothing	-- output value
+			       )
+			     , ( (state .==. high) `and2` (isRead .==. pureS (IsRead False))
+			       , value		-- keep value
+			       )
+			     ] Nothing
+	inp 	      = f $ mkIsFull state
+	-- the state is just a bit
+	(state,datum) = unpack value
+
+
+
+--mux2 (funMap fsm $ pack (isFull,isRead)) (value,inp)
+	      inp        = f $ mkIsFull full
+	      (full,val) = unpack value
+--	      fsm :: (IsFull,IsRead) -> Maybe Bool
+--	      fsm = (IsFull True,IsRead True) = return False	-- 
+
+
+-- A passthrough; thats all
+srcToSink :: (Rep a) => Env () -> (Seq IsRead -> Seq (Enabled a)) -> (Seq IsFull -> Seq (Enabled a))
+srcToSink env reader isFull =
+	where
+		isRead   = 
+		(en,val) = reader isRead
+	
+	
+{-
+main = 
+	fn = 
+-}
 
 {-
 -- Implements the FSL "Write/LHS" protocol, again at max speed
