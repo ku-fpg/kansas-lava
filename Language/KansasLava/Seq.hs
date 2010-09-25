@@ -89,6 +89,7 @@ instance Signal (CSeq c) where
 		    ]) 
 		    (combDriver (f (map (deepComb . seqDriver) ss)))
 
+  deepS (Seq _ d) = d
 
 ----------------------------------------------------------------------------------------------------
 

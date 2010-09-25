@@ -19,6 +19,7 @@ class Signal f where
   liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
   liftS2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
   liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
+  deepS  :: f a -> D a
 
 bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
@@ -57,6 +58,7 @@ instance Signal Comb where
   liftS1 f a   = f a
   liftS2 f a b = f a b
   liftSL f xs  = f xs
+  deepS (Comb _ d) = d
 
 
 class (Signal sig) => Pack sig a where
@@ -92,7 +94,7 @@ fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) 
 wireName :: (Rep a) => a -> String
 wireName a = case wireType a of
 		_ -> "Lava"
-		ty -> error $ "Type Name not found for " ++ show ty
+--		ty -> error $ "Type Name not found for " ++ show ty
 
 -----------------------------------------------------------------------------------------------
 
