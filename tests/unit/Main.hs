@@ -12,17 +12,16 @@ import Data.Ord ( comparing )
 import Utils
 
 main = do
-	let test :: (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
-	    test = testSeq def
+	let test :: TestSeq
+	    test = TestSeq (testSeq def)
+
 	testMux test
 
+	testBinOpNum test "U4" u4s0 u4s1
 
-
-testMux :: (forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ()) -> IO ()	
-testMux test = do
-	-- insert parsing of command line arguments
-
-	-- Our basic test template
+-------------------------------------------------------------------------------------------------
+testMux :: TestSeq -> IO ()	
+testMux (TestSeq test) = do
 	let gate = cycle [True,False,True,True,False]
 	    thu = Thunk (mux2 :: Seq Bool -> (Seq U4, Seq U4) -> Seq U4) 
 		        (\ f -> f (toSeq (cycle gate)) 
@@ -34,5 +33,27 @@ testMux test = do
 				  u4s1
 			)
 	test "mux2/U4" 100 thu res
-	
-	
+
+-------------------------------------------------------------------------------------------------
+
+testBinOp :: (Rep a, Show a, Eq a) => TestSeq -> String -> (a -> a -> a) -> (Comb a -> Comb a -> Comb a) -> [a] -> [a] -> IO ()	
+testBinOp (TestSeq test) nm op lavaOp us0 us1 = do
+	let thu = Thunk (liftS2 lavaOp)
+		        (\ f -> f (toSeq us0) (toSeq us1)
+			)
+ 	    res = toSeq (Prelude.zipWith op
+				  us0
+				  us1
+			)
+	test nm 100 thu res
+
+testBinOpNum :: (Num a, Rep a) => TestSeq -> String -> [a] -> [a] -> IO ()
+testBinOpNum test tyName s0 s1 = 
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName)  (+) (+) s0 s1
+          | (name,op,lavaOp) <- 
+		[ ("add",(+),(+))
+		, ("sub",(+),(+))
+		, ("mul",(+),(+))
+		]
+	  ]
