@@ -205,6 +205,12 @@ fromRepToInteger (RepValue xs) =
 			WireVal False -> False
 	      	    ]
 
+
+-- | compare a golden value with a generated value.
+--
+cmpRep :: (Rep a) => a -> X a -> X a -> Bool
+cmpRep w g v = toRep w g `cmpRepValue` toRep w v
+
 ------------------------------------------------------------------------------------
 
 instance Rep Bool where

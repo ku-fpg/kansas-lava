@@ -276,6 +276,19 @@ getValidRepValue r@(RepValue m)
         | isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
         | otherwise         = Nothing
 
+-- | compare a golden value with another value, returning the bits that are different
+
+cmpRepValue :: RepValue -> RepValue -> Bool
+cmpRepValue (RepValue gs) (RepValue vs) 
+	| length gs == length vs 
+		= and $ zipWith (\ g v ->
+			     case (g,v) of
+				(WireUnknown,_)               -> True
+				(WireVal True,WireVal True)   -> True
+				(WireVal False,WireVal False) -> True
+				_ -> False) gs vs
+cmpRepValue _ _ = False
+
 ---------------------------------------------------------------------------------------------------------
 --
 --

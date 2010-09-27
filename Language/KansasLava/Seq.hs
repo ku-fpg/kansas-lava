@@ -128,6 +128,12 @@ fromSeq = fmap unX . toList . seqValue
 fromSeqX :: (Rep a) => CSeq c a -> [X a]
 fromSeqX = toList . seqValue
 
+cmpSeqRep :: forall a c . (Rep a) => Int -> CSeq c a -> CSeq c a -> Bool
+cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith (cmpRep w)
+								(seqValue s1)
+								(seqValue s2)
+	where w = witness :: a
+
 -----------------------------------------------------------------------------------
 -- TODO: move into its own module
 -- Take the shallow from the first, and the deep from the second
