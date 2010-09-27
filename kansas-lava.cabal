@@ -66,7 +66,7 @@ Library
   Ghc-Options:  -Wall -O2
 --  Ghc-Prof-options:  -auto-all
 
-Executable kansas-lava-test1
+Executable kansas-lava-unittest
     if flag(all)
       Build-Depends: base, QuickCheck >= 2.0
       buildable: True
@@ -75,7 +75,7 @@ Executable kansas-lava-test1
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests/test1
+    Hs-Source-Dirs: ., tests/unit
     Ghc-Options: -Wall
 
 --Executable kansas-lava-test2
