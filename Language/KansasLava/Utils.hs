@@ -38,19 +38,19 @@ false = pureS False
 
 -----------------------------------------------------------------------------------------------
 and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX b :: Maybe Bool) of
+and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just True,Just True) -> optX $ Just True
 						     (Just False,_)        -> optX $ Just False
 					     	     (_,Just False)        -> optX $ Just False
-						     _                     -> optX $ (Nothing :: Maybe Bool))
+						     _                     -> optX $ Nothing)
 					 $ entity2 (Name "Lava" "and2") ae be
 
 or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX b :: Maybe Bool) of
+or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just False,Just False) -> optX $ Just False
 						     (Just True,_)           -> optX $ Just True
 					     	     (_,Just True)           -> optX $ Just True
-						     _                       -> optX $ (Nothing :: Maybe Bool))
+						     _                       -> optX $ Nothing )
 					 $ entity2 (Name "Lava" "or2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Name "Lava" "xor2") ae be
@@ -59,7 +59,7 @@ bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Name "Lava" "not") ae
 
 testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
-testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
+testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a))
                                       $ entity2 (Name "Lava" "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
 		      ) x
 
@@ -166,9 +166,9 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 
 funMap :: forall sig a b . (Signal sig, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
 funMap fn = liftS1 $ \ (Comb a (D ae))
-			-> Comb (case unX (a :: X a) :: Maybe a of
-				   Nothing -> optX (Nothing :: Maybe b) :: X b
-				   Just v -> optX (fn v :: Maybe b) :: X b)
+			-> Comb (case unX a of
+				   Nothing -> optX Nothing
+				   Just v -> optX (fn v))
 				     (D $ Port ("o0")
 					$ E
 					$ Entity (Function tab')
@@ -187,13 +187,13 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 		      , w_b
 		      )
 		    | w_a <- all_a_bitRep
-		    , a <- case unX (fromRep (witness :: a) w_a :: X a) :: Maybe a of
+		    , a <- case unX (fromRep w_a) of
 				 Nothing -> []
 				 Just a -> [a]
 		    , b <- case fn a of
 			     Nothing -> []
 			     Just b -> [b]
-		    , let w_b = toRep (witness :: b) ((optX $ Just b) :: X b)
+		    , let w_b = toRep (optX $ Just b)
 		    ]
 
 
@@ -204,13 +204,13 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 		      , showRep (witness :: b) $ optX $ Just b
 		      )
 		    | w_a <- all_a_bitRep
-		    , a <- case unX (fromRep (witness :: a) w_a :: X a) :: Maybe a of
+		    , a <- case unX $ fromRep w_a of
 				 Nothing -> []
 				 Just a -> [a]
 		    , b <- case fn a of
 			     Nothing -> []
 			     Just b -> [b]
-		    , let w_b = toRep (witness :: b) ((optX $ Just b) :: X b)
+		    , let w_b = toRep (optX $ Just b)
 		    ]
 
 repValueToInteger :: RepValue -> Integer
@@ -260,7 +260,7 @@ liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
 mux2shallow :: forall a . (Rep a) => a -> X Bool -> X a -> X a -> X a
 mux2shallow _ i t e =
    case unX i of
-       Nothing -> optX (Nothing :: Maybe a)
+       Nothing -> optX Nothing
        Just True -> t
        Just False -> e
 
@@ -337,9 +337,9 @@ muxMatrix = (.!.)
 (.!.) m x = liftS2 (\
 		    ~(Comb (XMatrix m) me)
 	 	    ~(Comb x xe)
-			-> Comb (case (unX x :: Maybe x) of
+			-> Comb (case (unX x) of
 				    Just x' -> m M.! x'
-				    Nothing -> optX (Nothing :: Maybe a)
+				    Nothing -> optX Nothing
 				)
 			     (entity2 (Name "Lava" "index") xe me) -- order reversed
 	         ) m x
@@ -368,8 +368,8 @@ instance (Ord a, Rep a) => Ord (CSeq c a) where
 boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
 	liftS2 $ \ (Comb a ea) (Comb b eb) ->
-		    Comb (optX $ do a' <- unX a :: Maybe a
-			            b' <- unX b :: Maybe a
+		    Comb (optX $ do a' <- unX a
+			            b' <- unX b
 			            return $ a' `fn` b')
 		      (entity2 (Name (wireName (error "boolOp" :: a)) nm) ea eb)
 
@@ -479,11 +479,11 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(
 
 
 	sres0 = (\ r e l old_l ->
-		    case unX r :: Maybe Bool of
-		       Nothing -> optX (Nothing :: Maybe a)
+		    case unX r of
+		       Nothing -> optX Nothing
 		       Just True -> def
-		       Just False -> case unX e :: Maybe Bool of
-		       			Nothing -> optX (Nothing :: Maybe a)
+		       Just False -> case unX e of
+		       			Nothing -> optX Nothing
 		       			Just True -> l
 		       			Just False -> old_l)
 			<$> rst
@@ -491,7 +491,7 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(
 			<*> line
 			<*> sres1
 
-	sres1 = def {- optX (Nothing :: Maybe a)-} :~ sres0
+	sres1 = def {- optX Nothing -} :~ sres0
 
         entity = Entity (Name "Memory" "register")
                     [("o0", bitTypeOf res)]
@@ -592,13 +592,13 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 
 toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
-toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (witness :: w) (optX (return v) :: X w) of
+toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
 						       RepValue v -> StdLogicVector $ M.matrix $ v
 
 -- TODO: way may have to lift these up to handle unknowns better.
 fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
 fromStdLogicVector = fun1' "fromStdLogicVector" $ \ x@(StdLogicVector v) ->
-				  unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+				  unX (fromRep (RepValue (M.toList v)))
 
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
 coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
@@ -611,7 +611,7 @@ extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, S
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
 extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
-		    Comb (optX $ do a' <- unX a :: Maybe (StdLogicVector a)
+		    Comb (optX $ do a' <- unX a
 			            return $ (SLV.splice i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 
@@ -621,8 +621,8 @@ appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD 
 	-> sig (StdLogicVector b)
 	-> sig (StdLogicVector (ADD a b))
 appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
-			Comb (optX $ do a' <- unX a ::Maybe (StdLogicVector a)
-					b' <- unX b ::Maybe (StdLogicVector b)
+			Comb (optX $ do a' <- unX a
+					b' <- unX b
 					return $ SLV.append a' b')
 			     (entity2 (Name "Lava" "concat") ea eb)
 
@@ -638,9 +638,9 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	unX (XSampled (WireVal a))     = return a
 	unX (XSampled WireUnknown)   = fail "Wire Sampled"
 	wireType x   	    = SampledTy (size (witness :: m)) (size (witness :: ix))
-	toRep w (XSampled WireUnknown) = unknownRepValue w
-	toRep w (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
-	fromRep w r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
+	toRep (XSampled WireUnknown) = unknownRepValue (witness :: Sampled.Sampled m ix)
+	toRep (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
+	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
 
 

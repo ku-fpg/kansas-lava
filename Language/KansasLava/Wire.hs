@@ -37,13 +37,13 @@ class Rep w where
     wireType :: w -> Type
 
     -- | convert to binary (rep) format
-    toRep   :: w -> X w -> RepValue
+    toRep   :: X w -> RepValue
     -- | convert from binary (rep) format
-    fromRep :: w -> RepValue -> X w
+    fromRep :: RepValue -> X w
 
     -- show the value (in its Haskell form, default is the bits)
     showRep :: w -> X w -> String
-    showRep w x = show (toRep w x)
+    showRep w x = show (toRep x)
 
 
 -- D w ->
@@ -172,18 +172,18 @@ fromRepToUnsigned w1 w2 r = optX (fmap (\ xs -> fromIntegral $ U.fromMatrix (M.m
                      (getValidRepValue r) :: Maybe v)
 
 
-toRepFromIntegral :: forall v . (Rep v, Integral v) => v -> X v -> RepValue
-toRepFromIntegral w v = case unX v :: Maybe v of
-                 Nothing -> unknownRepValue w
+toRepFromIntegral :: forall v . (Rep v, Integral v) => X v -> RepValue
+toRepFromIntegral v = case unX v :: Maybe v of
+                 Nothing -> unknownRepValue (witness :: v)
                  Just v' -> RepValue
-                    $ take (repWidth w)
+                    $ take (repWidth (witness :: v))
                     $ map WireVal
                     $ map odd
                     $ iterate (`div` 2)
                     $ fromIntegral v'
 
-fromRepToIntegral :: forall v . (Rep v, Integral v) => v -> RepValue -> X v
-fromRepToIntegral w1 r =
+fromRepToIntegral :: forall v . (Rep v, Integral v) => RepValue -> X v
+fromRepToIntegral r =
     optX (fmap (\ xs ->
         sum [ n
                 | (n,b) <- zip (iterate (* 2) 1)
@@ -208,7 +208,7 @@ fromRepToInteger (RepValue xs) =
 -- | compare a golden value with a generated value.
 --
 cmpRep :: (Rep a) => a -> X a -> X a -> Bool
-cmpRep w g v = toRep w g `cmpRepValue` toRep w v
+cmpRep w g v = toRep g `cmpRepValue` toRep v
 
 ------------------------------------------------------------------------------------
 
@@ -219,9 +219,9 @@ instance Rep Bool where
     unX (XBool (WireVal v))  = return v
     unX (XBool WireUnknown) = fail "Wire Bool"
     wireType _  = B
-    toRep w (XBool v)   = RepValue [v]
-    fromRep w (RepValue [v]) = XBool v
-	fromRep w rep		 = error ("size error for Bool : " ++ (show $ Prelude.length $ unRepValue rep) ++ " " ++ show rep)
+    toRep (XBool v)   = RepValue [v]
+    fromRep (RepValue [v]) = XBool v
+    fromRep rep    = error ("size error for Bool : " ++ (show $ Prelude.length $ unRepValue rep) ++ " " ++ show rep)
 
 {-
 instance RepWire Bool where
@@ -300,8 +300,8 @@ instance Rep () where
     unX (XUnit WireUnknown) = fail "Wire ()"
 --  wireName _  = "Unit"
     wireType _  = V 1   -- should really be V 0 TODO
-    toRep _ _ = RepValue []
-    fromRep _ _ = XUnit $ return ()
+    toRep _ = RepValue []
+    fromRep _ = XUnit $ return ()
     showRep _ _ = "()"
 
 {-
@@ -368,11 +368,11 @@ instance (Rep a, Rep b) => Rep (a,b) where
                   []
 -}
 
-    toRep _ (XTuple (a,b)) = RepValue (avals ++ bvals)
-        where (RepValue avals) = toRep (witness :: a) a
-              (RepValue bvals) = toRep (witness :: b) b
-    fromRep w (RepValue vs) = XTuple ( fromRep (witness :: a) (RepValue (take size_a vs))
-                  , fromRep (witness :: b) (RepValue (drop size_a vs))
+    toRep (XTuple (a,b)) = RepValue (avals ++ bvals)
+        where (RepValue avals) = toRep a
+              (RepValue bvals) = toRep b
+    fromRep (RepValue vs) = XTuple ( fromRep (RepValue (take size_a vs))
+                  , fromRep (RepValue (drop size_a vs))
                   )
         where size_a = typeWidth (wireType (witness :: a))
     showRep _ (XTuple (a,b)) = "(" ++ showRep (witness :: a) a ++ "," ++ showRep (witness :: b) b ++ ")"
@@ -410,13 +410,13 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 -}
 
     wireType ~(a,b,c) = TupleTy [wireType a, wireType b,wireType c]
-    toRep _ (XTriple (a,b,c)) = RepValue (avals ++ bvals ++ cvals)
-        where (RepValue avals) = toRep (witness :: a) a
-              (RepValue bvals) = toRep (witness :: b) b
-              (RepValue cvals) = toRep (witness :: c) c
-    fromRep w (RepValue vs) = XTriple ( fromRep (witness :: a) (RepValue (take size_a vs))
-				  , fromRep (witness :: b) (RepValue (take size_b (drop size_a vs)))
-                  , fromRep (witness :: c) (RepValue (drop (size_a + size_b) vs))
+    toRep (XTriple (a,b,c)) = RepValue (avals ++ bvals ++ cvals)
+        where (RepValue avals) = toRep a
+              (RepValue bvals) = toRep b
+              (RepValue cvals) = toRep c
+    fromRep (RepValue vs) = XTriple ( fromRep (RepValue (take size_a vs))
+				  , fromRep (RepValue (take size_b (drop size_a vs)))
+                  , fromRep (RepValue (drop (size_a + size_b) vs))
                   )
         where size_a = typeWidth (wireType (witness :: a))
               size_b = typeWidth (wireType (witness :: b))
@@ -457,11 +457,11 @@ instance (Rep a) => Rep (Maybe a) where
 --  wireName _  = "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
     wireType _  = TupleTy [ B, wireType (error "witness" :: a)]
 
-    toRep _ (XMaybe (a,b)) = RepValue (avals ++ bvals)
-        where (RepValue avals) = toRep (witness :: Bool) a
-              (RepValue bvals) = toRep (witness :: a) b
-    fromRep w (RepValue vs) = XMaybe ( fromRep (witness :: Bool) (RepValue (take 1 vs))
-                  , fromRep (witness :: a) (RepValue (drop 1 vs))
+    toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)
+        where (RepValue avals) = toRep a
+              (RepValue bvals) = toRep b
+    fromRep (RepValue vs) = XMaybe ( fromRep (RepValue (take 1 vs))
+                  , fromRep (RepValue (drop 1 vs))
                   )
     showRep w (XMaybe (XBool WireUnknown,a)) = "?"
     showRep w (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (witness :: a) a
@@ -496,8 +496,8 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
             ix = error "ix/Matrix"
             a :: Matrix ix a -> a
             a = error "a/Matrix"
-    toRep _ (XMatrix m) = RepValue (concatMap (unRepValue . toRep (witness :: a)) $ M.toList m)
-    fromRep _ _ = XMatrix $ error "TODO: write fromRep for Matrix"
+    toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
+    fromRep _ = XMatrix $ error "TODO: write fromRep for Matrix"
 --  showWire _ = show
 
 {-

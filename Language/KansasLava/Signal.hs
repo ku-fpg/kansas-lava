@@ -106,29 +106,29 @@ instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
 	pack (a,b) = {-# SCC "pack(Maybe)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) ->
-				    Comb (case unX (a :: X Bool) :: Maybe Bool of
-					    Nothing -> optX (Nothing :: Maybe (Maybe a))
-					    Just False -> optX (Just Nothing :: Maybe (Maybe a))
+				    Comb (case unX a of
+					    Nothing -> optX Nothing
+					    Just False -> optX $ Just Nothing
 					    Just True ->
-						case unX (b :: X a) :: Maybe a of
-						   Just v -> optX (Just (Just v) :: Maybe (Maybe a))
+						case unX b of
+						   Just v -> optX (Just (Just v))
 							-- This last one is strange.
-						   Nothing -> optX (Just Nothing :: Maybe (Maybe a))
+						   Nothing -> optX (Just Nothing)
 					 )
 					 (entity2 (Name "Lava" "pair") ae be)
 			     ) a b
 	unpack ma = {-# SCC "unpack(Maybe)" #-}
-		    ( liftS1 (\ (Comb a abe) -> Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
-							Nothing -> optX (Nothing :: Maybe Bool)
-							Just Nothing -> optX (Just False :: Maybe Bool)
-							Just (Just _) -> optX (Just True :: Maybe Bool)
+		    ( liftS1 (\ (Comb a abe) -> Comb (case unX a of
+							Nothing -> optX Nothing
+							Just Nothing -> optX (Just False)
+							Just (Just _) -> optX (Just True)
 						     )
 						     (entity1 (Name "Lava" "fst") abe)
 			      ) ma
-		    , liftS1 (\ (Comb a abe) -> Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
-							Nothing -> optX (Nothing :: Maybe a)
-							Just Nothing -> optX (Nothing :: Maybe a)
-							Just (Just v) -> optX (Just v :: Maybe a)
+		    , liftS1 (\ (Comb a abe) -> Comb (case unX a of
+							Nothing -> optX Nothing
+							Just Nothing -> optX Nothing
+							Just (Just v) -> optX (Just v)
 						     )
 						     (entity1 (Name "Lava" "snd") abe)
 			      ) ma

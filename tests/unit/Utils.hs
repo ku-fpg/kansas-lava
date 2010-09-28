@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Utils where
-	
+
 import Language.KansasLava
 import Language.KansasLava.Testing.Thunk
 import Data.Sized.Ix
@@ -54,7 +54,7 @@ verbose opt n m | verboseOpt opt >= n = putStrLn m
 -- Given a circuit that returns an a, and the expected results,
 -- do some tests for sanity.
 
-data TestSeq = TestSeq 
+data TestSeq = TestSeq
 	(forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
 	(forall a. Gen a -> [a])
 
@@ -74,13 +74,13 @@ testSeq opts pass nm count th master | testMe nm (testOnly opts) = do
 		  pass False
 		  verb 4 $ show ("master",master)
 		  verb 4 $ show ("shallow",shallow)
-	
+
 				| otherwise = return ()
 
-	
-	
+
+
 -------------------------------------------------------------------------------------
-	
+
 -- Not really random, but good enough for basic testing.
 unsort :: [x] -> [x]
 unsort es = map snd . sortBy (comparing fst) $ zip rs es
@@ -103,12 +103,12 @@ arbitrary = Gen sz integer2rep
 	sz = 2^fromIntegral (repWidth (witness :: w))
 	integer2rep :: Integer -> Maybe w
 	integer2rep v = unX
-		$ fromRep (witness :: w)
-		$ RepValue 
+		$ fromRep
+		$ RepValue
 		$ take (repWidth (witness :: w))
 		$ map WireVal
-		$ map odd 
-		$ iterate (`div` 2) 
+		$ map odd
+		$ iterate (`div` 2)
 		$ fromIntegral v
 
 loop :: Integer -> Gen w -> Gen w
@@ -126,7 +126,7 @@ dubSeq g = ((\ a b c -> if a then b else c) <$> arbitrary)
 instance Functor Gen where
 	fmap g (Gen n f) = Gen n (\i -> do r <- f i
 					   return $ g r)
-		
+
 instance Applicative Gen where
 	pure a = Gen 1 (const $ return a)
 	(Gen n1 f1) <*> (Gen n2 f2) = Gen (n1 * n2) (\ i -> do r1 <- f1 (i `mod` n1)
@@ -140,7 +140,7 @@ genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
 -- get some (random) elements from a Gen
 -- If it is small, then just output all the values.
 genToRandom :: Gen a -> [a]
-genToRandom (Gen n f) 
+genToRandom (Gen n f)
 	| n <= 100 = unsort $ genToList (Gen n f)
 	| otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
 

@@ -99,7 +99,7 @@ main = do
 
     debug "funMap" 200 funThunk
 
-    debug "pipeToMemory" 20 $ Thunk (pipeToMemory :: Env () -> Env () -> Seq (Pipe Word8 Int) -> Seq Word8 -> Seq Int)
+    let ptm = Thunk (pipeToMemory :: Env () -> Env () -> Seq (Pipe Word8 Int) -> Seq Word8 -> Seq Int)
                             $ \ cir -> cir shallowEnv
                                            shallowEnv
                                            (toSeq $ [Nothing,Nothing,Nothing,Nothing,Nothing]
@@ -111,6 +111,9 @@ main = do
                                                        ]
                                                     ++ cycle [Nothing])
                                            (toSeq $ cycle [0..2])
+    debug "pipeToMemory" 20 ptm
+    recordThunk "test/ptm" 20 (return) ptm
+    runTestBench "test/ptm" modelsim
 
     -- test each separately
     recordThunk "test/mux2" 100 (return) muxt
@@ -128,3 +131,9 @@ main = do
 
     print $ traceSignature t
     print $ traceSignature dtrace
+
+
+accum :: Env () -> Seq U4
+accum env = out
+    where out' = probe "register" register env 0 out
+          out = out' + 1

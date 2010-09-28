@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification #-}
 module Main where
-	
+
 import Language.KansasLava
 import Language.KansasLava.Testing.Thunk
 import Data.Sized.Arith
@@ -36,7 +36,7 @@ main = do
 
 
 	let test :: TestSeq
-	    test = TestSeq (testSeq opt pass) 
+	    test = TestSeq (testSeq opt pass)
 			(case testData opt of
 			   Nothing -> genToList
 			   Just i -> take i . genToRandom)
@@ -135,7 +135,7 @@ main_testLabel :: IO ()
 main_testLabel = do
 	let g :: Seq U4 -> Seq U4 -> Seq U4
 	    g a b = output "out" ((+) (input "a" a) (input "b" b))
-	
+
 	c <- reifyCircuit g
 	print c
 	let sig = circuitSignature c
@@ -147,20 +147,20 @@ main_testLabel = do
 
 allValues :: forall w . (Rep w) => [w]
 allValues = xs
-    where 
+    where
 	xs :: [w]
 	xs = Maybe.catMaybes
-	   $ fmap (unX :: X w -> Maybe w) 
-	   $ fmap (fromRep (witness :: w) :: RepValue -> X w) 
+	   $ fmap (unX :: X w -> Maybe w)
+	   $ fmap (fromRep :: RepValue -> X w)
 	   $ (allReps (witness :: w))
 
 allBounded :: (Enum w, Bounded w) => [w]
 allBounded = [minBound..maxBound]
 -------------------------------------------------------------------------------------------------
-testMux :: forall a . 
+testMux :: forall a .
  	(Size (ADD (WIDTH a) (WIDTH a)),
          Enum (ADD (WIDTH a) (WIDTH a)),
-	 Eq a, Show a, Rep a) => TestSeq -> String -> Gen (Bool,a,a) -> IO ()	
+	 Eq a, Show a, Rep a) => TestSeq -> String -> Gen (Bool,a,a) -> IO ()
 testMux (TestSeq test toList) nm gen = do
 	let (gate,us0,us1) = unzip3 $ toList gen
 	let thu = Thunk (mux2 :: Seq Bool -> (Seq a, Seq a) -> Seq a)
@@ -177,18 +177,18 @@ testMux (TestSeq test toList) nm gen = do
 -------------------------------------------------------------------------------------------------
 -- This only tests at the *value* level, and ignores testing unknowns.
 
-testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()	
+testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
 testUniOp (TestSeq test toList) nm op lavaOp gen = do
 	let us0 = toList gen
 	let thu = Thunk (liftS1 lavaOp)
-		        (\ f -> f (toSeq us0) 
+		        (\ f -> f (toSeq us0)
 			)
  	    res = toSeq (fmap op
 			      us0
 			)
 	test nm (length us0) thu res
 
-testBinOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c) => TestSeq -> String -> (a -> b -> c) -> (Comb a -> Comb b -> Comb c) -> Gen (a,b) -> IO ()	
+testBinOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c) => TestSeq -> String -> (a -> b -> c) -> (Comb a -> Comb b -> Comb c) -> Gen (a,b) -> IO ()
 testBinOp (TestSeq test toList) nm op lavaOp gen = do
 	let (us0,us1) = unzip $ toList gen
 	let thu = Thunk (liftS2 lavaOp)
@@ -200,7 +200,7 @@ testBinOp (TestSeq test toList) nm op lavaOp gen = do
 			)
 	test nm (length (zip us0 us1)) thu res
 
-testTriOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c, Rep d, Show d, Eq d) => TestSeq -> String -> (a -> b -> c -> d) -> (Comb a -> Comb b -> Comb c -> Comb d) -> Gen (a,b,c) -> IO ()	
+testTriOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c, Rep d, Show d, Eq d) => TestSeq -> String -> (a -> b -> c -> d) -> (Comb a -> Comb b -> Comb c -> Comb d) -> Gen (a,b,c) -> IO ()
 testTriOp (TestSeq test toList) nm op lavaOp gen = do
 	let (us0,us1,us2) = unzip3 $ toList gen
 	let thu = Thunk (liftS3 lavaOp)
@@ -220,18 +220,18 @@ testOpsEq test tyName ws = do
 	let ws2 = pair ws
 
 	sequence_
-	  [ testTriOp test (name ++ "/" ++ tyName) op lavaOp 
-			(pure (\ c (a,b) -> (c,a,b)) 
+	  [ testTriOp test (name ++ "/" ++ tyName) op lavaOp
+			(pure (\ c (a,b) -> (c,a,b))
 					  <*> arbitrary
 					  <*> ws2)
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ ("mux",\ c a b -> if c then a else b,\ c a b -> mux2 c (a,b))
 		]
 	  ]
 
 	sequence_
 	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ ("==",(==),(.==.))
 --		, ("/=",(/=),(./=.))
 		]
@@ -244,12 +244,12 @@ testOpsEq test tyName ws = do
 testOpsOrd :: (Rep w, Ord w, Show w) => TestSeq -> String -> Gen w -> IO ()
 testOpsOrd test tyName ws = do
 	let ws2 = pair ws
-	
+
 	testOpsEq test tyName ws
 
 	sequence_
 	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ (">",(>),(.>.))
 		, ("<",(<),(.<.))
 		, (">=",(>=),(.>=.))
@@ -261,7 +261,7 @@ testOpsOrd test tyName ws = do
 ------------------------------------------------------------------------------------------------
 
 
-testOpsNum :: forall w . 
+testOpsNum :: forall w .
 	(Ord w, Rep w, Num w) => TestSeq -> String -> Gen w -> IO ()
 testOpsNum test tyName ws = do
 	testOpsOrd test tyName ws
@@ -270,7 +270,7 @@ testOpsNum test tyName ws = do
 
 	sequence_
 	  [ testUniOp test (name ++ "/" ++ tyName) op lavaOp ws
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ ("negate",negate,negate)
 		, ("abs",abs,abs)
 		, ("signum",signum,signum)
@@ -279,7 +279,7 @@ testOpsNum test tyName ws = do
 
 	sequence_
 	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ ("add",(+),(+))
 		, ("sub",(-),(-))
 		, ("mul",(*),(*))
@@ -290,7 +290,7 @@ testOpsNum test tyName ws = do
 
 ----------------------------------------------------------------------------------------
 
-testOpsBits :: forall w . 
+testOpsBits :: forall w .
 	(Ord w, Rep w, Bits w) => TestSeq -> String -> Gen w -> IO ()
 testOpsBits test tyName ws = do
 	testOpsNum test tyName ws
@@ -299,20 +299,20 @@ testOpsBits test tyName ws = do
 
 	sequence_
 	  [ testUniOp test (name ++ "/" ++ tyName) op lavaOp ws
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ ("complement",complement,complement)
 		]
 	  ]
 
 	sequence_
 	  [ testBinOp test (name ++ "/" ++ tyName) op lavaOp ws2
-          | (name,op,lavaOp) <- 
+          | (name,op,lavaOp) <-
 		[ (".&.",(.&.),(.&.))
 		, (".|.",(.|.),(.|.))
 		, ("xor",(xor),(xor))
 		]
 	  ]
-	
+
 pair :: (Applicative f) => f a -> f (a, a)
 pair ws = pure (,) <*> ws <*> ws
 
@@ -345,7 +345,7 @@ testMemory (TestSeq test toList) tyName ws = do
 		    [ last $
 		     [Nothing] ++
 		     [ Just b
-		     | Just (a,b) <- take (i-2) writes 
+		     | Just (a,b) <- take (i-2) writes
 		     , a == fromIntegral r
 		     ]
 		    | (i,r) <- zip [1..(length writes-1)] reads
@@ -361,17 +361,17 @@ testConstMemory (TestSeq test toList) tyName ws = do
 		        (\ f -> f shallowEnv shallowEnv (toSeq writes)
 		        )
 	    res :: M.Matrix w1 (Seq w2)
-	    res = M.matrix 
+	    res = M.matrix
 		$ [ toSeq' $ [Nothing] ++
 		    [ last $
 		     [Nothing] ++
 		     [ Just b
-		     | Just (a,b) <- take (i-2) writes 
-		     , a == fromIntegral x 
+		     | Just (a,b) <- take (i-2) writes
+		     , a == fromIntegral x
 		     ]
 		    | i <- [1..(length writes-1)]
 		    ]
 		  | x <- [0..(size (witness :: w1) - 1 )]
-		  ] 
+		  ]
 	test ("memory/const/" ++ tyName) (length writes) thu (pack res)
 	return ()

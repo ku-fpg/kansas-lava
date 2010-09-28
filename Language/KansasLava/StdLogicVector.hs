@@ -12,7 +12,7 @@ import Data.Sized.Arith
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 
-import Data.Char as Char 
+import Data.Char as Char
 
 -- | StdLogicVector is a bit accurate, sized general representation of bit vectors.
 
@@ -52,21 +52,21 @@ instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
 		       | otherwise            = m ! fromIntegral ix'
-	            where 
+	            where
 			ix' = fromIntegral ix - i
 	shiftR (StdLogicVector m) i = StdLogicVector $ forAll $ off
 	  where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
 		       | otherwise            = m ! fromIntegral ix'
-	            where 
+	            where
 			ix' = fromIntegral ix + i
  	rotate (StdLogicVector m) i = StdLogicVector $ forAll $ off
 	  where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
 		       | otherwise            = m ! fromIntegral ix'
-	            where 
+	            where
 			ix' = fromIntegral ix - i
         testBit (StdLogicVector m) idx =  case m ! fromIntegral idx of
 					     WireVal b -> b
@@ -78,12 +78,12 @@ append :: (Size x, Size y, Size (ADD x y)) => StdLogicVector x -> StdLogicVector
 append (StdLogicVector m1) (StdLogicVector m2) = (StdLogicVector $ M.matrix (M.toList m1 ++ M.toList m2))
 
 {-
-splice :: (Integral inp, Integral res, Size high, Size low, Size res, Size inp, res ~ ADD (SUB high low) X1) 
+splice :: (Integral inp, Integral res, Size high, Size low, Size res, Size inp, res ~ ADD (SUB high low) X1)
        => high -> low -> StdLogicVector inp -> StdLogicVector res
 splice high low inp = StdLogicVector $ forAll $ \ ix -> inp' ! (fromIntegral ix)
   where
 	StdLogicVector inp' = shiftR inp (size low)
--}	
+-}
 
 splice :: forall inp res . (Integral inp, Integral res, Size res, Size inp)
        => Int -> StdLogicVector inp -> StdLogicVector res
@@ -91,8 +91,8 @@ splice low v = coerce $ shiftR v low
 
 -- either take lower bits, or append zeros to upper bits.
 coerce :: forall a b . (Size a, Size b) => StdLogicVector a -> StdLogicVector b
-coerce (StdLogicVector m) = StdLogicVector 
-			  $ M.matrix 
+coerce (StdLogicVector m) = StdLogicVector
+			  $ M.matrix
 			  $ take (size (witness :: b))
 			  $ M.toList m ++ repeat (WireVal False)
 
@@ -122,21 +122,21 @@ instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 -- TODO: rename as to and from.
-toSLV :: forall w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
-toSLV v = case toRep (witness :: w) (optX (return v) :: X w) of
+toSLV :: (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
+toSLV v = case toRep (optX $ return v) of
 		RepValue v -> StdLogicVector $ M.matrix $ v
 
-fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
-fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+fromSLV :: (Rep w, StdLogic w) => StdLogicVector (WIDTH w) -> Maybe w
+fromSLV x@(StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))
 
-instance (Size ix) => Rep (StdLogicVector ix) where 
-	type X (StdLogicVector ix) = StdLogicVector ix
-	optX (Just b)	    = b
-	optX Nothing	    = StdLogicVector $ forAll $ \ _ -> WireUnknown
-	unX a 		    = return a
+instance (Size ix) => Rep (StdLogicVector ix) where
+	data X (StdLogicVector ix) = XSV (StdLogicVector ix)
+	optX (Just b)	    = XSV b
+	optX Nothing	    = XSV $ StdLogicVector $ forAll $ \ _ -> WireUnknown
+	unX (XSV a)		    = return a
 	wireType x   	    = V (size (error "Wire/StdLogicVector" :: ix))
-	toRep _ (StdLogicVector m) = RepValue (M.toList m)
-	fromRep _ (RepValue vs) = StdLogicVector (M.matrix vs)
+	toRep (XSV (StdLogicVector m)) = RepValue (M.toList m)
+	fromRep (RepValue vs) = XSV $ StdLogicVector (M.matrix vs)
 	showRep = showRepDefault
 
 type Byte = StdLogicVector X8

@@ -55,12 +55,12 @@ class Probe a where
 instance (Rep a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where n = OVar i name
-              strm = fromXStream (witness :: a) s
+              strm = fromXStream s
 
 instance (Rep a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where n = OVar i name
-              strm = fromXStream (witness :: a) $ fromList $ repeat s
+              strm = fromXStream $ fromList $ repeat s
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where

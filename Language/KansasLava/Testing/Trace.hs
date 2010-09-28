@@ -51,8 +51,8 @@ setCycles i t = t { len = Just i }
 addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
 
-getInput :: (Rep w) => OVar -> w -> Trace -> Seq w
-getInput key witness trace = getSeq key (inputs trace) witness
+getInput :: (Rep w) => OVar -> Trace -> Seq w
+getInput key trace = getSeq key (inputs trace)
 
 remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
@@ -60,8 +60,8 @@ remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 addOutput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addOutput key seq t@(Trace _ _ outs _) = t { outputs = addSeq key seq outs }
 
-getOutput :: (Rep w) => OVar -> w -> Trace -> Seq w
-getOutput key witness trace = getSeq key (outputs trace) witness
+getOutput :: (Rep w) => OVar -> Trace -> Seq w
+getOutput key trace = getSeq key (outputs trace)
 
 remOutput :: OVar -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
@@ -69,8 +69,8 @@ remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
 addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
 
-getProbe :: (Rep w) => OVar -> w -> Trace -> Seq w
-getProbe key witness trace = getSeq key (probes trace) witness
+getProbe :: (Rep w) => OVar -> Trace -> Seq w
+getProbe key trace = getSeq key (probes trace)
 
 remProbe :: OVar -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
@@ -161,16 +161,9 @@ execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit
 class Run a where
     run :: a -> Trace -> TraceStream
 
-    -- For updating the output.
-    setOutput :: a -> Trace -> Trace
-    setOutKey :: OVar -> a -> Trace -> Trace
-
 instance (Rep a) => Run (CSeq c a) where
     run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
-        where TraceStream ty strm = fromXStream (witness :: a) s
-
-    setOutput s t = setOutKey (head $ M.keys $ outputs t) s t
-    setOutKey k (Seq s _) t@(Trace c _ outs _) = t { outputs = M.adjust (\_ -> fromXStream (witness :: a) s) k outs }
+        where TraceStream ty strm = fromXStream s
 
 {- eventually
 instance (Rep a) => Run (Comb a) where
@@ -194,20 +187,20 @@ instance (Run a, Run b, Run c) => Run (a,b,c) where
 instance (Rep a, Run b) => Run (Seq a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
-              input = getSeq key ins (witness :: a)
+              input = getSeq key ins
 
 instance (Rep a, Run b) => Run (Comb a -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
-              input = getComb key ins (witness :: a)
+              input = getComb key ins
 
 -- TODO: generalize over different clocks
 instance (Run b) => Run (Env () -> b) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
         where [key1,key2] = take 2 $ M.keys ins
               input = shallowEnv
-			{ resetEnv = getSeq key1 ins (witness :: Bool)
-			, enableEnv = getSeq key2 ins (witness :: Bool)
+			{ resetEnv = getSeq key1 ins
+			, enableEnv = getSeq key2 ins
 			}
 
 -- TODO: generalize somehow?
@@ -216,19 +209,19 @@ instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
           Rep a, Rep b, Run c) => Run ((Seq a, Seq b) -> c) where
     run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
         where key = head $ M.keys ins
-              input = unpack $ getSeq key ins (witness :: (a,b))
+              input = unpack (getSeq key ins :: Seq (a, b))
 
 -- These are exported, but are not intended for the end user.
 seqAll :: forall w. (Rep w) => Seq w
-seqAll = toSeqX $ cycle [fromRep (witness :: w) rep | rep <- allReps (witness :: w) ]
+seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
 
 -- Some combinators to get stuff in and out of the map
-fromXStream :: forall w. (Rep w) => w -> Stream (X w) -> TraceStream
-fromXStream witness stream = TraceStream (wireType witness) [toRep witness xVal | xVal <- Stream.toList stream ]
+fromXStream :: forall w . (Rep w) => Stream (X w) -> TraceStream
+fromXStream stream = TraceStream (wireType (witness :: w)) [toRep xVal | xVal <- Stream.toList stream ]
 
 -- oh to have dependent types!
-toXStream :: forall w. (Rep w) => w -> TraceStream -> Stream (X w)
-toXStream witness (TraceStream _ list) = Stream.fromList [fromRep witness $ val | val <- list]
+toXStream :: (Rep w) => TraceStream -> Stream (X w)
+toXStream (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
 
 -- Functions below are not exported.
 
@@ -260,19 +253,19 @@ readMap ls = (go $ takeWhile cond ls, rest)
           toWireVal '0' = return False
           toWireVal _   = fail "unknown"
 
-getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w)
-getStream name m witness = toXStream witness $ m M.! name
+getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> Stream (X w)
+getStream name m = toXStream $ m M.! name
 
-getSeq :: (Ord a, Rep w) => a -> TraceMap a -> w -> Seq w
-getSeq key m witness = shallowSeq $ getStream key m witness
+getSeq :: (Ord a, Rep w) => a -> TraceMap a -> Seq w
+getSeq key m = shallowSeq $ getStream key m
 
 -- Note: this only gets the *first* value. Perhaps combs should be stored differently?
-getComb :: (Ord a, Rep w) => a -> TraceMap a -> w -> Comb w
-getComb key m witness = shallowComb $ Stream.head $ getStream key m witness
+getComb :: (Ord a, Rep w) => a -> TraceMap a -> Comb w
+getComb key m = shallowComb $ Stream.head $ getStream key m
 
-addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w) -> TraceMap a
-addStream key m witness stream = M.insert key (fromXStream witness stream) m
+addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> Stream (X w) -> TraceMap a
+addStream key m stream = M.insert key (fromXStream stream) m
 
 addSeq :: forall a b. (Ord a, Rep b) => a -> Seq b -> TraceMap a -> TraceMap a
-addSeq key seq m = addStream key m (witness :: b) (seqValue seq :: Stream (X b))
+addSeq key seq m = addStream key m (seqValue seq :: Stream (X b))
 

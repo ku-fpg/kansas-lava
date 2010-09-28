@@ -31,7 +31,7 @@ instance forall a . (Rep a) => Show (Comb a) where
 
 -- This is required for Arithmetic to be overloaded.
 instance forall a . (Rep a, Eq a) => Eq (Comb a) where
-	(Comb x _) == (Comb y _) = (unX x :: Maybe a) == (unX y :: Maybe a)
+	(Comb x _) == (Comb y _) = (unX x) == (unX y)
 
 -- ACF: Since the shallow part of Comb is strict, we can't use error here.
 --      This only seems to come up in debugging. We could create a special
@@ -39,7 +39,7 @@ instance forall a . (Rep a, Eq a) => Eq (Comb a) where
 --      adding the class constraint is less invasive for now.
 -- deepComb e = Comb (error "shallow argument being used incorrectly") e
 deepComb :: forall a. (Rep a) => D a -> Comb a
-deepComb e = Comb (optX (Nothing :: Maybe a)) e
+deepComb e = Comb (optX Nothing) e
 
 shallowComb :: X a -> Comb a
 shallowComb a = Comb a (D $ Error "deep argument being used incorrectly")
@@ -49,8 +49,8 @@ shallowComb a = Comb a (D $ Error "deep argument being used incorrectly")
 --      (the calls to error get thrown away by dual)
 --      but this would require some major module rearrangement to avoid circular imports
 undefinedComb ::  forall a . (Rep a) => Comb a
-undefinedComb = Comb (optX $ (Nothing :: Maybe a)) 
-		     (D $ Lit $ toRep (witness :: a) (optX (Nothing :: Maybe a)))
+undefinedComb = Comb (optX Nothing)
+		     (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
 applyComb0 :: (Rep a) => Comb a -> Maybe a
 applyComb0 (Comb a _) = unX a
@@ -66,7 +66,7 @@ applyComb2 f a b = unX c
 
 -- Hmm, not the same deep side as toSeq; why?
 toComb :: forall a . (Rep a) => a -> Comb a
-toComb a = Comb (pureX a) $ D $ Lit $ toRep (witness :: a) (pureX a)
+toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
 
 toComb' :: forall a . (Rep a) => Maybe a -> Comb a
 toComb' a = shallowComb (optX a)

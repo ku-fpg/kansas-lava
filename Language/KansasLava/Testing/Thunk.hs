@@ -37,7 +37,7 @@ mkThunk :: forall a b. (Ports a, Probe a, Run a, Rep b)
         => Trace -- ^ A (possibly partial) trace to supply inputs.
         -> a     -- ^ The lava circuit.
         -> Thunk (Seq b)
-mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream (witness :: b) $ run c trace)
+mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ toXStream $ run c trace)
 
 -- | Like mkTrace, but also generates a VHDL testbench and input files.
 -- | Since we must shallowly run the thunk to generate the input, this returns a

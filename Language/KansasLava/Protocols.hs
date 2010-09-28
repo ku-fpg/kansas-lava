@@ -26,7 +26,7 @@ type Memory clk a d = CSeq clk a -> CSeq clk d
 
 enabledRegister :: forall a clk. (Rep a) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
 enabledRegister sysEnv c inp = res
-   where 
+   where
 	(en,v) = unpack inp
 	res    = register sysEnv c (mux2 en (v,res))
 
@@ -43,10 +43,10 @@ memoryToPipe clk enA mem = pack (delay clk en,pack (delay clk a,mem a))
 
 
 -- Does not work for two clocks, *YET*
-pipeToMemory :: forall a d clk1 clk2. (Rep a, Rep d) 
+pipeToMemory :: forall a d clk1 clk2. (Rep a, Rep d)
 	=> Env clk1
 	-> Env clk2
-	-> CSeq clk1 (Pipe a d) 
+	-> CSeq clk1 (Pipe a d)
 	-> Memory clk2 a d
 pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
   where
@@ -58,30 +58,30 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
     	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
 
 	shallowRes :: Stream (X d)
-	shallowRes = pure (\ m a2 -> case getValidRepValue (toRep (witness :: a) a2) of
-				       Nothing -> optX (Nothing :: Maybe d)
+	shallowRes = pure (\ m a2 -> case getValidRepValue (toRep a2) of
+				       Nothing -> optX Nothing
 				       Just a' -> case lookupMEM a' m of
-						    Nothing -> optX (Nothing :: Maybe d)
+						    Nothing -> optX Nothing
 						    Just v -> optX (Just v)
 			  ) <*> (emptyMEM :~ mem)
-			    <*> (optX (Nothing :: Maybe a) :~ seqValue addr2)
+			    <*> (optX Nothing :~ seqValue addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
 	updates :: Stream (Maybe (Maybe (a,d)))
 	updates = stepifyStream (\ a -> case a of
 					Nothing -> ()
-					Just b -> case b of 
+					Just b -> case b of
 						   Nothing -> ()
 						   Just (c,d) -> eval c `seq` eval d `seq` ()
 			        )
 		$ pure (\ e a b ->
-			   do en'   <- unX e :: Maybe Bool
+			   do en'   <- unX e
 			      if not en'
 				     then return Nothing
 				     else do
-			      		addr' <- unX a :: Maybe a
-			      		dat'  <- unX b :: Maybe d
+			      		addr' <- unX a
+			      		dat'  <- unX b
 			      		return $ Just (addr',dat')
 		       ) <*> seqValue wEn
 			 <*> seqValue addr
@@ -101,13 +101,13 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 		]
 -}
 	mem :: Stream (Mem d)
-	mem = stepifyStream (\ a -> a `seq` ()) 
+	mem = stepifyStream (\ a -> a `seq` ())
 	    $ emptyMEM :~ Stream.fromList
 		[ case u of
 		    Nothing           -> emptyMEM	-- unknown again
 		    Just Nothing      -> m
-		    Just (Just (a,d)) -> 
-			case getValidRepValue (toRep (witness :: a) (optX (Just a) :: X a)) of 
+		    Just (Just (a,d)) ->
+			case getValidRepValue (toRep (optX (Just a))) of
 			  Just bs -> ((insertMEM $! bs) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
@@ -146,43 +146,43 @@ zipEnabled :: (Rep a, Rep b, Rep c, Signal sig) => (Comb a -> Comb b -> Comb c) 
 zipEnabled f en1 en2 = packY (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
    where (en_bool1,en_val1) = unpackY en1
 	 (en_bool2,en_val2) = unpackY en2
-	
+
 
 packY :: forall a sig . (Rep a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
 packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) ->
-				    Comb (case unX (a :: X Bool) :: Maybe Bool of
-					    Nothing -> optX (Nothing :: Maybe (Maybe a))
-					    Just False -> optX (Just Nothing :: Maybe (Maybe a))
-					    Just True -> 
-						case unX (b :: X a) :: Maybe a of
-						   Just v -> optX (Just (Just v) :: Maybe (Maybe a))
+				    Comb (case unX a of
+					    Nothing -> optX Nothing
+					    Just False -> optX (Just Nothing)
+					    Just True ->
+						case unX b of
+						   Just v -> optX (Just (Just v))
 							-- This last one is strange.
-						   Nothing -> optX (Just Nothing :: Maybe (Maybe a))
+						   Nothing -> optX (Just Nothing)
 					 )
 					 (entity2 (Name "Lava" "pair") ae be)
 			     ) a b
-unpackY :: forall a sig . (Rep a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a) 
+unpackY :: forall a sig . (Rep a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a)
 unpackY ma = {-# SCC "unpack(MaybeY)" #-}
-		   ((,) $! 
+		   ((,) $!
 		    ( {-# SCC "unpack(MaybeY1)" #-}liftS1 ({-# SCC "a_1" #-} (\ (Comb a abe) -> {-# SCC "unpack(Maybe_B)" #-}
-						Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
-							Nothing -> {-# SCC "unpack(Maybe,1)" #-}optX (Nothing :: Maybe Bool)
-							Just Nothing -> {-# SCC "unpack(Maybe,2)" #-}optX (Just False :: Maybe Bool)
-							Just (Just _) -> {-# SCC "unpack(Maybe,3)" #-}optX (Just True :: Maybe Bool)
+						Comb (case unX a of
+							Nothing -> {-# SCC "unpack(Maybe,1)" #-}optX Nothing
+							Just Nothing -> {-# SCC "unpack(Maybe,2)" #-}optX (Just False)
+							Just (Just _) -> {-# SCC "unpack(Maybe,3)" #-}optX (Just True)
 						     )
 						     ({-# SCC"a_2" #-}(entity1 (Name "Lava" "fst") abe))
 			      )) ma
 		    )) $! ( {-# SCC "unpack(MaybeY2)" #-}liftS1 (\ (Comb a abe) -> {-# SCC "unpack(Maybe_a)" #-}
-						Comb (case unX (a :: X (Maybe a)) :: Maybe (Maybe a) of
-							Nothing -> {-# SCC "unpack(Maybe,3)" #-}optX (Nothing :: Maybe a)
-							Just Nothing -> {-# SCC "unpack(Maybe,4)" #-}optX (Nothing :: Maybe a)
-							Just (Just v) ->{-# SCC "unpack(Maybe,5)" #-} optX (Just v :: Maybe a)
-						     ) 
+						Comb (case unX a of
+							Nothing -> {-# SCC "unpack(Maybe,3)" #-}optX Nothing
+							Just Nothing -> {-# SCC "unpack(Maybe,4)" #-}optX Nothing
+							Just (Just v) ->{-# SCC "unpack(Maybe,5)" #-} optX (Just v)
+						     )
 						     (entity1 (Name "Lava" "snd") abe)
 			      ) ma
 		    )
-			
+
 {-
 packX :: (Rep a, Rep b, Signal sig) => (sig a, sig b) -> sig (a,b)
 packX ~(a,b) = {-# SCC "pack(,)" #-}
@@ -197,7 +197,7 @@ unpackX ab = {-# SCC "unpack(,)" #-}
 
 phi :: forall a sig . (Signal sig, Rep a) => sig a -> sig a -> sig a
 phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
-        Comb (if toRep (witness :: a) a == toRep (witness :: a) b
+        Comb (if toRep a == toRep b
 		then a
 		else optX $ (fail "phi problem" :: Maybe a))	-- an internal error, like an assert
 		(ea) -- pick one, they are the same
@@ -254,15 +254,15 @@ zipPacked f x y = pack $ f (unpack x) (unpack y)
 mapPipe :: (Signal sig, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
--- | only combines pipes when both inputs are enabled, and *assumes* the 
+-- | only combines pipes when both inputs are enabled, and *assumes* the
 -- x addresses are the same.
 zipPipe :: (Signal sig, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 
 
--- 
+--
 joinEnabled :: (Signal sig, Rep a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
-joinEnabled = liftS2 $ \ e1 e2 -> 
+joinEnabled = liftS2 $ \ e1 e2 ->
 			let (en1,v1) = unpack e1
 	 		    (en2,v2) = unpack e2
 	                in pack (en1 `or2` en2, mux2 en1 (v1,v2))
@@ -292,7 +292,7 @@ unShiftRegister env inp = r
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry
-		reg = (delay env 
+		reg = (delay env
 		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))
@@ -302,10 +302,10 @@ unShiftRegister env inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b) 
-	 => Env clk 
-	 -> (Comb (Matrix x a) -> Comb (Matrix y b)) 
-	 -> CSeq clk (Enabled a) 
+runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b)
+	 => Env clk
+	 -> (Comb (Matrix x a) -> Comb (Matrix y b))
+	 -> CSeq clk (Enabled a)
 	 -> CSeq clk (Enabled b)
 runBlock env fn inp = unShiftRegister env
 		       $ addSync
@@ -322,7 +322,7 @@ runBlock env fn inp = unShiftRegister env
 
 	syncCounter :: CSeq clk x
 	syncCounter = counter env en
-		
+
 -- If the Seq Bool is enabled, then we want to generate the
 -- next number in the sequence, in the *next* cycle.
 
@@ -339,7 +339,7 @@ counter rst inc = res
 -- The order here has the function *last*, because it allows
 -- for a idiomatic way of writing things
 --
---  res = rom env inp $ \ a -> .... 
+--  res = rom env inp $ \ a -> ....
 --
 rom :: (Rep a, Rep b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom env inp fn = delay env $ funMap fn inp
@@ -349,7 +349,7 @@ rom env inp fn = delay env $ funMap fn inp
 -- A latch that can cross clock domains
 latch :: forall clk1 clk2 a. (Rep a) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
 latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
-    where 
+    where
 	wr :: CSeq clk1 (Pipe () a)
 	wr = enabledToPipe (\ a -> pack (pureS (),a)) inp
 
@@ -360,17 +360,17 @@ class Stepify a where
 
 --class Rep a => Eval a where
 eval :: forall a . (Rep a) => a -> ()
-eval a = count $ unRepValue $ toRep (witness :: a) (optX (Just a) :: X a)
+eval a = count $ unRepValue $ toRep (optX (Just a))
   where count (WireVal True:rest) = count rest
 	count (WireVal False:rest) = count rest
 	count (WireUnknown:rest) = count rest
 	count [] = ()
 
---instance (Rep a) => Stepify (Seq a) where 
+--instance (Rep a) => Stepify (Seq a) where
 --  stepify (Seq a d) = Seq (stepify a) d
-   
+
 -- one step behind, to allow knot tying.
---instance (Rep a) => Stepify (Stream a) where 
+--instance (Rep a) => Stepify (Stream a) where
 --  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
 
 stepifyStream :: (a -> ()) -> Stream a -> Stream a
@@ -383,27 +383,27 @@ stepifyStream f (a :~ r) = a :~ (f a `seq` stepifyStream f r)
 
 {-
 
-instance Eval (WireVal a) where 
+instance Eval (WireVal a) where
     eval WireUnknown = ()
     eval (WireVal a) = a `seq` ()
 
 instance (Eval a) => Eval (Maybe a) where
-    eval (Just a)  = eval a 
+    eval (Just a)  = eval a
     eval (Nothing) = ()
 
-instance (Eval a, Eval b) => Eval (a,b) where 
+instance (Eval a, Eval b) => Eval (a,b) where
 	eval (a,b) = eval a `seq` eval b `seq` ()
 -}
 
 
 -- LATER: GADTs
-data Mem a 
+data Mem a
   = Res !a
   | NoRes
   | Choose !(Mem a) !(Mem a)
 	deriving Show
 
-emptyMEM :: Mem a 
+emptyMEM :: Mem a
 emptyMEM = NoRes
 
 insertMEM :: [Bool] -> a -> Mem a -> Mem a
@@ -414,7 +414,7 @@ insertMEM []    y (Choose _ _) = error "inserting with short key"
 
 insertMEM (x:a) y NoRes   = insertMEM (x:a) y expanded
 insertMEM (x:a) y (Res _) = error "inserting with to long a key"
-insertMEM (x:a) y (Choose l r) 
+insertMEM (x:a) y (Choose l r)
 	| x == True 	  = Choose (insertMEM a y l) r
 	| x == False	  = Choose l (insertMEM a y r)
 

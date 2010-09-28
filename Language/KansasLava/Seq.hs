@@ -69,9 +69,9 @@ instance Signal (CSeq c) where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
   liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
-    let 
+    let
 	Comb _ eb = f (deepComb ea)
-	f' a = let (Comb b _) = f (shallowComb a) 
+	f' a = let (Comb b _) = f (shallowComb a)
 	       in b
    in Seq (fmap f' a) eb
 
@@ -80,13 +80,13 @@ instance Signal (CSeq c) where
   liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
-	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b) 
+	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b)
 	         in c
 
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
 		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
-		    ]) 
+		    ])
 		    (combDriver (f (map (deepComb . seqDriver) ss)))
 
   deepS (Seq _ d) = d
@@ -111,13 +111,13 @@ encSeq :: (Rep a) =>  (Char -> Maybe a) -> String -> CSeq c a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
 
 encSeqBool :: String -> CSeq c Bool
-encSeqBool = encSeq enc 
+encSeqBool = encSeq enc
 	where enc 'H' = return True
 	      enc 'L' = return False
 	      enc  _   = Nothing
 
 showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
-showStreamList ss = 
+showStreamList ss =
 	[ showRep (witness :: a) x
 	| x <- toList (seqValue ss)
 	]
@@ -152,7 +152,7 @@ instance (Dual a, Dual b) => Dual (a,b) where
 
 instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
 	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
-	
+
 instance (Dual b) => Dual (a -> b) where
 	dual f1 f2 = \ x -> dual (f1 x) (f2 x)
 
@@ -164,16 +164,16 @@ data IsRepWire = forall a c . (Rep a) => IsRepWire (CSeq c a)
 
 -- The raw data
 showBitfile :: [IsRepWire] -> [String]
-showBitfile streams = 
-	      [ concat bits 
+showBitfile streams =
+	      [ concat bits
 	      | bits <- bitss
 	      ]
 	where	bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
 
 
 showBitfileInfo :: [IsRepWire] -> [String]
-showBitfileInfo streams = 
-	      [  "(" ++ show n ++ ") " ++ joinWith " -> " 
+showBitfileInfo streams =
+	      [  "(" ++ show n ++ ") " ++ joinWith " -> "
 		 [ v ++ "/" ++ b
 	         | (b,v) <- zip bits vals
 	         ]
@@ -186,7 +186,7 @@ showBitfileInfo streams =
 		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
 
 showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
-showSeqBits ss = [ (show $ toRep witness (i :: X a))
+showSeqBits ss = [ (show $ toRep (i :: X a))
 		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
        where showX b = case unX b of
