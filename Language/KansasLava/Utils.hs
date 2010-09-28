@@ -53,10 +53,10 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a :: Maybe Bool,unX 
 						     _                       -> optX $ (Nothing :: Maybe Bool))
 					 $ entity2 (Name "Lava" "or2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (liftA2 (/=) a b) $ entity2 (Name "Lava" "xor2") ae be
+xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Name "Lava" "xor2") ae be
 
 bitNot :: (Signal sig) => sig Bool -> sig Bool
-bitNot = liftS1 $ \ (Comb a ae) -> Comb (liftA (not) a) $ entity1 (Name "Lava" "not") ae
+bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Name "Lava" "not") ae
 
 testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a :: Maybe a))
@@ -335,7 +335,7 @@ muxMatrix = (.!.)
 	-> sig x
 	-> sig a
 (.!.) m x = liftS2 (\
-		    ~(Comb m me)
+		    ~(Comb (XMatrix m) me)
 	 	    ~(Comb x xe)
 			-> Comb (case (unX x :: Maybe x) of
 				    Just x' -> m M.! x'
@@ -617,8 +617,8 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 
 
 appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
-	=> sig (StdLogicVector a) 
-	-> sig (StdLogicVector b) 
+	=> sig (StdLogicVector a)
+	-> sig (StdLogicVector b)
 	-> sig (StdLogicVector (ADD a b))
 appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			Comb (optX $ do a' <- unX a ::Maybe (StdLogicVector a)
@@ -632,14 +632,14 @@ instance (Size m) => StdLogic (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = m
 
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
-	type X (Sampled.Sampled m ix) = WireVal (Sampled.Sampled m ix)
-	optX (Just b)	    = return b
-	optX Nothing	    = fail "Wire Sampled"
-	unX (WireVal a)     = return a
-	unX (WireUnknown)   = fail "Wire Sampled"
+	data X (Sampled.Sampled m ix) = XSampled (WireVal (Sampled.Sampled m ix))
+	optX (Just b)	    = XSampled $ return b
+	optX Nothing	    = XSampled $ fail "Wire Sampled"
+	unX (XSampled (WireVal a))     = return a
+	unX (XSampled WireUnknown)   = fail "Wire Sampled"
 	wireType x   	    = SampledTy (size (witness :: m)) (size (witness :: ix))
-	toRep w (WireUnknown) = unknownRepValue w
-	toRep w (WireVal a)   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
+	toRep w (XSampled WireUnknown) = unknownRepValue w
+	toRep w (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
 	fromRep w r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
 

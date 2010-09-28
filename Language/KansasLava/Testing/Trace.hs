@@ -122,7 +122,7 @@ serialize (Trace c ins outs ps) = unlines
                                ++ showMap ps
     where showMap :: TraceMap OVar -> [String]
           showMap m = concat [[show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
-          showStrm s = unwords [concatMap (showRep (witness :: Bool)) $ val | RepValue val <- takeMaybe c s]
+          showStrm s = unwords [concatMap ((showRep (witness :: Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
 
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = outs, probes = ps }
@@ -161,9 +161,16 @@ execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit
 class Run a where
     run :: a -> Trace -> TraceStream
 
+    -- For updating the output.
+    setOutput :: a -> Trace -> Trace
+    setOutKey :: OVar -> a -> Trace -> Trace
+
 instance (Rep a) => Run (CSeq c a) where
     run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = fromXStream (witness :: a) s
+
+    setOutput s t = setOutKey (head $ M.keys $ outputs t) s t
+    setOutKey k (Seq s _) t@(Trace c _ outs _) = t { outputs = M.adjust (\_ -> fromXStream (witness :: a) s) k outs }
 
 {- eventually
 instance (Rep a) => Run (Comb a) where
@@ -234,7 +241,7 @@ toXBit = maybe 'X' (\b -> if b then '1' else '0')
 
 -- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]
-showTraceStream c (TraceStream _ s) = [map (toXBit . unX) $ reverse val | RepValue val <- takeMaybe c s]
+showTraceStream c (TraceStream _ s) = [map (toXBit . unX . XBool) $ reverse val | RepValue val <- takeMaybe c s]
 showTraceStream c Empty = repeat "Empty"
 
 readStrm :: [String] -> (TraceStream, [String])
@@ -246,12 +253,12 @@ readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
 readMap ls = (go $ takeWhile cond ls, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
           rest = dropWhile cond ls
-          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toXBool w | w <- words strm]))) $ go r
+          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toWireVal w | w <- words strm]))) $ go r
           go _             = M.empty
-          toXBool :: Char -> X Bool
-          toXBool '1' = return True
-          toXBool '0' = return False
-          toXBool _   = fail "unknown"
+          toWireVal :: Char -> WireVal Bool
+          toWireVal '1' = return True
+          toWireVal '0' = return False
+          toWireVal _   = fail "unknown"
 
 getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> w -> Stream (X w)
 getStream name m witness = toXStream witness $ m M.! name
