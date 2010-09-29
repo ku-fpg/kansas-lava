@@ -212,7 +212,7 @@ instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
 
 -- These are exported, but are not intended for the end user.
 seqAll :: forall w. (Rep w) => Seq w
-seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
+seqAll = toSeqX $ cycle [fromRep (witness :: w) rep | rep <- allReps (witness :: w) ]
 
 -- Some combinators to get stuff in and out of the map
 fromXStream :: forall w. (Rep w) => w -> Stream (X w) -> TraceStream
