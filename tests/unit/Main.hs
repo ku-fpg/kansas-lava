@@ -86,7 +86,7 @@ testUniOp (TestSeq test) nm op lavaOp us0 = do
  	    res = toSeq (fmap op
 			      us0
 			)
-	test nm (max 100 $ length us0) thu res
+	test nm (min 100 $ length us0) thu res
 
 testBinOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> a -> b) -> (Comb a -> Comb a -> Comb b) -> [a] -> [a] -> IO ()	
 testBinOp (TestSeq test) nm op lavaOp us0 us1 = do
@@ -97,7 +97,7 @@ testBinOp (TestSeq test) nm op lavaOp us0 us1 = do
 				  us0
 				  us1
 			)
-	test nm (max 100 $ length (zip us0 us1)) thu res
+	test nm (min 1000 $ length (zip us0 us1)) thu res
 
 testUniOpNum :: (Num a, Rep a) => TestSeq -> String -> [a] -> IO ()
 testUniOpNum test tyName s0 = 
@@ -134,7 +134,7 @@ testBinOpNum test tyName s0 s1 = do
 twice :: ([w] -> [w] -> a) -> [w] -> a
 twice f ws = f s1 s2
   where
-	(s1,s2) = unzip
+	(s1,s2) = unzip $ unsort
 		    [ (s1,s2) 
 		    | s1 <- ws
 		    , s2 <- ws
@@ -142,6 +142,6 @@ twice f ws = f s1 s2
 
 testOps :: forall w . (Ord w, Rep w, Num w) => TestSeq -> String -> [w] -> IO ()
 testOps test tyName ws = do
---	let ws = ([minBound..maxBound] :: [w])
-	testUniOpNum test tyName ws
-	testBinOpNum test tyName `twice` ws
+	let ws' = unsort ws
+	testUniOpNum test tyName ws'
+	testBinOpNum test tyName `twice` ws'
