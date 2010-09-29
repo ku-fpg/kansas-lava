@@ -14,10 +14,13 @@ import qualified System.Random as R
 
 -------------------------------------------------------------------------------------
 
+data TestData = Rand | Complete
+
 data Options = Options
 	{ shallowOpt :: Bool
 	, verboseOpt :: Int
 	, testOnly   :: Maybe [String]
+	, testData   :: TestData
 	}
 
 instance Default Options where
@@ -25,6 +28,7 @@ instance Default Options where
 		{ shallowOpt = True
 		, verboseOpt = 3
 		, testOnly = Nothing
+		, testData = Rand
 		}
 
 -------------------------------------------------------------------------------------

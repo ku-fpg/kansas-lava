@@ -10,6 +10,7 @@ import Data.Sized.Sampled
 import Data.Default
 import Data.List ( sortBy )
 import Data.Ord ( comparing )
+import Data.Maybe as Maybe
 
 import Utils
 
@@ -19,26 +20,46 @@ main = do
 
 	testMux test
 
-	testBounded test "U1" (witness :: U1)
-	testBounded test "U2" (witness :: U2)
-	testBounded test "U3" (witness :: U3)
-	testBounded test "U4" (witness :: U4)
-	testBounded test "U5" (witness :: U5)
-	testBounded test "U6" (witness :: U6)
-	testBounded test "U7" (witness :: U7)
-	testBounded test "U8" (witness :: U8)
+	testOps test "U1" (allBounded :: [U1])
+	testOps test "U2" (allBounded :: [U2])
+	testOps test "U3" (allBounded :: [U3])
+	testOps test "U4" (allBounded :: [U4])
+	testOps test "U5" (allBounded :: [U5])
+	testOps test "U6" (allBounded :: [U6])
+	testOps test "U7" (allBounded :: [U7])
+	testOps test "U8" (allBounded :: [U8])
 
 	-- no S1
-	testBounded test "S2" (witness :: S2)
-	testBounded test "S3" (witness :: S3)
-	testBounded test "S4" (witness :: S4)
-	testBounded test "S5" (witness :: S5)
-	testBounded test "S6" (witness :: S6)
-	testBounded test "S7" (witness :: S7)
-	testBounded test "S8" (witness :: S8)
+	testOps test "S2" (allBounded :: [S2])
+	testOps test "S3" (allBounded :: [S3])
+	testOps test "S4" (allBounded :: [S4])
+	testOps test "S5" (allBounded :: [S5])
+	testOps test "S6" (allBounded :: [S6])
+	testOps test "S7" (allBounded :: [S7])
+	testOps test "S8" (allBounded :: [S8])
 
-	testValues test "Sampled/8x8" ([0..8] :: [Sampled X8 X8])
 
+	testOps test "Sampled/8x8" (allValues :: [Sampled X8 X8])
+
+	testOps test "Sampled/4x2" (allValues :: [Sampled X4 X2])		
+	testOps test "Sampled/2x2" (allValues :: [Sampled X2 X2])	
+	testOps test "Sampled/2x1" (allValues :: [Sampled X2 X1])		
+	testOps test "Sampled/1x2" (allValues :: [Sampled X1 X2])		
+	testOps test "Sampled/1x4" (allValues :: [Sampled X1 X4])		
+	testOps test "Sampled/8x10"(allValues :: [Sampled X8 X10])
+	
+
+allValues :: forall w . (Rep w) => [w]
+allValues = xs
+    where 
+	xs :: [w]
+	xs = Maybe.catMaybes
+	   $ fmap (unX :: X w -> Maybe w) 
+	   $ fmap (fromRep (witness :: w) :: RepValue -> X w) 
+	   $ (allReps (witness :: w))
+
+allBounded :: (Enum w, Bounded w) => [w]
+allBounded = [minBound..maxBound]
 -------------------------------------------------------------------------------------------------
 testMux :: TestSeq -> IO ()	
 testMux (TestSeq test) = do
@@ -57,8 +78,18 @@ testMux (TestSeq test) = do
 -------------------------------------------------------------------------------------------------
 -- This only tests at the *value* level, and ignores testing unknowns.
 
-testBinOp :: (Rep a, Show a, Eq a) => TestSeq -> Int -> String -> (a -> a -> a) -> (Comb a -> Comb a -> Comb a) -> [a] -> [a] -> IO ()	
-testBinOp (TestSeq test) count nm op lavaOp us0 us1 = do
+testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> [a] -> IO ()	
+testUniOp (TestSeq test) nm op lavaOp us0 = do
+	let thu = Thunk (liftS1 lavaOp)
+		        (\ f -> f (toSeq us0) 
+			)
+ 	    res = toSeq (fmap op
+			      us0
+			)
+	test nm (max 100 $ length us0) thu res
+
+testBinOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> a -> b) -> (Comb a -> Comb a -> Comb b) -> [a] -> [a] -> IO ()	
+testBinOp (TestSeq test) nm op lavaOp us0 us1 = do
 	let thu = Thunk (liftS2 lavaOp)
 		        (\ f -> f (toSeq us0) (toSeq us1)
 			)
@@ -66,32 +97,51 @@ testBinOp (TestSeq test) count nm op lavaOp us0 us1 = do
 				  us0
 				  us1
 			)
-	test nm count thu res
+	test nm (max 100 $ length (zip us0 us1)) thu res
 
-testBinOpNum :: (Num a, Rep a) => TestSeq -> Int -> String -> [a] -> [a] -> IO ()
-testBinOpNum test count tyName s0 s1 = 
+testUniOpNum :: (Num a, Rep a) => TestSeq -> String -> [a] -> IO ()
+testUniOpNum test tyName s0 = 
 	sequence_
-	  [ testBinOp test count (name ++ "/" ++ tyName)  (+) (+) s0 s1
+	  [ testUniOp test (name ++ "/" ++ tyName) op lavaOp s0
+          | (name,op,lavaOp) <- 
+		[ ("negate",negate,negate)
+		]
+	  ]
+
+testBinOpNum :: (Ord a,Num a, Rep a) => TestSeq -> String -> [a] -> [a] -> IO ()
+testBinOpNum test tyName s0 s1 = do
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp s0 s1
           | (name,op,lavaOp) <- 
 		[ ("add",(+),(+))
 		, ("sub",(+),(+))
 		, ("mul",(+),(+))
+		, ("max",max,max)
+		, ("min",min,min)
 		]
 	  ]
-
-testValues :: forall w . (Rep w, Num w) => TestSeq -> String -> [w] -> IO ()
-testValues test tyName ws = do
-	let s1 :: [w]
-	    s2 :: [w]
-	    (s1,s2) = unzip
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp s0 s1
+          | (name,op,lavaOp) <- 
+		[ ("==",(==),(.==.))
+--		, ("/=",(/=),(./=.))
+		, (">",(>),(.>.))
+		, ("<",(<),(.<.))
+		, (">=",(>=),(.>=.))
+		, ("<=",(<=),(.<=.))
+		]
+	  ]
+twice :: ([w] -> [w] -> a) -> [w] -> a
+twice f ws = f s1 s2
+  where
+	(s1,s2) = unzip
 		    [ (s1,s2) 
 		    | s1 <- ws
 		    , s2 <- ws
 		    ]
-	testBinOpNum test (length ws * length ws) tyName s1 s2
 
-testBounded :: forall w . (Rep w, Num w, Bounded w, Enum w) => TestSeq -> String -> w -> IO ()
-testBounded test tyName w = testValues test tyName ([minBound..maxBound] :: [w])
-
-
-
+testOps :: forall w . (Ord w, Rep w, Num w) => TestSeq -> String -> [w] -> IO ()
+testOps test tyName ws = do
+--	let ws = ([minBound..maxBound] :: [w])
+	testUniOpNum test tyName ws
+	testBinOpNum test tyName `twice` ws
