@@ -3,7 +3,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), Run(..), traceSignature, se
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
-                                         ,toXStream, fromXStream -- needed in Probes, but should not be re-exported to user
+                                         ,seqAll,toXStream, fromXStream -- needed in Probes, but should not be re-exported to user
                                          ,diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo
                                          ,writeToFile, readFromFile, checkExpected, execute) where
@@ -211,6 +211,8 @@ instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
               input = unpack $ getSeq key ins (witness :: (a,b))
 
 -- These are exported, but are not intended for the end user.
+seqAll :: forall w. (Rep w) => Seq w
+seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
 
 -- Some combinators to get stuff in and out of the map
 fromXStream :: forall w. (Rep w) => w -> Stream (X w) -> TraceStream
