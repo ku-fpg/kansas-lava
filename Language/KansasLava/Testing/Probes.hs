@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probe,probeNames,probeValue) where
+module Language.KansasLava.Testing.Probes (Probe,probe,probeCircuit,probeNames,probeValue) where
 
 import qualified Data.Reify.Graph as DRG
+
+import Control.Monad
 
 import Data.Sized.Arith(X1_,X0_)
 import Data.Sized.Ix
@@ -19,6 +21,13 @@ import Language.KansasLava
 import Language.KansasLava.Internals
 
 import Language.KansasLava.Testing.Trace
+
+probeCircuit :: (Ports b) => Int -> b -> IO [(OVar, TraceStream)]
+probeCircuit n applied = do
+    rc <- (reifyCircuit >=> mergeProbesIO) applied
+
+    return [(nm,TraceStream ty $ take n strm) | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _ _) <- theCircuit rc
+                      , nm <- nms ]
 
 probeNames :: DRG.Unique -> Circuit -> [OVar]
 probeNames n circuit = case lookup n $ theCircuit circuit of
