@@ -105,6 +105,8 @@ testUniOpNum test tyName s0 =
 	  [ testUniOp test (name ++ "/" ++ tyName) op lavaOp s0
           | (name,op,lavaOp) <- 
 		[ ("negate",negate,negate)
+		, ("abs",abs,abs)
+		, ("signum",signum,signum)
 		]
 	  ]
 
@@ -114,8 +116,8 @@ testBinOpNum test tyName s0 s1 = do
 	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp s0 s1
           | (name,op,lavaOp) <- 
 		[ ("add",(+),(+))
-		, ("sub",(+),(+))
-		, ("mul",(+),(+))
+		, ("sub",(-),(-))
+		, ("mul",(*),(*))
 		, ("max",max,max)
 		, ("min",min,min)
 		]
