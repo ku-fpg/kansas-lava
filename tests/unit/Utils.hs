@@ -128,4 +128,7 @@ genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
 genToRandom :: Gen a -> [a]
 genToRandom (Gen n f) 
 	| n <= 100 = unsort $ genToList (Gen n f)
-	| otherwise = take (fromIntegral n) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
+	| otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
+
+
+largeNumber = 10000
