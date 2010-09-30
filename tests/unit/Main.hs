@@ -217,6 +217,14 @@ testOpsBits test tyName ws = do
 		]
 	  ]
 
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName) op lavaOp ws2
+          | (name,op,lavaOp) <- 
+		[ (".&.",(.&.),(.&.))
+		, (".|.",(.|.),(.|.))
+		, ("xor",(xor),(xor))
+		]
+	  ]
 	
 pair :: (Applicative f) => f a -> f (a, a)
 pair ws = pure (,) <*> ws <*> ws
