@@ -1,13 +1,24 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
 
 -- Use %ghci FSL.hs -i..
 -- To load
 
 import Language.KansasLava
 import Language.KansasLava.Stream
+import Data.Sized.Unsigned
 import Debug.Trace
 
+---------------------------------------------------------------------------
+-- Key Types
+
+type Sink a = Seq IsFull -> Seq (Enabled a)		-- push
+type Src  a = Seq IsRead -> Seq (Enabled a)		-- pull
+
+---------------------------------------------------------------------------
+-- IsRead
+
 newtype IsRead = IsRead Bool
+	deriving (Eq, Ord, Show)
 
 instance Rep IsRead where
 	type X IsRead 	= WireVal Bool
@@ -20,17 +31,42 @@ instance Rep IsRead where
 	fromRep w (RepValue [v]) = v
 	fromRep w _	 	 = error "size error for Bool"
 
--- Implements the FSL "Read/RHS" protocol, at max speed
-toFSL :: (Rep a) => [a] -> Env () -> (Seq IsRead -> Seq (Enabled a))
-toFSL = toVariableFSL (repeat 0)
 
 
 mkIsRead :: Seq Bool -> Seq IsRead
 mkIsRead = liftS1 $ \ (Comb a (D ea)) 
 	              -> (Comb (optX $ fmap IsRead $ unX a) (D ea :: D IsRead))
 
-toVariableFSL :: (Rep a) => [Int] -> [a] -> Env () -> (Seq IsRead -> Seq (Enabled a))
-toVariableFSL stutter xs env isRead = toSeq (fn stutter xs (fromSeq isRead))
+---------------------------------------------------------------------------
+-- IsFull
+
+newtype IsFull = IsFull Bool
+	deriving (Eq, Ord, Show)
+	
+mkIsFull :: Seq Bool -> Seq IsFull
+mkIsFull = liftS1 $ \ (Comb a (D ea)) 
+	              -> (Comb (optX $ fmap IsFull $ unX a) (D ea :: D IsFull))
+
+instance Rep IsFull where
+	type X IsFull 	= WireVal Bool
+	optX (Just (IsFull b)) = return b
+	optX Nothing	= fail "Rep IsFull"
+	unX (WireVal v)  = return (IsFull v)
+	unX (WireUnknown) = fail "Rep IsFull"
+	wireType _	= B		-- a bit internally
+	toRep w v	= RepValue [v]
+	fromRep w (RepValue [v]) = v
+	fromRep w _	 	 = error "size error for Bool"
+
+---------------------------------------------------------------------------
+-- Shallow Generators
+
+-- Implements the FSL "Read/RHS" protocol, at max speed
+toSrc :: (Rep a) => [a] -> Env () -> Src a
+toSrc = toVariableSrc (repeat 0)
+
+toVariableSrc :: (Rep a) => [Int] -> [a] -> Env () -> Src a
+toVariableSrc stutter xs env isRead = toSeq (fn stutter xs (fromSeq isRead))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
@@ -47,15 +83,15 @@ toVariableFSL stutter xs env isRead = toSeq (fn stutter xs (fromSeq isRead))
 			(Just (IsRead True):rs)  -> error "FSL/Read: bad protocol state (3)"
 			(Just (IsRead False):rs) -> fn (pred p:ps) xs rs -- nothing read
 
-newtype IsFull = IsFull Bool
+---------------------------------------------------------------------------
+-- Shallow Consumers
 
-mkIsFull :: Seq Bool -> Seq IsFull
-mkIsFull = liftS1 $ \ (Comb a (D ea)) 
-	              -> (Comb (optX $ fmap IsFull $ unX a) (D ea :: D IsFull))
+---------------------------------------------------------------------------
+-- Shallow Consumers
 
-instance Rep IsFull where
 
--- A test, that takes the output from our FSL generator, and returns the back edge (the IsRead, and 
+-- A test, that takes the output from our FSL generator,
+-- and returns the back edge (the IsRead, and the values)
 testFSLRead :: Env () -> Seq (Enabled Int) -> (Seq IsRead,Seq Int)
 testFSLRead env sq = (mkIsRead low,res)
   where (en,val) = unpack sq
@@ -66,15 +102,24 @@ dut env generator = result
    where
 	out1             = generator readSig
 	(readSig,result) = testFSLRead env out1
+	
+{-
+dut2 env generator = result
+   where
+	out1             = generator readSig
+	(readSig,result) = testFSLRead env out1	
+-}
 
 -- Our main test
 main = do
-	print (dut shallowEnv (toVariableFSL [1..] [1..10] shallowEnv))
+	print (dut shallowEnv (toVariableSrc [1..] [1..10] shallowEnv))
 
 -- A one-cell mvar-like FIFO.
 
 
 --				Seq (IsFull -> Enabled a)	
+
+
 
 mvar :: (Rep a) => Env () -> (Seq IsFull -> Seq (Enabled a)) -> (Seq IsRead -> Seq (Enabled a))
 mvar env f isRead = value
@@ -83,16 +128,16 @@ mvar env f isRead = value
 			cASE [ ( (state .==. low) `and2` (isEnabled inp)
 			       , inp		-- load new value
 			       )
-			     , ( (state .==. low) `and2` (not (isEnabled inp))
-			       , Nothing	-- load no value
+			     , ( (state .==. low) `and2` (bitNot (isEnabled inp))
+			       , pureS Nothing	-- load no value
 			       )
 			     , ( (state .==. high) `and2` (isRead .==. pureS (IsRead True))
-			       , Nothing	-- output value
+			       , pureS Nothing	-- output value
 			       )
 			     , ( (state .==. high) `and2` (isRead .==. pureS (IsRead False))
 			       , value		-- keep value
 			       )
-			     ] Nothing
+			     ] (pureS Nothing)
 	inp 	      = f $ mkIsFull state
 	-- the state is just a bit
 	(state,datum) = unpack value
@@ -100,18 +145,43 @@ mvar env f isRead = value
 
 
 --mux2 (funMap fsm $ pack (isFull,isRead)) (value,inp)
-	      inp        = f $ mkIsFull full
-	      (full,val) = unpack value
+--	      inp        = f $ mkIsFull full
+--	      (full,val) = unpack value
 --	      fsm :: (IsFull,IsRead) -> Maybe Bool
 --	      fsm = (IsFull True,IsRead True) = return False	-- 
 
+type SrcToSinkState = U1
+
+-- (state x isEnabled x isFull) -> (state x write x IsRead )
+fsmSrcToSink :: (SrcToSinkState,Bool,IsFull) -> (SrcToSinkState,Bool,IsRead)
+fsmSrcToSink (0,False,_) 	= (0,False,IsRead False)
+fsmSrcToSink (0,True,_) 	= (1,False,IsRead True)	-- accept value
+fsmSrcToSink (1,_,IsFull False) = (0,True,IsRead False)	-- pass on value (rec. is not full)
+fsmSrcToSink (1,_,IsFull True)  = (1,False,IsRead False)	
 
 -- A passthrough; thats all
-srcToSink :: (Rep a) => Env () -> (Seq IsRead -> Seq (Enabled a)) -> (Seq IsFull -> Seq (Enabled a))
-srcToSink env reader isFull =
-	where
-		isRead   = 
-		(en,val) = reader isRead
+srcToSink :: forall a. (Rep a) 
+	  => Env () -> (Seq IsRead -> Seq (Enabled a)) -> (Seq IsFull -> Seq (Enabled a))
+srcToSink env reader isFull = packEnabled (state .==. 1) value
+   where
+	state, state' :: Seq U1
+	state = register env 0 state'
+
+	inp :: Seq (Enabled a)
+	inp  = reader $ read
+	
+	write :: Seq Bool
+	read :: Seq IsRead
+	(state',write,read) =
+		  unpack
+	 	$ funMap (return . fsmSrcToSink) 
+		$ pack (state,isEnabled inp,isFull)
+		 	
+	value :: Seq a
+	value = delay env $ mux2 (read .==. pureS (IsRead True))
+			( enabledVal inp
+			, value
+			)
 	
 	
 {-
@@ -142,3 +212,9 @@ fromVariableFSL stutter f =
 -- It is not possible for a FIFO to go from "EMPTY" to "FULL" without a data push causing it
 
 -}
+
+cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
+cASE [] def = def
+cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
+
+
