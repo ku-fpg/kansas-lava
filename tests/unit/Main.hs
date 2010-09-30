@@ -28,6 +28,13 @@ main = do
 	-- Just the Eq Stuff
 	let t str arb = testOpsEq test str arb
 
+	t "StdLogicVector/1" (arbitrary :: Gen (StdLogicVector X1))
+	t "StdLogicVector/2" (arbitrary :: Gen (StdLogicVector X2))
+	t "StdLogicVector/3" (arbitrary :: Gen (StdLogicVector X3))
+	t "StdLogicVector/4" (arbitrary :: Gen (StdLogicVector X4))
+	t "StdLogicVector/8" (arbitrary :: Gen (StdLogicVector X8))
+	t "StdLogicVector/32" (arbitrary :: Gen (StdLogicVector X32))
+
 	-- Just the Ord Stuff
 	let t str arb = testOpsOrd test str arb
 
@@ -153,12 +160,34 @@ testOpsEq test tyName ws = do
 		]
 	  ]
 
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
+          | (name,op,lavaOp) <- 
+		[ ("==",(==),(.==.))
+--		, ("/=",(/=),(./=.))
+		]
+	  ]
+
+
 ------------------------------------------------------------------------------------------------
 
 
 testOpsOrd :: (Rep w, Ord w, Show w) => TestSeq -> String -> Gen w -> IO ()
 testOpsOrd test tyName ws = do
+	let ws2 = pair ws
+	
 	testOpsEq test tyName ws
+
+	sequence_
+	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
+          | (name,op,lavaOp) <- 
+		[ (">",(>),(.>.))
+		, ("<",(<),(.<.))
+		, (">=",(>=),(.>=.))
+		, ("<=",(<=),(.<=.))
+		]
+	  ]
+
 
 ------------------------------------------------------------------------------------------------
 
@@ -187,17 +216,6 @@ testOpsNum test tyName ws = do
 		, ("mul",(*),(*))
 		, ("max",max,max)
 		, ("min",min,min)
-		]
-	  ]
-	sequence_
-	  [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
-          | (name,op,lavaOp) <- 
-		[ ("==",(==),(.==.))
---		, ("/=",(/=),(./=.))
-		, (">",(>),(.>.))
-		, ("<",(<),(.<.))
-		, (">=",(>=),(.>=.))
-		, ("<=",(<=),(.<=.))
 		]
 	  ]
 
