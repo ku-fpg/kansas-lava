@@ -124,5 +124,8 @@ genToList :: Gen a -> [a]
 genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
 
 -- get some (random) elements from a Gen
+-- If it is small, then just output all the values.
 genToRandom :: Gen a -> [a]
-genToRandom (Gen n f) = Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
+genToRandom (Gen n f) 
+	| n <= 100 = unsort $ genToList (Gen n f)
+	| otherwise = take (fromIntegral n) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
