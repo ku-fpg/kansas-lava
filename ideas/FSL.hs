@@ -7,6 +7,7 @@ import Language.KansasLava
 import Language.KansasLava.Stream
 import Data.Sized.Unsigned
 import Debug.Trace
+import Data.Maybe as Maybe
 
 ---------------------------------------------------------------------------
 -- Key Types
@@ -62,29 +63,109 @@ instance Rep IsFull where
 -- Shallow Generators
 
 -- Implements the FSL "Read/RHS" protocol, at max speed
-toSrc :: (Rep a) => [a] -> Env () -> Src a
+toSrc :: (Rep a) => [a] -> Src a
 toSrc = toVariableSrc (repeat 0)
 
-toVariableSrc :: (Rep a) => [Int] -> [a] -> Env () -> Src a
-toVariableSrc stutter xs env isRead = toSeq (fn stutter xs (fromSeq isRead))
+toVariableSrc :: (Rep a) => [Int] -> [a] -> Src a
+toVariableSrc stutter xs isRead = toSeq (fn stutter xs (fromSeq isRead))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
 	   fn (0:ps) (x:xs) c 
 		    = [Just x]
 		    ++ case c of -- read c after issuing Just x
-			(Nothing:rs)             -> error "FSL/Read: bad protocol state (2)"
+			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (1)"
 			(Just (IsRead True):rs)  -> fn ps xs rs	    -- has been read
-			(Just (IsRead False):rs) -> fn ps (x:xs) rs -- not read yet
+			(Just (IsRead False):rs) -> fn (0:ps) (x:xs) rs -- not read yet
 	   fn (p:ps) xs c
 		    = [Nothing]
 		    ++ case c of
-			(Nothing:rs)             -> error "FSL/Read: bad protocol state (2)"
-			(Just (IsRead True):rs)  -> error "FSL/Read: bad protocol state (3)"
+			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (2)"
+			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (3)"
 			(Just (IsRead False):rs) -> fn (pred p:ps) xs rs -- nothing read
+	   fn ps [] c = [Nothing]
+		    ++ case c of
+			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (4)"
+			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (5)"
+			(Just (IsRead False):rs) -> fn ps [] rs -- nothing read, ever
+
+toVariableSink :: (Rep a) => [Int] -> [a] -> Sink a
+toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
+	where
+	   -- We rely on the semantics of pattern matching to not match (x:xs)
+	   -- if (0:ps) does not match.
+	   fn (0:ps) (x:xs) c 
+		    = case c of -- read c after issuing Just x
+			(Nothing:rs)             -> error "toVariableSink: bad protocol state (1)"
+			(Just (IsFull False):rs) -> Just x : fn ps xs rs     -- has been written
+			(Just (IsFull True):rs)  -> Nothing : fn (0:ps) (x:xs) rs -- not written yet
+	   fn (p:ps) xs c
+		    = case c of
+			(Nothing:rs)         -> error "toVariableSink: bad protocol state (2)"
+			(Just (IsFull _):rs) -> Nothing : fn (pred p:ps) xs rs -- nothing read
+	   fn ps [] c
+		    =  case c of
+			(Nothing:rs)         -> error "toVariableSink: bad protocol state (3)"
+			(Just (IsFull _):rs) -> Nothing : fn ps [] rs -- nothing read
 
 ---------------------------------------------------------------------------
 -- Shallow Consumers
+
+fromSrc :: (Show a, Rep a) => Src a -> [a]
+fromSrc = fromVariableSrc (repeat 0)
+
+fromVariableSrc :: forall a . (Show a, Rep a) => [Int] -> Src a -> [a]
+fromVariableSrc stutter src = Maybe.catMaybes internal
+   where
+	val :: Seq (Enabled a)
+	val = src read
+
+	read :: Seq IsRead
+	read = toSeq [ IsRead (Maybe.isJust v)
+		     | v <- internal 
+		     ]
+
+	internal :: [Maybe a]
+	internal = fn stutter (fromSeq val)
+	
+	fn :: [Int] -> [Maybe (Enabled a)] -> [Maybe a]
+	fn _      (Nothing:_) = error "fromVariableSrc: bad state, unknown exists line"
+	fn (0:ps) (Just (Just x):xs) = Just x : fn ps xs
+	fn (p:ps) (Just (Just x):xs) = Nothing : fn (pred p:ps) xs
+	fn ps     (Just Nothing:xs)  = Nothing : fn ps xs
+	fn []     xs                 = error ("fromVariableSrc: stutter stream ended!" ++ show xs)
+	fn _      []                 = error "fromVariableSrc: stream ended?"
+
+fromSink :: (Show a, Rep a) => Sink a -> [a]
+fromSink = fromVariableSink (repeat 0)
+
+fromVariableSink :: forall a . (Show a, Rep a) => [Int] -> Sink a -> [a]
+fromVariableSink stutter sink = Maybe.catMaybes $ map snd internal
+   where
+	val :: Seq (Enabled a)
+	val = sink full
+
+	full :: Seq IsFull
+	full = toSeq [ IsFull v
+		     | (v,_) <- internal 
+		     ]
+
+	internal :: [(Bool,Maybe a)]
+	internal = fn stutter (fromSeq val)
+	
+	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Enabled a)]
+	fn _      (Nothing:_) = error "fromVariableSink: bad state, unknown exists line"
+{-
+	fn (0:ps) (x:xs) = 
+		case x of
+		   Just (Just v) -> 
+		
+	fn (0:ps) (Just (Just x):xs) = (True,Just x : fn ps xs
+	fn (p:ps) (_:xs) 	     = Nothing : fn (pred p:ps) xs
+	fn ps     (Just Nothing:xs)  = Nothing : fn ps xs
+	fn []     xs                 = error ("fromVariableSink: stutter stream ended!" ++ show xs)
+	fn _      []                 = error "fromVariableSink: stream ended?"
+-}
 
 ---------------------------------------------------------------------------
 -- Shallow Consumers
@@ -112,7 +193,7 @@ dut2 env generator = result
 
 -- Our main test
 main = do
-	print (dut shallowEnv (toVariableSrc [1..] [1..10] shallowEnv))
+	print (dut shallowEnv (toVariableSrc [1..] [1..10]))
 
 -- A one-cell mvar-like FIFO.
 
