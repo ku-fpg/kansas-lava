@@ -398,7 +398,7 @@ data Env c = Env { clockEnv  :: Clock c
 toEnv :: Clock c -> Env c
 toEnv c = Env
 	    c
-	    (toSeq $ [True] ++ repeat False)
+	    (toSeq $ repeat False) -- [True] ++ repeat False)
 	    (toSeq $ repeat True)
 
 -- | Takes a clock, a 'Seq' of reset signals, and a 'Seq' of enables.
@@ -473,7 +473,7 @@ register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(
 			<*> line
 			<*> sres1
 
-	sres1 = optX (Nothing :: Maybe a) :~ sres0
+	sres1 = def {- optX (Nothing :: Maybe a)-} :~ sres0
 
         entity = Entity (Name "Memory" "register")
                     [("o0", bitTypeOf res)]
