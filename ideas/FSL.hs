@@ -146,26 +146,19 @@ fromVariableSink stutter sink = Maybe.catMaybes $ map snd internal
 	val = sink full
 
 	full :: Seq IsFull
-	full = toSeq [ IsFull v
-		     | (v,_) <- internal 
-		     ]
+	full = toSeq (map fst internal)
 
-	internal :: [(Bool,Maybe a)]
+	internal :: [(IsFull,Maybe a)]
 	internal = fn stutter (fromSeq val)
 	
-	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Enabled a)]
-	fn _      (Nothing:_) = error "fromVariableSink: bad state, unknown exists line"
-{-
-	fn (0:ps) (x:xs) = 
-		case x of
-		   Just (Just v) -> 
-		
-	fn (0:ps) (Just (Just x):xs) = (True,Just x : fn ps xs
-	fn (p:ps) (_:xs) 	     = Nothing : fn (pred p:ps) xs
-	fn ps     (Just Nothing:xs)  = Nothing : fn ps xs
-	fn []     xs                 = error ("fromVariableSink: stutter stream ended!" ++ show xs)
-	fn _      []                 = error "fromVariableSink: stream ended?"
--}
+	fn :: [Int] -> [Maybe (Enabled a)] -> [(IsFull,Maybe a)]
+	fn (0:ps) ~(x:xs) = (IsFull False,rep) : rest
+	   where
+		(rep,rest) = case x of
+			       Nothing       -> error "fromVariableSink: bad reply to low full status"
+			       Just Nothing  -> (Nothing,fn (0:ps) xs)
+			       Just (Just v) -> (Just v,fn ps xs)
+	fn (p:ps) ~(x:xs) = (IsFull True,Nothing) : fn (pred p:ps) xs
 
 ---------------------------------------------------------------------------
 -- Shallow Consumers
