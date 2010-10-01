@@ -188,6 +188,9 @@ dut2 env generator = result
 main = do
 	print (dut shallowEnv (toVariableSrc [1..] [1..10]))
 
+
+t1 = fromVariableSink (repeat 1000) ((srcToSink (shallowEnv { resetEnv = pureS False }) (toVariableSrc  (repeat 1000) ([1..]::[Int]))))
+
 -- A one-cell mvar-like FIFO.
 
 
@@ -258,35 +261,6 @@ srcToSink env reader isFull = packEnabled (state .==. 1) value
 			)
 	
 	
-{-
-main = 
-	fn = 
--}
-
-{-
--- Implements the FSL "Write/LHS" protocol, again at max speed
--- Note the Nothing in the result represents Unknown
-fromFSL :: (Rep a) => (Seq Bool -> Seq (Enabled a)) -> [Maybe a]
-fromFSL fn = concatMap
- 		(\ c -> case c of
-			   Nothing       -> [Nothing]
-			   Just (Just a) -> [Just a]
-			   Just Nothing  -> []
-	        ) (fromSeq (fn low))
-
-{-
-fromVariableFSL :: (Rep a) -> [Int] -> (Seq Bool -> Seq (Enabled a)) -> [Maybe a]
-fromVariableFSL stutter f = 
-	where
-		res = f
-		
-:: (Rep a) -> [Int] -> (Seq Bool -> Seq (Enabled a)) -> [Maybe a]
--}
-
--- It is not possible for a FIFO to go from "EMPTY" to "FULL" without a data push causing it
-
--}
-
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
