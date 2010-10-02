@@ -116,6 +116,7 @@ data Id = Name String String                    -- external thing
                                                 -- that records its shallow value,
                                                 -- for later inspection
 
+	| Label String				-- An identity; also a name
 	| Comment' [String]
 	| BlackBox (Box Dynamic)		-- These can be removed without harm
 						-- The rule is you can only insert you own
@@ -137,6 +138,7 @@ instance Show Id where
     show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
     show (Prim nm)     = nm
+    show (Label nm)    = show nm
     show (TraceVal ovar _) = "^" ++ show ovar
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"

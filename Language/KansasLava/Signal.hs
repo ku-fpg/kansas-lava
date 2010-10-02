@@ -96,6 +96,10 @@ wireName a = case wireType a of
 		_ -> "Lava"
 --		ty -> error $ "Type Name not found for " ++ show ty
 
+
+label :: (Rep a, Signal sig) => String -> sig a -> sig a
+label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
+
 -----------------------------------------------------------------------------------------------
 
 instance (Rep a, Signal sig) => Pack sig (Maybe a) where
