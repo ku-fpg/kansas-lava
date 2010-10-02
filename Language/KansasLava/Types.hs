@@ -106,8 +106,7 @@ instance Read OVar where
 
 data Id = Name String String                    -- external thing
         | Prim String                           -- built in thing
-        | Function [(Integer,Integer)]          -- anonymous function
-
+        | Function [(RepValue,RepValue)]        -- anonymous function
 
 						-- Why are the OVar's here?
         | TraceVal [OVar] TraceStream           -- trace (probes, etc)
@@ -377,6 +376,11 @@ instance Show Circuit where
                         "(" ++ show uq ++ ") " ++ show nm ++ "\n"
                             ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
                             ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
+			    ++ unlines [ "      case   " ++ show x ++ " -> " ++ show y
+				       | (Function pairs) <- [nm]
+				       , (x,y) <- pairs
+				       ]
+			
                             ++ unlines [ "      comment " ++ str | Comment str <- ann ]
                     Table (v0,ty0) (v1,ty1,dr) mapping ->
                         "(" ++ show uq ++ ") TABLE \n"
