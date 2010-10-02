@@ -245,6 +245,7 @@ genInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 		)
 	]
 
+genInst i other = error $ show ("genInst",i,other)
 
 
 --------------------------------------------------------------
