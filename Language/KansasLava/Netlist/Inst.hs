@@ -238,18 +238,6 @@ genInst i (Entity n@(Name mod_nm nm) outputs inputs _) =
 
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
--- TODO: Table should have a default, for space reasons
-
-genInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
-	[ NetAssign (sigName vout i)
-		(ExprCase (toStdLogicExpr tyin d)
-			[ ([toStdLogicExpr tyin ix],toStdLogicExpr tyout val)
-			| (ix,_,val,_) <- mp
-			]
-			(Just $ toStdLogicExpr tyout (0 :: Integer))
-		)
-	]
-
 genInst i tab@(Entity (Function mp) [(vout,tyout)] [(vin,tyin,d)] _) =
 	[ NetAssign (sigName vout i)
 		(ExprCase (toStdLogicExpr tyin d)

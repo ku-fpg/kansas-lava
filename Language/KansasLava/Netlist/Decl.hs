@@ -42,5 +42,3 @@ genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Name "Memory" "BRAM"
 genDecl (i,Entity nm outputs _ _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing
 	  | (n,nTy) <- outputs  ]
-genDecl (i,Table (n,nTy) _ _)
-	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing ]	  

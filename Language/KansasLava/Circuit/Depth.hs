@@ -39,10 +39,6 @@ findChains fn cir = reverse
 		   where plus = case lookup nm fn of
 			          Nothing -> (+ 1)
 			          Just f -> addDepthOp f
-		findEntityChain (Table _ (_,_,d) _) = plus (findDriverChain d)
-		   where plus = case lookup (Name "Lava" "table") fn of
-			          Nothing -> (+ 1)
-			          Just f -> addDepthOp f
 
 		findDriverChain :: Driver Unique -> Float
 		findDriverChain (Port _ u) =

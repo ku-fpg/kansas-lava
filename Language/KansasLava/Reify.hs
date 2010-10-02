@@ -71,10 +71,6 @@ reifyCircuit circuit = do
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames
 				      ])
-		     Just (Table (ovar,oty) _ _) ->
-		       return $ (gr', [ (sink,oty, Port ovar out)
-                                     | sink <- [head outputNames]
-				     ])
                      _ -> error $ "reifyCircuit: " ++ show o
 		-- TODO: restore this
 --                (Lit x) -> return ([],[((head outputNames),ty,Lit x)])
@@ -114,8 +110,6 @@ reifyCircuit circuit = do
 	            , case g of
 			 Entity nm outs ins g -> 
 				Entity nm outs (map remap_hofs ins) g
-			 Table outs ins f ->
-				Table outs (remap_hofs ins) f
 		    )
 		  | (i,g) <- gr 
 		  , not (i `elem` hofs)
@@ -125,7 +119,6 @@ reifyCircuit circuit = do
         -- Search all of the enities, looking for input ports.
         let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr
 			       , (_,vTy,Pad v) <- ins]
-		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
 
         let rCit = Circuit { theCircuit = gr
                                   , theSrcs = nub inputs
@@ -381,7 +374,6 @@ resolveNames cir
 			| (_,e) <- newCircuit
 			, v <- case e of
 			    Entity _ _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
-			    Table _ ins _ -> [ nm | (_,_,Pad nm) <- [ins]]
 			, v `elem` oldSrcs
 			]
 	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))

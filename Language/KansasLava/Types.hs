@@ -151,22 +151,17 @@ instance Show Id where
 -- We tie the knot at the 'Entity' level, for observable sharing.
 -- TODO: remove Table, remove annotations
 data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
-                        -- specialized Entity, because tables (typically ROMs) are verbose.
-                   | Table (String,ty) (String,ty,Driver s) [(Integer,String,Integer,String)]
               deriving (Show, Eq, Ord)
 
 instance T.Traversable (Entity ty a) where
   traverse f (Entity v vs ss dyn) =
     Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
-  traverse f (Table (v0,t0) (v1,t1,d) tbl) =
-        (\ d' -> Table (v0,t0) (v1,t1,d') tbl) <$> T.traverse f d
 
 instance F.Foldable (Entity ty a) where
   foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance Functor (Entity ty a) where
     fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
-
 
 -------------------------------------------------------------------------
 -- Driver
@@ -380,15 +375,7 @@ instance Show Circuit where
 				       | (Function pairs) <- [nm]
 				       , (x,y) <- pairs
 				       ]
-			
                             ++ unlines [ "      comment " ++ str | Comment str <- ann ]
-                    Table (v0,ty0) (v1,ty1,dr) mapping ->
-                        "(" ++ show uq ++ ") TABLE \n"
-                            ++ "      out " ++ show v0 ++ ":" ++ show ty0 ++ "\n"
-                            ++ "      in  " ++ show v1 ++ " <- " ++ showDriver dr ty1 ++ "\n"
-                            ++ unlines [ "      case " ++ e1 ++ " -> " ++ e2
-                                       | (i,e1,o,e2) <- mapping
-                                       ]
                 | (uq,e) <- theCircuit rCir
                 ]
 

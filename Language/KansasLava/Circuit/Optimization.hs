@@ -96,7 +96,6 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 	      , theCircuit =
 		 [ (u,case e of
 			Entity nm outs ins tags -> Entity nm outs (map fixInPort ins) tags
-			Table in' out' table -> Table in' (fixInPort out') table
 		   )
 		 | (u,e) <- env0
 		 ]
@@ -152,16 +151,6 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		  , ins `compare` ins'
 		  , misc `compare` misc'
 		  ]
-	mycompare (Table {}) (Entity {}) = GT
-	mycompare (Entity {}) (Table {}) = LT
-	mycompare (Table o ins tab)
-		  (Table o' ins' tab') =
-		chain
-		   [ ins `compare` ins'
-		   , tab `compare` tab'	-- allows us to share ROMs that
-					-- always get used at the same time
-		   ]
-
 
 	chain (LT:_ ) = LT
 	chain (GT:_ ) = GT
@@ -173,18 +162,8 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) =
 		(u0,e0) : [ ( uX
 		            , case eX of
-		 	     	Table {} -> error "found Table, expecting entity"
 			     	Entity nm' outs' _ _ | length outs == length outs'
 				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ] []
-			    )
-			  | (uX,eX) <- rest
-			  ]
-	canonicalize xs@((u0,e0@(Table (n,t) _ _)):rest) =
-		(u0,e0) : [ ( uX
-		            , case eX of
-			     	Table out' _ _
-				  -> Entity (Name "Lava" "id") [out'] [(n,t, Port n u0)]  []
-		 	     	Entity {} -> error "found Entity, expecting Table"
 			    )
 			  | (uX,eX) <- rest
 			  ]
@@ -203,7 +182,6 @@ dceCircuit rCir = if optCount == 0
 	allNames = nub (concat
 		       [ case e of
 			  Entity nm _ outs _ -> concatMap outFrees outs
-			  Table _ out _ -> outFrees out
 		       | (u,e) <- theCircuit rCir
 		       ] ++ concatMap outFrees (theSinks rCir)
 		       )
