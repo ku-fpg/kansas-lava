@@ -46,7 +46,7 @@ reifyCircuit circuit = do
 	let o = Port ("o0")
             	$ E
             	$ Entity (Name "Lava" "top") [("o0",B)]	-- not really a Bit
-             	[ ("i_" ++ show i,tys, dr)
+             	[ ("i" ++ show i,tys, dr)
 	     	| (i,(tys,dr)) <- zip [0..] os
              	]
              	[]
