@@ -205,7 +205,13 @@ main = do
 	writeDotCircuit "x.dot" t'
 	writeVhdlCircuit [] "x" "x.vhd" t'
 
-t1 = fromVariableSink (repeat 1000) ((srcToSink (shallowEnv { resetEnv = pureS False }) (toVariableSrc  (repeat 1000) ([1..]::[Int]))))
+t1 = fromVariableSink (repeat 1000) (fmapSink (*3) sink0)
+  where src0 = toVariableSrc  (repeat 1000) ([1..]::[Int])
+	sink0 = srcToSink shallowEnv (fmapSrc (*2) src0)
+
+
+	
+
 
 -- A one-cell mvar-like FIFO.
 
@@ -301,30 +307,16 @@ srcToSink env reader isFull = packEnabled write value
 			, value
 			)
 
+fmapSrc :: (Rep a, Rep b) => (Comb a -> Comb b) -> Src a -> Src b
+fmapSrc f src rd = liftS1 (mapEnabled f) (src rd)
+
+fmapSink :: (Rep a, Rep b) => (Comb a -> Comb b) -> Sink a -> Sink b
+fmapSink f src rd = liftS1 (mapEnabled f) (src rd)
+
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 
-{-
-t2 :: forall a . (a ~ U4, Rep a) => Env () -> (Seq IsFull,Seq (Enabled a)) -> (Seq IsRead,Seq (Enabled a))
-t2 env (full,val) = (read,val')
-    where
-	val' :: Seq (Enabled a)
-	val' = rep full
-
-	read :: Seq IsRead
-	f :: Seq IsRead -> Seq (Enabled a)
-
-	(read,f) = unsafeUnapply val
-
-	-- There *is* a commitment to linerity here
-	rep :: Seq IsFull -> Seq (Enabled a)
-	rep = srcToSink env f
--}	
-xxzzy :: ((Seq a -> Seq b) -> c) -> Seq b -> (Seq a,c)
-xxzzy = undefined
-
--- A
 unsafeUnapply :: a -> (b, b -> a)
 unsafeUnapply a = unsafePerformIO $ do
 	v <- newEmptyMVar
@@ -335,10 +327,3 @@ unsafeUnapply a = unsafePerformIO $ do
 			takeMVar v
 	return $ (b,f)
 	
-
-----
-
-fn :: ((Seq Bool -> Seq Bool) -> Seq Int) -> Seq Int
-fn g = g bitNot
-
-
