@@ -416,7 +416,7 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 		      (RepValue bvals) = toRep (witness :: b) b
 		      (RepValue cvals) = toRep (witness :: c) c
 	fromRep w (RepValue vs) = ( fromRep (witness :: a) (RepValue (take size_a vs))
-				  , fromRep (witness :: b) (RepValue (drop size_a vs))
+				  , fromRep (witness :: b) (RepValue (take size_b (drop size_a vs)))
 				  , fromRep (witness :: c) (RepValue (drop (size_a + size_b) vs))
 				  )
 		where size_a = typeWidth (wireType (witness :: a))
