@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
 
+module FSM where
 -- Use %ghci FSL.hs -i..
 -- To load
 
@@ -8,12 +9,22 @@ import Language.KansasLava.Stream
 import Data.Sized.Unsigned
 import Debug.Trace
 import Data.Maybe as Maybe
+import System.IO.Unsafe
+import Control.Concurrent.MVar
 
 ---------------------------------------------------------------------------
 -- Key Types
 
-type Sink a = Seq IsFull -> Seq (Enabled a)		-- push
 type Src  a = Seq IsRead -> Seq (Enabled a)		-- pull
+type Sink a = Seq IsFull -> Seq (Enabled a)		-- push
+
+
+-- The -ve's for Src and Sink
+data SRC a c = SRC (Seq (Enabled a) -> (Seq IsRead,c))
+data SINK a c = SINK (Seq (Enabled a) -> (Seq IsFull,c))
+
+
+
 
 ---------------------------------------------------------------------------
 -- IsRead
@@ -30,7 +41,7 @@ instance Rep IsRead where
 	wireType _	= B		-- a bit internally
 	toRep w v	= RepValue [v]
 	fromRep w (RepValue [v]) = v
-	fromRep w _	 	 = error "size error for Bool"
+	fromRep w rep	 	 = error ("size error for Bool" ++ show rep)
 
 
 
@@ -57,7 +68,7 @@ instance Rep IsFull where
 	wireType _	= B		-- a bit internally
 	toRep w v	= RepValue [v]
 	fromRep w (RepValue [v]) = v
-	fromRep w _	 	 = error "size error for Bool"
+	fromRep w rep	 	 = error ("size error for Bool" ++ show rep)
 
 ---------------------------------------------------------------------------
 -- Shallow Generators
@@ -186,8 +197,13 @@ dut2 env generator = result
 
 -- Our main test
 main = do
-	print (dut shallowEnv (toVariableSrc [1..] [1..10]))
-
+--	print (dut shallowEnv (toVariableSrc [1..] [1..10]))
+	t <- reifyCircuit s2
+	return ()
+	t' <- optimizeCircuit (OptimizationOpts 0) t
+--	print t'
+	writeDotCircuit "x.dot" t'
+--	writeVhdlCircuit [] "x" "x.vhd" t'
 
 t1 = fromVariableSink (repeat 1000) ((srcToSink (shallowEnv { resetEnv = pureS False }) (toVariableSrc  (repeat 1000) ([1..]::[Int]))))
 
@@ -236,33 +252,93 @@ fsmSrcToSink (0,True,_) 	= (1,False,IsRead True)	-- accept value
 fsmSrcToSink (1,_,IsFull False) = (0,True,IsRead False)	-- pass on value (rec. is not full)
 fsmSrcToSink (1,_,IsFull True)  = (1,False,IsRead False)	
 
+fsmSrcToSink1 :: (SrcToSinkState,Bool,IsFull) -> SrcToSinkState
+fsmSrcToSink1 (a,b,c) = case fsmSrcToSink (a,b,c) of (x,y,z) -> x
+
+fsmSrcToSink2 :: (SrcToSinkState,IsFull) -> Bool
+fsmSrcToSink2 (a,c) = case fsmSrcToSink (a,False,c) of (x,y,z) -> y
+
+fsmSrcToSink3 :: (SrcToSinkState,Bool) -> IsRead
+fsmSrcToSink3 (a,b) = case fsmSrcToSink (a,b,IsFull False) of (x,y,z) -> z
+
+s2 = srcToSink :: Env () -> Src U4 -> Sink U4
+	
 -- A passthrough; thats all
 srcToSink :: forall a. (Rep a) 
-	  => Env () -> (Seq IsRead -> Seq (Enabled a)) -> (Seq IsFull -> Seq (Enabled a))
-srcToSink env reader isFull = packEnabled (state .==. 1) value
+	  => Env () -> (Src a) -> (Sink a)
+srcToSink env reader isFull = packEnabled write value
    where
 	state, state' :: Seq U1
-	state = register env 0 state'
+	state = label "state" $ register env 0 state'
 
 	inp :: Seq (Enabled a)
-	inp  = reader $ read
-	
+	inp  = reader $ read 
+
+	read' :: Seq IsRead
+	read' = pureS (IsRead False) -- read
+
+
+	state' = label "state'"
+	       $ funMap (return . fsmSrcToSink1) 
+	       $ pack (state,isEnabled inp,isFull)
+
+
 	write :: Seq Bool
+	write = label "write"
+	     $ funMap (return . fsmSrcToSink2) 
+	     $ pack (state,isFull) 
+
 	read :: Seq IsRead
-	(state',write,read) =
-		  unpack
-	 	$ funMap (return . fsmSrcToSink) 
-		$ pack (state,isEnabled inp,isFull)
-		 	
+	read = label "read"
+	     $ funMap (return . fsmSrcToSink3) 
+	     $ pack (state,isEnabled inp)
+
+
+
 	value :: Seq a
-	value = delay env $ mux2 (read .==. pureS (IsRead True))
+	value =	delay env $ mux2 (read .==. pureS (IsRead True))
 			( enabledVal inp
 			, value
 			)
-	
-	
+
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
+
+{-
+t2 :: forall a . (a ~ U4, Rep a) => Env () -> (Seq IsFull,Seq (Enabled a)) -> (Seq IsRead,Seq (Enabled a))
+t2 env (full,val) = (read,val')
+    where
+	val' :: Seq (Enabled a)
+	val' = rep full
+
+	read :: Seq IsRead
+	f :: Seq IsRead -> Seq (Enabled a)
+
+	(read,f) = unsafeUnapply val
+
+	-- There *is* a commitment to linerity here
+	rep :: Seq IsFull -> Seq (Enabled a)
+	rep = srcToSink env f
+-}	
+xxzzy :: ((Seq a -> Seq b) -> c) -> Seq b -> (Seq a,c)
+xxzzy = undefined
+
+-- A
+unsafeUnapply :: a -> (b, b -> a)
+unsafeUnapply a = unsafePerformIO $ do
+	v <- newEmptyMVar
+	let f b = unsafePerformIO $ do
+			putMVar v b
+			return a
+	let b = unsafePerformIO $ do
+			takeMVar v
+	return $ (b,f)
+	
+
+----
+
+fn :: ((Seq Bool -> Seq Bool) -> Seq Int) -> Seq Int
+fn g = g bitNot
 
 
