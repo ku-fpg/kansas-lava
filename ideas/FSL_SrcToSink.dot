@@ -1,0 +1,10 @@
+digraph G {
+	s0[label="wait for input\n[data=?,write=L]"];
+	s1[label="sending output\n[data=<reg>,\nread=L]"];
+	s0 -> s0 [label=" exists=L->read=L"];
+	s0 -> s1 [label=" exisits=H->read=H        \n(receiving value)"];
+	s1 -> s1 [label=" full=H->write=L"];
+	s1 -> s0 [label=" full=L->write=H\n(sending value)"]; 
+
+[label="src=(exists,data)[read]\nsink=(write,data)[full]\n[...] = back arrow"];
+}
