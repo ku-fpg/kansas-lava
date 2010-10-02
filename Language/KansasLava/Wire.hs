@@ -222,7 +222,7 @@ instance Rep Bool where
 	wireType _	= B
 	toRep w v	= RepValue [v]
 	fromRep w (RepValue [v]) = v
-	fromRep w _		 = error "size error for Bool"
+	fromRep w rep		 = error ("size error for Bool : " ++ (show $ Prelude.length $ unRepValue rep) ++ " " ++ show rep)
 
 {-
 instance RepWire Bool where
