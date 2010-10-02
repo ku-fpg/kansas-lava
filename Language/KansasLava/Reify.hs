@@ -65,6 +65,7 @@ reifyCircuit circuit = do
                                        | (_,ity,driver) <- ins
                                        | sink <- outputNames
 				       ])
+		     -- if the circuit is trivial??
                      Just (Entity (Name _ _) outs _ _) ->
                        return $ (gr', [(sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
