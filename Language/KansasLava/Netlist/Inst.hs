@@ -250,6 +250,16 @@ genInst i tab@(Table (vout,tyout) (vin,tyin,d) mp) =
 		)
 	]
 
+genInst i tab@(Entity (Function mp) [(vout,tyout)] [(vin,tyin,d)] _) =
+	[ NetAssign (sigName vout i)
+		(ExprCase (toStdLogicExpr tyin d)
+			[ ([toStdLogicExpr tyin ix],toStdLogicExpr tyout val)
+			| (ix,val) <- mp
+			]
+			(Just $ toStdLogicExpr tyout (0 :: Integer))	-- replace with unknowns
+		)
+	]
+
 genInst i other = error $ show ("genInst",i,other)
 
 
