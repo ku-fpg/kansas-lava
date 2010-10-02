@@ -60,6 +60,11 @@ genInst i (Entity (Name "Lava" "thd3") outputs inputs other)
 genInst  i (Entity (Name "Lava" "id") [(vO,_)] [(vI,ty,d)] _) =
 	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
 
+genInst  i (Entity (Label label) [(vO,_)] [(vI,ty,d)] _) =
+	 	[ CommentDecl label
+	        , NetAssign (sigName vO i) $ toStdLogicExpr ty d 
+	        ]
+
 -- Concat and index (join, project)
 
 genInst  i (Entity (Name "Lava" "concat") [("o0",_)] inps _) =
