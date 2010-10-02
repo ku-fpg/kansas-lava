@@ -169,15 +169,31 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 				   Just v -> optX (fn v :: Maybe b) :: X b)
 				     (D $ Port ("o0")
 					$ E
-					$ Table ("o0",tB)
-						("i0",tA,ae)
-						tab
+					$ Entity (Function tab')
+					         [("o0",tB)]
+						 [("i0",tA,ae)]
+						 []
 				     )
 	where tA = wireType (error "table" :: a)
 	      tB = wireType (error "table" :: b)
 
 	      all_a_bitRep :: [RepValue]
 	      all_a_bitRep = allReps (witness :: a)
+
+	      tab' :: [(RepValue,RepValue)]
+	      tab' = [ ( w_a
+		      , w_b
+		      )
+		    | w_a <- all_a_bitRep
+		    , a <- case unX (fromRep (witness :: a) w_a :: X a) :: Maybe a of
+				 Nothing -> []
+				 Just a -> [a]
+		    , b <- case fn a of
+			     Nothing -> []
+			     Just b -> [b]
+		    , let w_b = toRep (witness :: b) ((optX $ Just b) :: X b)
+		    ]
+
 
 	      tab :: [(Integer,String,Integer,String)]
 	      tab = [ ( fromRepToInteger w_a
