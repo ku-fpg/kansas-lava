@@ -250,7 +250,7 @@ input nm = liftS1 $ \ (Comb a d) ->
 -}
 
 wireGenerate :: Int -> (D w,Int)
-wireGenerate v = (D (Pad (OVar v ("i_" ++ show v))),succ v)
+wireGenerate v = (D (Pad (OVar v ("i" ++ show v))),succ v)
 
 
 instance Rep a => InPorts (CSeq c a) where
