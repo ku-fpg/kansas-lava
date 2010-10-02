@@ -203,7 +203,7 @@ main = do
 	t' <- optimizeCircuit (OptimizationOpts 0) t
 --	print t'
 	writeDotCircuit "x.dot" t'
---	writeVhdlCircuit [] "x" "x.vhd" t'
+	writeVhdlCircuit [] "x" "x.vhd" t'
 
 t1 = fromVariableSink (repeat 1000) ((srcToSink (shallowEnv { resetEnv = pureS False }) (toVariableSrc  (repeat 1000) ([1..]::[Int]))))
 
