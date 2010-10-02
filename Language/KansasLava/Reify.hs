@@ -80,16 +80,58 @@ reifyCircuit circuit = do
 --                (Lit x) -> return ([],[((head outputNames),ty,Lit x)])
                 v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
 
+--	print outputs
+
+	let newOut = 1 + maximum ((-1) : [ i | (OVar i _,_,_) <- outputs ])
+--	print newOut
+		
+	let backoutputs = 
+	      [ (OVar n ("b" ++ show n), vTy, dr)
+	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _) <- gr 
+	      | n <- [newOut..]
+	      ]
+
+	let outputs2 = outputs ++ backoutputs
+	let outputs = outputs2
+	
+	let hofs = 
+	      [ i
+	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _)  <- gr
+	      ]
+--	print hofs
+
+	let findHof i = case Prelude.lookup i (zip hofs [newOut..]) of
+			   Nothing -> error $ "can not find hof : " ++ show i
+			   Just v -> OVar v ("o" ++ show v)
+
+
+	let remap_hofs (nm,ty,Port pnm i) 
+	        | i `elem` hofs = (nm,ty,Pad $ findHof i)
+		| otherwise = (nm,ty,Port pnm i)
+	    remap_hofs other = other
+
+	let gr' = [ ( i
+	            , case g of
+			 Entity nm outs ins g -> 
+				Entity nm outs (map remap_hofs ins) g
+			 Table outs ins f ->
+				Table outs (remap_hofs ins) f
+		    )
+		  | (i,g) <- gr 
+		  , not (i `elem` hofs)
+		  ]
+	let gr = gr'
+
         -- Search all of the enities, looking for input ports.
         let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr
 			       , (_,vTy,Pad v) <- ins]
 		  ++ [ (v,vTy) | (_,Table _ (_,vTy,Pad v) _) <- gr ]
+
         let rCit = Circuit { theCircuit = gr
                                   , theSrcs = nub inputs
                                   , theSinks = outputs
                                   }
 
---	print rCit
 
 	let rCit' = resolveNames rCit
 	let rCit = rCit'
@@ -98,6 +140,7 @@ reifyCircuit circuit = do
 	rCit2 <- if OptimizeReify `elem` opts then optimizeCircuit def rCit else return rCit
 
 	let depthss = [ mp | CommentDepth mp <- opts ]
+
 
 	rCit3 <- case depthss of
 		    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
@@ -139,6 +182,30 @@ class InPorts a where
 
     input :: String -> a -> a
 
+class BackPorts a where
+--    inPorts :: Int -> (a, Int)
+--    input :: String -> a -> a
+
+{-
+instance (BackPorts a, InPorts b) => InPorts (a -> b) where
+     -- inPorts :: Int -> (a -> b,Int)
+
+	inPorts v = (,) 
+	
+	error "XX"
+--    inPorts :: Int -> (a, Int)
+--    input :: String -> a -> a
+	input _ a = a
+-}
+
+-- Royale Hack, but does work.
+instance (Rep a, Rep b) => InPorts (CSeq c a -> CSeq c b) where
+	inPorts v =  (fn , v)
+   	  where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
+
+	input _ a = a	
+
+instance BackPorts (CSeq c a) where {}
 
 instance Rep a => Ports (CSeq c a) where
   ports _ sig = wireCapture (seqDriver sig)
@@ -165,6 +232,8 @@ instance (InPorts a, Ports b) => Ports (a -> b) where
   ports vs f = ports vs' $ f a
      where (a,vs') = inPorts vs
 
+
+
 --class OutPorts a where
 --    outPorts :: a ->  [(Var, Type, Driver E)]
 
@@ -182,6 +251,7 @@ input nm = liftS1 $ \ (Comb a d) ->
 
 wireGenerate :: Int -> (D w,Int)
 wireGenerate v = (D (Pad (OVar v ("i_" ++ show v))),succ v)
+
 
 instance Rep a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
