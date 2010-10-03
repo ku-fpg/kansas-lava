@@ -14,13 +14,14 @@ data StdLogicVector a = StdLogicVector (Matrix a (WireVal Bool))
 
 
 undefinedStdLogicVector :: (Size x) => StdLogicVector x
-undefinedStdLogicVector = StdLogicVector $ forAll $ \ _ 	-> WireUnknown
+undefinedStdLogicVector = StdLogicVector $ forAll $ \ _ -> WireUnknown
 
 
 -- NOTE: This used to be reversed
 instance (Size a) => Show (StdLogicVector a) where
 	show (StdLogicVector m) = show $ RepValue $ M.toList m
 
+-- Figure out a way of removing this (it allows literals, thats why we have it)
 instance (Size ix) => Num (StdLogicVector ix) where
 	(+) = error "(+) is undefined for StdLogicVector"
 	(-) = error "(-) is undefined for StdLogicVector"
