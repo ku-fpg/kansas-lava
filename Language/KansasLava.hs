@@ -18,6 +18,7 @@ module Language.KansasLava (
     module Language.KansasLava.VHDL,
     module Language.KansasLava.Wire,
     module Language.KansasLava.StdLogicVector,
+    module Language.KansasLava.Shallow.FIFO,
 
     module Language.KansasLava.Dynamic,
     module Language.KansasLava.Testing.Output.Dot,
@@ -47,6 +48,7 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Testing.Output.Dot
 
 import Language.KansasLava.StdLogicVector
+import Language.KansasLava.Shallow.FIFO
 
 
 import Language.KansasLava.Dynamic

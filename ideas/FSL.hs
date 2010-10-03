@@ -113,8 +113,8 @@ testX = do
 	print "This *should* hang, but check `XX`"
 	v1 <- newShallowFIFO
 	v2 <- newShallowFIFO
-	forkIO $ readFileToFifo "FSL.hs" v1
-	forkIO $ writeFileFromFifo "XXX" v2
+	forkIO $ readFileToFIFO "FSL.hs" v1
+	forkIO $ writeFileFromFIFO "XXX" v2
 	
 	src <- fifoToSrc v1
 	let circ = fmapSrc (toStdLogicVector . ((+0) :: Comb U8 -> Comb U8). fromStdLogicVector) src

@@ -10,6 +10,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Protocols
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Utils -- for fromSLV
+import Language.KansasLava.Shallow.FIFO
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned
@@ -272,29 +273,6 @@ sinkToMVar var sink = putMVarContents var (fromSink sink)
 
 ---------------------------------------------------------
 
--- We include maybe, so we can simulate the concept
--- of there being no data available to pass on
--- at a specific point from a FIFO.
-
-data ShallowFIFO a = ShallowFIFO (MVar (Maybe a))
-
-newShallowFIFO :: IO (ShallowFIFO a)
-newShallowFIFO = do
-	var <- newEmptyMVar 
-	return $ ShallowFIFO var
-	
-
--- | blocks if the FIFO is not cycled on.
---   Nothing means step a cycle;
---   Just means cycle until value is read.
-writeToFIFO :: ShallowFIFO a -> Maybe a -> IO ()
-writeToFIFO (ShallowFIFO var) a = putMVar var a
-
--- | block if the FIFO has no values in it yet.
--- Nothing means no value issued in a cycle;
--- Just means value accepted from circuit.
-readFromFIFO :: ShallowFIFO a -> IO (Maybe a)
-readFromFIFO (ShallowFIFO var) = takeMVar var
 
 -- | runs a fifo forever and empty values.
 --  return imeduately after forking worker thread.
@@ -306,63 +284,12 @@ execFIFO fifo = forkIO loop
 -}
 
 fifoToSrc :: (Rep a) => ShallowFIFO a -> IO (Src a)
-fifoToSrc (ShallowFIFO var) = do
-	xs <- getMVarContents var
+fifoToSrc fifo = do
+	xs <- getFIFOContents fifo
 	return (toVariableSrc (repeat 0) xs)
 
 sinkToFifo :: (Rep a) => ShallowFIFO a -> Sink a -> IO ()
-sinkToFifo (ShallowFIFO var) sink = do
-	putMVarContents var (fromVariableSink (repeat 0) sink)
+sinkToFifo fifo sink = do
+	putFIFOContents fifo (fromVariableSink (repeat 0) sink)
 	return ()
-
--- | readFileToFifo returns after the file has been consumed
--- by the FIFO.
-
-readFileToFifo :: String -> ShallowFIFO Byte -> IO ()
-readFileToFifo file fifo = do
-	h <- openFile file ReadMode
-	hGetToFifo h fifo
-
-
-writeFileFromFifo :: String -> ShallowFIFO Byte -> IO ()
-writeFileFromFifo file fifo = do
-	h <- openFile file WriteMode
-	hSetBuffering h NoBuffering	
-	hPutFromFifo h fifo
-
--- | read a file into a fifo as bytes.
-hGetToFifo :: Handle -> ShallowFIFO Byte -> IO ()
-hGetToFifo h (ShallowFIFO var) = do 
-	str <- hGetContents h
-	putMVarContents var (map (Just . toByte) str)
-
-
-hPutFromFifo :: Handle -> ShallowFIFO Byte -> IO ()
-hPutFromFifo h (ShallowFIFO var) = do
-   forkIO $ do
-	xs <- getMVarContents var
-	sequence_ 
-		[ do hPutChar h $ fromByte x
-		     hFlush h
-	        | Just x <- xs
-	        ]
-	-- never finishes
-   return ()
-
----------------------------------------------------------
--- Candidates for another package
-
--- Very general, might be useful elsewhere
-getMVarContents :: MVar a -> IO [a]
-getMVarContents var = unsafeInterleaveIO $ do
-	x <- takeMVar var
-	xs <- getMVarContents var
-	return (x:xs)
-
-putMVarContents :: MVar a -> [a] -> IO ()
-putMVarContents var xs = sequence_ (map (putMVar var) xs)
-
--- Runs a program from stdin to stdout;
--- also an example of coding
--- interact :: (Src a -> Sink b) -> IO ()
 
