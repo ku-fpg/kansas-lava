@@ -14,6 +14,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Comb
 import Language.KansasLava.Signal
+import Language.KansasLava.StdLogicVector
 
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Stream (Stream)

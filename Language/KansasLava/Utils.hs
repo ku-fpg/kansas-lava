@@ -545,7 +545,7 @@ coerceSized a  = (b, err)
        valB = fromEnum b
        err = not (valA == valB)
 
-
+{-
 ---------------------------------------------------------------------------------------------
 -- A StdLogicVector is just an array of bits, but will be represented using
 -- std_logic_vector for its Lava *and* IEEE type.
@@ -583,6 +583,8 @@ toSLV v = case toRep (witness :: w) (optX (return v) :: X w) of
 
 fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
 fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+
+-}
 
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)

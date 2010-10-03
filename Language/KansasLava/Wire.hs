@@ -3,7 +3,7 @@
 
 module Language.KansasLava.Wire where
 
-import Language.KansasLava.StdLogicVector
+--import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Types
 import Language.KansasLava.Entity
 import Control.Applicative
@@ -562,15 +562,6 @@ instance (Size m, Enum ix, Enum m, Size ix) => RepWire (Sampled.Sampled m ix) wh
 	showRepWire _ = show
 -}
 
-instance (Size ix) => Rep (StdLogicVector ix) where 
-	type X (StdLogicVector ix) = StdLogicVector ix
-	optX (Just b)	    = b
-	optX Nothing	    = StdLogicVector $ forAll $ \ _ -> WireUnknown
-	unX a 		    = return a
-	wireType x   	    = V (size (error "Wire/StdLogicVector" :: ix))
-	toRep _ (StdLogicVector m) = RepValue (M.toList m)
-	fromRep _ (RepValue vs) = StdLogicVector (M.matrix vs)
-	showRep = showRepDefault
 
 {-
 instance (Size ix) => RepWire (StdLogicVector ix) where

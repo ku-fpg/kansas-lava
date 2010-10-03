@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, UndecidableInstances, FlexibleInstances #-}
 
 module Language.KansasLava.StdLogicVector where
 
@@ -7,6 +7,11 @@ import Control.Monad
 
 import Data.Sized.Matrix as M
 import Language.KansasLava.Types
+import Language.KansasLava.Wire
+import Data.Sized.Arith
+import Data.Sized.Unsigned as U
+import Data.Sized.Signed as S
+
 
 
 data StdLogicVector a = StdLogicVector (Matrix a (WireVal Bool))
@@ -21,7 +26,7 @@ undefinedStdLogicVector = StdLogicVector $ forAll $ \ _ -> WireUnknown
 instance (Size a) => Show (StdLogicVector a) where
 	show (StdLogicVector m) = show $ RepValue $ M.toList m
 
--- Figure out a way of removing this (it allows literals, thats why we have it)
+-- This is needed for Bits to work.
 instance (Size ix) => Num (StdLogicVector ix) where
 	(+) = error "(+) is undefined for StdLogicVector"
 	(-) = error "(-) is undefined for StdLogicVector"
@@ -89,3 +94,45 @@ coerce (StdLogicVector m) = StdLogicVector
 			  $ take (size (witness :: b))
 			  $ M.toList m ++ repeat (WireVal False)
 
+class Size (WIDTH w) => StdLogic w where
+  type WIDTH w
+
+instance StdLogic Bool where
+   type WIDTH Bool = X1
+
+instance Size w => StdLogic (U.Unsigned w) where
+   type WIDTH (U.Unsigned w) = w
+
+instance Size w => StdLogic (S.Signed w) where
+   type WIDTH (S.Signed w)  = w
+
+instance Size w => StdLogic (M.Matrix w Bool) where
+   type WIDTH (M.Matrix w Bool)  = w
+
+instance StdLogic X0 where
+   type WIDTH X0 = X0
+
+-- MESSSSYYYYY.
+instance (Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
+   type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
+
+instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
+   type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
+
+-- TODO: rename as to and from.
+toSLV :: forall w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
+toSLV v = case toRep (witness :: w) (optX (return v) :: X w) of
+		RepValue v -> StdLogicVector $ M.matrix $ v
+
+fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
+fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+
+instance (Size ix) => Rep (StdLogicVector ix) where 
+	type X (StdLogicVector ix) = StdLogicVector ix
+	optX (Just b)	    = b
+	optX Nothing	    = StdLogicVector $ forAll $ \ _ -> WireUnknown
+	unX a 		    = return a
+	wireType x   	    = V (size (error "Wire/StdLogicVector" :: ix))
+	toRep _ (StdLogicVector m) = RepValue (M.toList m)
+	fromRep _ (RepValue vs) = StdLogicVector (M.matrix vs)
+	showRep = showRepDefault
