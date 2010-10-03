@@ -7,6 +7,7 @@ module Language.KansasLava (
     module Language.KansasLava.Entity.Utils,
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
+    module Language.KansasLava.Protocols.FSL,
     module Language.KansasLava.Reify,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
@@ -33,6 +34,7 @@ import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
+import Language.KansasLava.Protocols.FSL
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal

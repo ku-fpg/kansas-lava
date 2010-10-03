@@ -577,6 +577,12 @@ instance (Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
 instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
+toSLV :: forall w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
+toSLV v = case toRep (witness :: w) (optX (return v) :: X w) of
+		RepValue v -> StdLogicVector $ M.matrix $ v
+
+fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
+fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
 
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
