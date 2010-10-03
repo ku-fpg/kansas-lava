@@ -255,13 +255,17 @@ instance Rep a => InPorts (Comb a) where
     inPorts vs = (deepComb d,vs')
       where (d,vs') = wireGenerate vs
 
-    input nm (Comb a d) =
+    input nm a = label nm a
+{-
+(Comb a d) =
 	let res  = Comb a $ D $ Port ("o0") $ E $ entity
 	    entity = Entity (Name "Lava" "input")
                     [("o0", bitTypeOf res)]
                     [(nm, bitTypeOf res, unD d)]
 		    []
 	in res
+-}
+
 {-
 
 instance InPorts (Env clk) where
@@ -274,7 +278,7 @@ instance InPorts (Clock clk) where
 
     input nm (Clock f d) =
 	let res  = Clock f $ D $ Port ("o0") $ E $ entity
-	    entity = Entity (Name "Lava" "input")
+	    entity = Entity (Label "clk")
                     [("o0", ClkTy)]
                     [(nm, ClkTy, unD d)]
 		    []
@@ -348,21 +352,12 @@ showOptCircuit opt c = do
 
 
 output :: (Signal seq, Rep a)  => String -> seq a -> seq a
-output nm = liftS1 $ \ (Comb a d) ->
-	let res  = Comb a $ D $ Port (nm) $ E $ entity
-	    entity = Entity (Name "Lava" "output")
-                    [(nm, bitTypeOf res)]
-                    [("i0", bitTypeOf res, unD d)]
-		    []
-	in res
+output nm = label nm
 
 resolveNames :: Circuit -> Circuit
 resolveNames cir
 	| error1 = error $ "The generated input/output names are non distinct: " ++
 			   show (map fst (theSrcs cir))
-	| not (null error2) = error $ ("A name has been used both labeled and non labeled " ++ show
-				(error2,oldSrcs,newSrcs))
-
 	| error3 = error "The labled input/output names are non distinct"
 	| otherwise = Circuit { theCircuit = newCircuit
 			 	     , theSrcs = newSrcs
@@ -381,11 +376,13 @@ resolveNames cir
 	newCircuit =
 		[ ( u
 		  , case e of
-		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad (OVar i _))] misc
-			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad (OVar i oNm))] misc
-		      Entity (Name "Lava" io) outs ins misc
-			| io `elem` ["input","output"]
-			-> Entity (Name "Lava" "id") outs ins misc
+		      Entity nm outs ins misc ->
+			Entity nm outs [ (n,t,fnInputs p) | (n,t,p) <- ins ] misc 
+--		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad (OVar i _))] misc
+--			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad (OVar i oNm))] misc
+--		      Entity (Name "Lava" io) outs ins misc
+--			| io `elem` ["input","output"]
+--			-> Entity (Name "Lava" "id") outs ins misc
 		      other -> other
 		   )
 		| (u,e) <- theCircuit cir
@@ -406,7 +403,10 @@ resolveNames cir
 
 	newSinks :: [(OVar,Type,Driver Unique)]
 	newSinks = [ case dr of
-		      Port (nm') u | isOutput u -> (OVar i nm',ty,dr)
+		      Port _ u ->
+			case lookup u (theCircuit cir) of
+			  Just (Entity (Label nm') _ _ _) -> (OVar i nm',ty,dr)
+		          _ -> (nm,ty,dr)
 		      _ -> (nm,ty,dr)
 		   | (nm@(OVar i _),ty,dr) <- theSinks cir
 		   ]
@@ -415,13 +415,15 @@ resolveNames cir
 			Just (Entity (Name "Lava" "output") _ _ _) -> True
 			_ -> False
 
+	fnInputs :: Driver Unique -> Driver Unique
+	fnInputs (Pad p) = Pad $ case lookup p mapInputs of
+			     Nothing -> p
+			     Just p' -> p'
+	fnInputs other = other
+
 	mapInputs :: [(OVar,OVar)]
 	mapInputs = [ (OVar i inp,OVar i nm)
-		    | (_,Entity (Name "Lava" "input") _ [(nm,_,Pad (OVar i inp))] _) <- theCircuit cir
+		    | (_,Entity (Label nm) _ [(_,_,Pad (OVar i inp))] _) <- theCircuit cir
 		    ]
 
-
-	isInput u = case lookup u (theCircuit cir) of
-			Just (Entity (Name "Lava" "input") _ _ _) -> True
-			_ -> False
 
