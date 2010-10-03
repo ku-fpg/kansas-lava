@@ -647,3 +647,9 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 
 lavaId :: (Signal sig, Rep a) => sig a -> sig a
 lavaId = fun1 "id" id
+
+-------------------------------------------------------------------------------------
+
+cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
+cASE [] def = def
+cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
