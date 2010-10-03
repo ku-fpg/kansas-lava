@@ -16,8 +16,7 @@ import Control.Concurrent
 import Data.Word
 import Data.Default
 
-----------------------------------------------------------------------------------------------------
--- Shallow Consumers
+-- Example
 
 circuit :: Comb Byte -> Comb Byte
 circuit inpB = outpB
@@ -34,7 +33,6 @@ circuit inpB = outpB
 big_circuit :: Env () -> Src Byte -> Sink Byte
 big_circuit env src = srcToSink env $ fmapSrc circuit src
 
-
 main = do
 	print "This *should* hang, but check the file `LAVA_OUT`"
 	v1 <- newShallowFIFO
@@ -47,7 +45,6 @@ main = do
 
 -- Our other test
 main2 = do
---	print (dut shallowEnv (toVariableSrc [1..] [1..10]))
 	t <- reifyCircuit big_circuit
 	return ()
 	t' <- optimizeCircuit def t
