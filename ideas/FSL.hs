@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
 
-module FSM where
+module FSL where
 -- Use %ghci FSL.hs -i..
 -- To load
 
@@ -48,9 +48,9 @@ main = do
 	writeDotCircuit "x.dot" t'
 	writeVhdlCircuit [] "x" "x.vhd" t'
 
-t1 = fromVariableSink (repeat 1000) (fmapSink (*3) sink0)
-  where src0 = toVariableSrc  (repeat 1000) ([1..]::[Int])
-	sink0 = srcToSink shallowEnv (fmapSrc (*2) src0)
+--t1 = fromVariableSink (repeat 1000) (fmapSink (*3) sink0)
+--  where src0 = toVariableSrc  (repeat 1000) ([1..]::[Int])
+--	sink0 = srcToSink shallowEnv (fmapSrc (*2) src0)
 
 
 	
@@ -108,50 +108,18 @@ unsafeUnapply a = unsafePerformIO $ do
 	return $ (b,f)
 
 
-
+-- This is how to use the new ports stuff
 testX = do
-	print "This *should* hang, but check FSL.hs"
-	v1 <- newEmptyMVar
-	v2 <- newEmptyMVar	
-	forkIO $ readFileToMVar "FSL.hs" v1
-	forkIO $ writeFileFromMVar "XXX" v2
+	print "This *should* hang, but check `XX`"
+	v1 <- newShallowFIFO
+	v2 <- newShallowFIFO
+	forkIO $ readFileToFifo "FSL.hs" v1
+	forkIO $ writeFileFromFifo "XXX" v2
 	
-	src <- mVarToSrc v1
-	let circ = fmapSrc id src
-
-	sinkToMVar v2 (srcToSink shallowEnv circ)
+	src <- fifoToSrc v1
+	let circ = fmapSrc (toStdLogicVector . ((+0) :: Comb U8 -> Comb U8). fromStdLogicVector) src
+	sinkToFifo v2 (srcToSink shallowEnv circ)
 	
---	src <- mVarToSrc v 
---	let t = src (toSeq $ cycle [IsRead x | x <- [False,False,False,True]])
---	print $ fromSrc src
-
-{-
-	forkIO $ do
-
-	putMVar v 0
-	putMVar v 1
-	putMVar v 2
-	putMVar v 3
-	putMVar v 4
--}	
-		
-{-		
-		getChanContents :: Chan a -> IO [a]
-getChanContents ch
-  = unsafeInterleaveIO (do
-        x  <- readChan ch
-        xs <- getChanContents ch
-        return (x:xs)
-    )
--}
-	
-{-
-readFileWith str toOut = do
-	str <- readFile str
-	let vals = map Char.ord str
-	print vals
-	return (toOut $ map fromIntegral vals)
--}
 
 {-
 -- Err, how does this finish/close? There is no end of file!

@@ -76,27 +76,30 @@ instance Rep IsFull where
 
 -- Implements the FSL "Read/RHS" protocol, at max speed
 toSrc :: (Rep a) => [a] -> Src a
-toSrc = toVariableSrc (repeat 0)
+toSrc = toVariableSrc (repeat 0) . map Just
 
-readSrc :: String -> IO (Src (StdLogicVector X8))
-readSrc string = readFileWith string toSrc
-
-toVariableSrc :: (Rep a) => [Int] -> [a] -> Src a
+toVariableSrc :: (Rep a) => [Int] -> [Maybe a] -> Src a
 toVariableSrc stutter xs isRead = toSeq (fn stutter xs (fromSeq isRead))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
-	   fn (0:ps) (x:xs) c 
+	   fn (0:ps) (Just x:xs) c 
 		    = [Just x]
 		    ++ case c of -- read c after issuing Just x
 			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (1)"
 			(Just (IsRead True):rs)  -> fn ps xs rs	    -- has been read
-			(Just (IsRead False):rs) -> fn (0:ps) (x:xs) rs -- not read yet
+			(Just (IsRead False):rs) -> fn (0:ps) (Just x:xs) rs -- not read yet
+	   fn (0:ps) (Nothing:xs) c 
+		    = [Nothing]
+		    ++ case c of
+			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (2a)"
+			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (3a)"
+			(Just (IsRead False):rs) -> fn ps xs rs -- nothing sent, nothing read
 	   fn (p:ps) xs c
 		    = [Nothing]
 		    ++ case c of
-			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (2)"
-			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (3)"
+			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (2b)"
+			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (3b)"
 			(Just (IsRead False):rs) -> fn (pred p:ps) xs rs -- nothing read
 	   fn ps [] c = [Nothing]
 		    ++ case c of
@@ -104,7 +107,9 @@ toVariableSrc stutter xs isRead = toSeq (fn stutter xs (fromSeq isRead))
 			(Just (IsRead True):rs)  -> error "toVariableSrc: bad protocol state (5)"
 			(Just (IsRead False):rs) -> fn ps [] rs -- nothing read, ever
 
-toVariableSink :: (Rep a) => [Int] -> [a] -> Sink a
+{-
+-- TODO: Consider issues
+--toVariableSink :: (Rep a) => [Int] -> [Maybe a] -> Sink a
 toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
@@ -122,10 +127,11 @@ toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
 		    =  case c of
 			(Nothing:rs)         -> error "toVariableSink: bad protocol state (3)"
 			(Just (IsFull _):rs) -> Nothing : fn ps [] rs -- nothing read
+-}
 
 ---------------------------------------------------------------------------
 -- Shallow Consumers
-
+{-
 fromSrc :: (Show a, Rep a) => Src a -> [a]
 fromSrc = fromVariableSrc (repeat 0)
 
@@ -150,12 +156,13 @@ fromVariableSrc stutter src = Maybe.catMaybes internal
 	fn ps     (Just Nothing:xs)  = Nothing : fn ps xs
 	fn []     xs                 = error ("fromVariableSrc: stutter stream ended!" ++ show xs)
 	fn _      []                 = error "fromVariableSrc: stream ended?"
+-}
 
 fromSink :: (Show a, Rep a) => Sink a -> [a]
-fromSink = fromVariableSink (repeat 0)
+fromSink = Maybe.catMaybes . fromVariableSink (repeat 0)
 
-fromVariableSink :: forall a . (Show a, Rep a) => [Int] -> Sink a -> [a]
-fromVariableSink stutter sink = Maybe.catMaybes $ map snd internal
+fromVariableSink :: forall a . (Rep a) => [Int] -> Sink a -> [Maybe a]
+fromVariableSink stutter sink = map snd internal
    where
 	val :: Seq (Enabled a)
 	val = sink full
@@ -244,8 +251,9 @@ fmapSink :: (Rep a, Rep b) => (Comb a -> Comb b) -> Sink a -> Sink b
 fmapSink f src rd = liftS1 (mapEnabled f) (src rd)
 
 --------------------------------------------------------------------------
-
-readFileWith :: (c ~ StdLogicVector X8) => String -> ([c] -> r) -> IO r
+{-
+-- TODO: consider
+readFileWith :: (c ~ Byte) => String -> ([c] -> r) -> IO r
 readFileWith str toOut = do
 	str <- readFile str
 	let vals = map Char.ord str
@@ -253,14 +261,93 @@ readFileWith str toOut = do
 	return (toOut $ map fromIntegral vals)
 
 
-mVarToSrc :: (c ~ StdLogicVector X8) => MVar c -> IO (Src c)
+mVarToSrc :: (c ~ Byte) => MVar c -> IO (Src c)
 mVarToSrc var = do
 	xs <- getMVarContents var
 	return (toSrc xs)
 
-sinkToMVar :: (c ~ StdLogicVector X8) => MVar c -> Sink c -> IO ()
+sinkToMVar :: (c ~ Byte) => MVar c -> Sink c -> IO ()
 sinkToMVar var sink = putMVarContents var (fromSink sink)
+-}
 
+---------------------------------------------------------
+
+-- We include maybe, so we can simulate the concept
+-- of there being no data available to pass on
+-- at a specific point from a FIFO.
+
+data ShallowFIFO a = ShallowFIFO (MVar (Maybe a))
+
+newShallowFIFO :: IO (ShallowFIFO a)
+newShallowFIFO = do
+	var <- newEmptyMVar 
+	return $ ShallowFIFO var
+	
+
+-- | blocks if the FIFO is not cycled on.
+--   Nothing means step a cycle;
+--   Just means cycle until value is read.
+writeToFIFO :: ShallowFIFO a -> Maybe a -> IO ()
+writeToFIFO (ShallowFIFO var) a = putMVar var a
+
+-- | block if the FIFO has no values in it yet.
+-- Nothing means no value issued in a cycle;
+-- Just means value accepted from circuit.
+readFromFIFO :: ShallowFIFO a -> IO (Maybe a)
+readFromFIFO (ShallowFIFO var) = takeMVar var
+
+-- | runs a fifo forever and empty values.
+--  return imeduately after forking worker thread.
+{-
+execFIFO :: ShallowFIFO a -> IO ()
+execFIFO fifo = forkIO loop
+   where
+	loop = do writeToFIFO fifo Nothing ; loop
+-}
+
+fifoToSrc :: (Rep a) => ShallowFIFO a -> IO (Src a)
+fifoToSrc (ShallowFIFO var) = do
+	xs <- getMVarContents var
+	return (toVariableSrc (repeat 0) xs)
+
+sinkToFifo :: (Rep a) => ShallowFIFO a -> Sink a -> IO ()
+sinkToFifo (ShallowFIFO var) sink = do
+	putMVarContents var (fromVariableSink (repeat 0) sink)
+	return ()
+
+-- | readFileToFifo returns after the file has been consumed
+-- by the FIFO.
+
+readFileToFifo :: String -> ShallowFIFO Byte -> IO ()
+readFileToFifo file fifo = do
+	h <- openFile file ReadMode
+	hGetToFifo h fifo
+
+
+writeFileFromFifo :: String -> ShallowFIFO Byte -> IO ()
+writeFileFromFifo file fifo = do
+	h <- openFile file WriteMode
+	hSetBuffering h NoBuffering	
+	hPutFromFifo h fifo
+
+-- | read a file into a fifo as bytes.
+hGetToFifo :: Handle -> ShallowFIFO Byte -> IO ()
+hGetToFifo h (ShallowFIFO var) = do 
+	str <- hGetContents h
+	putMVarContents var (map (Just . toByte) str)
+
+
+hPutFromFifo :: Handle -> ShallowFIFO Byte -> IO ()
+hPutFromFifo h (ShallowFIFO var) = do
+   forkIO $ do
+	xs <- getMVarContents var
+	sequence_ 
+		[ do hPutChar h $ fromByte x
+		     hFlush h
+	        | Just x <- xs
+	        ]
+	-- never finishes
+   return ()
 
 ---------------------------------------------------------
 -- Candidates for another package
@@ -275,21 +362,7 @@ getMVarContents var = unsafeInterleaveIO $ do
 putMVarContents :: MVar a -> [a] -> IO ()
 putMVarContents var xs = sequence_ (map (putMVar var) xs)
 
-readFileToMVar :: String -> MVar (StdLogicVector X8) -> IO ()
-readFileToMVar file var = do
-	str <- readFile file
-	putMVarContents var 
-		$ map fromIntegral
-		$ map Char.ord str
+-- Runs a program from stdin to stdout;
+-- also an example of coding
+-- interact :: (Src a -> Sink b) -> IO ()
 
-writeFileFromMVar :: String -> MVar (StdLogicVector X8) -> IO ()
-writeFileFromMVar str var = do
-	h <- openFile str WriteMode
-	hSetBuffering h NoBuffering
-	xs <- getMVarContents var
-	sequence_ 
-		[ do hPutChar h $ Char.chr $ fromIntegral $ Maybe.fromJust $ (fromSLV x :: Maybe U8)
-		     hFlush h
-	        | x <- xs
-	        ]
-	
