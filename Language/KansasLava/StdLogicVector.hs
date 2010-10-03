@@ -12,7 +12,9 @@ import Data.Sized.Arith
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 
+import Data.Char as Char 
 
+-- | StdLogicVector is a bit accurate, sized general representation of bit vectors.
 
 data StdLogicVector a = StdLogicVector (Matrix a (WireVal Bool))
 	deriving (Eq,Ord)
@@ -136,3 +138,14 @@ instance (Size ix) => Rep (StdLogicVector ix) where
 	toRep _ (StdLogicVector m) = RepValue (M.toList m)
 	fromRep _ (RepValue vs) = StdLogicVector (M.matrix vs)
 	showRep = showRepDefault
+
+type Byte = StdLogicVector X8
+
+-- Char is often used as an 8bit rep (even though it is not)
+toByte :: Char -> Byte
+toByte = fromIntegral . Char.ord
+
+fromByte :: Byte -> Char
+fromByte b = case fromSLV b :: Maybe U8 of
+	       Nothing -> error $ "fromByte: SLV was undefined: " ++ show b
+	       Just v  -> Char.chr (fromIntegral v)
