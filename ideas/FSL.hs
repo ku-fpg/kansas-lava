@@ -41,7 +41,7 @@ main = do
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
 	
 	src <- fifoToSrc v1
-	sinkToFifo v2 (srcToSink shallowEnv (fmapSrc circuit src)) 
+	sinkToFifo v2 (big_circuit shallowEnv src)
 
 -- Our other test
 main2 = do
