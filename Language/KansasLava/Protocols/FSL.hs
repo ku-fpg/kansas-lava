@@ -208,13 +208,15 @@ s2 = srcToSink :: Env () -> Src U4 -> Sink U4
 -- A passthrough; thats all
 srcToSink :: forall a. (Rep a) 
 	  => Env () -> (Src a) -> (Sink a)
-srcToSink env reader isFull = packEnabled write value
+srcToSink env reader isFull = label "sink_out" $ packEnabled write value
    where
+	isFull' = label "sink_full" isFull
+		
 	state, state' :: Seq U1
 	state = label "state" $ register env 0 state'
 
 	inp :: Seq (Enabled a)
-	inp  = reader $ read 
+	inp  = label "src_in" $ reader $ label "src_read" read 
 
 	read' :: Seq IsRead
 	read' = pureS (IsRead False) -- read
@@ -222,13 +224,13 @@ srcToSink env reader isFull = packEnabled write value
 
 	state' = label "state'"
 	       $ funMap (return . fsmSrcToSink1) 
-	       $ pack (state,isEnabled inp,isFull)
+	       $ pack (state,isEnabled inp,isFull')
 
 
 	write :: Seq Bool
 	write = label "write"
 	     $ funMap (return . fsmSrcToSink2) 
-	     $ pack (state,isFull) 
+	     $ pack (state,isFull') 
 
 	read :: Seq IsRead
 	read = label "read"

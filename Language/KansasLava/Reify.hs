@@ -285,9 +285,13 @@ instance InPorts (Clock clk) where
 	in res
 
 instance InPorts (Env clk) where
-    inPorts vs0 = (Env clk rst en,vs3)
-	 where ((en,rst,clk),vs3) = inPorts vs0
-
+    inPorts vs0 = (Env clk' (label "rst" rst) (label "clk_en" en),vs3)
+	 where ((en,rst,Clock f clk),vs3) = inPorts vs0
+	       clk' = Clock f $ D $ Port ("o0") $ E 
+		    $ Entity (Label "clk")
+                    	[("o0", ClkTy)]
+                    	[("i0", ClkTy, unD clk)]
+		    	[]
     input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
 			            (input ("rst" ++ nm) rst)
 			            (input ("sysEnable" ++ nm) en)	-- TODO: better name than sysEnable, its really clk_en
