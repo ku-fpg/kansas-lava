@@ -25,13 +25,13 @@ circuit inpB = outpB
 	inp = fromStdLogicVector inpB
 
 	outp :: Comb U8
-	outp = inp * 37
+	outp = inp -- * 37
 
 	outpB :: Comb Byte
 	outpB = toStdLogicVector outp
 
-big_circuit :: Env () -> Src Byte -> Sink Byte
-big_circuit env src = srcToSink env $ fmapSrc circuit src
+big_circuit :: Env () -> Handshake Byte -> Handshake Byte
+big_circuit env src = fmapHandshake0 circuit src
 
 main = do
 	print "This *should* hang, but check the file `LAVA_OUT`"
@@ -40,8 +40,8 @@ main = do
 	forkIO $ readFileToFIFO "FSL.hs" v1
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
 	
-	src <- fifoToSrc v1
-	sinkToFifo v2 (big_circuit shallowEnv src)
+	src <- fifoToHandshake v1
+	handshakeToFifo v2 (big_circuit shallowEnv src)
 
 -- Our other test
 main2 = do

@@ -27,6 +27,7 @@ import Control.Concurrent
 
 type Src  a = Seq IsRead -> Seq (Enabled a)		-- pull (from producer)
 type Sink a = Seq IsFull -> Seq (Enabled a)		-- push (to consumer)
+type Handshake a = Seq Bool -> Seq (Enabled a)
 
 ---------------------------------------------------------------------------
 -- IsRead
@@ -130,6 +131,21 @@ toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
 			(Just (IsFull _):rs) -> Nothing : fn ps [] rs -- nothing read
 -}
 
+toVariableHandshake :: (Rep a) => [Int] -> [Maybe a] -> Handshake a
+toVariableHandshake stutter xs ready = toSeq (fn stutter xs (fromSeq ready))
+	where
+	   -- We rely on the semantics of pattern matching to not match (x:xs)
+	   -- if (0:ps) does not match.
+	   fn (0:ps) (x:xs) c
+		    = x : case c of -- read c after issuing x
+			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (1)"
+			(Just True:rs)       -> fn ps xs rs          -- has been written
+			(Just False:rs)      -> fn (0:ps) (x:xs) rs -- not written yet
+	   fn (p:ps) xs c
+		    = Nothing : case c of
+			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (2)"
+			(Just _:rs) 	     -> fn (pred p:ps) xs rs -- nothing read
+
 ---------------------------------------------------------------------------
 -- Shallow Consumers
 {-
@@ -182,6 +198,27 @@ fromVariableSink stutter sink = map snd internal
 			       Just Nothing  -> (Nothing,fn (0:ps) xs)
 			       Just (Just v) -> (Just v,fn ps xs)
 	fn (p:ps) ~(x:xs) = (IsFull True,Nothing) : fn (pred p:ps) xs
+
+fromVariableHandshake :: forall a . (Rep a) => [Int] -> Handshake a -> [Maybe a]
+fromVariableHandshake stutter sink = map snd internal
+   where
+	val :: Seq (Enabled a)
+	val = sink full
+
+	full :: Seq Bool
+	full = toSeq (map fst internal)
+
+	internal :: [(Bool,Maybe a)]
+	internal = fn stutter (fromSeq val)
+	
+	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
+	fn (0:ps) ~(x:xs) = (True,rep) : rest
+	   where
+		(rep,rest) = case x of
+			       Nothing       -> error "fromVariableHandshake: bad reply to ready status"
+			       Just Nothing  -> (Nothing,fn (0:ps) xs)
+			       Just (Just v) -> (Just v,fn ps xs)
+	fn (p:ps) ~(x:xs) = (False,Nothing) : fn (pred p:ps) xs
 
 -------------------------------------------------------------------------------------------
 
@@ -253,6 +290,9 @@ fmapSrc f src rd = liftS1 (mapEnabled f) (src rd)
 fmapSink :: (Rep a, Rep b) => (Comb a -> Comb b) -> Sink a -> Sink b
 fmapSink f src rd = liftS1 (mapEnabled f) (src rd)
 
+fmapHandshake0 :: (Rep a, Rep b) => (Comb a -> Comb b) -> Handshake a -> Handshake b
+fmapHandshake0 f src rd = liftS1 (mapEnabled f) (src rd)
+
 --------------------------------------------------------------------------
 {-
 -- TODO: consider
@@ -290,8 +330,18 @@ fifoToSrc fifo = do
 	xs <- getFIFOContents fifo
 	return (toVariableSrc (repeat 0) xs)
 
+fifoToHandshake :: (Rep a) => ShallowFIFO a -> IO (Handshake a)
+fifoToHandshake fifo = do
+	xs <- getFIFOContents fifo
+	return (toVariableHandshake (repeat 0) xs)
+
 sinkToFifo :: (Rep a) => ShallowFIFO a -> Sink a -> IO ()
 sinkToFifo fifo sink = do
 	putFIFOContents fifo (fromVariableSink (repeat 0) sink)
+	return ()
+
+handshakeToFifo :: (Rep a) => ShallowFIFO a -> Handshake a -> IO ()
+handshakeToFifo fifo sink = do
+	putFIFOContents fifo (fromVariableHandshake (repeat 0) sink)
 	return ()
 
