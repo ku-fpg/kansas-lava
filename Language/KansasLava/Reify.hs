@@ -21,7 +21,7 @@ import Language.KansasLava.Circuit
 import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
-import Language.KansasLava.Protocols.FSL
+import Language.KansasLava.Handshake
 
 import Data.Default
 

@@ -22,6 +22,7 @@ module Language.KansasLava (
 
     module Language.KansasLava.Dynamic,
     module Language.KansasLava.Testing.Output.Dot,
+    module Language.KansasLava.Handshake
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
     -- hacks
@@ -49,6 +50,7 @@ import Language.KansasLava.Testing.Output.Dot
 
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Shallow.FIFO
+import Language.KansasLava.Handshake
 
 
 import Language.KansasLava.Dynamic

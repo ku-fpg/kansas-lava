@@ -22,6 +22,7 @@ import Data.Char as Char
 import System.IO
 import Control.Concurrent
 
+{- TO BE REMOVED
 ---------------------------------------------------------------------------
 -- Key Types
 
@@ -345,4 +346,4 @@ handshakeToFifo :: (Rep a) => ShallowFIFO a -> Handshake a -> IO ()
 handshakeToFifo fifo sink = do
 	putFIFOContents fifo (fromVariableHandshake (repeat 0) sink)
 	return ()
-
+-}

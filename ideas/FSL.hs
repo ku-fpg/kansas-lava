@@ -15,7 +15,7 @@ import System.IO
 import Control.Concurrent
 import Data.Word
 import Data.Default
-
+import Language.KansasLava.Handshake
 -- Example
 
 circuit :: Comb Byte -> Comb Byte
@@ -31,7 +31,7 @@ circuit inpB = outpB
 	outpB = toStdLogicVector outp
 
 big_circuit :: Env () -> Handshake Byte -> Handshake Byte
-big_circuit env src = fmapHandshake0 circuit src
+big_circuit env src = liftS1 circuit src
 
 main = do
 	print "This *should* hang, but check the file `LAVA_OUT`"
