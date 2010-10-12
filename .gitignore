@@ -2,3 +2,6 @@
 dist/
 /TAGS
 *.swp
+.hpc/
+*.o
+*.hi
