@@ -50,16 +50,18 @@ instance Signal Handshake where
 
 ----------------------------------------------------------------------------------------------------
 
+-- | @toHandshake'@ takes a list of stutters (counts of time to delay the output of a value) and
+-- a list of values to be handshaken, including @Nothing@'s, that represent 
 toHandshake' :: (Rep a) => [Int] -> [Maybe a] -> Handshake a
 toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
 	   fn (0:ps) (x:xs) c
-		    = x : case c of -- read c after issuing x
-			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (1)"
-			(Just True:rs)       -> fn ps xs rs          -- has been written
-			(Just False:rs)      -> fn (0:ps) (x:xs) rs -- not written yet
+		    = x : case (c,x) of -- read c after issuing x
+			(Nothing:rs,_)         -> error "toVariableHandshake: bad protocol state (1)"
+			(Just True:rs,Just {}) -> fn ps xs rs         -- has been written
+			(_:rs,_)               -> fn (0:ps) (x:xs) rs -- not written yet
 	   fn (p:ps) xs c
 		    = Nothing : case c of
 			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (2)"
@@ -88,6 +90,8 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 
 ----------------------------------------------------------------------------------------------------
 
+-- | This function takes a ShallowFIFO object, and gives back a Handshake.
+-- ShallowFIFO is typically connected to a data generator or source, like a file.
 
 fifoToHandshake :: (Rep a) => ShallowFIFO a -> IO (Handshake a)
 fifoToHandshake fifo = do
@@ -98,3 +102,8 @@ handshakeToFifo :: (Rep a) => ShallowFIFO a -> Handshake a -> IO ()
 handshakeToFifo fifo sink = do
 	putFIFOContents fifo (fromHandshake' (repeat 0) sink)
 	return ()
+
+
+--liftEnabledToHandshake :: Enabled a -> Handshake a
+--fifo1 :: Env () -> Handshake a -> Handshake a
+--fifo1 
