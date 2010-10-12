@@ -264,7 +264,7 @@ joinEnabled :: (Signal sig, Rep a) => sig (Enabled a) -> sig (Enabled a) -> sig 
 joinEnabled = liftS2 $ \ e1 e2 -> 
 			let (en1,v1) = unpack e1
 	 		    (en2,v2) = unpack e2
-	                in pack (mux2 en1 (en1,en2), mux2 en1 (v1,v2))
+	                in pack (en1 `or2` en2, mux2 en1 (v1,v2))
 
 
 -- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
