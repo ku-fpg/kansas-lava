@@ -21,6 +21,7 @@ import Language.KansasLava.Circuit
 import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
+import Language.KansasLava.Protocols.FSL
 
 import Data.Default
 
@@ -198,6 +199,14 @@ instance (Rep a, Rep b) => InPorts (CSeq c a -> CSeq c b) where
 
 	input _ a = a	
 
+-- Need to add the clock
+instance (Rep a) => InPorts (Handshake a) where
+	inPorts v =  (fn , v)
+	   -- We need the ~ because the output does not need to depend on the input
+   	  where fn = Handshake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
+	input _ a = a	
+
+
 instance BackPorts (CSeq c a) where {}
 
 instance Rep a => Ports (CSeq c a) where
@@ -205,6 +214,10 @@ instance Rep a => Ports (CSeq c a) where
 
 instance Rep a => Ports (Comb a) where
   ports _ sig = wireCapture (combDriver sig)
+
+instance Rep a => Ports (Handshake a) where
+  ports vs (Handshake f) = ports vs f
+
 
 instance (Ports a, Ports b) => Ports (a,b) where
   ports _ (a,b) = ports bad b ++

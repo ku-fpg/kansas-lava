@@ -25,9 +25,10 @@ import Control.Concurrent
 ---------------------------------------------------------------------------
 -- Key Types
 
+-- TODO: Src and Sink will go away soon
 type Src  a = Seq IsRead -> Seq (Enabled a)		-- pull (from producer)
 type Sink a = Seq IsFull -> Seq (Enabled a)		-- push (to consumer)
-type Handshake a = Seq Bool -> Seq (Enabled a)
+data Handshake a = Handshake { unHandshake :: Seq Bool -> Seq (Enabled a) }
 
 ---------------------------------------------------------------------------
 -- IsRead
@@ -132,7 +133,7 @@ toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
 -}
 
 toVariableHandshake :: (Rep a) => [Int] -> [Maybe a] -> Handshake a
-toVariableHandshake stutter xs ready = toSeq (fn stutter xs (fromSeq ready))
+toVariableHandshake stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
@@ -200,7 +201,7 @@ fromVariableSink stutter sink = map snd internal
 	fn (p:ps) ~(x:xs) = (IsFull True,Nothing) : fn (pred p:ps) xs
 
 fromVariableHandshake :: forall a . (Rep a) => [Int] -> Handshake a -> [Maybe a]
-fromVariableHandshake stutter sink = map snd internal
+fromVariableHandshake stutter (Handshake sink) = map snd internal
    where
 	val :: Seq (Enabled a)
 	val = sink full
@@ -291,7 +292,7 @@ fmapSink :: (Rep a, Rep b) => (Comb a -> Comb b) -> Sink a -> Sink b
 fmapSink f src rd = liftS1 (mapEnabled f) (src rd)
 
 fmapHandshake0 :: (Rep a, Rep b) => (Comb a -> Comb b) -> Handshake a -> Handshake b
-fmapHandshake0 f src rd = liftS1 (mapEnabled f) (src rd)
+fmapHandshake0 f (Handshake shake) = Handshake $ \ rd -> liftS1 (mapEnabled f) (shake rd)
 
 --------------------------------------------------------------------------
 {-
