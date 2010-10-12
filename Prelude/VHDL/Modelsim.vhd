@@ -37,6 +37,7 @@ begin
     wait for clk_period / 2;
     clk <= '0';             -- falling edge
     end loop;
+    report "End of simulation." severity note;
     wait;
   end process;
 end architecture;
@@ -50,15 +51,15 @@ library std;
 use std.textio.all;
 library work;
 
-
+-- A 'src' generator is a Master or Writer, the consumer is a Slave or Reader.
 entity lava_src_tube is
   generic (
     src_file_name : string
   ); 
   port (
-    S_EXISTS : out std_logic;
-    S_DATA   : out std_logic_vector(7 downto 0);
-    S_READ   : in  std_logic;
+    M_VALID  : out std_logic;
+    M_DATA   : out std_logic_vector(7 downto 0);
+    M_READY  : in  std_logic;
 
     clk      : in std_logic;
     clk_en   : in std_logic := '1';
@@ -75,35 +76,55 @@ begin
     variable my_char_v : character; 
     variable my_byte : std_logic_vector(7 downto 0);
     variable buf_empty : boolean := true;  -- 1 element FIFO
+
+    function str(b: boolean) return string is
+    begin
+       if b then
+          return "true";
+      else
+        return "false";
+       end if;
+    end str;
+
   begin
-    S_DATA <= (others => 'X');
-    S_EXISTS <= '0';
+    M_DATA <= (others => 'X');
+    M_VALID <= '0';
     buf_empty := true;
     file_open(my_file, src_file_name, read_mode); 
-    while (not endfile (my_file)) or (not buf_empty) loop
+    report("FILE: " & str(endfile(my_file)));
+
+--    while (not endfile (my_file)) or (not buf_empty) loop
+    while true loop
       -- Considerations are made on the rising edge
       wait until rising_edge(clk);
 
       -- if the previous packet was accepted, then empty the buffer token
-      if S_READ = '1' then
+      if M_READY = '1' then
         buf_empty := true;
       end if;
 
       -- if the buffer is empty, then fill it
-      if buf_empty then
+      if buf_empty and not endfile(my_file) then
+        report("READING");
 	read(my_file, my_char_v); 
+        report("READ: " & my_char_v);
 	my_byte := std_logic_vector(to_unsigned(character'pos(my_char_v),8));
         buf_empty := false;
       end if;
 
-      -- The buffer is now full, so send it
-      S_DATA <= my_byte;
-      S_EXISTS <= '1';
+      if buf_empty then
+        M_DATA <= (others => 'X');
+        M_VALID <= '0';
+      else
+        -- The buffer is now full, so send it
+	M_DATA <= my_byte;
+        M_VALID <= '1';
+      end if;
     end loop;
-    wait until rising_edge(clk);    
-    -- The buffer is now empty
-    S_DATA <= (others => 'X');
-    S_EXISTS <= '0';
+--    wait until rising_edge(clk);    
+--    -- The buffer is now empty
+--    M_DATA <= (others => 'X');
+--    M_VALID <= '0';
     wait;
   end process;
 end architecture;
@@ -122,9 +143,9 @@ entity lava_sink_tube is
     sink_file_name : string
   ); 
   port (
-    M_WRITE  : in std_logic;
-    M_DATA   : in std_logic_vector(7 downto 0);
-    M_FULL   : out  std_logic;
+    S_VALID  : in std_logic;
+    S_DATA   : in std_logic_vector(7 downto 0);
+    S_READY  : out  std_logic;
 
     clk      : in std_logic;
     clk_en   : in std_logic := '1';
@@ -142,16 +163,19 @@ begin
     variable my_byte : std_logic_vector(7 downto 0);
     variable buf_empty : boolean := true;  -- 1 element FIFO
   begin
-    M_FULL <= '0';                      -- Always not full
-    file_open(my_file, sink_file_name, write_mode); 
+    S_READY <= '1';                      -- Always ready
     while true loop
       -- Considerations are made on the rising edge
       wait until rising_edge(clk);
 
       -- if there is a value, then write it
-      if M_WRITE = '1' then
-        my_char_v := character'val(to_integer(unsigned(M_DATA)));          
+      -- Very hacky, because ModelSim does not block if writing to a full pipe,
+      -- we so need to open and close each time.
+      if S_VALID = '1' then
+        file_open(my_file, sink_file_name, append_mode); 
+        my_char_v := character'val(to_integer(unsigned(S_DATA)));          
         write(my_file, my_char_v);
+	file_close(my_file);
       end if;
     end loop;
   end process;
