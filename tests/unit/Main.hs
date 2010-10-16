@@ -3,10 +3,12 @@ module Main where
 	
 import Language.KansasLava
 import Language.KansasLava.Testing.Thunk
+import Data.Sized.Arith
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Data.Sized.Signed
 import Data.Sized.Sampled
+import qualified Data.Sized.Matrix as M
 import Data.Default
 import Data.List ( sortBy, sort )
 import Data.Ord ( comparing )
@@ -17,7 +19,7 @@ import Data.Bits
 import Utils
 
 main = do
-	let opt = def { verboseOpt = 3 }
+	let opt = def { verboseOpt = 10 }
 
 	let test :: TestSeq
 --	    test = TestSeq (testSeq def) 
@@ -76,6 +78,10 @@ main = do
 	t "S32" (arbitrary :: Gen S32)
 	t "S64" (arbitrary :: Gen (Signed X64))
 	-- Just the Eq Stuff
+
+	-- None
+
+	--  Now registers
 	let t str arb = testRegister test str arb
 
 	t "U1" (loop 10 (arbitrary :: Gen U1))
@@ -84,6 +90,15 @@ main = do
 	t "Int" (loop 10 (arbitrary :: Gen Int))
 	t "Bool" (loop 10 (arbitrary :: Gen Bool))
 	
+	--  Memories
+	let t str arb = testMemory test str arb
+
+	t "X1xBool" (loop 10 (arbitrary :: Gen (Maybe (X1,Bool))))
+	t "X1xU4" (loop 10 (arbitrary :: Gen (Maybe (X1,U4))))
+	t "X2xU4" (loop 10 (arbitrary :: Gen (Maybe (X2,U4))))
+	t "X4xU4" (loop 10 (arbitrary :: Gen (Maybe (X4,U4))))
+	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X256,S10))))
+
 main_testLabel :: IO ()
 main_testLabel = do
 	let g :: Seq U4 -> Seq U4 -> Seq U4
@@ -283,4 +298,27 @@ testRegister  (TestSeq test toList) tyName ws = do
 			)
  	    res = toSeq	(u0 : us0)
 	test ("register/" ++ tyName) (length us0) thu res
+	return ()
+
+testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
+testMemory (TestSeq test toList) tyName ws = do
+	let writes = toList ws
+	let mem e1 e2 = memoryToMatrix . pipeToMemory  e1 e2 :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
+	let thu = Thunk mem
+		        (\ f -> f shallowEnv shallowEnv (toSeq writes)
+		        )
+	    res :: M.Matrix w1 (Seq w2)
+	    res = M.matrix 
+		$ [ toSeq'
+		    [ last $
+		     [Nothing] ++
+		     [ Just b
+		     | Just (a,b) <- take (i-3) writes 
+		     , a == fromIntegral x 
+		     ]
+		    | i <- [1..(length writes-1)]
+		    ]
+		  | x <- [0..(size (witness :: w1) - 1 )]
+		  ] 
+	test ("memory/" ++ tyName) (length writes) thu (pack res)
 	return ()
