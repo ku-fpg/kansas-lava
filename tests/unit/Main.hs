@@ -8,7 +8,7 @@ import Data.Sized.Unsigned
 import Data.Sized.Signed
 import Data.Sized.Sampled
 import Data.Default
-import Data.List ( sortBy )
+import Data.List ( sortBy, sort )
 import Data.Ord ( comparing )
 import Data.Maybe as Maybe
 import Control.Applicative
@@ -17,7 +17,7 @@ import Data.Bits
 import Utils
 
 main = do
-	let opt = def
+	let opt = def { verboseOpt = 3 }
 
 	let test :: TestSeq
 --	    test = TestSeq (testSeq def) 
@@ -75,6 +75,28 @@ main = do
 	t "S8" (arbitrary :: Gen S8)
 	t "S32" (arbitrary :: Gen S32)
 	t "S64" (arbitrary :: Gen (Signed X64))
+	-- Just the Eq Stuff
+	let t str arb = testRegister test str arb
+
+	t "U1" (loop 10 (arbitrary :: Gen U1))
+	t "U2" (loop 10 (arbitrary :: Gen U2))
+	t "U3" (loop 10 (arbitrary :: Gen U3))
+	t "Int" (loop 10 (arbitrary :: Gen Int))
+	t "Bool" (loop 10 (arbitrary :: Gen Bool))
+	
+main_testLabel :: IO ()
+main_testLabel = do
+	let g :: Seq U4 -> Seq U4 -> Seq U4
+	    g a b = output "out" ((+) (input "a" a) (input "b" b))
+	
+	c <- reifyCircuit g
+	print c
+	let sig = circuitSignature c
+	if "[(a$0,4U),(b$1,4U)]" == show (sort (sigInputs sig))
+          then print "label inputs passed"
+          else do print ("labels failed: ",show sig,show (sort (sigInputs sig)))
+		  print c
+	print ()
 
 allValues :: forall w . (Rep w) => [w]
 allValues = xs
@@ -249,3 +271,16 @@ pair ws = pure (,) <*> ws <*> ws
 
 triple :: (Applicative f) => f a -> f (a, a, a)
 triple ws = pure (,,) <*> ws <*> ws <*> ws
+
+--------------------------------------------------------------------------------------
+-- Testing register and memory
+testRegister :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
+testRegister  (TestSeq test toList) tyName ws = do
+	let (u0:us0) = toList ws
+	let reg = register :: Env () -> Comb w -> Seq w -> Seq w
+	let thu = Thunk reg
+		        (\ f -> f shallowEnv (toComb u0) (toSeq us0)
+			)
+ 	    res = toSeq	(u0 : us0)
+	test ("register/" ++ tyName) (length us0) thu res
+	return ()

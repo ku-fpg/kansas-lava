@@ -107,6 +107,8 @@ arbitrary = Gen sz integer2rep
 		$ iterate (`div` 2) 
 		$ fromIntegral v
 
+loop :: Integer -> Gen w -> Gen w
+loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` n)
 	
 	
 instance Functor Gen where
