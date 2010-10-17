@@ -113,16 +113,16 @@ tests test = do
 	--  Memories
 	let t str arb = testConstMemory test str arb
 
-	t "X1xBool" (loop 10 (arbitrary :: Gen (Maybe (X1,Bool))))
-	t "X1xU4" (loop 10 (arbitrary :: Gen (Maybe (X1,U4))))
-	t "X2xU4" (loop 10 (arbitrary :: Gen (Maybe (X2,U4))))
-	t "X4xU4" (loop 10 (arbitrary :: Gen (Maybe (X4,U4))))
---	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X256,S10))))
+	t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool))))
+	t "X1xU4" (dubSeq (arbitrary :: Gen (Maybe (X1,U4))))
+	t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4))))
+	t "X4xU4" (dubSeq (arbitrary :: Gen (Maybe (X4,U4))))
+	t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X256,S10))))
 
 	let t str arb = testMemory test str arb
-	t "X1xBool" (loop 10 (arbitrary :: Gen (Maybe (X1,Bool),X1)))
-	t "X2xU4" (loop 10 (arbitrary :: Gen (Maybe (X2,U4),X2)))
-	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X16,S10),X16)))
+	t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
+	t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
+	t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
 
 main_testLabel :: IO ()
 main_testLabel = do
