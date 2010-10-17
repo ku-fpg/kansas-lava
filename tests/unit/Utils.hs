@@ -57,10 +57,9 @@ verbose opt n m | verboseOpt opt >= n = putStrLn m
 data TestSeq = TestSeq 
 	(forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
 	(forall a. Gen a -> [a])
-	
 
-testSeq :: (Rep a, Show a, Eq a) => Options -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
-testSeq opts nm count th master | testMe nm (testOnly opts) = do
+testSeq :: (Rep a, Show a, Eq a) => Options -> (Bool -> IO ()) -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
+testSeq opts pass nm count th master | testMe nm (testOnly opts) = do
 	let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
 	verb 2 $ "testing(" ++ show count ++ ")"
 	verb 9 $ show ("master",master)
@@ -70,11 +69,16 @@ testSeq opts nm count th master | testMe nm (testOnly opts) = do
 	verb 9 $ show ("shallow",shallow)
 	if cmpSeqRep count master shallow
 	  then do verb 3 $ "shallow passed"
+		  pass True
 	  else do verb 1 $ "shallow FAILED"
+		  pass False
 		  verb 4 $ show ("master",master)
 		  verb 4 $ show ("shallow",shallow)
-	return ()
+	
+				| otherwise = return ()
 
+	
+	
 -------------------------------------------------------------------------------------
 	
 -- Not really random, but good enough for basic testing.
@@ -108,9 +112,17 @@ arbitrary = Gen sz integer2rep
 		$ fromIntegral v
 
 loop :: Integer -> Gen w -> Gen w
-loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` n)
-	
-	
+loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
+
+
+-- | makes sure all sequences of two specific elements happen.
+-- Random messes this up a bit, but its still an approximation.
+dubSeq :: Gen w -> Gen w
+dubSeq g = ((\ a b c -> if a then b else c) <$> arbitrary)
+	<*> g
+	<*> g
+
+
 instance Functor Gen where
 	fmap g (Gen n f) = Gen n (\i -> do r <- f i
 					   return $ g r)

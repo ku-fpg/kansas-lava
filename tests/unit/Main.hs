@@ -15,18 +15,38 @@ import Data.Ord ( comparing )
 import Data.Maybe as Maybe
 import Control.Applicative
 import Data.Bits
+import Control.Concurrent.MVar
 
 import Utils
 
 main = do
-	let opt = def { verboseOpt = 10 }
+	let opt = def { verboseOpt = 2
+--	 	      , testOnly = return [ "memory/const/X1xBool" ]
+	 	      }
+
+	count <- newMVar (0,0) :: IO (MVar (Int,Int))
+
+	let pass p = do
+		(good,bad) <- takeMVar count
+		let (good',bad') = case p of
+				 True  -> (good + 1,bad)
+				 False -> (good,bad + 1)
+		putMVar count (good',bad')
+
 
 	let test :: TestSeq
---	    test = TestSeq (testSeq def) 
-	    test = TestSeq (testSeq opt) (case testData opt of
-					   Nothing -> genToList
-					   Just i -> take i . genToRandom)
+	    test = TestSeq (testSeq opt pass) 
+			(case testData opt of
+			   Nothing -> genToList
+			   Just i -> take i . genToRandom)
 
+	tests test
+	(good,bad) <- takeMVar count
+	putStrLn $ "Tests passed: " ++ show good
+	putStrLn $ "Tests failed: " ++ show bad
+
+
+tests test = do
 	-- Just the Eq Stuff
 	let t str arb = testOpsEq test str arb
 
@@ -89,15 +109,20 @@ main = do
 	t "U3" (loop 10 (arbitrary :: Gen U3))
 	t "Int" (loop 10 (arbitrary :: Gen Int))
 	t "Bool" (loop 10 (arbitrary :: Gen Bool))
-	
+
 	--  Memories
-	let t str arb = testMemory test str arb
+	let t str arb = testConstMemory test str arb
 
 	t "X1xBool" (loop 10 (arbitrary :: Gen (Maybe (X1,Bool))))
 	t "X1xU4" (loop 10 (arbitrary :: Gen (Maybe (X1,U4))))
 	t "X2xU4" (loop 10 (arbitrary :: Gen (Maybe (X2,U4))))
 	t "X4xU4" (loop 10 (arbitrary :: Gen (Maybe (X4,U4))))
-	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X256,S10))))
+--	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X256,S10))))
+
+	let t str arb = testMemory test str arb
+	t "X1xBool" (loop 10 (arbitrary :: Gen (Maybe (X1,Bool),X1)))
+	t "X2xU4" (loop 10 (arbitrary :: Gen (Maybe (X2,U4),X2)))
+	t "X16xS10" (loop 10 (arbitrary :: Gen (Maybe (X16,S10),X16)))
 
 main_testLabel :: IO ()
 main_testLabel = do
@@ -300,8 +325,29 @@ testRegister  (TestSeq test toList) tyName ws = do
 	test ("register/" ++ tyName) (length us0) thu res
 	return ()
 
-testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
+testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testMemory (TestSeq test toList) tyName ws = do
+	let (writes,reads) = unzip $ toList ws
+	let mem e1 e2 = pipeToMemory  e1 e2 :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
+	let thu = Thunk mem
+		        (\ f -> f shallowEnv shallowEnv (toSeq writes) (toSeq reads)
+		        )
+	    res :: Seq w2
+	    res = toSeq' $
+		    [ Nothing ] ++
+		    [ last $
+		     [Nothing] ++
+		     [ Just b
+		     | Just (a,b) <- take (i-2) writes 
+		     , a == fromIntegral r
+		     ]
+		    | (i,r) <- zip [1..(length writes-1)] reads
+
+		    ]
+	test ("memory/" ++ tyName) (length writes) thu res
+
+testConstMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
+testConstMemory (TestSeq test toList) tyName ws = do
 	let writes = toList ws
 	let mem e1 e2 = memoryToMatrix . pipeToMemory  e1 e2 :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
 	let thu = Thunk mem
@@ -309,16 +355,16 @@ testMemory (TestSeq test toList) tyName ws = do
 		        )
 	    res :: M.Matrix w1 (Seq w2)
 	    res = M.matrix 
-		$ [ toSeq'
+		$ [ toSeq' $ [Nothing] ++
 		    [ last $
 		     [Nothing] ++
 		     [ Just b
-		     | Just (a,b) <- take (i-3) writes 
+		     | Just (a,b) <- take (i-2) writes 
 		     , a == fromIntegral x 
 		     ]
 		    | i <- [1..(length writes-1)]
 		    ]
 		  | x <- [0..(size (witness :: w1) - 1 )]
 		  ] 
-	test ("memory/" ++ tyName) (length writes) thu (pack res)
+	test ("memory/const/" ++ tyName) (length writes) thu (pack res)
 	return ()
