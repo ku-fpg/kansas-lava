@@ -32,6 +32,8 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Shallow.FIFO 
 
+import Language.KansasLava.Utils
+
 -----------------------------------------------------------------------------------------------
 
 -- Need to add concept of clock
@@ -94,13 +96,13 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- | This function takes a ShallowFIFO object, and gives back a Handshake.
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
-fifoToHandshake :: (Show a, Rep a) => ShallowFIFO a -> IO (Handshake a)
-fifoToHandshake fifo = do
+shallowFifoToHandshake :: (Show a, Rep a) => ShallowFIFO a -> IO (Handshake a)
+shallowFifoToHandshake fifo = do
 	xs <- getFIFOContents fifo
 	return (toHandshake' (repeat 0) (xs ++ repeat Nothing))
 
-handshakeToFifo :: (Show a, Rep a) => ShallowFIFO a -> Handshake a -> IO ()
-handshakeToFifo fifo sink = do
+handshakeToShallowFifo :: (Show a, Rep a) => ShallowFIFO a -> Handshake a -> IO ()
+handshakeToShallowFifo fifo sink = do
 	putFIFOContents fifo (fromHandshake' (repeat 0) sink)
 	return ()
 
@@ -108,3 +110,104 @@ handshakeToFifo fifo sink = do
 --liftEnabledToHandshake :: Enabled a -> Handshake a
 --fifo1 :: Env () -> Handshake a -> Handshake a
 --fifo1 
+{-
+fifo :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> Handshake a
+      -> Handshake (a,counter)
+fifo w env (Handshake inp) = Handshake out
+   where
+	out :: Seq Bool -> Seq (Enabled a,counter)
+	out out_ready = pack (out_data,counter)
+	   where
+		in_data = inp in_ready
+		(in_ready,out_data,counter) = fifo' w env (out_ready,in_data)
+
+-- IDEA: Handl
+data Handshake c = Handshake { unHandshake :: Seq Bool -> c (Seq (Enabled a)) }
+
+-}
+
+
+fifo' :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> (Seq Bool,Seq (Enabled a)) 
+      -> (Seq Bool,Seq (Enabled a),Seq counter)
+fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
+  where
+	mem :: Seq ix -> Seq a
+	mem = pipeToMemory env env wr
+
+	inp_done0 :: Seq Bool
+	inp_done0 = inp_ready `and2` isEnabled inp
+
+	inp_done1 :: Seq Bool
+	inp_done1 = register env false 
+		  $ inp_done0
+		
+	inp_done2 :: Seq Bool
+	inp_done2 = register env false 
+		  $ inp_done1
+
+	wr :: Seq (Enabled (ix,a))
+	wr = packEnabled (inp_ready `and2` isEnabled inp)
+			 (pack (wr_addr,enabledVal inp))
+
+	wr_addr :: Seq ix
+	wr_addr = register env 0
+		$ mux2 inp_done0 (wr_addr+1,wr_addr)
+
+	rd_addr0 :: Seq ix
+	rd_addr0 = mux2 out_done0 (rd_addr1+1,rd_addr1)
+
+	rd_addr1 = register env 0 rd_addr0
+
+	out_done0 :: Seq Bool
+	out_done0 = out_ready `and2` (isEnabled out)
+
+	out_done1 :: Seq Bool
+	out_done1 = register env false 
+		  $ out_done0
+
+	in_counter0 :: Seq counter
+	in_counter0 = in_counter1 
+			+ mux2 inp_done0 (1,0)
+		   	- mux2 out_done0 (1,0)
+
+	in_counter1 :: Seq counter
+	in_counter1 = register env 0 in_counter0
+
+	out_counter0 :: Seq counter
+	out_counter0 = out_counter1
+			+ mux2 inp_done2 (1,0)
+		 	- mux2 out_done0 (1,0)
+
+	out_counter1 = register env 0 out_counter0
+	
+	out :: Seq (Enabled a)
+	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
+
+	inp_ready :: Seq Bool
+	inp_ready = in_counter1 .<. fromIntegral (size (witness :: ix))
+
+
