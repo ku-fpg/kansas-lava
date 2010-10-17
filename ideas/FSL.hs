@@ -19,6 +19,7 @@ import Data.Default
 import Data.Sized.Ix
 import Data.Sized.Matrix
 import Language.KansasLava.Handshake
+import Data.List as List
 -- Example
 
 circuit :: Comb Byte -> Comb Byte
@@ -43,8 +44,8 @@ main = do
 	forkIO $ readFileToFIFO "FSL.hs" v1
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
 	
-	src <- fifoToHandshake v1
-	handshakeToFifo v2 (big_circuit shallowEnv src)
+	src <- shallowFifoToHandshake v1
+	handshakeToShallowFifo v2 (big_circuit shallowEnv src)
 
 -- Our other test
 main2 = do
@@ -62,18 +63,20 @@ main3 = do
 
 	print rd_ready
 --	print wr_data
-	let Handshake inp = toHandshake' (cycle [1..4]) [Just x | x <- [(0x0::X100) .. ]]
+	let Handshake inp = toHandshake' (cycle [0]) [Just x | x <- [(0x0::X100) .. ]]
 
 	let out rd_ready = rd_data
 	       where
-	    	(wr_ready,rd_data,_,debug) = fifo4 (witness :: SZ)
-						   shallowEnv (rd_ready,wr_data)
+	    	(wr_ready,rd_data,_) = fifo' (witness :: X16)
+						  shallowEnv (rd_ready,wr_data)
 	    	wr_data = inp wr_ready
 
 
 	
 --	print $ fromHandshake' (cycle [1..5]) (Handshake out)
-	print $ take 100 [ x | Just x <- fromHandshake' (cycle $ reverse [6..10]) (Handshake out) ]
+	let xs = take 100 [ x | Just x <- fromHandshake' (cycle $ reverse [6..10]) (Handshake out) ]
+	print $ xs
+	print $ List.nub xs
 --	print ("rd_data",take 20 $ fromSeq $ rd_data)
 --	putStrLn debug
 
@@ -81,16 +84,35 @@ main3 = do
 
 	return ()
 
+
+main4 = do
+	let cir :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool, Seq (Enabled Byte),Seq X33)
+	    cir = fifo' (witness :: X32)
+	
+	c0 <- reifyCircuit cir
+	cOpt <- optimizeCircuit def c0 
+	writeVhdlCircuit [] "myfifo" "myfifo.vhdl" cOpt
+
 -- liftEnable :: (Env () -> Enabled a -> Enabled b) -> Handshake a -> Handshake b
 
-type SZ = SUB C X1
-type C = X2
-
+--type SZ = SUB C X1
+--type C = X2
+{-
 -- First be specific
 fifo4 :: forall a counter ix . 
-         (Size counter, Size ix, ix ~ SUB counter X1, counter ~ ADD ix X1, Rep a, Rep counter, Rep ix, Num counter, Num ix) 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
       => ix
-      -> Env () -> (Seq Bool,Seq (Enabled a)) -> (Seq Bool,Seq (Enabled a),Seq counter,String)
+      -> Env () 
+      -> (Seq Bool,Seq (Enabled a)) 
+      -> (Seq Bool,Seq (Enabled a),Seq counter,String)
 fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
   where
 	debug :: String
@@ -157,4 +179,4 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 	inp_ready :: Seq Bool
 	inp_ready = in_counter .<. (fromIntegral (size (witness :: ix)))
 
-
+-}
