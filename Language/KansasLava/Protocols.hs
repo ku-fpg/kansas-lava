@@ -50,7 +50,8 @@ pipeToMemory :: forall a d clk1 clk2. (Rep a, Rep d)
 	-> Memory clk2 a d
 pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
   where
-	(wEn,pipe') = unpack pipe
+	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
+	(wEn,pipe') = unpack $ register env1 (pureS Nothing) $ pipe
 	(addr,dat) = unpack pipe'
 
     	res :: CSeq clk2 d
