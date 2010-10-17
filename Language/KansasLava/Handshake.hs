@@ -62,6 +62,7 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 			(Nothing:rs,_)         -> error "toVariableHandshake: bad protocol state (1)"
 			(Just True:rs,Just {}) -> fn ps xs rs         -- has been written
 			(_:rs,_)               -> fn (0:ps) (x:xs) rs -- not written yet
+
 	   fn (p:ps) xs c
 		    = Nothing : case c of
 			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (2)"
@@ -93,12 +94,12 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- | This function takes a ShallowFIFO object, and gives back a Handshake.
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
-fifoToHandshake :: (Rep a) => ShallowFIFO a -> IO (Handshake a)
+fifoToHandshake :: (Show a, Rep a) => ShallowFIFO a -> IO (Handshake a)
 fifoToHandshake fifo = do
 	xs <- getFIFOContents fifo
-	return (toHandshake' (repeat 0) xs)
+	return (toHandshake' (repeat 0) (xs ++ repeat Nothing))
 
-handshakeToFifo :: (Rep a) => ShallowFIFO a -> Handshake a -> IO ()
+handshakeToFifo :: (Show a, Rep a) => ShallowFIFO a -> Handshake a -> IO ()
 handshakeToFifo fifo sink = do
 	putFIFOContents fifo (fromHandshake' (repeat 0) sink)
 	return ()
