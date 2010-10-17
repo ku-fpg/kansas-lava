@@ -41,13 +41,12 @@ regProc (clk,rst,clk_en) es
 -}
   | otherwise =
     [ProcessDecl
-     [(Event (toStdLogicExpr ClkTy clk) PosEdge,
-        (case rst of
-          Lit (RepValue [WireVal True]) -> regNext
-          Lit _ -> error "opps, bad delay code (reset *always* set)"
-          _ -> If (isHigh (toTypedExpr B rst))
-                           (statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es])
-                           (Just regNext)))
+     [(Event (toStdLogicExpr ClkTy rst) AsyncHigh,
+       statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es]
+      )
+     ,(Event (toStdLogicExpr ClkTy clk) PosEdge,
+        regNext
+      )
      ]
     ]
 
