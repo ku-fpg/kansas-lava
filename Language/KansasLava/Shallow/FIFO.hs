@@ -47,14 +47,21 @@ newShallowFIFO = do
 -- | blocks if the FIFO is not cycled on.
 --   Nothing means step a cycle;
 --   Just means cycle until value is read.
-writeToFIFO :: ShallowFIFO a -> Maybe a -> IO ()
-writeToFIFO (ShallowFIFO var) a = putMVar var a
+writeToFIFO :: (Show a) => ShallowFIFO a -> Maybe a -> IO ()
+writeToFIFO (ShallowFIFO var) a = do
+--	print "writing to FIFO"
+	putMVar var a
+--	print $ "written " ++ show a
 
 -- | block if the FIFO has no values in it yet.
 -- Nothing means no value issued in a cycle;
 -- Just means value accepted from circuit.
-readFromFIFO :: ShallowFIFO a -> IO (Maybe a)
-readFromFIFO (ShallowFIFO var) = takeMVar var
+readFromFIFO :: (Show a) => ShallowFIFO a -> IO (Maybe a)
+readFromFIFO (ShallowFIFO var) = do
+--	print "reading from FIFO"
+	v <- takeMVar var
+--	print $ "read " ++ show v
+	return v
 
 -- | readFileToFIFO returns after the file has been consumed
 -- by the FIFO.
@@ -94,10 +101,10 @@ hPutFromFIFO h fifo = do
 -- Candidates for another package
 
 -- Very general, might be useful elsewhere
-getFIFOContents :: ShallowFIFO a -> IO [Maybe a]
-getFIFOContents (ShallowFIFO var) = unsafeInterleaveIO $ do
-	x <- takeMVar var
-	xs <- getFIFOContents (ShallowFIFO var)
+getFIFOContents :: (Show a) => ShallowFIFO a -> IO [Maybe a]
+getFIFOContents fifo = unsafeInterleaveIO $ do
+	x <- readFromFIFO fifo
+	xs <- getFIFOContents fifo
 	return (x:xs)
 
 putFIFOContents :: ShallowFIFO a -> [Maybe a] -> IO ()
