@@ -72,7 +72,7 @@ Library
 
 Executable kansas-lava-unittest
     if flag(unit)
-      Build-Depends: base, QuickCheck >= 2.0
+      Build-Depends: base, QuickCheck >= 2.0, hpc
       buildable: True
       Other-modules:
     else

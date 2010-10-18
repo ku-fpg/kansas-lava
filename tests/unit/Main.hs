@@ -16,7 +16,8 @@ import Data.Maybe as Maybe
 import Control.Applicative
 import Data.Bits
 import Control.Concurrent.MVar
-
+import Trace.Hpc.Reflect
+import Trace.Hpc.Tix
 import Utils
 
 main = do
@@ -41,10 +42,16 @@ main = do
 			   Just i -> take i . genToRandom)
 
 	tests test
+
 	(good,bad) <- takeMVar count
 	putStrLn $ "Tests passed: " ++ show good
 	putStrLn $ "Tests failed: " ++ show bad
 
+	Tix tix <- examineTix
+	let counts = concat [ xs | TixModule _ _ _ xs <- tix ]
+	let len = length counts
+	let txs = length $ filter (> 0) counts
+	putStrLn $ "Raw coverage: " ++ show (floor (100 * fromIntegral txs / fromIntegral len)) ++ "%"
 
 tests test = do
 	-- Just the Eq Stuff
