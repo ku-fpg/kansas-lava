@@ -68,6 +68,8 @@ isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (
 isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
+
+-- TODO: create .&&.and .||. and .^.
 -----------------------------------------------------------------------------------------------
 
 instance (Show a, Rep a, Num a) => Num (Comb a) where
