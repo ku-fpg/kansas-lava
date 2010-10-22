@@ -62,7 +62,7 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 	   fn (0:ps) (x:xs) c
 		    = x : case (c,x) of -- read c after issuing x
 			(Nothing:rs,_)         -> error "toVariableHandshake: bad protocol state (1)"
-			(Just True:rs,Just {}) -> fn ps xs rs         -- has been written
+			(Just True:rs,_)       -> fn ps xs rs         -- has been written
 			(_:rs,_)               -> fn (0:ps) (x:xs) rs -- not written yet
 
 	   fn (p:ps) xs c
