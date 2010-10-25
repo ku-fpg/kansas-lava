@@ -2,7 +2,7 @@
 module Language.KansasLava.Reify
 	( reifyCircuit
 	, Ports(..)
-	, InPorts(..)
+	, Input(..)
 	, input
 	, output
 	) where
@@ -170,11 +170,11 @@ debugCircuit opt c = showCircuit opt c >>= putStr
 class Ports a where
   ports :: Int -> a -> [(Type, Driver E)]
 
-class InPorts a where
+class Input a where
     inPorts :: Int -> (a, Int)
 
     apply :: TraceMap k -> (a -> b) -> (TraceMap k, b)
-    apply _ _ = error "InPorts: apply, no instance"
+    apply _ _ = error "Input: apply, no instance"
 
     input :: String -> a -> a
 
@@ -183,7 +183,7 @@ class BackPorts a where
 --    input :: String -> a -> a
 
 {-
-instance (BackPorts a, InPorts b) => InPorts (a -> b) where
+instance (BackPorts a, Input b) => Input (a -> b) where
      -- inPorts :: Int -> (a -> b,Int)
 
 	inPorts v = (,)
@@ -195,14 +195,14 @@ instance (BackPorts a, InPorts b) => InPorts (a -> b) where
 -}
 
 -- Royale Hack, but does work.
-instance (Rep a, Rep b) => InPorts (CSeq c a -> CSeq c b) where
+instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
 	inPorts v =  (fn , v)
    	  where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
 
 	input _ a = a
 
 -- Need to add the clock
-instance (Rep a) => InPorts (Handshake a) where
+instance (Rep a) => Input (Handshake a) where
 	inPorts v =  (fn , v)
 	   -- We need the ~ because the output does not need to depend on the input
    	  where fn = Handshake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
@@ -236,7 +236,7 @@ instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
 instance (Ports a,Size x) => Ports (Matrix x a) where
  ports _ m = concatMap (ports (error "bad using of arguments in Reify")) $ M.toList m
 
-instance (InPorts a, Ports b) => Ports (a -> b) where
+instance (Input a, Ports b) => Ports (a -> b) where
   ports vs f = ports vs' $ f a
      where (a,vs') = inPorts vs
 
@@ -261,8 +261,8 @@ wireGenerate :: Int -> (D w,Int)
 wireGenerate v = (D (Pad (OVar v ("i" ++ show v))),succ v)
 
 
-instance Rep a => InPorts (CSeq c a) where
-    inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
+instance Rep a => Input (CSeq c a) where
+    inPorts vs = (Seq (error "Input (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
 
     apply m fn = (Map.deleteMin m, fn $ getSignal strm)
@@ -270,7 +270,7 @@ instance Rep a => InPorts (CSeq c a) where
 
     input nm = liftS1 (input nm)
 
-instance Rep a => InPorts (Comb a) where
+instance Rep a => Input (Comb a) where
     inPorts vs = (deepComb d,vs')
       where (d,vs') = wireGenerate vs
 
@@ -290,12 +290,12 @@ instance Rep a => InPorts (Comb a) where
 
 {-
 
-instance InPorts (Env clk) where
+instance Input (Env clk) where
   inPorts nms = (Env (
 -}
 
-instance InPorts (Clock clk) where
-    inPorts vs = (Clock (error "InPorts (Clock clk)") d,vs')
+instance Input (Clock clk) where
+    inPorts vs = (Clock (error "Input (Clock clk)") d,vs')
       where (d,vs') = wireGenerate vs
 
     input nm (Clock f d) =
@@ -306,7 +306,7 @@ instance InPorts (Clock clk) where
 		    []
 	in res
 
-instance InPorts (Env clk) where
+instance Input (Env clk) where
     inPorts vs0 = (Env clk' (label "rst" rst) (label "clk_en" en),vs3)
 	 where ((en,rst,Clock f clk),vs3) = inPorts vs0
 	       clk' = Clock f $ D $ Port ("o0") $ E
@@ -318,7 +318,7 @@ instance InPorts (Env clk) where
 			            (input ("rst" ++ nm) rst)
 			            (input ("sysEnable" ++ nm) en)	-- TODO: better name than sysEnable, its really clk_en
 
-instance (InPorts a, InPorts b) => InPorts (a,b) where
+instance (Input a, Input b) => Input (a,b) where
     inPorts vs0 = ((a,b),vs2)
 	 where
 		(b,vs1) = inPorts vs0
@@ -326,7 +326,7 @@ instance (InPorts a, InPorts b) => InPorts (a,b) where
 
     input nm (a,b) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b)
 
-instance (InPorts a, Size x) => InPorts (Matrix x a) where
+instance (Input a, Size x) => Input (Matrix x a) where
  inPorts vs0 = (M.matrix bs, vsX)
      where
 	sz :: Int
@@ -342,7 +342,7 @@ instance (InPorts a, Size x) => InPorts (Matrix x a) where
 
  input nm m = forEach m $ \ i a -> input (nm ++ "_" ++ show i) a
 
-instance (InPorts a, InPorts b, InPorts c) => InPorts (a,b,c) where
+instance (Input a, Input b, Input c) => Input (a,b,c) where
     inPorts vs0 = ((a,b,c),vs3)
 	 where
 		(c,vs1) = inPorts vs0

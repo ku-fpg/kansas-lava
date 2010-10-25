@@ -102,7 +102,7 @@ instance (Probe a, Probe b, Probe c) => Probe (a, b, c) where
               TraceStream ty2 strm2 = run y t
               TraceStream ty3 strm3 = run z t
 
-instance (InPorts a, Probe a, Probe b) => Probe (a -> b) where
+instance (Input a, Probe a, Probe b) => Probe (a -> b) where
     -- this shouldn't happen (maybe a higher order KL function?),
     -- but if it does, discard int and generate fresh order
     attach _ = probe
