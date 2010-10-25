@@ -23,9 +23,6 @@ class Signal f where
     liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
     deepS  :: f a -> D a
 
-    -- for tracing
-    getSignal :: (Rep a) => TraceStream -> f a
-
 bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
 
@@ -64,9 +61,6 @@ instance Signal Comb where
     liftS2 f a b = f a b
     liftSL f xs  = f xs
     deepS (Comb _ d) = d
-
-    getSignal ts = shallowComb $ Stream.head $ fromTrace ts
-
 
 class (Signal sig) => Pack sig a where
  type Unpacked sig a

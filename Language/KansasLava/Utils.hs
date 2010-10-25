@@ -414,10 +414,6 @@ data Env c = Env { clockEnv  :: Clock c
                  }
     deriving (Show)
 
-instance Signal Env where
-    getSignal ts = (toEnv (Clock 1 (D $ Error "no deep clock"))) { resetEnv = rst, enableEnv = clk_en }
-        where (rst, clk_en) = unpack (shallowSeq $ fromTrace ts :: CSeq a (Bool, Bool))
-
 toEnv :: Clock c -> Env c
 toEnv c = Env
 	    c

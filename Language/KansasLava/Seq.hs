@@ -93,8 +93,6 @@ instance Signal (CSeq c) where
 
   deepS (Seq _ d) = d
 
-  getSignal ts = shallowSeq $ fromTrace ts
-
 ----------------------------------------------------------------------------------------------------
 
 -- Small DSL's for declaring signals

@@ -12,16 +12,17 @@ import Data.List as L
 import qualified Data.Map as Map
 import Data.Reify
 
+import Language.KansasLava.Circuit
+import Language.KansasLava.Circuit.Depth
+import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
+import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
-import Language.KansasLava.Circuit
-import Language.KansasLava.Circuit.Depth
-import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
 import Language.KansasLava.Handshake
 
@@ -173,6 +174,9 @@ class Ports a where
 class Input a where
     inPorts :: Int -> (a, Int)
 
+    getSignal :: TraceStream -> a
+    getSignal _ = error "Input: getSignal, no instance"
+
     apply :: TraceMap k -> (a -> b) -> (TraceMap k, b)
     apply _ _ = error "Input: apply, no instance"
 
@@ -265,6 +269,7 @@ instance Rep a => Input (CSeq c a) where
     inPorts vs = (Seq (error "Input (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
 
+    getSignal ts = shallowSeq $ fromTrace ts
     apply m fn = (Map.deleteMin m, fn $ getSignal strm)
         where strm = head $ Map.elems m
 
@@ -274,6 +279,7 @@ instance Rep a => Input (Comb a) where
     inPorts vs = (deepComb d,vs')
       where (d,vs') = wireGenerate vs
 
+    getSignal ts = shallowComb $ Stream.head $ fromTrace ts
     apply m fn = (Map.deleteMin m, fn $ getSignal strm)
         where strm = head $ Map.elems m
 
@@ -314,6 +320,10 @@ instance Input (Env clk) where
                     	[("o0", ClkTy)]
                     	[("i0", ClkTy, unD clk)]
 		    	[]
+
+    getSignal ts = (toEnv (Clock 1 (D $ Error "no deep clock"))) { resetEnv = rst, enableEnv = clk_en }
+        where (rst, clk_en) = unpack (shallowSeq $ fromTrace ts :: CSeq a (Bool, Bool))
+
     input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
 			            (input ("rst" ++ nm) rst)
 			            (input ("sysEnable" ++ nm) en)	-- TODO: better name than sysEnable, its really clk_en
@@ -323,6 +333,10 @@ instance (Input a, Input b) => Input (a,b) where
 	 where
 		(b,vs1) = inPorts vs0
 		(a,vs2) = inPorts vs1
+
+    apply m fn = (m', fn (getSignal s1, getSignal s2))
+        where [s1,s2] = take 2 $ Map.elems m
+              m' = Map.deleteMin $ Map.deleteMin m
 
     input nm (a,b) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b)
 
@@ -348,6 +362,10 @@ instance (Input a, Input b, Input c) => Input (a,b,c) where
 		(c,vs1) = inPorts vs0
 		(b,vs2) = inPorts vs1
 		(a,vs3) = inPorts vs2
+
+    apply m fn = (m', fn (getSignal s1, getSignal s2, getSignal s3))
+        where [s1,s2,s3] = take 3 $ Map.elems m
+              m' = Map.deleteMin $ Map.deleteMin $ Map.deleteMin m
 
     input nm (a,b,c) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b,input (nm ++ "_thd") c)
 
