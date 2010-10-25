@@ -151,10 +151,6 @@ execute :: (Probe a) => a -> Trace -> Trace
 execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit t) k outs }
     where k = head $ M.keys outs
 
--- These are exported, but are not intended for the end user.
-seqAll :: forall w. (Rep w) => Seq w
-seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
-
 -- Functions below are not exported.
 
 toXBit :: Maybe Bool -> Char

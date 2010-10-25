@@ -64,6 +64,9 @@ shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 undefinedSeq ::  forall a c . (Rep a) => CSeq c a
 undefinedSeq = liftS0 undefinedComb
 
+seqAll :: forall w. (Rep w) => Seq w
+seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
+
 instance Signal (CSeq c) where
   liftS0 ~(Comb a e) = Seq (pure a) e
 
