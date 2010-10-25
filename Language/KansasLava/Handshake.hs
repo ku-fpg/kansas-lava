@@ -211,3 +211,162 @@ fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
 	inp_ready = in_counter1 .<. fromIntegral (size (witness :: ix))
 
 
+
+fifoFE' :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> (Seq Bool,Seq (Enabled a)) 
+	 -- ^ Seq trigger when to decrement the counter,
+	 -- and the input (enabled)
+      -> (Seq (Enabled (ix,a)),Seq Bool)
+	 -- ^ inc_counter * backedge for HandShake.
+fifoFE' _ env (out_done0,inp) = (wr,inp_ready) -- (inp_ready,out,in_counter1)
+  where
+--	mem :: Seq ix -> Seq a
+--	mem = pipeToMemory env env wr
+
+	inp_done0 :: Seq Bool
+	inp_done0 = inp_ready `and2` isEnabled inp
+
+	wr :: Seq (Enabled (ix,a))
+	wr = packEnabled (inp_ready `and2` isEnabled inp)
+			 (pack (wr_addr,enabledVal inp))
+
+	wr_addr :: Seq ix
+	wr_addr = register env 0
+		$ mux2 inp_done0 (wr_addr+1,wr_addr)
+
+	in_counter0 :: Seq counter
+	in_counter0 = in_counter1 
+			+ mux2 inp_done0 (1,0)
+		   	- mux2 out_done0 (1,0)
+
+	in_counter1 :: Seq counter
+	in_counter1 = register env 0 in_counter0
+	
+--	out :: Seq (Enabled a)
+--	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
+
+	inp_ready :: Seq Bool
+	inp_ready = in_counter1 .<. fromIntegral (size (witness :: ix))
+
+fifoBE' :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> (Seq Bool,Seq Bool,Seq a) 
+	-- back edge from HandShake Slave, 
+	-- inc from FE
+	-- input from Memory read
+      -> (Seq ix, Seq Bool, Seq (Enabled a))
+	-- address for Memory read
+	-- dec to FE
+	-- output for HandShake
+fifoBE' _ env (out_ready,inp_done0,mem_rd) = (rd_addr0,out_done0,out)
+  where
+	inp_done1 :: Seq Bool
+	inp_done1 = register env false 
+		  $ inp_done0
+		
+	inp_done2 :: Seq Bool
+	inp_done2 = register env false 
+		  $ inp_done1
+
+	wr_addr :: Seq ix
+	wr_addr = register env 0
+		$ mux2 inp_done0 (wr_addr+1,wr_addr)
+
+	rd_addr0 :: Seq ix
+	rd_addr0 = mux2 out_done0 (rd_addr1+1,rd_addr1)
+
+	rd_addr1 = register env 0 rd_addr0
+
+	out_done0 :: Seq Bool
+	out_done0 = out_ready `and2` (isEnabled out)
+
+	out_done1 :: Seq Bool
+	out_done1 = register env false 
+		  $ out_done0
+
+
+	out_counter0 :: Seq counter
+	out_counter0 = out_counter1
+			+ mux2 inp_done2 (1,0)
+		 	- mux2 out_done0 (1,0)
+
+	out_counter1 = register env 0 out_counter0
+	
+	out :: Seq (Enabled a)
+	out = packEnabled (out_counter1 .>. 0) mem_rd
+
+fifo'' :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> (Seq Bool,Seq (Enabled a)) 
+      -> (Seq Bool,Seq (Enabled a))
+fifo'' w env (out_ready,inp) = (inp_ready,out)
+  where
+	(wr,inp_ready) = fifoFE' w env (out_done0,inp)
+
+	inp_done0 = isEnabled wr
+
+	mem :: Seq ix -> Seq a
+	mem = pipeToMemory env env wr
+
+	(rd_addr0,out_done0,out) = fifoBE' w env (out_ready,inp_done0,mem rd_addr0)
+
+-- decrement does not work, no fliping between memories
+fifoPair'' :: forall a counter ix . 
+         (Size counter
+	, Size ix
+	, counter ~ ADD ix X1
+	, Rep a
+	, Rep counter
+	, Rep ix
+	, Num counter
+	, Num ix
+	) 
+      => ix
+      -> Env () 
+      -> (Seq Bool,Seq (Enabled a)) 
+      -> (Seq Bool,Seq (Enabled (a,a)))
+fifoPair'' w env (out_ready,inp) = (inp_ready,out)
+  where
+	(wr,inp_ready) = fifoFE' w env (out_done0,inp)
+
+	inp_done0 = isEnabled wr
+
+	memA :: Seq ix -> Seq a
+	memA = pipeToMemory env env wr
+
+	memB :: Seq ix -> Seq a
+	memB = pipeToMemory env env wr
+
+	(rd_addr0,out_done0,out) = fifoBE' w env (out_ready,inp_done0,pack (memA rd_addr0,memB rd_addr0))
+
