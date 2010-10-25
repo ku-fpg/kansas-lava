@@ -3,31 +3,30 @@
 
 module Language.KansasLava.Seq where
 
-import Data.Word
-import Data.Int
+import Control.Applicative
+
 import Data.Bits
+import Data.Int
 import Data.List
+import Data.Word
 
 import Data.Reify
 import qualified Data.Traversable as T
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
+import Language.KansasLava.Comb
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
 import Language.KansasLava.Stream as S
+import Language.KansasLava.Wire
 
-import Control.Applicative
 import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED
 import Data.Sized.Sampled as SAMPLED
 import Data.Sized.Arith as Arith
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Ix as X
-
-import Language.KansasLava.Comb
-import Data.List as List
-import Language.KansasLava.Wire
 
 -----------------------------------------------------------------------------------------------
 
@@ -85,11 +84,13 @@ instance Signal (CSeq c) where
 
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
-		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
+		    | xs <- transpose [ S.toList x | Seq x _ <- ss ]
 		    ])
 		    (combDriver (f (map (deepComb . seqDriver) ss)))
 
   deepS (Seq _ d) = d
+
+  getSignal ts = shallowSeq $ fromTrace ts
 
 ----------------------------------------------------------------------------------------------------
 

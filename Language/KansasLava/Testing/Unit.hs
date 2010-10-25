@@ -28,7 +28,7 @@ test' :: forall b. (Rep b) => Int -> Thunk (Seq b) -> Seq b -> ((Bool, Trace) ->
 test' cycles thunk (Seq s _) action = do
     trace <- mkTrace (return cycles) thunk
 
-    let e = setCycles cycles $ trace { outputs = M.adjust (\_ -> fromXStream s) k outs }
+    let e = setCycles cycles $ trace { outputs = M.adjust (\_ -> toTrace s) k outs }
         k = head $ M.keys outs
         outs = outputs trace
 

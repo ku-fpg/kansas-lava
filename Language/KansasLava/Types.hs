@@ -2,15 +2,15 @@
 
 module Language.KansasLava.Types where
 
-import Data.List as L
-import qualified Data.Traversable as T
-import qualified Data.Foldable as F
 import Control.Applicative
 
-import Control.Applicative
-import Data.Monoid
 import Data.Dynamic
+import qualified Data.Foldable as F
+import Data.List as L
+import qualified Data.Map as M
+import Data.Monoid
 import Data.Reify
+import qualified Data.Traversable as T
 
 -- Key internal type
 
@@ -275,8 +275,8 @@ getValidRepValue r@(RepValue m)
 -- | compare a golden value with another value, returning the bits that are different
 
 cmpRepValue :: RepValue -> RepValue -> Bool
-cmpRepValue (RepValue gs) (RepValue vs) 
-	| length gs == length vs 
+cmpRepValue (RepValue gs) (RepValue vs)
+	| length gs == length vs
 		= and $ zipWith (\ g v ->
 			     case (g,v) of
 				(WireUnknown,_)               -> True
@@ -290,11 +290,18 @@ cmpRepValue _ _ = False
 --
 
 -- TODO: Consider why the Empty?
-
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
                  | Empty
     deriving (Eq, Ord, Show)
 
+type TraceMap k = M.Map k TraceStream
+
+data Trace = Trace { len :: Maybe Int
+                   , inputs :: TraceMap OVar
+                   , outputs :: TraceMap OVar
+                   , probes :: TraceMap OVar
+--                   , opts :: DebugOpts -- can see a case for this eventually
+                   }
 
 ---------------------------------------------------------------------------------------------------------
 --

@@ -2,6 +2,14 @@
 
 module Language.KansasLava.Utils where
 
+import Control.Applicative
+import Control.Monad
+import Data.Bits
+import qualified Data.Map as Map
+import Data.Ratio
+import Data.Word
+import Debug.Trace
+
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity as E
 import Language.KansasLava.Entity.Utils
@@ -18,13 +26,6 @@ import qualified Data.Sized.Sampled	as Sam
 import Data.Sized.Signed	as SI
 import Data.Sized.Unsigned	as U
 import qualified Data.Sized.Sampled as Sampled
-
-import Control.Applicative
-import Control.Monad
-import Data.Bits
-import Data.Ratio
-import Data.Word
-import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 
@@ -412,6 +413,10 @@ data Env c = Env { clockEnv  :: Clock c
 	         , enableEnv :: CSeq c Bool
                  }
     deriving (Show)
+
+instance Signal Env where
+    getSignal ts = (toEnv (Clock 1 (D $ Error "no deep clock"))) { resetEnv = rst, enableEnv = clk_en }
+        where (rst, clk_en) = unpack (shallowSeq $ fromTrace ts :: CSeq a (Bool, Bool))
 
 toEnv :: Clock c -> Env c
 toEnv c = Env

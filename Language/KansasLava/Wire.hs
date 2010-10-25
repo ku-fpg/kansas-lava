@@ -4,8 +4,9 @@
 module Language.KansasLava.Wire where
 
 --import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Types
 import Language.KansasLava.Entity
+import Language.KansasLava.Stream as Stream
+import Language.KansasLava.Types
 import Control.Applicative
 import Control.Monad
 import Data.Sized.Arith
@@ -44,7 +45,6 @@ class Rep w where
     -- show the value (in its Haskell form, default is the bits)
     showRep :: w -> X w -> String
     showRep w x = show (toRep x)
-
 
 -- D w ->
 
@@ -209,6 +209,13 @@ fromRepToInteger (RepValue xs) =
 --
 cmpRep :: (Rep a) => a -> X a -> X a -> Bool
 cmpRep w g v = toRep g `cmpRepValue` toRep v
+
+-- basic conversion to trace representation
+toTrace :: forall w . (Rep w) => Stream (X w) -> TraceStream
+toTrace stream = TraceStream (wireType (witness :: w)) [toRep xVal | xVal <- Stream.toList stream ]
+
+fromTrace :: (Rep w) => TraceStream -> Stream (X w)
+fromTrace (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
 
 ------------------------------------------------------------------------------------
 

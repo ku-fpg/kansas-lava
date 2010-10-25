@@ -7,6 +7,6 @@ module Language.KansasLava.Testing (
        ) where
 import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Thunk
-import Language.KansasLava.Testing.Trace hiding (toXStream, fromXStream)
+import Language.KansasLava.Testing.Trace
 import Language.KansasLava.Testing.Unit
 import Language.KansasLava.Testing.Utils

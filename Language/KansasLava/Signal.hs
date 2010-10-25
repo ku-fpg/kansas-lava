@@ -2,24 +2,29 @@
 
 module Language.KansasLava.Signal where
 
+import Control.Applicative
+
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Entity.Utils
-import Control.Applicative
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned as U
 import Data.Sized.Matrix as M
 
 class Signal f where
-  liftS0 :: (Rep a) => Comb a -> f a
-  liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
-  liftS2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
-  liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
-  deepS  :: f a -> D a
+    liftS0 :: (Rep a) => Comb a -> f a
+    liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
+    liftS2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
+    liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
+    deepS  :: f a -> D a
+
+    -- for tracing
+    getSignal :: (Rep a) => TraceStream -> f a
 
 bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
 bitTypeOf _ = wireType (error "bitTypeOf" :: w)
@@ -54,11 +59,13 @@ comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $
 ----------------------------------------------------------------------------------------------------
 
 instance Signal Comb where
-  liftS0 a     = a
-  liftS1 f a   = f a
-  liftS2 f a b = f a b
-  liftSL f xs  = f xs
-  deepS (Comb _ d) = d
+    liftS0 a     = a
+    liftS1 f a   = f a
+    liftS2 f a b = f a b
+    liftSL f xs  = f xs
+    deepS (Comb _ d) = d
+
+    getSignal ts = shallowComb $ Stream.head $ fromTrace ts
 
 
 class (Signal sig) => Pack sig a where

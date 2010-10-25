@@ -2,13 +2,15 @@
 module Language.KansasLava.Reify
 	( reifyCircuit
 	, Ports(..)
+	, InPorts(..)
 	, input
 	, output
 	) where
 
-import Data.Reify
+import Data.Default
 import Data.List as L
-
+import qualified Data.Map as Map
+import Data.Reify
 
 import Language.KansasLava.Entity
 import Language.KansasLava.Entity.Utils
@@ -23,12 +25,9 @@ import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Utils
 import Language.KansasLava.Handshake
 
-import Data.Default
-
 import Data.Sized.Matrix as M
-import Debug.Trace
-import qualified Data.Map as Map
 
+import Debug.Trace
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
 --
@@ -81,17 +80,17 @@ reifyCircuit circuit = do
 
 	let newOut = 1 + maximum ((-1) : [ i | (OVar i _,_,_) <- outputs ])
 --	print newOut
-		
-	let backoutputs = 
+
+	let backoutputs =
 	      [ (OVar n ("b" ++ show n), vTy, dr)
-	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _) <- gr 
+	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _) <- gr
 	      | n <- [newOut..]
 	      ]
 
 	let outputs2 = outputs ++ backoutputs
 	let outputs = outputs2
-	
-	let hofs = 
+
+	let hofs =
 	      [ i
 	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _)  <- gr
 	      ]
@@ -102,17 +101,17 @@ reifyCircuit circuit = do
 			   Just v -> OVar v ("o" ++ show v)
 
 
-	let remap_hofs (nm,ty,Port pnm i) 
+	let remap_hofs (nm,ty,Port pnm i)
 	        | i `elem` hofs = (nm,ty,Pad $ findHof i)
 		| otherwise = (nm,ty,Port pnm i)
 	    remap_hofs other = other
 
 	let gr' = [ ( i
 	            , case g of
-			 Entity nm outs ins g -> 
+			 Entity nm outs ins g ->
 				Entity nm outs (map remap_hofs ins) g
 		    )
-		  | (i,g) <- gr 
+		  | (i,g) <- gr
 		  , not (i `elem` hofs)
 		  ]
 	let gr = gr'
@@ -174,6 +173,9 @@ class Ports a where
 class InPorts a where
     inPorts :: Int -> (a, Int)
 
+    apply :: TraceMap k -> (a -> b) -> (TraceMap k, b)
+    apply _ _ = error "InPorts: apply, no instance"
+
     input :: String -> a -> a
 
 class BackPorts a where
@@ -184,8 +186,8 @@ class BackPorts a where
 instance (BackPorts a, InPorts b) => InPorts (a -> b) where
      -- inPorts :: Int -> (a -> b,Int)
 
-	inPorts v = (,) 
-	
+	inPorts v = (,)
+
 	error "XX"
 --    inPorts :: Int -> (a, Int)
 --    input :: String -> a -> a
@@ -197,14 +199,14 @@ instance (Rep a, Rep b) => InPorts (CSeq c a -> CSeq c b) where
 	inPorts v =  (fn , v)
    	  where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
 
-	input _ a = a	
+	input _ a = a
 
 -- Need to add the clock
 instance (Rep a) => InPorts (Handshake a) where
 	inPorts v =  (fn , v)
 	   -- We need the ~ because the output does not need to depend on the input
    	  where fn = Handshake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
-	input _ a = a	
+	input _ a = a
 
 
 instance BackPorts (CSeq c a) where {}
@@ -262,11 +264,18 @@ wireGenerate v = (D (Pad (OVar v ("i" ++ show v))),succ v)
 instance Rep a => InPorts (CSeq c a) where
     inPorts vs = (Seq (error "InPorts (Seq a)") d,vs')
       where (d,vs') = wireGenerate vs
+
+    apply m fn = (Map.deleteMin m, fn $ getSignal strm)
+        where strm = head $ Map.elems m
+
     input nm = liftS1 (input nm)
 
 instance Rep a => InPorts (Comb a) where
     inPorts vs = (deepComb d,vs')
       where (d,vs') = wireGenerate vs
+
+    apply m fn = (Map.deleteMin m, fn $ getSignal strm)
+        where strm = head $ Map.elems m
 
     input nm a = label nm a
 {-
@@ -300,7 +309,7 @@ instance InPorts (Clock clk) where
 instance InPorts (Env clk) where
     inPorts vs0 = (Env clk' (label "rst" rst) (label "clk_en" en),vs3)
 	 where ((en,rst,Clock f clk),vs3) = inPorts vs0
-	       clk' = Clock f $ D $ Port ("o0") $ E 
+	       clk' = Clock f $ D $ Port ("o0") $ E
 		    $ Entity (Label "clk")
                     	[("o0", ClkTy)]
                     	[("i0", ClkTy, unD clk)]
@@ -394,7 +403,7 @@ resolveNames cir
 		[ ( u
 		  , case e of
 		      Entity nm outs ins misc ->
-			Entity nm outs [ (n,t,fnInputs p) | (n,t,p) <- ins ] misc 
+			Entity nm outs [ (n,t,fnInputs p) | (n,t,p) <- ins ] misc
 --		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad (OVar i _))] misc
 --			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad (OVar i oNm))] misc
 --		      Entity (Name "Lava" io) outs ins misc

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probe,probeCircuit,probeNames,probeValue) where
+module Language.KansasLava.Testing.Probes (Probe,probe,run,probeCircuit,probeNames,probeValue) where
 
 import qualified Data.Reify.Graph as DRG
 
@@ -20,7 +20,7 @@ import Data.List
 import Language.KansasLava
 import Language.KansasLava.Internals
 
-import Language.KansasLava.Testing.Trace
+import Language.KansasLava.Testing.Utils
 
 probeCircuit :: (Ports b) => Int -> b -> IO [(OVar, TraceStream)]
 probeCircuit n applied = do
@@ -52,37 +52,57 @@ class Probe a where
     probe' :: String -> [Int] -> a -> a
     probe' name (i:_) s = attach i name s
 
+    run :: a -> Trace -> TraceStream
+
 instance (Rep a) => Probe (CSeq c a) where
     attach i name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where n = OVar i name
-              strm = fromXStream s
+              strm = toTrace s
+
+    run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+        where TraceStream ty strm = toTrace s
 
 instance (Rep a) => Probe (Comb a) where
     attach i name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where n = OVar i name
-              strm = fromXStream $ fromList $ repeat s
+              strm = toTrace $ fromList $ repeat s
+
+    run (Comb s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+        where TraceStream ty strm = toTrace $ fromList $ repeat s
 
 -- TODO: consider, especially with seperate clocks
 --instance Probe (Clock c) where
 --    probe probeName c@(Clock s _) = Clock s (D $ Lit 0)	-- TODO: fix hack by having a deep "NULL" (not a call to error)
 
--- AJG: The number are hacks to make the order of rst before clk work.
--- ACF: Revisit this with new OVar probe names
+-- ACF: Packing these together perserves the idea of one trace in the tracemap
+--      for each parameter to the function... but I don't like it.
 instance Probe (Env c) where
-    attach i name (Env clk rst clk_en) = Env clk (attach i (name ++ "_0rst") rst)
- 						                         (attach i (name ++ "_1clk_en") clk_en)
+    attach i name (Env clk rst clk_en) = Env clk rst' clk_en'
+        where (rst',clk_en') = unpack $ attach i name $ (pack (rst, clk_en) :: CSeq c (Bool, Bool))
 
 -- ACF: TODO: As you can see with tuples, we have name supply issues to solve.
-instance (Rep a, Rep b, Probe (f a), Probe (f b)) => Probe (f a, f b) where
+--instance (Rep a, Rep b, Probe (f a), Probe (f b)) => Probe (f a, f b) where
+instance (Probe a, Probe b) => Probe (a, b) where
     attach i name (x,y) = (attach i (name ++ "_1") x,
                            attach i (name ++ "_0") y)
 
-instance (Rep a, Rep b, Rep c, Probe (f a), Probe (f b), Probe (f c)) => Probe (f a, f b, f c) where
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y) t = TraceStream (TupleTy [ty1,ty2]) $ zipWith appendRepValue strm1 strm2
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
+
+instance (Probe a, Probe b, Probe c) => Probe (a, b, c) where
     attach i name (x,y,z) = (attach i (name ++ "_2") x,
                              attach i (name ++ "_1") y,
                              attach i (name ++ "_0") z)
 
-instance (Probe a, Probe b) => Probe (a -> b) where
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y,z) t = TraceStream (TupleTy [ty1,ty2,ty3]) (zipWith appendRepValue strm1 $ zipWith appendRepValue strm2 strm3)
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
+              TraceStream ty3 strm3 = run z t
+
+instance (InPorts a, Probe a, Probe b) => Probe (a -> b) where
     -- this shouldn't happen (maybe a higher order KL function?),
     -- but if it does, discard int and generate fresh order
     attach _ = probe
@@ -91,6 +111,9 @@ instance (Probe a, Probe b) => Probe (a -> b) where
     probe name f =  probe' name [0..] f
 
     probe' name (i:is) f x = probe' name is $ f (attach i name x)
+
+    run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
+        where (ins', fn') = apply ins fn
 
 insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
 insertProbe n s@(TraceStream ty _) = mergeNested

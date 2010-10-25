@@ -1,9 +1,9 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
-module Language.KansasLava.Testing.Trace (Trace(..), Run(..), traceSignature, setCycles
+module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
-                                         ,seqAll,toXStream, fromXStream -- needed in Probes, but should not be re-exported to user
+                                         ,seqAll
                                          ,diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo
                                          ,writeToFile, readFromFile, checkExpected, execute) where
@@ -13,11 +13,13 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Comb
+import Language.KansasLava.Reify
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector
 
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Stream (Stream)
+import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Utils
 
 import qualified Data.Sized.Matrix as Matrix
@@ -28,16 +30,7 @@ import Data.Maybe
 
 import Debug.Trace
 
-type TraceMap k = M.Map k TraceStream
-
 -- instance Functor TraceStream where -- can we do this with proper types?
-
-data Trace = Trace { len :: Maybe Int
-                   , inputs :: TraceMap OVar
-                   , outputs :: TraceMap OVar
-                   , probes :: TraceMap OVar
---                   , opts :: DebugOpts -- can see a case for this eventually
-                   }
 
 traceSignature :: Trace -> Signature
 traceSignature (Trace _ ins outs _) = Signature inps outps []
@@ -52,7 +45,7 @@ addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
 
 getInput :: (Rep w) => OVar -> Trace -> Seq w
-getInput key trace = getSeq key (inputs trace)
+getInput key trace = getSignal $ (inputs trace) M.! key
 
 remInput :: OVar -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
@@ -61,7 +54,7 @@ addOutput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addOutput key seq t@(Trace _ _ outs _) = t { outputs = addSeq key seq outs }
 
 getOutput :: (Rep w) => OVar -> Trace -> Seq w
-getOutput key trace = getSeq key (outputs trace)
+getOutput key trace = getSignal $ (outputs trace) M.! key
 
 remOutput :: OVar -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
@@ -70,7 +63,7 @@ addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
 
 getProbe :: (Rep w) => OVar -> Trace -> Seq w
-getProbe key trace = getSeq key (probes trace)
+getProbe key trace = getSignal $ (probes trace) M.! key
 
 remProbe :: OVar -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
@@ -150,84 +143,19 @@ readFromFile fp = do
     return $ deserialize str
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
-checkExpected :: (Run a) => a -> Trace -> (Bool, Trace)
+checkExpected :: (Probe a) => a -> Trace -> (Bool, Trace)
 checkExpected circuit trace = (trace == result, result)
     where result = execute circuit trace
 
-execute :: (Run a) => a -> Trace -> Trace
+execute :: (Probe a) => a -> Trace -> Trace
 execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit t) k outs }
     where k = head $ M.keys outs
-
-class Run a where
-    run :: a -> Trace -> TraceStream
-
-instance (Rep a) => Run (CSeq c a) where
-    run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
-        where TraceStream ty strm = fromXStream s
-
-{- eventually
-instance (Rep a) => Run (Comb a) where
-    run (Comb s _) (Trace c _ _ _) = (wireType witness, take c $ fromXStream witness (fromList $ repeat s))
-        where witness = (error "run trace" :: a)
--}
-
-instance (Run a, Run b) => Run (a,b) where
-    -- note order of zip matters! must be consistent with fromWireXRep
-    run (x,y) t = TraceStream (TupleTy [ty1,ty2]) $ zipWith appendRepValue strm1 strm2
-        where TraceStream ty1 strm1 = run x t
-              TraceStream ty2 strm2 = run y t
-
-instance (Run a, Run b, Run c) => Run (a,b,c) where
-    -- note order of zip matters! must be consistent with fromWireXRep
-    run (x,y,z) t = TraceStream (TupleTy [ty1,ty2,ty3]) (zipWith appendRepValue strm1 $ zipWith appendRepValue strm2 strm3)
-        where TraceStream ty1 strm1 = run x t
-              TraceStream ty2 strm2 = run y t
-              TraceStream ty3 strm3 = run z t
-
-instance (Rep a, Run b) => Run (Seq a -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ M.keys ins
-              input = getSeq key ins
-
-instance (Rep a, Run b) => Run (Comb a -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ M.keys ins
-              input = getComb key ins
-
--- TODO: generalize over different clocks
-instance (Run b) => Run (Env () -> b) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key1 $ M.delete key2 $ ins }
-        where [key1,key2] = take 2 $ M.keys ins
-              input = shallowEnv
-			{ resetEnv = getSeq key1 ins
-			, enableEnv = getSeq key2 ins
-			}
-
--- TODO: generalize somehow?
-instance (Enum (Matrix.ADD (WIDTH a) (WIDTH b)),
-          Matrix.Size (Matrix.ADD (WIDTH a) (WIDTH b)),
-          Rep a, Rep b, Run c) => Run ((Seq a, Seq b) -> c) where
-    run fn t@(Trace c ins _ _) = run (fn input) $ t { inputs = M.delete key ins }
-        where key = head $ M.keys ins
-              input = unpack (getSeq key ins :: Seq (a, b))
 
 -- These are exported, but are not intended for the end user.
 seqAll :: forall w. (Rep w) => Seq w
 seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
 
--- Some combinators to get stuff in and out of the map
-fromXStream :: forall w . (Rep w) => Stream (X w) -> TraceStream
-fromXStream stream = TraceStream (wireType (witness :: w)) [toRep xVal | xVal <- Stream.toList stream ]
-
--- oh to have dependent types!
-toXStream :: (Rep w) => TraceStream -> Stream (X w)
-toXStream (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
-
 -- Functions below are not exported.
-
--- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
-takeMaybe :: Maybe Int -> [a] -> [a]
-takeMaybe = maybe id take
 
 toXBit :: Maybe Bool -> Char
 toXBit = maybe 'X' (\b -> if b then '1' else '0')
@@ -253,18 +181,8 @@ readMap ls = (go $ takeWhile cond ls, rest)
           toWireVal '0' = return False
           toWireVal _   = fail "unknown"
 
-getStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> Stream (X w)
-getStream name m = toXStream $ m M.! name
-
-getSeq :: (Ord a, Rep w) => a -> TraceMap a -> Seq w
-getSeq key m = shallowSeq $ getStream key m
-
--- Note: this only gets the *first* value. Perhaps combs should be stored differently?
-getComb :: (Ord a, Rep w) => a -> TraceMap a -> Comb w
-getComb key m = shallowComb $ Stream.head $ getStream key m
-
 addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> Stream (X w) -> TraceMap a
-addStream key m stream = M.insert key (fromXStream stream) m
+addStream key m stream = M.insert key (toTrace stream) m
 
 addSeq :: forall a b. (Ord a, Rep b) => a -> Seq b -> TraceMap a -> TraceMap a
 addSeq key seq m = addStream key m (seqValue seq :: Stream (X b))
