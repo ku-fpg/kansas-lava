@@ -33,12 +33,33 @@ import Language.KansasLava.Protocols
 import Language.KansasLava.Shallow.FIFO 
 
 import Language.KansasLava.Utils
+import Control.Applicative
 
 -----------------------------------------------------------------------------------------------
 
 -- Need to add concept of clock
 
 data Handshake a = Handshake { unHandshake :: Seq Bool -> Seq (Enabled a) }
+
+
+data HandShake a = HandShake { unHandShake :: Seq Bool -> a }
+
+infix 4 <~~
+
+(<~~) :: HandShake a -> Seq Bool -> a
+(HandShake h) <~~ a = h a
+
+instance Functor HandShake where
+	fmap f (HandShake g) = HandShake (f . g)
+
+instance Applicative HandShake where
+	pure a = HandShake $ const a					-- K
+	(HandShake f) <*> (HandShake g) = HandShake (\ s -> f s (g s))	-- S
+
+instance Monad HandShake where
+	return a = HandShake $ const a					-- K
+	(HandShake f) >>= k = HandShake $ \ s -> unHandShake (k (f s)) s
+
 
 instance Signal Handshake where
   liftS0 comb = Handshake $ \ _ -> enabledS $ liftS0 comb
@@ -224,13 +245,14 @@ fifoFE' :: forall a counter ix .
 	) 
       => ix
       -> Env () 
-      -> (Seq Bool,Seq (Enabled a)) 
-	 -- ^ Seq trigger when to decrement the counter,
-	 -- and the input (enabled)
-      -> (Seq (Enabled (ix,a)),Seq Bool)
+      -> (HandShake (Seq (Enabled a)),Seq Bool)
+	 -- ^ HS, and Seq trigger when to decrement the counter
+      -> Seq (Enabled (ix,a))
 	 -- ^ inc_counter * backedge for HandShake.
-fifoFE' _ env (out_done0,inp) = (wr,inp_ready) -- (inp_ready,out,in_counter1)
+fifoFE' _ env (HandShake hs,out_done0) = wr
   where
+	inp = hs inp_ready
+
 --	mem :: Seq ix -> Seq a
 --	mem = pipeToMemory env env wr
 
@@ -271,16 +293,15 @@ fifoBE' :: forall a counter ix .
 	) 
       => ix
       -> Env () 
-      -> (Seq Bool,Seq Bool,Seq a) 
-	-- back edge from HandShake Slave, 
+      -> (Seq Bool,Seq a) 
 	-- inc from FE
 	-- input from Memory read
-      -> (Seq ix, Seq Bool, Seq (Enabled a))
+      -> HandShake ((Seq ix, Seq Bool), Seq (Enabled a))
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShake
-fifoBE' _ env (out_ready,inp_done0,mem_rd) = (rd_addr0,out_done0,out)
-  where
+fifoBE' _ env (inp_done0,mem_rd) = HandShake $ \ out_ready ->
+    let
 	inp_done1 :: Seq Bool
 	inp_done1 = register env false 
 		  $ inp_done0
@@ -288,10 +309,6 @@ fifoBE' _ env (out_ready,inp_done0,mem_rd) = (rd_addr0,out_done0,out)
 	inp_done2 :: Seq Bool
 	inp_done2 = register env false 
 		  $ inp_done1
-
-	wr_addr :: Seq ix
-	wr_addr = register env 0
-		$ mux2 inp_done0 (wr_addr+1,wr_addr)
 
 	rd_addr0 :: Seq ix
 	rd_addr0 = mux2 out_done0 (rd_addr1+1,rd_addr1)
@@ -315,6 +332,9 @@ fifoBE' _ env (out_ready,inp_done0,mem_rd) = (rd_addr0,out_done0,out)
 	
 	out :: Seq (Enabled a)
 	out = packEnabled (out_counter1 .>. 0) mem_rd
+    in
+        ((rd_addr0, out_done0) , out)
+
 
 fifo'' :: forall a counter ix . 
          (Size counter
@@ -328,19 +348,24 @@ fifo'' :: forall a counter ix .
 	) 
       => ix
       -> Env () 
-      -> (Seq Bool,Seq (Enabled a)) 
-      -> (Seq Bool,Seq (Enabled a))
-fifo'' w env (out_ready,inp) = (inp_ready,out)
-  where
-	(wr,inp_ready) = fifoFE' w env (out_done0,inp)
+      -> HandShake (Seq (Enabled a))
+      -> HandShake (Seq (Enabled a))
+fifo'' w env hs = HandShake $ \ out_ready ->
+    let
+	wr :: Seq (Maybe (ix, a))
+	wr = fifoFE' w env (hs,out_done0)
 
+	inp_done0 :: Seq Bool
 	inp_done0 = isEnabled wr
 
 	mem :: Seq ix -> Seq a
 	mem = pipeToMemory env env wr
 
-	(rd_addr0,out_done0,out) = fifoBE' w env (out_ready,inp_done0,mem rd_addr0)
+	((rd_addr0,out_done0),out) = fifoBE' w env (isEnabled wr,mem rd_addr0) <~~ out_ready
+    in
+	out
 
+{-
 -- decrement does not work, no fliping between memories
 fifoPair'' :: forall a counter ix . 
          (Size counter
@@ -358,7 +383,7 @@ fifoPair'' :: forall a counter ix .
       -> (Seq Bool,Seq (Enabled (a,a)))
 fifoPair'' w env (out_ready,inp) = (inp_ready,out)
   where
-	(wr,inp_ready) = fifoFE' w env (out_done0,inp)
+	(wr,inp_ready) = fifoFE' w env (error "X") (out_done0,inp)
 
 	inp_done0 = isEnabled wr
 
@@ -368,5 +393,6 @@ fifoPair'' w env (out_ready,inp) = (inp_ready,out)
 	memB :: Seq ix -> Seq a
 	memB = pipeToMemory env env wr
 
-	(rd_addr0,out_done0,out) = fifoBE' w env (out_ready,inp_done0,pack (memA rd_addr0,memB rd_addr0))
-
+	(rd_addr0,out_done0,out,_) = fifoBE' w env (out_ready,inp_done0,pack (memA rd_addr0,memB rd_addr0))
+-}
+---------------------------

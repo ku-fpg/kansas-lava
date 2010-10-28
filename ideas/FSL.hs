@@ -19,6 +19,10 @@ import Data.Default
 import Data.Sized.Ix
 import Data.Sized.Matrix
 import Language.KansasLava.Handshake
+
+import Language.KansasLava.Testing.Bench
+import Language.KansasLava.Testing.Thunk
+
 import Data.List as List
 -- Example
 
@@ -55,6 +59,12 @@ main2 = do
 	writeDotCircuit "x.dot" t'
 	writeVhdlCircuit [] "x" "x.vhd" t'
 	
+
+
+--pairFIFO :: Env () -> HandShake U8 -> HandShake U4
+--pairFIFO env hs (
+
+
 	
 main3 :: IO ()
 main3 = do
@@ -63,35 +73,53 @@ main3 = do
 
 	print rd_ready
 --	print wr_data
-	let Handshake inp = toHandshake' (cycle [0]) [Just x | x <- [(0x0::X100) .. ]]
+	let hs = toHandshake' (cycle [0]) [Just (fromIntegral x) | x <- [(0x0::Integer) .. ]]
+	    hs :: Handshake Byte
+      	    Handshake inp = hs
 
-	let out rd_ready = rd_data
-	       where
-	    	(wr_ready,rd_data,_) = fifo' (witness :: X16)
-						  shallowEnv (rd_ready,wr_data)
-	    	wr_data = inp wr_ready
+	let HandShake hs2 = fifo'' (witness :: X16)
+		       shallowEnv
+		       (HandShake inp)
 
 
+{-
+	let thu :: Thunk (Seq Int)
+	    thu = Thunk (fifo' (witness :: X16) :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool,Seq (Enabled Byte),Seq X17))
+			(\ f -> {-let (wr_ready, rd_data, _) = f shallowEnv (rd_ready,inp wr_ready)
+				in-} 0 --  pack (wr_ready,rd_data :: Seq (Enabled Byte))
+			)
+n-}			
+	
 	
 --	print $ fromHandshake' (cycle [1..5]) (Handshake out)
-	let xs = take 100 [ x | Just x <- fromHandshake' (cycle $ reverse [6..10]) (Handshake out) ]
+	let xs = take 100 [ x | Just x <- fromHandshake' (cycle $ reverse [6..10]) (Handshake hs2) ]
 	print $ xs
 	print $ List.nub xs
 --	print ("rd_data",take 20 $ fromSeq $ rd_data)
 --	putStrLn debug
 
-
+--	runDeep "fifo" 1000 (Thunk (
+	
+{-	
+	        -> Int                 -- ^ Number of cycles to simulate.
+        -> Thunk b
+        -> (Circuit -> IO Circuit) -- ^ any operations on the circuit before VHDL generation
+        -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and charged with actually executing the test. Can assume path exists.
+        -> IO ()
+-}
 
 	return ()
 
-
+{-
 main4 = do
-	let cir :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool, Seq (Enabled Byte),Seq X33)
-	    cir = fifo' (witness :: X32)
+	let cir :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool, Seq (Enabled Byte))
+	    cir = fifo'' (witness :: X32)
 	
 	c0 <- reifyCircuit cir
 	cOpt <- optimizeCircuit def c0 
 	writeVhdlCircuit [] "myfifo" "myfifo.vhdl" cOpt
+-}
+--	mkTestbench "myfifo" "testme" cOpt
 
 -- liftEnable :: (Env () -> Enabled a -> Enabled b) -> Handshake a -> Handshake b
 
