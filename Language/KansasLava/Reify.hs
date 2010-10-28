@@ -206,10 +206,10 @@ instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
 	input _ a = a
 
 -- Need to add the clock
-instance (Rep a) => Input (Handshake a) where
+instance (Rep a) => Input (HandShake (Seq a)) where
 	inPorts v =  (fn , v)
 	   -- We need the ~ because the output does not need to depend on the input
-   	  where fn = Handshake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
+   	  where fn = HandShake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
 	input _ a = a
 
 
@@ -221,8 +221,8 @@ instance Rep a => Ports (CSeq c a) where
 instance Rep a => Ports (Comb a) where
   ports _ sig = wireCapture (combDriver sig)
 
-instance Rep a => Ports (Handshake a) where
-  ports vs (Handshake f) = ports vs f
+instance Rep a => Ports (HandShake (Seq a)) where
+  ports vs (HandShake f) = ports vs f
 
 
 instance (Ports a, Ports b) => Ports (a,b) where

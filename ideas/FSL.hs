@@ -39,7 +39,7 @@ circuit inpB = outpB
 	outpB = toStdLogicVector outp
 
 big_circuit :: Env () -> Handshake Byte -> Handshake Byte
-big_circuit env src = liftS1 circuit src
+big_circuit env src = fmap (error "" $ circuit) src
 
 main = do
 	print "This *should* hang, but check the file `LAVA_OUT`"
@@ -73,13 +73,12 @@ main3 = do
 
 	print rd_ready
 --	print wr_data
-	let hs = toHandshake' (cycle [0]) [Just (fromIntegral x) | x <- [(0x0::Integer) .. ]]
-	    hs :: Handshake Byte
-      	    Handshake inp = hs
+	let hs = toHandShake' (cycle [0]) [Just (fromIntegral x) | x <- [(0x0::Integer) .. ]]
 
-	let HandShake hs2 = fifo'' (witness :: X16)
+	let hs2 = fifo'' (witness :: X16)
 		       shallowEnv
-		       (HandShake inp)
+		       (toSeq ((take 10 $ repeat False) ++ (take 1 $ repeat True) ++ (take 100 $ repeat False)))
+		       hs
 
 
 {-
@@ -92,7 +91,7 @@ n-}
 	
 	
 --	print $ fromHandshake' (cycle [1..5]) (Handshake out)
-	let xs = take 100 [ x | Just x <- fromHandshake' (cycle $ reverse [6..10]) (Handshake hs2) ]
+	let xs = take 100 [ x | x <- fromHandShake' (repeat 0) (hs2) ] :: [Maybe U8]
 	print $ xs
 	print $ List.nub xs
 --	print ("rd_data",take 20 $ fromSeq $ rd_data)
