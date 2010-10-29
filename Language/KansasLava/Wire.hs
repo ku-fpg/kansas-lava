@@ -647,4 +647,21 @@ instance RepWire ALPHA where
 
 -----------------------------------------------------------------------------
 
+-- New ideas
+-- Only total functions, for now
+instance (Rep a, Rep b) => Rep (a -> b) where
+	data X (a -> b) = XFunction (a -> b)
+			| XFunctionUnknown
+	optX (Just f)   = XFunction f
+	optX Nothing	= XFunctionUnknown
+	unX (XFunction f)      = return $ f
+	unX (XFunctionUnknown) = fail "Rep (->)"
+
+	toRep = error "Can not find the rep for functions"
+	fromRep = error "Can not find the rep for functions"
+
+	showRep _ _ = "<function>"
+	
+---applyRep :: (Rep a, Rep b, Signal sig) => sig a -> sig (a -> b) -> sig b
+--applyRep = undefined
 
