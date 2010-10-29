@@ -70,6 +70,15 @@ isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
 
+(.&&.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.&&.) = and2
+
+(.||.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.||.) = or2
+
+(.^.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.^.)  = xor2
+
 -- TODO: create .&&.and .||. and .^.
 -----------------------------------------------------------------------------------------------
 
