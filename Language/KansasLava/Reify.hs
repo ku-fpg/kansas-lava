@@ -221,7 +221,7 @@ instance Rep a => Ports (CSeq c a) where
 instance Rep a => Ports (Comb a) where
   ports _ sig = wireCapture (combDriver sig)
 
-instance Rep a => Ports (HandShake (Seq a)) where
+instance Ports a => Ports (HandShake a) where
   ports vs (HandShake f) = ports vs f
 
 

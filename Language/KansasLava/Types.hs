@@ -435,10 +435,10 @@ data DepthOp = AddDepth Float
         deriving (Eq, Show)
 
 -------------------------------------------------------------------------------------
---
+-- We will start using this more. As suggested by the TFP referee.
+data Witness w = Witness
 
--- Not a type, but used as a first class type.
-
+---- Not a type, but used as a first class type.
 witness :: a
 witness = error "witness"
 

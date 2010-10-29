@@ -321,14 +321,14 @@ runBlock env fn inp = unShiftRegister env
 	syncGo = delay env (pureS maxBound .==. syncCounter)
 
 	syncCounter :: CSeq clk x
-	syncCounter = counter env en
+	syncCounter = counter' env en
 
 -- If the Seq Bool is enabled, then we want to generate the
 -- next number in the sequence, in the *next* cycle.
 
 -- TODO: remove, its confusing
-counter :: (Rep x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
-counter rst inc = res
+counter' :: (Rep x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
+counter' rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
 
 

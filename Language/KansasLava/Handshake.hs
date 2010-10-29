@@ -281,7 +281,7 @@ fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
 
 
 
-fifoFE' :: forall a counter ix . 
+fifoFE :: forall a counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -298,7 +298,7 @@ fifoFE' :: forall a counter ix .
 	 -- ^ HS, and Seq trigger when to decrement the counter
       -> Seq (Enabled (ix,a))
 	 -- ^ inc_counter * backedge for HandShake.
-fifoFE' _ env rst (HandShake hs,out_done0) = wr
+fifoFE _ env rst (HandShake hs,out_done0) = wr
   where
 	resetable x = mux2 rst (0,x)
 
@@ -336,7 +336,7 @@ fifoFE' _ env rst (HandShake hs,out_done0) = wr
 			`and2`
 		    (bitNot rst)
 
-fifoBE' :: forall a counter ix . 
+fifoBE :: forall a counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -349,6 +349,8 @@ fifoBE' :: forall a counter ix .
       => ix
       -> Env () 
       -> Seq Bool	-- ^ reset
+--      -> (Comb Bool -> Comb counter -> Comb counter)
+--      -> Seq (counter -> counter)
       -> (Seq Bool,Seq a)
 	-- inc from FE
 	-- input from Memory read
@@ -356,7 +358,7 @@ fifoBE' :: forall a counter ix .
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShake
-fifoBE' _ env rst (inp_done2,mem_rd) = HandShake $ \ out_ready ->
+fifoBE _ env rst (inp_done2,mem_rd) = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (0,x)
 
@@ -372,9 +374,9 @@ fifoBE' _ env rst (inp_done2,mem_rd) = HandShake $ \ out_ready ->
 	out_done1 = register env false 
 		  $ out_done0
 
-
 	out_counter0 :: Seq counter
-	out_counter0 = out_counter1
+	out_counter0 = resetable
+		     $ out_counter1
 			+ mux2 inp_done2 (1,0)
 		 	- mux2 out_done0 (1,0)
 
@@ -386,7 +388,7 @@ fifoBE' _ env rst (inp_done2,mem_rd) = HandShake $ \ out_ready ->
         ((rd_addr0, out_done0) , out)
 
 
-fifo'' :: forall a counter ix . 
+fifo :: forall a counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -401,18 +403,20 @@ fifo'' :: forall a counter ix .
       -> Seq Bool
       -> HandShake (Seq (Enabled a))
       -> HandShake (Seq (Enabled a))
-fifo'' w env rst hs = HandShake $ \ out_ready ->
+fifo w env rst hs = HandShake $ \ out_ready ->
     let
+	resetable x = mux2 rst (low,x)
+
 	wr :: Seq (Maybe (ix, a))
-	wr = fifoFE' w env rst (hs,out_done0)
+	wr = fifoFE w env rst (hs,out_done0)
 
 	inp_done2 :: Seq Bool
-	inp_done2 =  register env false $  register env false $ isEnabled wr
+	inp_done2 = resetable $ register env false $ resetable $ register env false $ resetable $ isEnabled wr
 
 	mem :: Seq ix -> Seq a
 	mem = pipeToMemory env env wr
 
-	((rd_addr0,out_done0),out) = fifoBE' w env rst (inp_done2,mem rd_addr0) <~~ out_ready
+	((rd_addr0,out_done0),out) = fifoBE w env rst (inp_done2,mem rd_addr0) <~~ out_ready
     in
 	out
 
@@ -447,3 +451,52 @@ fifoPair'' w env (out_ready,inp) = (inp_ready,out)
 	(rd_addr0,out_done0,out,_) = fifoBE' w env (out_ready,inp_done0,pack (memA rd_addr0,memB rd_addr0))
 -}
 ---------------------------
+
+data CounterCntl = IncCounter | DecCounter | RstCounter | MaxCounter 
+	deriving (Eq, Ord, Enum, Show)
+
+instance Rep CounterCntl where
+    data X CounterCntl     = XCounterCntl CounterCntl
+			   | XCounterCntlUnknown
+    optX (Just b)             = XCounterCntl $ b
+    optX Nothing              = XCounterCntlUnknown
+    unX (XCounterCntl v)      = return v
+    unX (XCounterCntlUnknown) = fail "Wire CounterCntl"
+    wireType _  	      = V 2
+
+    toRep   		      = enum_toRep counterCntls
+    fromRep		      = enum_fromRep counterCntls
+    showRep _ (XCounterCntl c)  = show c
+    showRep _ _		      = "?"
+
+counterCntls = [IncCounter,DecCounter,RstCounter,MaxCounter]
+
+-- This can be moved
+enum_toRep :: forall a . (Eq a, Rep a) => [a] -> X a -> RepValue
+enum_toRep alls x_a = case unX x_a of
+			Just a -> case lookup a env of
+			   Just v -> v
+			   Nothing -> unknownRepValue (witness :: a)
+			Nothing -> unknownRepValue (witness :: a)
+	where
+		env = alls `zip` (allReps (witness :: a))
+
+
+enum_fromRep :: forall a . (Rep a) => [a] -> RepValue -> X a
+enum_fromRep alls repVal = optX $ lookup repVal env
+	where
+		env = (allReps (witness :: a)) `zip` alls 
+
+counter :: forall a. (Size a, Num a, Rep a) => Env () -> Seq (Enabled CounterCntl) -> Seq a
+counter env cntr = out0
+  where
+	out0 :: Seq a
+	out0 = cASE 
+		[(cntr .==. pureS (Just IncCounter),out1 + 1)
+		,(cntr .==. pureS (Just DecCounter),out1 - 1)
+		,(cntr .==. pureS (Just RstCounter),0)
+		,(cntr .==. pureS (Just MaxCounter),fromIntegral ((size (witness :: a)) - 1))
+		] out1
+
+	out1 :: Seq a
+	out1 = register env 0 out0

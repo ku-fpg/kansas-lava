@@ -75,7 +75,7 @@ main3 = do
 --	print wr_data
 	let hs = toHandShake' (cycle [0]) [Just (fromIntegral x) | x <- [(0x0::Integer) .. ]]
 
-	let hs2 = fifo'' (witness :: X16)
+	let hs2 = fifo (witness :: X16)
 		       shallowEnv
 		       (toSeq ((take 10 $ repeat False) ++ (take 1 $ repeat True) ++ (take 100 $ repeat False)))
 		       hs
@@ -109,15 +109,19 @@ n-}
 
 	return ()
 
-{-
 main4 = do
-	let cir :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool, Seq (Enabled Byte))
-	    cir = fifo'' (witness :: X32)
+	let cir :: Env () -> Seq Bool -> HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))
+	    cir = fifo (witness :: X32)
+
+
+	let cir :: Env () -> Seq Bool -> (Seq Bool, Seq Byte) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
+	    cir = fifoBE (witness :: X32)
 	
 	c0 <- reifyCircuit cir
 	cOpt <- optimizeCircuit def c0 
 	writeVhdlCircuit [] "myfifo" "myfifo.vhdl" cOpt
--}
+	writeDotCircuit "x.dot" cOpt
+
 --	mkTestbench "myfifo" "testme" cOpt
 
 -- liftEnable :: (Env () -> Enabled a -> Enabled b) -> Handshake a -> Handshake b
