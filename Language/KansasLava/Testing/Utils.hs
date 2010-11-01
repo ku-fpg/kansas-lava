@@ -23,7 +23,3 @@ lookupAll :: Eq a => [a] -> [(a,b)] -> [(a,b)]
 lookupAll keys lst = [ (key,val) | (key,Just val) <- filter (isJust . snd)
                                                             [ (k,lookup k lst) | k <- keys ]
                      ]
-
--- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
-takeMaybe :: Maybe Int -> [a] -> [a]
-takeMaybe = maybe id take

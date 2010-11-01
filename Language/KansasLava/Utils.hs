@@ -665,3 +665,9 @@ lavaId = fun1 "id" id
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
+
+-------------------------------------------------------------------------------------
+--
+-- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
+takeMaybe :: Maybe Int -> [a] -> [a]
+takeMaybe = maybe id take

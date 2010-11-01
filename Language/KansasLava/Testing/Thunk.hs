@@ -18,7 +18,7 @@ import System.Directory
 import System.FilePath.Posix
 import System.Posix.Directory
 
-data Thunk b = forall a. (Ports a, Probe a, Ports b) => Thunk a (a -> b)
+data Thunk b = forall a. (Ports a, Ports b) => Thunk a (a -> b)
 
 instance (Show b) => Show (Thunk b) where
    show thunk = show $ runShallow thunk
@@ -33,7 +33,7 @@ mkTrace c thunk = do
     return trace
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
-mkThunk :: forall a b. (Ports a, Probe a, Rep b)
+mkThunk :: forall a b. (Ports a, Rep b)
         => Trace -- ^ A (possibly partial) trace to supply inputs.
         -> a     -- ^ The lava circuit.
         -> Thunk (Seq b)

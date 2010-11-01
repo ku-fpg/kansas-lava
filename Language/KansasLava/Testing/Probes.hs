@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
-module Language.KansasLava.Testing.Probes (Probe,probe,run,probeCircuit,probeNames,probeValue) where
+module Language.KansasLava.Testing.Probes (probeCircuit,probeNames,probeValue) where
 
 import qualified Data.Reify.Graph as DRG
 
@@ -39,6 +39,7 @@ probeValue n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal _ strm) _ _ _) -> strm
                         _ -> Empty
 
+{-
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.
 class Probe a where
     -- this is the public facing method
@@ -121,3 +122,5 @@ insertProbe n s@(TraceStream ty _) = mergeNested
           mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins attrs)))
                         = Port nm (E (Entity (TraceVal (n:names) strm) outs ins attrs))
           mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)] []))
+
+-}

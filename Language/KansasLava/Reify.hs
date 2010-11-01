@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances,ParallelListComp, ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ParallelListComp, ScopedTypeVariables #-}
 module Language.KansasLava.Reify
 	( reifyCircuit
 	, Ports(..)
@@ -26,7 +26,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Handshake
 
-import Data.Sized.Matrix as M
+import qualified Data.Sized.Matrix as M
 
 import Debug.Trace
 
@@ -163,87 +163,103 @@ showCircuit opt c = do
 debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()
 debugCircuit opt c = showCircuit opt c >>= putStr
 
+insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
+insertProbe n s@(TraceStream ty _) = mergeNested
+    where mergeNested :: Driver E -> Driver E
+          mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins attrs)))
+                        = Port nm (E (Entity (TraceVal (n:names) strm) outs ins attrs))
+          mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)] []))
+
 -- | The 'Ports' class generates input pads for a function type, so that the
 -- function can be Reified. The result of the circuit, as a driver, as well as
 -- the result's type, are returned. I _think_ this takes the place of the REIFY
 -- typeclass, but I'm not really sure.
-
 class Ports a where
-  ports :: Int -> a -> [(Type, Driver E)]
+    ports :: Int -> a -> [(Type, Driver E)]
 
-class Input a where
-    inPorts :: Int -> (a, Int)
+    -- this is the public facing method
+    probe :: String -> a -> a
+    probe = probe' [0..]
 
-    getSignal :: TraceStream -> a
-    getSignal _ = error "Input: getSignal, no instance"
+    -- probe' is used internally for a name supply.
+    probe' :: [Int] -> String -> a -> a
 
-    apply :: TraceMap k -> (a -> b) -> (TraceMap k, b)
-    apply _ _ = error "Input: apply, no instance"
+    run :: a -> Trace -> TraceStream
 
-    input :: String -> a -> a
+instance Rep a => Ports (CSeq c a) where
+    ports _ sig = wireCapture (seqDriver sig)
 
-class BackPorts a where
---    inPorts :: Int -> (a, Int)
---    input :: String -> a -> a
+    probe' (i:_) name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+        where n = OVar i name
+              strm = toTrace s
 
-{-
-instance (BackPorts a, Input b) => Input (a -> b) where
-     -- inPorts :: Int -> (a -> b,Int)
+    run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+        where TraceStream ty strm = toTrace s
 
-	inPorts v = (,)
+instance Rep a => Ports (Comb a) where
+    ports _ sig = wireCapture (combDriver sig)
 
-	error "XX"
---    inPorts :: Int -> (a, Int)
---    input :: String -> a -> a
-	input _ a = a
--}
+    probe' (i:_) name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
+        where n = OVar i name
+              strm = toTrace $ Stream.fromList $ repeat s
 
--- Royale Hack, but does work.
-instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
-	inPorts v =  (fn , v)
-   	  where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
-
-	input _ a = a
+    run (Comb s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
+        where TraceStream ty strm = toTrace $ Stream.fromList $ repeat s
 
 -- Need to add the clock
 instance (Rep a) => Input (HandShake (Seq a)) where
-	inPorts v =  (fn , v)
-	   -- We need the ~ because the output does not need to depend on the input
-   	  where fn = HandShake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
-	input _ a = a
+    inPorts v =  (fn , v)
+        -- We need the ~ because the output does not need to depend on the input
+        where fn = HandShake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
+    input _ a = a
 
-
-instance BackPorts (CSeq c a) where {}
-
-instance Rep a => Ports (CSeq c a) where
-  ports _ sig = wireCapture (seqDriver sig)
-
-instance Rep a => Ports (Comb a) where
-  ports _ sig = wireCapture (combDriver sig)
-
-instance Ports a => Ports (HandShake a) where
-  ports vs (HandShake f) = ports vs f
-
+instance Ports (Env clk) where
+    probe' is name (Env clk rst clk_en) = Env clk rst' clk_en'
+        where (rst',clk_en') = unpack $ probe' is name $ (pack (rst, clk_en) :: CSeq clk (Bool, Bool))
 
 instance (Ports a, Ports b) => Ports (a,b) where
-  ports _ (a,b) = ports bad b ++
-		  ports bad a
-     where bad = error "bad using of arguments in Reify"
+    ports _ (a,b) = ports bad b ++ ports bad a
+        where bad = error "bad using of arguments in Reify"
+
+    probe' is name (x,y) = (probe' is (name ++ "_1") x,
+                            probe' is (name ++ "_0") y)
+
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y) t = TraceStream (TupleTy [ty1,ty2]) $ zipWith appendRepValue strm1 strm2
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
+
+instance Ports a => Ports (HandShake a) where
+    ports vs (HandShake f) = ports vs f
 
 instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
-  ports _ (a,b,c)
- 		 = ports bad c ++
-		   ports bad b ++
-		   ports bad a
-     where bad = error "bad using of arguments in Reify"
+    ports _ (a,b,c) = ports bad c ++ ports bad b ++ ports bad a
+        where bad = error "bad using of arguments in Reify"
 
-instance (Ports a,Size x) => Ports (Matrix x a) where
- ports _ m = concatMap (ports (error "bad using of arguments in Reify")) $ M.toList m
+    probe' is name (x,y,z) = (probe' is (name ++ "_2") x,
+                              probe' is (name ++ "_1") y,
+                              probe' is (name ++ "_0") z)
 
-instance (Input a, Ports b) => Ports (a -> b) where
-  ports vs f = ports vs' $ f a
-     where (a,vs') = inPorts vs
+    -- note order of zip matters! must be consistent with fromWireXRep
+    run (x,y,z) t = TraceStream (TupleTy [ty1,ty2,ty3]) (zipWith appendRepValue strm1 $ zipWith appendRepValue strm2 strm3)
+        where TraceStream ty1 strm1 = run x t
+              TraceStream ty2 strm2 = run y t
+              TraceStream ty3 strm3 = run z t
 
+instance (Ports a,M.Size x) => Ports (M.Matrix x a) where
+    ports _ m = concatMap (ports (error "bad using of arguments in Reify")) $ M.toList m
+
+-- Idealy we'd want this to only have the constraint: (Input a, Ports b)
+-- but haven't figured out a refactoring that allows that yet. As it is,
+-- Ports is a superset of Input, so this shouldn't matter.
+instance (Input a, Ports a, Ports b) => Ports (a -> b) where
+    ports vs f = ports vs' $ f a
+        where (a,vs') = inPorts vs
+
+    probe' (i:is) name f x = probe' is name $ f (probe' [i] name x)
+
+    run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
+        where (ins', fn') = apply ins fn
 
 
 --class OutPorts a where
@@ -264,6 +280,23 @@ input nm = liftS1 $ \ (Comb a d) ->
 wireGenerate :: Int -> (D w,Int)
 wireGenerate v = (D (Pad (OVar v ("i" ++ show v))),succ v)
 
+class Input a where
+    inPorts :: Int -> (a, Int)
+
+    getSignal :: TraceStream -> a
+--    getSignal _ = error "Input: getSignal, no instance"
+
+    apply :: TraceMap k -> (a -> b) -> (TraceMap k, b)
+--    apply _ _ = error "Input: apply, no instance"
+
+    input :: String -> a -> a
+
+-- Royale Hack, but does work.
+instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
+	inPorts v =  (fn , v)
+   	  where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
+
+	input _ a = a
 
 instance Rep a => Input (CSeq c a) where
     inPorts vs = (Seq (error "Input (Seq a)") d,vs')
@@ -294,12 +327,6 @@ instance Rep a => Input (Comb a) where
 	in res
 -}
 
-{-
-
-instance Input (Env clk) where
-  inPorts nms = (Env (
--}
-
 instance Input (Clock clk) where
     inPorts vs = (Clock (error "Input (Clock clk)") d,vs')
       where (d,vs') = wireGenerate vs
@@ -322,7 +349,7 @@ instance Input (Env clk) where
 		    	[]
 
     getSignal ts = (toEnv (Clock 1 (D $ Error "no deep clock"))) { resetEnv = rst, enableEnv = clk_en }
-        where (rst, clk_en) = unpack (shallowSeq $ fromTrace ts :: CSeq a (Bool, Bool))
+        where (rst, clk_en) = unpack (shallowSeq $ fromTrace ts :: CSeq clk (Bool, Bool))
 
     input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
 			            (input ("rst" ++ nm) rst)
@@ -340,11 +367,11 @@ instance (Input a, Input b) => Input (a,b) where
 
     input nm (a,b) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b)
 
-instance (Input a, Size x) => Input (Matrix x a) where
+instance (Input a, M.Size x) => Input (M.Matrix x a) where
  inPorts vs0 = (M.matrix bs, vsX)
      where
 	sz :: Int
-	sz = size (error "sz" :: x)
+	sz = M.size (error "sz" :: x)
 
 	loop vs0 0 = ([], vs0)
 	loop vs0 n = (b:bs,vs2)
@@ -354,7 +381,7 @@ instance (Input a, Size x) => Input (Matrix x a) where
 	bs :: [a]
 	(bs,vsX) = loop vs0 sz
 
- input nm m = forEach m $ \ i a -> input (nm ++ "_" ++ show i) a
+ input nm m = M.forEach m $ \ i a -> input (nm ++ "_" ++ show i) a
 
 instance (Input a, Input b, Input c) => Input (a,b,c) where
     inPorts vs0 = ((a,b,c),vs3)

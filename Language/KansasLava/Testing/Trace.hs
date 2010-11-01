@@ -19,7 +19,6 @@ import Language.KansasLava.StdLogicVector
 
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Stream (Stream)
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Utils
 
 import qualified Data.Sized.Matrix as Matrix
@@ -143,11 +142,11 @@ readFromFile fp = do
     return $ deserialize str
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
-checkExpected :: (Probe a) => a -> Trace -> (Bool, Trace)
+checkExpected :: (Ports a) => a -> Trace -> (Bool, Trace)
 checkExpected circuit trace = (trace == result, result)
     where result = execute circuit trace
 
-execute :: (Probe a) => a -> Trace -> Trace
+execute :: (Ports a) => a -> Trace -> Trace
 execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit t) k outs }
     where k = head $ M.keys outs
 
