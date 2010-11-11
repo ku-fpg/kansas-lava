@@ -4,6 +4,7 @@ import Prelude hiding (read)
 import Data.IORef
 import Language.KansasLava
 import System.IO.Unsafe
+import Data.Default
 when = undefined
 
 --instance Monad RTL where {}
@@ -18,9 +19,7 @@ clocked = undefined
 initial :: RTL () -> RTL ()
 initial = undefined
 
-new :: Reg a -> Seq a
---old = undefined
-new = undefined
+
 
 i1 :: Seq Int
 i1 = undefined
@@ -50,10 +49,20 @@ register' env def inp = rtl $ do
 	reg $= inp
 	return reg
 
---counter2 :: Env () -> Seq Int
---counter2 env = rtl $ do
+counter2 :: Env () -> Seq Int
+counter2 env = rtl $ do
+	state <- newReg env true
+	count <- newReg env 0
 	
-	
+	IF (old state .==. high) $ do
+		count $= old count + 1
+		IF (new count .==. 5) $ do
+			state $= low
+	IF (old state .==. low) $ do
+		count $= old count - 1
+		IF (new count .==. 0) $ do
+			state $= high
+	return count
 
 {-
 	IF (inp .==. 1) $ do
@@ -71,18 +80,22 @@ rtl (RTL m) = unsafePerformIO $ do
 	return (old r)
 
 main = do
-	let reg = register' :: Env () -> Comb Int -> Seq Int -> Seq Int
+	let reg = counter2 -- register' :: Env () -> Comb Int -> Seq Int -> Seq Int
 	cir <- reifyCircuit reg
 	print cir
-	writeDotCircuit "x.dot" cir
-	
+	cirO <- optimizeCircuit def cir
+	print cirO
+	writeDotCircuit "x.dot" cirO
+	writeVhdlCircuit [] "X" "X.vhdl" cirO
 
 old :: Reg a -> Seq a
 old (Reg _ o _) = o
+new :: Reg a -> Seq a
+new (Reg _ _ n) = n
 
-
+unRTL :: RTL a -> [Seq Bool] -> IO a
 unRTL (RTL m) = m
-
+unRTL (IF c m) = unRTL (IF c m >>= return) 
 
 -- data RTL a = Return a | WHEN (Seq Bool) (RTL a) | forall b . (Reg b) := (Seq b)
 data RTL a where
