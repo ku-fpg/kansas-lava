@@ -83,7 +83,7 @@ hGetToFIFO :: Handle -> ShallowFIFO Byte -> IO ()
 hGetToFIFO h fifo = do 
 	str <- hGetContents h
 	putFIFOContents fifo (map (Just . toByte) str)
-
+	putFIFOContents fifo (repeat $ Nothing)
 
 hPutFromFIFO :: Handle -> ShallowFIFO Byte -> IO ()
 hPutFromFIFO h fifo = do

@@ -48,8 +48,8 @@ main = do
 	forkIO $ readFileToFIFO "FSL.hs" v1
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
 	
-	src <- shallowFifoToHandshake v1
-	handshakeToShallowFifo v2 (big_circuit shallowEnv src)
+	src <- shallowFifoToHandShake v1
+	handShakeToShallowFifo v2 (big_circuit shallowEnv src)
 
 -- Our other test
 main2 = do
@@ -113,8 +113,7 @@ main4 = do
 	let cir :: Env () -> Seq Bool -> HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))
 	    cir = fifo (witness :: X32)
 
-
-	let cir :: Env () -> Seq Bool -> (Seq Bool, Seq Byte) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
+	let cir :: Env () -> Seq Bool -> (Seq X33, Seq (Enabled Byte)) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
 	    cir = fifoBE (witness :: X32)
 	
 	c0 <- reifyCircuit cir
