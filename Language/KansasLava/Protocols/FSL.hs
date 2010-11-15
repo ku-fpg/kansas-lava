@@ -242,11 +242,11 @@ fsmSrcToSink2 (a,c) = case fsmSrcToSink (a,False,c) of (x,y,z) -> y
 fsmSrcToSink3 :: (SrcToSinkState,Bool) -> IsRead
 fsmSrcToSink3 (a,b) = case fsmSrcToSink (a,b,IsFull False) of (x,y,z) -> z
 
-s2 = srcToSink :: Env () -> Src U4 -> Sink U4
+s2 = srcToSink ::  Src U4 -> Sink U4
 	
 -- A passthrough; thats all
 srcToSink :: forall a. (Rep a) 
-	  => Env () -> (Src a) -> (Sink a)
+	  =>  (Src a) -> (Sink a)
 srcToSink env reader isFull = label "sink_out" $ packEnabled write value
    where
 	isFull' = label "sink_full" isFull

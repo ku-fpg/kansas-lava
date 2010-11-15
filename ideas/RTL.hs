@@ -43,13 +43,13 @@ foo = runRTL $ do
   return r1
 -}
 
-register' ::  Env () -> Comb Int -> Seq Int -> Seq Int
+register' ::   Comb Int -> Seq Int -> Seq Int
 register' env def inp = rtl $ do
 	reg <- newReg env def
 	reg $= inp
 	return reg
 
-counter2 :: Env () -> Seq Int
+counter2 ::  Seq Int
 counter2 env = rtl $ do
 	state <- newReg env true
 	count <- newReg env 0
@@ -62,7 +62,10 @@ counter2 env = rtl $ do
 		count $= old count - 1
 		IF (new count .==. 0) $ do
 			state $= high
+
 	return count
+
+
 
 {-
 	IF (inp .==. 1) $ do
@@ -80,7 +83,7 @@ rtl (RTL m) = unsafePerformIO $ do
 	return (old r)
 
 main = do
-	let reg = counter2 -- register' :: Env () -> Comb Int -> Seq Int -> Seq Int
+	let reg = counter2 -- register' ::  Comb Int -> Seq Int -> Seq Int
 	cir <- reifyCircuit reg
 	print cir
 	cirO <- optimizeCircuit def cir
@@ -140,7 +143,7 @@ data Reg a = Reg (IORef (Merged a))
 		 (Seq a)		-- old 
 		 (Seq a)		-- new
 
-newReg :: (Rep a) => Env () -> Comb a -> RTL (Reg a)
+newReg :: (Rep a) =>  Comb a -> RTL (Reg a)
 newReg env def = RTL $ \ _ -> do
 	var <- newIORef (Merged [])
 	~(v_old,v_new) <- unsafeInterleaveIO $ do

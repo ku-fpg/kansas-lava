@@ -177,7 +177,7 @@ handShakeToShallowFifo fifo sink = do
 
 
 --liftEnabledToHandshake :: Enabled a -> Handshake a
---fifo1 :: Env () -> Handshake a -> Handshake a
+--fifo1 ::  Handshake a -> Handshake a
 --fifo1 
 {-
 fifo :: forall a counter ix . 
@@ -219,23 +219,22 @@ fifo' :: forall a counter ix .
 	, Num ix
 	) 
       => ix
-      -> Env () 
       -> (Seq Bool,Seq (Enabled a)) 
       -> (Seq Bool,Seq (Enabled a),Seq counter)
-fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
+fifo' _ (out_ready,inp) = (inp_ready,out,in_counter1)
   where
 	mem :: Seq ix -> Seq a
-	mem = pipeToMemory env env wr
+	mem = pipeToMemory wr
 
 	inp_done0 :: Seq Bool
 	inp_done0 = inp_ready `and2` isEnabled inp
 
 	inp_done1 :: Seq Bool
-	inp_done1 = register env false 
+	inp_done1 = register false 
 		  $ inp_done0
 		
 	inp_done2 :: Seq Bool
-	inp_done2 = register env false 
+	inp_done2 = register false 
 		  $ inp_done1
 
 	wr :: Seq (Enabled (ix,a))
@@ -243,19 +242,19 @@ fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
 			 (pack (wr_addr,enabledVal inp))
 
 	wr_addr :: Seq ix
-	wr_addr = register env 0
+	wr_addr = register 0
 		$ mux2 inp_done0 (wr_addr+1,wr_addr)
 
 	rd_addr0 :: Seq ix
 	rd_addr0 = mux2 out_done0 (rd_addr1+1,rd_addr1)
 
-	rd_addr1 = register env 0 rd_addr0
+	rd_addr1 = register 0 rd_addr0
 
 	out_done0 :: Seq Bool
 	out_done0 = out_ready `and2` (isEnabled out)
 
 	out_done1 :: Seq Bool
-	out_done1 = register env false 
+	out_done1 = register false 
 		  $ out_done0
 
 	in_counter0 :: Seq counter
@@ -264,14 +263,14 @@ fifo' _ env (out_ready,inp) = (inp_ready,out,in_counter1)
 		   	- mux2 out_done0 (1,0)
 
 	in_counter1 :: Seq counter
-	in_counter1 = register env 0 in_counter0
+	in_counter1 = register 0 in_counter0
 
 	out_counter0 :: Seq counter
 	out_counter0 = out_counter1
 			+ mux2 inp_done2 (1,0)
 		 	- mux2 out_done0 (1,0)
 
-	out_counter1 = register env 0 out_counter0
+	out_counter1 = register 0 out_counter0
 	
 	out :: Seq (Enabled a)
 	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
@@ -292,13 +291,12 @@ fifoFE :: forall a counter ix .
 	, Num ix
 	) 
       => ix
-      -> Env ()
       -> Seq Bool
       -> (HandShake (Seq (Enabled a)),Seq Bool)
 	 -- ^ HS, and Seq trigger when to decrement the counter
       -> Seq (Enabled (ix,a))
 	 -- ^ inc_counter * backedge for HandShake.
-fifoFE _ env rst (HandShake hs,out_done0) = wr
+fifoFE _ rst (HandShake hs,out_done0) = wr
   where
 	resetable x = mux2 rst (0,x)
 
@@ -316,7 +314,7 @@ fifoFE _ env rst (HandShake hs,out_done0) = wr
 
 	wr_addr :: Seq ix
 	wr_addr = resetable
-		$ register env 0
+		$ register 0
 		$ mux2 inp_done0 (wr_addr+1,wr_addr)
 
 	in_counter0 :: Seq counter
@@ -326,7 +324,7 @@ fifoFE _ env rst (HandShake hs,out_done0) = wr
 		   	- mux2 out_done0 (1,0)
 
 	in_counter1 :: Seq counter
-	in_counter1 = register env 0 in_counter0
+	in_counter1 = register 0 in_counter0
 	
 --	out :: Seq (Enabled a)
 --	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
@@ -347,7 +345,6 @@ fifoBE :: forall a counter ix .
 	, Num ix
 	) 
       => ix
-      -> Env () 
       -> Seq Bool	-- ^ reset
 --      -> (Comb Bool -> Comb counter -> Comb counter)
 --      -> Seq (counter -> counter)
@@ -358,7 +355,7 @@ fifoBE :: forall a counter ix .
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShake
-fifoBE _ env rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
+fifoBE _ rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (0,x)
 
@@ -366,7 +363,7 @@ fifoBE _ env rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
 	rd_addr0 = resetable 
 		 $ mux2 out_done0 (rd_addr1+1,rd_addr1)
 
-	rd_addr1 = register env 0 
+	rd_addr1 = register 0 
 		 $ rd_addr0
 
 	out_done0 :: Seq Bool
@@ -377,8 +374,8 @@ fifoBE _ env rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
     in
         ((rd_addr0, out_done0) , out)
 
-fifoCounter :: forall counter . (Num counter, Rep counter) => Env () -> Seq Bool -> Seq Bool -> Seq Bool -> Seq counter
-fifoCounter env rst inc dec = counter1
+fifoCounter :: forall counter . (Num counter, Rep counter) => Seq Bool -> Seq Bool -> Seq Bool -> Seq counter
+fifoCounter rst inc dec = counter1
     where
 	resetable x = mux2 rst (0,x)
 
@@ -388,7 +385,7 @@ fifoCounter env rst inc dec = counter1
 			+ mux2 inc (1,0)
 			- mux2 dec (1,0)
 
-	counter1 = register env 0 counter0
+	counter1 = register 0 counter0
 
 
 fifo :: forall a counter ix . 
@@ -402,27 +399,26 @@ fifo :: forall a counter ix .
 	, Num ix
 	) 
       => ix
-      -> Env () 
       -> Seq Bool
       -> HandShake (Seq (Enabled a))
       -> HandShake (Seq (Enabled a))
-fifo w env rst hs = HandShake $ \ out_ready ->
+fifo w rst hs = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (low,x)
 
 	wr :: Seq (Maybe (ix, a))
-	wr = fifoFE w env rst (hs,out_done0)
+	wr = fifoFE w rst (hs,out_done0)
 
 	inp_done2 :: Seq Bool
-	inp_done2 = resetable $ register env false $ resetable $ register env false $ resetable $ isEnabled wr
+	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
 
 	mem :: Seq ix -> Seq (Enabled a)
-	mem = enabledS . pipeToMemory env env wr
+	mem = enabledS . pipeToMemory wr
 
-	((rd_addr0,out_done0),out) = fifoBE w env rst (out_counter,mem rd_addr0) <~~ out_ready
+	((rd_addr0,out_done0),out) = fifoBE w rst (out_counter,mem rd_addr0) <~~ out_ready
 
 
-	out_counter = fifoCounter env rst inp_done2 out_done0
+	out_counter = fifoCounter rst inp_done2 out_done0
     in
 	out
 
@@ -493,8 +489,8 @@ enum_fromRep alls repVal = optX $ lookup repVal env
 	where
 		env = (allReps (witness :: a)) `zip` alls 
 
-counter :: forall a. (Size a, Num a, Rep a) => Env () -> Seq (Enabled CounterCntl) -> Seq a
-counter env cntr = out0
+counter :: forall a. (Size a, Num a, Rep a) => Seq (Enabled CounterCntl) -> Seq a
+counter cntr = out0
   where
 	out0 :: Seq a
 	out0 = cASE 
@@ -505,4 +501,4 @@ counter env cntr = out0
 		] out1
 
 	out1 :: Seq a
-	out1 = register env 0 out0
+	out1 = register 0 out0

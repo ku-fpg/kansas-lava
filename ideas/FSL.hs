@@ -38,7 +38,7 @@ circuit inpB = outpB
 	outpB :: Comb Byte
 	outpB = toStdLogicVector outp
 
-big_circuit :: Env () -> Handshake Byte -> Handshake Byte
+big_circuit ::  Handshake Byte -> Handshake Byte
 big_circuit env src = fmap (error "" $ circuit) src
 
 main = do
@@ -61,7 +61,7 @@ main2 = do
 	
 
 
---pairFIFO :: Env () -> HandShake U8 -> HandShake U4
+--pairFIFO ::  HandShake U8 -> HandShake U4
 --pairFIFO env hs (
 
 
@@ -83,7 +83,7 @@ main3 = do
 
 {-
 	let thu :: Thunk (Seq Int)
-	    thu = Thunk (fifo' (witness :: X16) :: Env () -> (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool,Seq (Enabled Byte),Seq X17))
+	    thu = Thunk (fifo' (witness :: X16) ::  (Seq Bool,Seq (Enabled Byte)) -> (Seq Bool,Seq (Enabled Byte),Seq X17))
 			(\ f -> {-let (wr_ready, rd_data, _) = f shallowEnv (rd_ready,inp wr_ready)
 				in-} 0 --  pack (wr_ready,rd_data :: Seq (Enabled Byte))
 			)
@@ -110,10 +110,10 @@ n-}
 	return ()
 
 main4 = do
-	let cir :: Env () -> Seq Bool -> HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))
+	let cir ::  Seq Bool -> HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))
 	    cir = fifo (witness :: X32)
 
-	let cir :: Env () -> Seq Bool -> (Seq X33, Seq (Enabled Byte)) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
+	let cir ::  Seq Bool -> (Seq X33, Seq (Enabled Byte)) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
 	    cir = fifoBE (witness :: X32)
 	
 	c0 <- reifyCircuit cir
@@ -123,7 +123,7 @@ main4 = do
 
 --	mkTestbench "myfifo" "testme" cOpt
 
--- liftEnable :: (Env () -> Enabled a -> Enabled b) -> Handshake a -> Handshake b
+-- liftEnable :: ( Enabled a -> Enabled b) -> Handshake a -> Handshake b
 
 --type SZ = SUB C X1
 --type C = X2

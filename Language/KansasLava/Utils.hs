@@ -483,13 +483,13 @@ delay :: forall a . (Rep a) => Seq a -> Seq a
 delay = register' low undefinedComb
 -}
 
-delay :: (Rep a, Clocker clk) => Env clk -> CSeq clk a -> CSeq clk a
-delay env = register env undefinedComb
+delay :: (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
+delay = register undefinedComb
 
 -- register rst def v = mux2 rst (liftS0 def,delay v)
 
-register :: forall a clk .  (Rep a, Clocker clk) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
-register _ c@(Comb def edef) l@ ~(Seq line eline) = res
+register :: forall a clk .  (Rep a, Clock clk) => Comb a -> CSeq clk a -> CSeq clk a
+register c@(Comb def edef) l@ ~(Seq line eline) = res
    where
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
