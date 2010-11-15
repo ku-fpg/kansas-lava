@@ -17,6 +17,7 @@ import Language.KansasLava.Netlist.Utils
 toAddNextSignal :: [Id]
 toAddNextSignal = [Name "Memory" "delay",Name "Memory" "register"]
 
+
 -- We have a few exceptions, where we generate some extra signals,
 -- but in general, we generate a single signal decl for each 
 -- entity.
@@ -38,6 +39,11 @@ genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Name "Memory" "BRAM"
 	  | (n,nTy) <- outputs ]
   where
 	aTy = lookupInputType "wAddr" e
+
+genDecl (i,Entity nm outputs _ _)
+        | nm `elem` isVirtualEntity
+	= []
+	
 -- General case
 genDecl (i,Entity nm outputs _ _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing

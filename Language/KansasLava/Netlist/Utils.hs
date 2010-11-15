@@ -253,11 +253,17 @@ cleanupName other = other
 -- on clk input, with the value including a list of associated entities.
 -- TODO: What is going on here!!
 
+-- only works for a single clock domain, for now.
 getSynchs :: [String]
 	  -> [(Unique,MuE Unique)]
-	  -> Map.Map (Driver Unique, Driver Unique, Driver Unique) [(Unique, MuE Unique)]
-
-getSynchs nms ents = Map.fromListWith (++) synchs
+	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, MuE Unique)])]
+getSynchs nms ents = 
+	[ ((clk_dr,rst_dr,en_dr),
+	    [ e | e@(_,Entity (Prim n) _ _ _) <- ents,  n `elem` nms ]
+           )
+	| (i,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)] _) <- ents 
+	]
+{-
   where
         synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])
 		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents,
@@ -265,4 +271,9 @@ getSynchs nms ents = Map.fromListWith (++) synchs
         getInput nm is = case find (\(c,_,_) -> c == nm) is of
                       Just (_,_,d) -> d
                       Nothing -> error $ "getSynchs: Can't find a signal " ++ show (nm,is,ents)
+-}
+---------------------------------------------------------------------------------
 
+-- Entities that never result in code generation
+isVirtualEntity :: [Id]
+isVirtualEntity = [Prim "Env"]

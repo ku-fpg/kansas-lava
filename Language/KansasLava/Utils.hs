@@ -414,10 +414,16 @@ data Rst = Rst Bool
 -}
 
 -- Rational number is Frequency, in Hz
-data Clock c = Clock Rational (D ())
-    deriving (Show)
+--data Clock c = Clock Rational (D ())
+--    deriving (Show)
 
-data Env c = Env { clockEnv  :: Clock c
+-- For now, till other codes get fixed
+type Env c = ()
+
+shallowEnv = ()
+
+{-
+Env { clockEnv  :: Clock c
 	         , resetEnv  :: CSeq c Bool
 	         , enableEnv :: CSeq c Bool
                  }
@@ -438,7 +444,7 @@ shallowEnv = toEnv (Clock 1 (D $ Error "no deep clock"))
 
 clkDriver :: Clock c -> D ()
 clkDriver (Clock _ d) = d
-
+-}
 
 {-
 -- for use only with shallow
@@ -477,39 +483,25 @@ delay :: forall a . (Rep a) => Seq a -> Seq a
 delay = register' low undefinedComb
 -}
 
-delay :: (Rep a) => Env clk -> CSeq clk a -> CSeq clk a
+delay :: (Rep a, Clocker clk) => Env clk -> CSeq clk a -> CSeq clk a
 delay env = register env undefinedComb
 
 -- register rst def v = mux2 rst (liftS0 def,delay v)
 
-register :: forall a clk .  (Rep a) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
-register (Env (Clock _ clk) (Seq rst erst) (Seq en een)) c@(Comb def edef) l@ ~(Seq line eline) = res
+register :: forall a clk .  (Rep a, Clocker clk) => Env clk -> Comb a -> CSeq clk a -> CSeq clk a
+register _ c@(Comb def edef) l@ ~(Seq line eline) = res
    where
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 
-	sres0 = (\ r e l old_l ->
-		    case unX r of
-		       Nothing -> optX Nothing
-		       Just True -> def
-		       Just False -> case unX e of
-		       			Nothing -> optX Nothing
-		       			Just True -> l
-		       			Just False -> old_l)
-			<$> rst
-			<*> en
-			<*> line
-			<*> sres1
+	sres0 = line
+	sres1 = def :~ sres0
 
-	sres1 = def {- optX Nothing -} :~ sres0
-
-        entity = Entity (Name "Memory" "register")
+        entity = Entity (Prim "register")
                     [("o0", bitTypeOf res)]
                     [("def", bitTypeOf res, unD $ edef),
 		     ("i0", bitTypeOf res, unD eline),
-		     ("rst", B, unD $ erst),	-- use to be RstTy
-	             ("en",  B, unD $ een),
-		     ("clk", ClkTy, unD $ clk)
+		     ("env",ClkDomTy, unD $ (clock :: D clk))
 		    ] []
 
 

@@ -5,6 +5,7 @@ module Language.KansasLava.Reify
 	, Input(..)
 	, input
 	, output
+	, Clocker(..)
 	) where
 
 import Data.Default
@@ -131,11 +132,12 @@ reifyCircuit circuit = do
 	let rCit = rCit'
 
 --	print rCit
+	-- TODO remove, its a seperate pass
 	rCit2 <- if OptimizeReify `elem` opts then optimizeCircuit def rCit else return rCit
 
 	let depthss = [ mp | CommentDepth mp <- opts ]
 
-
+	-- TODO likewisse, remove, its a seperate pass
 	rCit3 <- case depthss of
 		    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
 				        env = Map.fromList [ (u,d) | (d,u) <- concat chains ]
@@ -149,7 +151,91 @@ reifyCircuit circuit = do
 						     ]}
 		    []        -> return rCit2
 
-	return $ rCit3
+
+	let domains = nub $ concat $ visitEntities rCit3 $ \ u e@(Entity nm ins outs ann) ->
+		return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
+		  
+	-- The clock domains
+--	print domains
+
+	let nameEnv "unit" nm = nm
+	    nameEnv dom    nm = dom ++ "_" ++ nm
+
+	let extraSrcs = 
+		concat [  [ nameEnv dom "clk", nameEnv dom "clk_en", nameEnv dom "rst" ]
+		       | dom <- domains
+		       ] `zip` [-1,-2..]
+	
+
+
+	let allocs = allocEntities rCit3
+	let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]	-- in reverse order for a reason
+	
+	let envSrcs = [ ( dom
+			, u
+			, Entity (Prim "Env") 
+			       [ ("env",ClkDomTy) ]
+			       [ (nm,ty,Pad (OVar i nm)) | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]]
+			       []
+			)
+		      | (u,dom,i) <- zip3 allocs domains [0,-1..]
+	             ] :: [(String,	Unique,MuE Unique)]
+		
+	let rCit4 = rCit3 { theCircuit = 
+				[ (u,e) | (_,u,e) <- envSrcs ] ++
+				[  (u,case e of
+					Entity nm outs ins ann -> Entity 
+						nm
+						outs
+						[ case o of
+						   (nm,ClkDomTy,ClkDom cdnm) ->
+							(nm,ClkDomTy,Port "env" $ head [ u
+							     | (dom,u,_) <- envSrcs
+							     , dom == cdnm ])
+						   _ -> o
+						| o <- ins ]
+						ann) | (u,e) <- theCircuit rCit3 ]
+			  , theSrcs =
+				[ (ovar,ty)
+				| (_,u,Entity _ _ outs _) <- envSrcs
+				, (_,ty,Pad ovar) <- outs
+				] ++
+				theSrcs rCit3
+		          }
+
+
+--	print $	theSrcs rCit3
+	
+--	let rCit4 = rCir3 { 
+	
+
+
+
+	return $ rCit4
+
+
+
+-- TODO: move these somewhere better 
+
+visitEntities :: Circuit -> (Unique -> MuE Unique -> Maybe a) -> [a]
+visitEntities cir fn =
+	[ a
+	| (u,m) <- theCircuit cir
+	, Just a <- [fn u m]
+	]
+
+mapEntities :: Circuit -> (Unique -> MuE Unique -> Maybe (MuE Unique)) -> Circuit
+mapEntities cir fn = cir { theCircuit = 
+				[ (u,a)
+				| (u,m) <- theCircuit cir
+				, Just a <- [fn u m]
+				] }
+
+allocEntities :: Circuit -> [Unique]
+allocEntities cir = [ highest + i | i <- [1..]]
+   where
+	highest = maximum (0 : (visitEntities cir $ \ u _ -> return u))
+
 
 wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]
 wireCapture (D d) = [(wireType (error "wireCapture" :: w), d)]
@@ -186,7 +272,7 @@ class Ports a where
 
     run :: a -> Trace -> TraceStream
 
-instance Rep a => Ports (CSeq c a) where
+instance (Clocker c, Rep a) => Ports (CSeq c a) where
     ports _ sig = wireCapture (seqDriver sig)
 
     probe' (i:_) name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
@@ -213,9 +299,11 @@ instance (Rep a) => Input (HandShake (Seq a)) where
         where fn = HandShake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
     input _ a = a
 
-instance Ports (Env clk) where
+{-
+instance Clocker clk => Ports (Env clk) where
     probe' is name (Env clk rst clk_en) = Env clk rst' clk_en'
         where (rst',clk_en') = unpack $ probe' is name $ (pack (rst, clk_en) :: CSeq clk (Bool, Bool))
+-}
 
 instance (Ports a, Ports b) => Ports (a,b) where
     ports _ (a,b) = ports bad b ++ ports bad a
@@ -261,6 +349,9 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
         where (ins', fn') = apply ins fn
 
+-- TO remove when Input a, Ports b => .. works
+instance Ports () where
+    ports _ _ = []
 
 --class OutPorts a where
 --    outPorts :: a ->  [(Var, Type, Driver E)]
@@ -327,6 +418,7 @@ instance Rep a => Input (Comb a) where
 	in res
 -}
 
+{-
 instance Input (Clock clk) where
     inPorts vs = (Clock (error "Input (Clock clk)") d,vs')
       where (d,vs') = wireGenerate vs
@@ -338,7 +430,8 @@ instance Input (Clock clk) where
                     [(nm, ClkTy, unD d)]
 		    []
 	in res
-
+-}
+{-
 instance Input (Env clk) where
     inPorts vs0 = (Env clk' (label "rst" rst) (label "clk_en" en),vs3)
 	 where ((en,rst,Clock f clk),vs3) = inPorts vs0
@@ -354,6 +447,13 @@ instance Input (Env clk) where
     input nm (Env clk rst en) = Env (input ("clk" ++ nm) clk)
 			            (input ("rst" ++ nm) rst)
 			            (input ("sysEnable" ++ nm) en)	-- TODO: better name than sysEnable, its really clk_en
+-}
+
+instance Input () where
+    inPorts vs0 = ((),vs0)
+    apply m fn = error "Input ()"
+    input _ _  = error "input ()"
+
 
 instance (Input a, Input b) => Input (a,b) where
     inPorts vs0 = ((a,b),vs2)

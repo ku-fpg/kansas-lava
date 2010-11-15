@@ -68,9 +68,11 @@ netlistCircuit name circuit = do
 
   let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sort sinks ]
 
+  let env = M.fromList nodes 
+
   let mod = Module name inports outports []
 		(concatMap genDecl nodes ++
-		 concatMap (uncurry genInst) nodes ++
+		 concatMap (uncurry (genInst env)) nodes ++
 		genSync nodes ++
 		 finals)
   return mod

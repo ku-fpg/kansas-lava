@@ -18,10 +18,10 @@ import qualified Data.Map as Map
 -- TODO: change into uncurried.
 
 genSync :: [(Unique,MuE Unique)] -> [Decl]
-genSync  nodes  = (concatMap (uncurry $ regProc ) $ Map.toList regs) ++
-                          (concatMap (uncurry bramProc ) $ Map.toList brams)
+genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
+                          (concatMap (uncurry bramProc ) $  brams)
   where -- Handling registers
-        regs = getSynchs ["register", "delay"] nodes
+        regs = getSynchs  ["register"] nodes
         brams = getSynchs ["BRAM"] nodes
 
 -- genSync nlOpts _ _ = []
@@ -67,7 +67,7 @@ bramProc (clk,_,clk_en) es =
   [ProcessDecl
    [(Event (toStdLogicExpr ClkTy clk) PosEdge,
            (statements $ concat
-             [ [ If (isHigh (clk_en e))
+             [ [ If (isHigh (clk_en'))
 	 	    (Seq [ If (isHigh (wEn e))
                               (Assign (writeIndexed i e) (wData e))
 			      Nothing
@@ -82,7 +82,7 @@ bramProc (clk,_,clk_en) es =
     where outName e i = toStdLogicExpr (lookupInputType "wData" e) (Port ("o0") i)
           ramName i = "sig_" ++ show i ++ "_o0_ram"
           wEn e = toStdLogicExpr (lookupInputType "wEn" e) $ lookupInput "wEn" e
-	  clk_en e = toStdLogicExpr (lookupInputType "en" e) $ lookupInput "en" e
+	  clk_en' = toStdLogicExpr B clk_en
           wAddr e = lookupInput "wAddr" e
           rAddr e = lookupInput "rAddr" e
           wData e = toStdLogicExpr (lookupInputType "wData" e) $ lookupInput "wData" e

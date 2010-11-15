@@ -24,7 +24,7 @@ type Pipe a d = Enabled (a,d)
 
 type Memory clk a d = CSeq clk a -> CSeq clk d
 
-enabledRegister :: forall a clk. (Rep a) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
+enabledRegister :: forall a clk. (Rep a, Clocker clk) => Env clk -> Comb a -> CSeq clk (Enabled a) -> CSeq clk a
 enabledRegister sysEnv c inp = res
    where
 	(en,v) = unpack inp
@@ -36,19 +36,19 @@ toEnabledSeq xs = toSeqX [ optX (Just x)
 			 | x <- xs
 			 ]
 
-memoryToPipe ::  forall a d clk . (Rep a, Rep d) => Env clk -> CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
+memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clocker clk) => Env clk -> CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
 memoryToPipe clk enA mem = pack (delay clk en,pack (delay clk a,mem a))
    where
 	(en,a) = unpack enA
 
 
 -- Does not work for two clocks, *YET*
-pipeToMemory :: forall a d clk1 clk2. (Rep a, Rep d)
+pipeToMemory :: forall a d clk1 clk2. (Clocker clk1, Clocker clk2, Rep a, Rep d)
 	=> Env clk1
 	-> Env clk2
 	-> CSeq clk1 (Pipe a d)
 	-> Memory clk2 a d
-pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
+pipeToMemory env1 _env2 pipe addr2 = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
 	(wEn,pipe') = unpack $ register env1 (pureS Nothing) $ pipe
@@ -115,12 +115,11 @@ pipeToMemory env1@(Env (Clock _ clk) rst clk_en) _env2 pipe addr2 = res
 
     	entity :: MuE E
     	entity =
-		Entity (Name "Memory" "BRAM")
+		Entity (Prim "BRAM")
 			[ ("o0",bitTypeOf res)]
-			[ ("clk",ClkTy,unD $ clk)
-			, ("rst",bitTypeOf rst,unD $ seqDriver rst)
+			[ ("env1",ClkDomTy, unD $ (clock :: D clk1))
+			, ("env2",ClkDomTy, unD $ (clock :: D clk2))
 			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
-			, ("en",bitTypeOf clk_en,unD $ seqDriver clk_en)
 			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
 			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
@@ -225,7 +224,7 @@ isEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
 
 -- a 'safe' delay that uses the disabled to give a default value.
-delayEnabled :: (Rep a) => Env clk -> CSeq clk (Enabled a) -> CSeq clk (Enabled a)
+delayEnabled :: (Rep a, Clocker clk) => Env clk -> CSeq clk (Enabled a) -> CSeq clk (Enabled a)
 delayEnabled env inp = register env disabledS inp
 
 {-
@@ -272,7 +271,7 @@ joinEnabled = liftS2 $ \ e1 e2 ->
 memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d) => Memory clk a d -> CSeq clk (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
-shiftRegister :: (Rep d, Integral x, Size x) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
+shiftRegister :: (Rep d, Integral x, Size x, Clocker clk) => Env clk -> CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
 shiftRegister sysEnv inp = pack m
   where
 	(en,val) = unpack inp
@@ -281,7 +280,7 @@ shiftRegister sysEnv inp = pack m
 		where reg = enabledRegister sysEnv (undefinedComb) (pack (en,v))
 
 
-unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
+unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d, Clocker clk) => Env clk -> CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
 unShiftRegister env inp = r
   where
 	en :: CSeq clk Bool
@@ -302,7 +301,7 @@ unShiftRegister env inp = r
 -- Should really be in Utils (but needs Protocols!)
 -- Assumes input is not too fast; double buffering would fix this.
 
-runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b)
+runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b, Clocker clk)
 	 => Env clk
 	 -> (Comb (Matrix x a) -> Comb (Matrix y b))
 	 -> CSeq clk (Enabled a)
@@ -327,7 +326,7 @@ runBlock env fn inp = unShiftRegister env
 -- next number in the sequence, in the *next* cycle.
 
 -- TODO: remove, its confusing
-counter' :: (Rep x, Num x) => Env clk -> CSeq clk Bool -> CSeq clk x
+counter' :: (Rep x, Num x, Clocker clk) => Env clk -> CSeq clk Bool -> CSeq clk x
 counter' rst inc = res
    where res = register rst 0 (res + mux2 inc (1,0))
 
@@ -341,13 +340,13 @@ counter' rst inc = res
 --
 --  res = rom env inp $ \ a -> ....
 --
-rom :: (Rep a, Rep b) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
+rom :: (Rep a, Rep b, Clocker clk) => Env clk -> CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom env inp fn = delay env $ funMap fn inp
 
 ---------------------------------
 
 -- A latch that can cross clock domains
-latch :: forall clk1 clk2 a. (Rep a) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
+latch :: forall clk1 clk2 a. (Rep a, Clocker clk1, Clocker clk2) => Env clk1 -> Env clk2 -> CSeq clk1 (Enabled a) -> CSeq clk2 a
 latch env1 env2 inp = pipeToMemory env1 env2 wr (pureS ())
     where
 	wr :: CSeq clk1 (Pipe () a)

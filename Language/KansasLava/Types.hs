@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, Rank2Types #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs #-}
 
 module Language.KansasLava.Types where
 
@@ -25,6 +25,8 @@ data Type
         -- type of bit, used only for clock (TODO: do we need this?)
         | ClkTy         -- ^ Clock Signal
 
+	| ClkDomTy	-- ^ The clock domain type (clk, clk_en, rst)?
+
         | GenericTy     -- ^ generics in VHDL, right now just Integer
 
         | TupleTy [Type]
@@ -42,6 +44,7 @@ data Type
 typeWidth :: Type -> Int
 typeWidth B  = 1
 typeWidth ClkTy = 1
+typeWidth ClkDomTy = 3
 typeWidth (S x) = x
 typeWidth (U x) = x
 typeWidth (V x) = x
@@ -62,7 +65,8 @@ isTypeSigned (SampledTy {}) = True
 
 instance Show Type where
         show B          = "B"
-        show ClkTy      = "CLK"
+        show ClkTy      = "Clk"
+        show ClkDomTy   = "ClkDom"
         show (S i)      = show i ++ "S"
         show (U i)      = show i ++ "U"
         show (V i)      = show i ++ "V"
@@ -106,6 +110,7 @@ instance Read OVar where
 
 data Id = Name String String                    -- external thing
         | Prim String                           -- built in thing
+	| External String			-- 
         | Function [(RepValue,RepValue)]        -- anonymous function
 
 						-- Why are the OVar's here?
@@ -115,6 +120,9 @@ data Id = Name String String                    -- external thing
                                                 -- that records its shallow value,
                                                 -- for later inspection
 
+	| ClockId String			-- An environment box
+
+
 	| Label String				-- An identity; also a name
 	| Comment' [String]
 	| BlackBox (Box Dynamic)		-- These can be removed without harm
@@ -122,6 +130,7 @@ data Id = Name String String                    -- external thing
 						-- types in here (or use newtype).
 						-- Prelude or other peoples types
 						-- are not allowed (because typecase becomes ambigious)
+
     deriving (Eq, Ord)
 
 -- The type indirection to to allow the Eq/Ord to be provided without
@@ -136,9 +145,11 @@ instance Ord (Box a) where { compare _ _ = EQ }
 instance Show Id where
     show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
+    show (External nm) = "$" ++ nm
     show (Prim nm)     = nm
     show (Label nm)    = show nm
     show (TraceVal ovar _) = "^" ++ show ovar
+    show (ClockId nm)    = "@" ++ nm	
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
 
@@ -171,29 +182,36 @@ instance Functor (Entity ty a) where
 
 data Driver s = Port String s   -- a specific port on the entity
               | Pad OVar        --
+	      | ClkDom String	-- the clock domain
               | Lit RepValue    -- A representable Value (including unknowns)
               | Generic Integer -- A generic argument, always fully defined
               | Error String    -- A call to err, in Datatype format for reification purposes
+--	      | Env' Env'
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
   show (Port v i) = "(" ++ show i ++ ")." ++ v
+  show (Pad v) = show v
+  show (ClkDom d) = "@" ++ d
   show (Lit x) = "'" ++ show x ++ "'"
   show (Generic x) = show x
-  show (Pad v) = show v
   show (Error msg) = show $ "Error: " ++ msg
+--  show (Env' env) = "<env>"
 
 instance T.Traversable Driver where
   traverse f (Port v s)    = Port v <$> f s
   traverse _ (Pad v)       = pure $ Pad v
+  traverse _ (ClkDom d)    = pure $ ClkDom d
 --  traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
   traverse _ (Generic i)   = pure $ Generic i
   traverse _ (Error s)     = pure $ Error s
+--  traverse _ (Env' env)     = pure $ Env' env
 
 instance F.Foldable Driver where
   foldMap f (Port _ s)    = f s
   foldMap _ (Pad _)       = mempty
+  foldMap _ (ClkDom _)    = mempty
 --  foldMap _ (PathPad _)   = mempty
   foldMap _ (Lit _)       = mempty
   foldMap _ (Generic _)       = mempty
@@ -202,13 +220,30 @@ instance F.Foldable Driver where
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
     fmap _ (Pad v)       = Pad v
+    fmap _ (ClkDom d)    = ClkDom d
 --    fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
     fmap _ (Generic i)   = Generic i
     fmap _ (Error s)     = Error s
 
+
 ---------------------------------------------------------------------------------------------------------
 
+data Env' = forall clk . (Clocker clk) => Env' (D clk)
+
+--mkEnv' :: forall clk . (Clocker clk) => Witness clk -> Env'
+--mkEnv' Witness = EnvX (clock :: clk)
+
+instance Eq Env' where {}
+instance Ord Env' where {}	-- TODO: remove, will require reworking Netlist getSyncs.
+
+class Clocker clk where
+	clock :: D clk 
+	
+instance Clocker () where
+	clock = D $ ClkDom "unit"
+
+---------------------------------------------------------------------------------------------------------
 -- Should be called SignalVal? Par Cable? hmm.
 -- TODO: call StdLogic?
 -- data StdLogicValue a = Unknown | Value a
@@ -366,12 +401,16 @@ instance Show Circuit where
 
         inputs = unlines
                 [ show var ++ " : " ++ show ty
-                | (var,ty) <- theSrcs rCir
+                | (var,ty) <- sortBy (\ (OVar i _,_) (OVar j _,_) -> i `compare` j)
+			    $ theSrcs rCir
                 ]
+
         outputs = unlines
                 [ show var   ++ " <- " ++ showDriver dr ty
-                | (var,ty,dr) <- theSinks rCir
+                | (var,ty,dr) <- sortBy (\ (OVar i _,_,_) (OVar j _,_,_) -> i `compare` j)
+			       $ theSinks rCir
                 ]
+
         circuit = unlines
                 [ case e of
                     Entity nm outs ins ann ->
@@ -428,6 +467,7 @@ data CircuitOptions
         | CommentDepth
               [(Id,DepthOp)]    -- ^ add comments that denote depth
         deriving (Eq, Show)
+
 
 -- Does a specific thing
 data DepthOp = AddDepth Float
