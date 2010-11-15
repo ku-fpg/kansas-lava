@@ -324,9 +324,9 @@ triple ws = pure (,,) <*> ws <*> ws <*> ws
 testRegister :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
 testRegister  (TestSeq test toList) tyName ws = do
 	let (u0:us0) = toList ws
-	let reg = register :: Env () -> Comb w -> Seq w -> Seq w
+	let reg = register ::  Comb w -> Seq w -> Seq w
 	let thu = Thunk reg
-		        (\ f -> f shallowEnv (toComb u0) (toSeq us0)
+		        (\ f -> f (toComb u0) (toSeq us0)
 			)
  	    res = toSeq	(u0 : us0)
 	test ("register/" ++ tyName) (length us0) thu res
@@ -335,9 +335,9 @@ testRegister  (TestSeq test toList) tyName ws = do
 testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testMemory (TestSeq test toList) tyName ws = do
 	let (writes,reads) = unzip $ toList ws
-	let mem e1 e2 = pipeToMemory  e1 e2 :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
+	let mem = pipeToMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 	let thu = Thunk mem
-		        (\ f -> f shallowEnv shallowEnv (toSeq writes) (toSeq reads)
+		        (\ f -> f (toSeq writes) (toSeq reads)
 		        )
 	    res :: Seq w2
 	    res = toSeq' $
@@ -356,9 +356,9 @@ testMemory (TestSeq test toList) tyName ws = do
 testConstMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
 testConstMemory (TestSeq test toList) tyName ws = do
 	let writes = toList ws
-	let mem e1 e2 = memoryToMatrix . pipeToMemory  e1 e2 :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
+	let mem = memoryToMatrix . pipeToMemory :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
 	let thu = Thunk mem
-		        (\ f -> f shallowEnv shallowEnv (toSeq writes)
+		        (\ f -> f (toSeq writes)
 		        )
 	    res :: M.Matrix w1 (Seq w2)
 	    res = M.matrix
@@ -375,3 +375,16 @@ testConstMemory (TestSeq test toList) tyName ws = do
 		  ]
 	test ("memory/const/" ++ tyName) (length writes) thu (pack res)
 	return ()
+
+{-
+-- Testing FIFOs
+--testFIFOs1 :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
+testFIFOs1 (TestSeq test toList) tyName ws = do
+	let writes = toList ws
+	let f = fifo (witness :: X32) ::  Seq Bool -> HandShake (Seq (Enabled U4)) -> HandShake (Seq (Enabled U4))
+	let thu = Thunk f
+		$ \ cir -> cir undefined undefined undefined
+--	putFIFOContents
+
+	return ()
+-}
