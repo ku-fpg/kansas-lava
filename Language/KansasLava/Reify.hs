@@ -5,7 +5,6 @@ module Language.KansasLava.Reify
 	, Input(..)
 	, input
 	, output
-	, Clocker(..)
 	) where
 
 import Data.Default
@@ -272,7 +271,7 @@ class Ports a where
 
     run :: a -> Trace -> TraceStream
 
-instance (Clocker c, Rep a) => Ports (CSeq c a) where
+instance (Clock c, Rep a) => Ports (CSeq c a) where
     ports _ sig = wireCapture (seqDriver sig)
 
     probe' (i:_) name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
@@ -300,7 +299,7 @@ instance (Rep a) => Input (HandShake (Seq a)) where
     input _ a = a
 
 {-
-instance Clocker clk => Ports (Env clk) where
+instance Clock clk => Ports (Env clk) where
     probe' is name (Env clk rst clk_en) = Env clk rst' clk_en'
         where (rst',clk_en') = unpack $ probe' is name $ (pack (rst, clk_en) :: CSeq clk (Bool, Bool))
 -}

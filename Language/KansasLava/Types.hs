@@ -229,18 +229,10 @@ instance Functor Driver where
 
 ---------------------------------------------------------------------------------------------------------
 
-data Env' = forall clk . (Clocker clk) => Env' (D clk)
-
---mkEnv' :: forall clk . (Clocker clk) => Witness clk -> Env'
---mkEnv' Witness = EnvX (clock :: clk)
-
-instance Eq Env' where {}
-instance Ord Env' where {}	-- TODO: remove, will require reworking Netlist getSyncs.
-
-class Clocker clk where
+class Clock clk where
 	clock :: D clk 
 	
-instance Clocker () where
+instance Clock () where
 	clock = D $ ClkDom "unit"
 
 ---------------------------------------------------------------------------------------------------------
