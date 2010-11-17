@@ -31,9 +31,12 @@ import Language.KansasLava.Wire
 import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Shallow.FIFO 
+import Language.KansasLava.StdLogicVector
+import Foreign.LambdaBridge.Service
 
 import Language.KansasLava.Utils
 import Control.Applicative
+import Control.Concurrent
 
 -----------------------------------------------------------------------------------------------
 
@@ -175,6 +178,19 @@ handShakeToShallowFifo fifo sink = do
 	putFIFOContents fifo (fromHandShake' (repeat 0) sink)
 	return ()
 
+-- create a lambda bridge from a 
+handShakeLambdaBridge :: (HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))) -> IO ()
+handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
+	sFIFO <- newShallowFIFO
+	rFIFO <- newShallowFIFO
+
+	forkIO $ hGetToFIFO send sFIFO
+	hPutFromFIFO recv rFIFO
+
+	sHS <- shallowFifoToHandShake sFIFO
+	let rHS = fn sHS
+	handShakeToShallowFifo rFIFO rHS
+	return ()
 
 --liftEnabledToHandshake :: Enabled a -> Handshake a
 --fifo1 ::  Handshake a -> Handshake a

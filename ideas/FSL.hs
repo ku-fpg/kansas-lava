@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
 
-module FSL where
+module Main where
 -- Use %ghci FSL.hs -i..
 -- To load
 
@@ -39,9 +39,9 @@ circuit inpB = outpB
 	outpB = toStdLogicVector outp
 
 big_circuit ::  Handshake Byte -> Handshake Byte
-big_circuit env src = fmap (error "" $ circuit) src
+big_circuit src = fmap (error "" $ circuit) src
 
-main = do
+main1 = do
 	print "This *should* hang, but check the file `LAVA_OUT`"
 	v1 <- newShallowFIFO
 	v2 <- newShallowFIFO
@@ -49,7 +49,7 @@ main = do
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
 	
 	src <- shallowFifoToHandShake v1
-	handShakeToShallowFifo v2 (big_circuit shallowEnv src)
+	handShakeToShallowFifo v2 (big_circuit src)
 
 -- Our other test
 main2 = do
@@ -76,7 +76,6 @@ main3 = do
 	let hs = toHandShake' (cycle [0]) [Just (fromIntegral x) | x <- [(0x0::Integer) .. ]]
 
 	let hs2 = fifo (witness :: X16)
-		       shallowEnv
 		       (toSeq ((take 10 $ repeat False) ++ (take 1 $ repeat True) ++ (take 100 $ repeat False)))
 		       hs
 
@@ -210,3 +209,6 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 	inp_ready = in_counter .<. (fromIntegral (size (witness :: ix)))
 
 -}
+
+main = handShakeLambdaBridge $ \ hs -> HandShake $ \ _ -> (toSeq [Just (fromIntegral x) | x <- [1..]])
+
