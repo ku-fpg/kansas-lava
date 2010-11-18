@@ -77,6 +77,8 @@ writeDotCircuit filename circuit = do
                                                edge' nd' Nothing n (Just (show v ++ ":w")) []
                      Lit i -> do nd' <- node [("label",show i),("shape","none")]
                                  edge' nd' Nothing n (Just (show v ++ ":w")) []
+		     Generic i -> do nd' <- node [("label",show i),("shape","none")]
+                                     edge' nd' Nothing n (Just (show v ++ ":w")) []
 
         sequence [ drawEdge dr output_bar (show v)
                  | (v,_,dr) <- outputs
