@@ -77,8 +77,8 @@ instance Signal Handshake where
 -}
 
 
-liftHandShake :: (Comb a -> Comb b) -> Handshake a -> Handshake b
-liftHandShake = undefined
+--liftHandShake :: (a -> b) -> Handshake a -> Handshake b
+--liftHandShake = undefined
 
 ----------------------------------------------------------------------------------------------------
 {-
@@ -308,11 +308,11 @@ fifoFE :: forall a counter ix .
 	) 
       => ix
       -> Seq Bool
-      -> (HandShake (Seq (Enabled a)),Seq Bool)
-	 -- ^ HS, and Seq trigger when to decrement the counter
+      -> (HandShake (Seq (Enabled a)),Seq counter)
+	 -- ^ HS, and Seq trigger of how much to decrement the counter
       -> Seq (Enabled (ix,a))
 	 -- ^ inc_counter * backedge for HandShake.
-fifoFE _ rst (HandShake hs,out_done0) = wr
+fifoFE _ rst (HandShake hs,dec_by) = wr
   where
 	resetable x = mux2 rst (0,x)
 
@@ -325,7 +325,7 @@ fifoFE _ rst (HandShake hs,out_done0) = wr
 	inp_done0 = inp_ready `and2` isEnabled inp
 
 	wr :: Seq (Enabled (ix,a))
-	wr = packEnabled (inp_ready `and2` isEnabled inp)
+	wr = packEnabled (inp_done0)
 			 (pack (wr_addr,enabledVal inp))
 
 	wr_addr :: Seq ix
@@ -337,7 +337,7 @@ fifoFE _ rst (HandShake hs,out_done0) = wr
 	in_counter0 = resetable
 		    $ in_counter1 
 			+ mux2 inp_done0 (1,0)
-		   	- mux2 out_done0 (1,0)
+		   	- dec_by
 
 	in_counter1 :: Seq counter
 	in_counter1 = register 0 in_counter0
@@ -371,7 +371,7 @@ fifoBE :: forall a counter ix .
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShake
-fifoBE _ rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
+fifoBE _ rst (inc_by,mem_rd) = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (0,x)
 
@@ -387,6 +387,14 @@ fifoBE _ rst (out_counter1,mem_rd) = HandShake $ \ out_ready ->
 
 	out :: Seq (Enabled a)
 	out = packEnabled (out_counter1 .>. 0 `and2` bitNot rst `and2` isEnabled mem_rd) (enabledVal mem_rd)
+
+	out_counter0 :: Seq counter
+	out_counter0 = resetable
+		     $ out_counter1
+			+ inc_by
+			- mux2 out_done0 (1,0)
+
+	out_counter1 = register 0 out_counter0
     in
         ((rd_addr0, out_done0) , out)
 
@@ -402,6 +410,20 @@ fifoCounter rst inc dec = counter1
 			- mux2 dec (1,0)
 
 	counter1 = register 0 counter0
+
+fifoCounter' :: forall counter . (Num counter, Rep counter) => Seq Bool -> Seq counter -> Seq counter -> Seq counter
+fifoCounter' rst inc dec = counter1
+    where
+	resetable x = mux2 rst (0,x)
+
+	counter0 :: Seq counter
+	counter0 = resetable
+		 $ counter1
+			+ inc -- mux2 inc (1,0)
+			- dec -- mux2 dec (1,0)
+
+	counter1 = register 0 counter0
+
 
 
 fifo :: forall a counter ix . 
@@ -423,7 +445,7 @@ fifo w rst hs = HandShake $ \ out_ready ->
 	resetable x = mux2 rst (low,x)
 
 	wr :: Seq (Maybe (ix, a))
-	wr = fifoFE w rst (hs,out_done0)
+	wr = fifoFE w rst (hs,dec_by)
 
 	inp_done2 :: Seq Bool
 	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
@@ -431,45 +453,97 @@ fifo w rst hs = HandShake $ \ out_ready ->
 	mem :: Seq ix -> Seq (Enabled a)
 	mem = enabledS . pipeToMemory wr
 
-	((rd_addr0,out_done0),out) = fifoBE w rst (out_counter,mem rd_addr0) <~~ out_ready
+	((rd_addr0,out_done0),out) = fifoBE w rst (inc_by,mem rd_addr0) <~~ out_ready
 
 
-	out_counter = fifoCounter rst inp_done2 out_done0
+	dec_by = liftS1 (\ b -> mux2 b (1,0)) out_done0
+	inc_by = liftS1 (\ b -> mux2 b (1,0)) inp_done2
     in
 	out
 
-{-
--- decrement does not work, no fliping between memories
-fifoPair'' :: forall a counter ix . 
+fifoToMatrix :: forall a counter counter2 ix iy iz . 
          (Size counter
 	, Size ix
+	, Size counter2, Rep counter2, Num counter2
 	, counter ~ ADD ix X1
+	, counter2 ~ ADD iy X1
 	, Rep a
 	, Rep counter
 	, Rep ix
 	, Num counter
 	, Num ix
+	, Size iy
+	, Rep iy, StdLogic ix, StdLogic iy, StdLogic a,
+	WIDTH ix ~ ADD (WIDTH iz) (WIDTH iy),
+	StdLogic counter, StdLogic counter2,
+	StdLogic iz, Size iz, Rep iz, Num iy
+	, WIDTH counter ~ ADD (WIDTH iz) (WIDTH counter2)
+	, Num iz
+--	ADD (WIDTH iz) (WIDTH counter2) ~ WIDTH counter
+--	, Integral (Seq counter)
+
 	) 
       => ix
-      -> Env () 
-      -> (Seq Bool,Seq (Enabled a)) 
-      -> (Seq Bool,Seq (Enabled (a,a)))
-fifoPair'' w env (out_ready,inp) = (inp_ready,out)
-  where
-	(wr,inp_ready) = fifoFE' w env (error "X") (out_done0,inp)
+      -> iy
+      -> Seq Bool
+      -> HandShake (Seq (Enabled a))
+      -> HandShake (Seq (Enabled (M.Matrix iz a)))
+fifoToMatrix w w_iy rst hs = HandShake $ \ out_ready ->
+    let
+	resetable x = mux2 rst (low,x)
 
-	inp_done0 = isEnabled wr
+	wr :: Seq (Maybe (ix, a))
+	wr = fifoFE w rst (hs,dec_by)
 
-	memA :: Seq ix -> Seq a
-	memA = pipeToMemory env env wr
+	inp_done2 :: Seq Bool
+	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
 
-	memB :: Seq ix -> Seq a
-	memB = pipeToMemory env env wr
+	mem :: Seq (Enabled (M.Matrix iz a))
+	mem = enabledS 
+	 	$ pack
+	 	$ fmap (\ f -> f rd_addr0)
+	 	$ fmap pipeToMemory
+	 	$ splitWrite
+	 	$ mapEnabled (mapPacked $ \ (a,d) -> (factor a,d))
+		$ wr
 
-	(rd_addr0,out_done0,out,_) = fifoBE' w env (out_ready,inp_done0,pack (memA rd_addr0,memB rd_addr0))
--}
+	((rd_addr0,out_done0),out) = fifoBE w_iy rst (inc_by,mem) <~~ out_ready
+
+	dec_by = mulBy (witness :: iz) out_done0
+	inc_by = divBy (witness :: iz) rst inp_done2
+    in
+	out
+
+-- Move into a Commute module? 
+splitWrite :: forall a a1 a2 d . (Rep a1, Rep a2, Rep d, Size a1) => Seq (Pipe (a1,a2) d) -> M.Matrix a1 (Seq (Pipe a2 d))
+splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
+			               (a,d)   = unpack v
+			               (a1,a2) = unpack a
+			            in packEnabled (g .&&. (a1 .==. pureS i))
+				   	           (pack (a2,d))
+
+
+mulBy :: forall x sz sig . (Size sz, Num sz, Num x, Rep x) => sz -> Seq Bool -> Seq x
+mulBy sz trig = mux2 trig (pureS $ fromIntegral $ size (witness :: sz),pureS 0)
+
+divBy :: forall x sz sig . (Size sz, Num sz, Rep sz, Num x, Rep x) => sz -> Seq Bool -> Seq Bool -> Seq x
+divBy sz rst trig = mux2 issue (1,0)
+	where 
+		issue = trig .&&. (counter1 .==. (pureS $ fromIntegral (size (witness :: sz) - 1)))
+
+		counter0 :: Seq sz
+		counter0 = cASE [ (rst,0)
+				, (trig,counter1 + 1)
+				] counter1
+		counter1 :: Seq sz
+		counter1 = register 0 
+			 $ mux2 issue (0,counter0)
+
+
+
+
 ---------------------------
-
+{-
 data CounterCntl = IncCounter | DecCounter | RstCounter | MaxCounter 
 	deriving (Eq, Ord, Enum, Show)
 
@@ -518,3 +592,4 @@ counter cntr = out0
 
 	out1 :: Seq a
 	out1 = register 0 out0
+-}

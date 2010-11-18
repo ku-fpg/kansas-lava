@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts, NoMonomorphismRestriction #-}
 
 module Main where
 -- Use %ghci FSL.hs -i..
@@ -17,11 +17,13 @@ import Data.Bits
 import Data.Word
 import Data.Default
 import Data.Sized.Ix
+import Data.Sized.Arith
 import Data.Sized.Matrix
 import Language.KansasLava.Handshake
 
 import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Thunk
+import Language.KansasLava.Testing
 
 import Data.List as List
 -- Example
@@ -107,7 +109,7 @@ n-}
 -}
 
 	return ()
-
+{-
 main4 = do
 	let cir ::  Seq Bool -> HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))
 	    cir = fifo (witness :: X32)
@@ -121,7 +123,7 @@ main4 = do
 	writeDotCircuit "x.dot" cOpt
 
 --	mkTestbench "myfifo" "testme" cOpt
-
+-}
 -- liftEnable :: ( Enabled a -> Enabled b) -> Handshake a -> Handshake b
 
 --type SZ = SUB C X1
@@ -211,4 +213,83 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 -}
 
 main = handShakeLambdaBridge $ \ hs -> HandShake $ \ _ -> (toSeq [Just (fromIntegral x) | x <- [1..]])
+
+{-
+
+foo1 :: forall a d a1 a2 . (StdLogic a, StdLogic a1, StdLogic a2, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Rep d, Rep a, Rep a1, Rep a2) 
+	=> Seq (Pipe a d) -> Seq (Pipe (a1,a2) d)
+foo1 = mapEnabled (mapPacked f)
+   where f :: (Comb a,Comb d) -> (Comb (a1,a2),Comb d)
+         f (a,d) = (factor a,d)
+
+foo1' = foo1 :: Seq (Pipe X8 U8) -> Seq (Pipe (X2,X4) U8)
+
+
+foo2 :: forall a a1 a2 d . (Rep a1, Rep a2, Rep d, Size a1) => Seq (Pipe (a1,a2) d) -> Matrix a1 (Seq (Pipe a2 d))
+foo2 inp = forAll $ \ i -> let (g,v)   = unpackEnabled inp
+			       (a,d)   = unpack v
+			       (a1,a2) = unpack a
+			   in packEnabled (g .&&. (a1 .==. pureS i))
+					  (pack (a2,d))
+
+foo2' = foo2 :: Seq (Pipe (X2,X4) U8) -> Matrix X2 (Seq (Pipe X4 U8))
+
+solution :: forall a a1 a2 d .
+     (WIDTH a ~ ADD (WIDTH a1) (WIDTH a2),
+      Rep a,
+      Rep a1,
+      Rep a2,
+      Rep d,
+      Size a1,
+      StdLogic a,
+      StdLogic a1,
+      StdLogic a2,
+      StdLogic d) =>
+     Seq (Pipe a d) -> Seq a2 -> Seq (Matrix a1 d)
+solution inp look = id
+	 $ pack
+	 $ fmap (\ f -> f look)
+	 $ fmap pipeToMemory
+	 $ foo2
+	 $ foo1
+	 $ inp
+
+solution' = solution :: Seq (Pipe X8 U1) -> Seq X1 -> Seq (Matrix X8 U1)
+-}
+
+
+{-
+main10 = do
+	x <- reifyCircuit solution'
+	x' <- optimizeCircuit def x
+	writeDotCircuit "x.dot" x'
+-}
+
+type DX = U1
+
+main11 = do
+	let hs :: HandShake (Seq (Enabled DX))
+	    hs = toHandShake' (cycle [0,1,2]) 
+			      (cycle  [Just (if testBit x i then 1 else 0)
+				      | x <- [0..] :: [Word8]
+			      , i <- [0..7]
+				      ])
+
+	let hs1 :: HandShake (Seq (Enabled (Matrix X8 U1)))
+	    hs1 = fifoToMatrix (witness :: X16) (witness :: X2) (toSeq $ repeat False) hs
+
+
+   	let hs2 :: HandShake (Seq (Enabled Byte))
+	    hs2 = fmap (mapEnabled (liftS1 (f . mapPacked (fmap (\ x -> x .==. 1))))) hs1
+	
+	    f :: Comb (Matrix X8 Bool) -> Comb Byte
+	    f = toStdLogicVector
+
+
+--	let hs' :: HandShake (Seq (Enabled DX))
+--	    hs' = fifo (witness :: X8) (toSeq $ repeat False) hs
+
+	print $ fromHandShake' (cycle [0,1,2]) hs2
+	return ()
+
 

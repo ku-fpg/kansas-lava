@@ -645,6 +645,16 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
 
+-------------------------------------------------------------------------------------
+
+factor :: forall a a1 a2 sig . (Rep a, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Size (WIDTH a1) 
+	   , Signal sig, Rep a2, Rep a1
+	   , StdLogic a, StdLogic a1, StdLogic a2) => sig a -> sig (a1,a2)
+factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
+		 , fromStdLogicVector $ extractStdLogicVector (size (witness :: WIDTH a1)) vec
+		 )
+	 where vec :: sig (StdLogicVector (WIDTH a))
+	       vec = toStdLogicVector a
 
 -------------------------------------------------------------------------------------
 
