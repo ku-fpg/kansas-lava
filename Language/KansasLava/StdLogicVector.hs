@@ -96,29 +96,30 @@ coerce (StdLogicVector m) = StdLogicVector
 			  $ take (size (witness :: b))
 			  $ M.toList m ++ repeat (WireVal False)
 
-class Size (WIDTH w) => StdLogic w where
+-- TODO: Add Rep to the superclass list
+class (Integral (WIDTH w),Size (WIDTH w)) => StdLogic w where
   type WIDTH w
 
 instance StdLogic Bool where
    type WIDTH Bool = X1
 
-instance Size w => StdLogic (U.Unsigned w) where
+instance (Integral w, Size w) => StdLogic (U.Unsigned w) where
    type WIDTH (U.Unsigned w) = w
 
-instance Size w => StdLogic (S.Signed w) where
+instance (Integral w, Size w) => StdLogic (S.Signed w) where
    type WIDTH (S.Signed w)  = w
 
-instance Size w => StdLogic (M.Matrix w Bool) where
+instance (Integral w, Size w) => StdLogic (M.Matrix w Bool) where
    type WIDTH (M.Matrix w Bool)  = w
 
 instance StdLogic X0 where
    type WIDTH X0 = X0
 
 -- MESSSSYYYYY.
-instance (Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
+instance (Integral (LOG (SUB (X1_ x) X1)), Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
    type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
 
-instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
+instance (Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 -- TODO: rename as to and from.
