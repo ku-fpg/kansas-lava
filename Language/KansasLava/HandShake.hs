@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
 
-module Language.KansasLava.Handshake where
+module Language.KansasLava.HandShake where
 
 import Data.Word
 import Data.Int
