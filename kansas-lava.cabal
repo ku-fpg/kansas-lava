@@ -54,6 +54,10 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Wire
+       Language.KansasLava.HandShake
+       Language.KansasLava.Dynamic
+       Language.KansasLava.Shallow.FIFO
+       Language.KansasLava.Protocols.FSL
        Language.KansasLava.Testing
        Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD

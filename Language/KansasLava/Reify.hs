@@ -24,7 +24,7 @@ import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.Handshake
+import Language.KansasLava.HandShake
 
 import qualified Data.Sized.Matrix as M
 

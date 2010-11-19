@@ -278,7 +278,6 @@ main11 = do
 	let hs1 :: HandShake (Seq (Enabled (Matrix X8 U1)))
 	    hs1 = fifoToMatrix (witness :: X16) (witness :: X2) (toSeq $ repeat False) hs
 
-
    	let hs2 :: HandShake (Seq (Enabled Byte))
 	    hs2 = fmap (mapEnabled (liftS1 (f . mapPacked (fmap (\ x -> x .==. 1))))) hs1
 	
