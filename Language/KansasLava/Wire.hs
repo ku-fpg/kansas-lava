@@ -504,8 +504,13 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
             a :: Matrix ix a -> a
             a = error "a/Matrix"
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
-    fromRep _ = XMatrix $ error "TODO: write fromRep for Matrix"
+    fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat (size (witness :: ix)) xs
+	    where unconcat n [] = []
+		  unconcat n xs = take n xs : unconcat n (drop n xs)
+
 --  showWire _ = show
+
+
 
 {-
 instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t), RepWire a, Size ix, Rep a) => RepWire (Matrix ix a) where
