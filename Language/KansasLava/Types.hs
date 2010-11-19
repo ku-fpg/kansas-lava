@@ -152,6 +152,8 @@ instance Show Id where
     show (ClockId nm)    = "@" ++ nm	
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
+    show (BlackBox bx) = "<bb>"
+
 
 -------------------------------------------------------------------------
 -- Entity

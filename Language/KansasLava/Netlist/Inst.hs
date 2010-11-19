@@ -35,6 +35,10 @@ genInst env i (Entity name outputs inputs (Comment msg:rest)) =
 genInst env i (Entity (TraceVal nms _) ins outs _) =
 	genInst env i (Entity (Name "Lava" "id") ins outs [Comment (intercalate ", " $ map show nms)])
 
+-- Blackbox nodes should have been removed by reification, but alas, no.
+genInst env i (Entity (BlackBox box) ins outs _) =
+  genInst env i (Entity (Name "Lava" "id") ins outs [Comment "Blackbox"])
+
 
 genInst env i (Entity (Name "Lava" "pair") outputs inputs other)
 	= genInst env i (Entity (Name "Lava" "concat") outputs inputs other)
