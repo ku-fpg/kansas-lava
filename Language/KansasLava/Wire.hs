@@ -504,9 +504,11 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
             a :: Matrix ix a -> a
             a = error "a/Matrix"
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
-    fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat (size (witness :: ix)) xs
-	    where unconcat n [] = []
-		  unconcat n xs = take n xs : unconcat n (drop n xs)
+    fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
+	    where unconcat [] = []
+		  unconcat xs = take len xs : unconcat (drop len xs)
+		
+		  len = Prelude.length xs `div` size (witness :: ix)
 
 --  showWire _ = show
 
