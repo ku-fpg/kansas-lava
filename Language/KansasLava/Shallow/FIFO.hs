@@ -22,6 +22,7 @@ import Language.KansasLava.Protocols
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Utils -- for fromSLV
 
+import qualified Data.ByteString as BS
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Debug.Trace
@@ -78,13 +79,18 @@ writeFileFromFIFO file fifo = do
 	hSetBuffering h NoBuffering	
 	hPutFromFIFO h fifo
 
--- | read a file into a fifo as bytes.
+-- | read a file into a fifo as bytes. Does not terminate.
 hGetToFIFO :: Handle -> ShallowFIFO Byte -> IO ()
 hGetToFIFO h fifo = do 
-	str <- hGetContents h
-	putFIFOContents fifo (map (Just . toByte) str)
+    b <- hIsEOF h
+    if b then hClose h else do
+	str <- BS.hGetNonBlocking h 128 -- 128 is for no specific reason, just a number
+					-- because it is non-blocking, only what is there
+					-- is received.
+	putFIFOContents fifo (map (Just . fromIntegral) (BS.unpack str))
 	putFIFOContents fifo [Nothing]
-
+	hGetToFIFO h fifo
+	
 hPutFromFIFO :: Handle -> ShallowFIFO Byte -> IO ()
 hPutFromFIFO h fifo = do
    forkIO $ do
