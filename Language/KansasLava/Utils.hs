@@ -592,6 +592,7 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v
 
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
+-- This is pack/unpack???
 
 toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
@@ -630,7 +631,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 
 
 -- This is the funny one, needed for our application
-instance (Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
+instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = m
 
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where

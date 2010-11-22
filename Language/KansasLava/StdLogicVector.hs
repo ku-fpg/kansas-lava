@@ -12,6 +12,7 @@ import Data.Sized.Arith
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 
+import Data.Word
 import Data.Char as Char
 
 -- | StdLogicVector is a bit accurate, sized general representation of bit vectors.
@@ -97,7 +98,10 @@ coerce (StdLogicVector m) = StdLogicVector
 			  $ M.toList m ++ repeat (WireVal False)
 
 -- TODO: Add Rep to the superclass list
-class (Integral (WIDTH w),Size (WIDTH w)) => StdLogic w where
+-- Call something other than StdLogic,
+-- HasWidth? for example.
+
+class (Rep w, Integral (WIDTH w),Size (WIDTH w)) => StdLogic w where
   type WIDTH w
 
 instance StdLogic Bool where
@@ -116,10 +120,10 @@ instance StdLogic X0 where
    type WIDTH X0 = X0
 
 -- MESSSSYYYYY.
-instance (Integral (LOG (SUB (X1_ x) X1)), Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
+instance (Integral x, Size x, Integral (LOG (SUB (X1_ x) X1)), Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
    type WIDTH (X1_ x) = LOG (SUB (X1_ x) X1)
 
-instance (Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
+instance (Integral x, Size x, Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 -- TODO: rename as to and from.
@@ -140,13 +144,16 @@ instance (Size ix) => Rep (StdLogicVector ix) where
 	fromRep (RepValue vs) = XSV $ StdLogicVector (M.matrix vs)
 	showRep = showRepDefault
 
+
+---------------------------------------------------------------------------
+-- We use Bytes quite a bit for comms, which are a type of Word8.
+
 type Byte = StdLogicVector X8
 
--- Char is often used as an 8bit rep (even though it is not)
-toByte :: Char -> Byte
-toByte = fromIntegral . Char.ord
+toByte :: Word8 -> Byte
+toByte = fromIntegral
 
-fromByte :: Byte -> Char
+fromByte :: Byte -> Word8
 fromByte b = case fromSLV b :: Maybe U8 of
 	       Nothing -> error $ "fromByte: SLV was undefined: " ++ show b
-	       Just v  -> Char.chr (fromIntegral v)
+	       Just v  -> fromIntegral v
