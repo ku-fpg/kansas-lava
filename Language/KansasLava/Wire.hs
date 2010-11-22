@@ -591,15 +591,14 @@ log2 1 = 1
 log2 n = log2 (n `shiftR` 1) + 1
 
 -- Perhaps not, because what does X0 really mean over a wire, vs X1.
-{-
-instance Wire X0 where
-    type X X0 = X0      -- there is not information here
-    optX (Just x)       = x
-    optX Nothing        = X0
-    unX x           = return x
-    wireName _      = "X0"
-    wireType _      = U 0
--}
+instance Rep X0 where
+    data X X0 = X0'
+    optX _ = X0'
+    unX X0' = return X0
+    wireType _  = V 0
+    toRep = toRepFromIntegral
+    fromRep = fromRepToIntegral
+    showRep = showRepDefault
 
 instance (Integral x, Size x) => Rep (X0_ x) where
     data X (X0_ x)  = XX0 (WireVal (X0_ x))
