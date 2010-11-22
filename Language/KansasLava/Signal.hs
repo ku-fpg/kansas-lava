@@ -173,22 +173,4 @@ instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ a b -> b) (M.indices mx) [0..])
 
-{-
-instance (Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
-	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
-	pack m = liftS1 matrixBool2slv (pack m)
-	unpack sig = unpack (liftS1 slv2matrixBool sig)
 
--- TODO: find the 'lift/fmap' function inside here.
-slv2matrixBool :: forall ix . (Size ix) => Comb (StdLogicVector ix) -> Comb (Matrix ix Bool)
-slv2matrixBool (Comb s d) = Comb (case unX (s :: X (StdLogicVector ix)) of
-		        Just (StdLogicVector m) -> optX (Just m)
-	                Nothing -> optX (Nothing :: Maybe (Matrix ix Bool)))
-		     (entity1 (Name "Lava" "id") d)
-
-matrixBool2slv :: forall ix . (Size ix) => Comb (Matrix ix Bool) -> Comb (StdLogicVector ix)
-matrixBool2slv (Comb s d) = Comb (case unX (s :: X (Matrix ix Bool)) of
-		        Just  m -> optX (Just $ StdLogicVector m)
-	                Nothing -> optX (Nothing :: Maybe (StdLogicVector ix)))
-		     (entity1 (Name "Lava" "id") d)
--}
