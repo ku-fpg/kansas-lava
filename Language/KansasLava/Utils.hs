@@ -590,6 +590,17 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v
 
 -}
 
+
+
+instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
+	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
+	pack m = liftSL (\ ms -> let sh :: Matrix ix (WireVal Bool)
+				     sh = M.fromList [ m | Comb (XBool m) _ <- ms ]
+				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
+				 in Comb (XSV (StdLogicVector sh)) de) (M.toList m)
+	unpack sig = forAll $ \ i -> testABit sig (fromIntegral i)
+
+
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 -- This is pack/unpack???
@@ -629,11 +640,11 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 					return $ SLV.append a' b')
 			     (entity2 (Name "Lava" "concat") ea eb)
 
-
 -- This is the funny one, needed for our application
 instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = m
 
+-- Move this to a better place.
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	data X (Sampled.Sampled m ix) = XSampled (WireVal (Sampled.Sampled m ix))
 	optX (Just b)	    = XSampled $ return b
