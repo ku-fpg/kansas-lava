@@ -96,7 +96,7 @@ hPutFromFIFO h fifo = do
    forkIO $ do
 	xs <- getFIFOContents fifo
 	sequence_ 
-		[ do hPutChar h $ fromByte x
+		[ do hPutChar h $ Char.chr (fromIntegral (fromByte x))
 		     hFlush h
 	        | Just x <- xs
 	        ]
