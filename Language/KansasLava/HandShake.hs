@@ -178,7 +178,8 @@ handShakeToShallowFifo fifo sink = do
 	putFIFOContents fifo (fromHandShake' (repeat 0) sink)
 	return ()
 
--- create a lambda bridge from a 
+-- create a lambda bridge from a FIFO to a FIFO.
+-- (Could be generalize to Matrix of FIFO  to Matrix of FIFO)
 handShakeLambdaBridge :: (HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))) -> IO ()
 handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 	sFIFO <- newShallowFIFO
