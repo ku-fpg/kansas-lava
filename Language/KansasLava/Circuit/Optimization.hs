@@ -49,6 +49,8 @@ optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),
 optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)] _)
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
+optimizeEntity env (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)] []) =
+  return $ replaceWith o0 (i0,ti,pi)
 optimizeEntity env _ = Nothing
 
 ----------------------------------------------------------------------
