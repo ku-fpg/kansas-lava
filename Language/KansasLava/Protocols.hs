@@ -342,6 +342,12 @@ rom inp fn = delay $ funMap fn inp
 
 ---------------------------------
 
+
+latch :: forall a. (Rep a) => Seq (Enabled a) -> Seq a
+latch inp0 = out
+  where out = mux2 (isEnabled inp0) (enabledVal inp0,delay out)
+	
+
 -- A latch that can cross clock domains
 -- TODO: rexamine
 {-
