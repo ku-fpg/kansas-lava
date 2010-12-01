@@ -331,6 +331,21 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
           topSelect = drop ((Prelude.length rest) - nbits) rest
 
 -------------------------------------------------------------------------------------------------
+eval :: forall a . (Rep a) => a -> ()
+eval a = count $ unRepValue $ toRep (optX (Just a))
+  where count (WireVal True:rest) = count rest
+	count (WireVal False:rest) = count rest
+	count (WireUnknown:rest) = count rest
+	count [] = ()
+
+evalX :: forall a . (Rep a) => X a -> ()
+evalX a = count $ unRepValue $ toRep a
+  where count (WireVal True:rest) = count rest
+	count (WireVal False:rest) = count rest
+	count (WireUnknown:rest) = count rest
+	count [] = ()
+
+-------------------------------------------------------------------------------------------------
 
 muxMatrix
 	:: forall sig x a
@@ -703,3 +718,6 @@ cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 -- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
 takeMaybe :: Maybe Int -> [a] -> [a]
 takeMaybe = maybe id take
+
+-------------------------------------------------------------------------------------
+

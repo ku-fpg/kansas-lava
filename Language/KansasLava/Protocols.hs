@@ -365,12 +365,6 @@ class Stepify a where
   stepify :: a -> a
 
 --class Rep a => Eval a where
-eval :: forall a . (Rep a) => a -> ()
-eval a = count $ unRepValue $ toRep (optX (Just a))
-  where count (WireVal True:rest) = count rest
-	count (WireVal False:rest) = count rest
-	count (WireUnknown:rest) = count rest
-	count [] = ()
 
 --instance (Rep a) => Stepify (Seq a) where
 --  stepify (Seq a d) = Seq (stepify a) d
