@@ -212,6 +212,9 @@ genInst env i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in
 	   (V n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
+	   (V n,SampledTy _ m) | n == m ->
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
+		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
 genInst env i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)] _) =
 	case (t_in,t_out) of
@@ -222,6 +225,9 @@ genInst env i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   (SampledTy _ n,V m) | n == m ->
+		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		]
+	   (MatrixTy n B,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   (B,V 1) ->
@@ -248,6 +254,11 @@ genInst env i (Entity n@(Name _ _) [("o0",oTy)] ins _)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
+
+
+-- TODO
+genInst env i (Entity n@(Prim "update") [("o0",oTy)] [("i0",i0Ty,d0),("i1",i1Ty,d1),("i2",i2Ty,d2)] _) = 
+	error "XX"
 
 -- And the defaults
 
