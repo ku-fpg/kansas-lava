@@ -235,9 +235,9 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 i (t,e)
-	= liftS3 (\ ~(Comb i ei)
-	 	    ~(Comb t et)
-	 	    ~(Comb e ee)
+	= liftS3 (\ (Comb i ei)
+	 	    (Comb t et)
+	 	    (Comb e ee)
 			-> Comb (mux2shallow (witness :: a) i t e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
@@ -345,15 +345,33 @@ muxMatrix = (.!.)
 	-> sig x
 	-> sig a
 (.!.) m x = liftS2 (\
-		    ~(Comb (XMatrix m) me)
-	 	    ~(Comb x xe)
-			-> Comb (case (unX x) of
+		    (Comb (XMatrix m) me)
+	 	    (Comb x xe)
+			-> Comb (evalX (XMatrix m) `seq` case (unX x) of
 				    Just x' -> m M.! x'
 				    Nothing -> optX Nothing
 				)
 			     (entity2 (Name "Lava" "index") xe me) -- order reversed
 	         ) m x
 
+updateMatrix :: forall sig x a
+	 . (Signal sig, Size x, Rep x, Rep a)
+	=> sig x
+	-> sig a
+	-> sig (Matrix x a)
+	-> sig (Matrix x a)
+updateMatrix x v m = liftS3 (\ 
+	 	    (Comb x xe)
+	 	    (Comb v ve)
+		    (Comb (XMatrix m) me)
+			-> Comb (case (unX x) of
+				    Just x' -> XMatrix (m M.// [(x',v)])
+				    Nothing -> optX Nothing
+				)
+			     (entity3 (Prim "update") xe ve me)
+	         ) x v m
+
+	
 -------------------------------------------------------------------------------------------------
 
 instance (Ord a, Rep a) => Ord (Comb a) where
