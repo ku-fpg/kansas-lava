@@ -19,7 +19,13 @@ import Language.KansasLava.Netlist.Utils
 
 import Debug.Trace
 
+
+genInst' env i e =
+	[ CommentDecl $ show (i,e)
+	] ++ genInst env i e
+
 genInst :: M.Map Unique (MuE Unique) -> Unique -> MuE Unique -> [Decl]
+
 
 -- Some entities never appear in output
 genInst env i (Entity nm ins outs _) | nm `elem` isVirtualEntity = []
@@ -235,17 +241,47 @@ genInst env i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
+
+-- <= x(7 downto 2)
+
 genInst env i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)] _)
-	| outs < (ins - i) = error "NEED TO PAD spliceStdLogicVector (TODO)"
-	| otherwise =
-	[ NetAssign  (sigName "o0" i) $ ExprSlice nm sliceHigh sliceLow
+{-
+	| outs < (ins - fromIntegral x) 
+	= 
+	-- TODO: Still needs more work here to cover all cases
+	[ NetAssign  (sigName "o0" i) 
+		$ ExprConcat
+			[ ExprSlice nm (ExprLit Nothing (ExprNum $ high)) (ExprLit Nothing (ExprNum low))
+			, ExprLit Nothing (ExprNum 1234567)
+			]
 	]
+-}
+
+	| null zs =
+	[ NetAssign  (sigName "o0" i) $ slice
+	]
+	| otherwise =
+	[ NetAssign  (sigName "o0" i) $	ExprConcat 
+		[ slice
+		, ExprLit (Just $ length zs) $ ExprBitVector [ F | _ <- zs ]
+		]
+	]
+		
   where
+     xs = take outs [x..]
+     ys = take (ins - fromIntegral x) xs 
+     zs = drop (ins - fromIntegral x) xs
+
+     slice = ExprSlice nm (ExprLit Nothing (ExprNum $ last ys)) (ExprLit Nothing (ExprNum $ head ys))
+
+
      nm = case toTypedExpr (V ins) w of
   	    ExprVar n -> n
 	    other -> error $ " problem with spliceStdLogicVector " ++ show w
-     sliceHigh = ExprLit Nothing (ExprNum (fromIntegral x + fromIntegral outs - 1))
-     sliceLow = ExprLit Nothing (ExprNum (fromIntegral x))
+
+     high = fromIntegral x + fromIntegral outs - 1
+     low = fromIntegral x
+
 
 -- The specials (from a table)
 
