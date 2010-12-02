@@ -262,8 +262,8 @@ genInst env i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("
 	]
 	| otherwise =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat 
-		[ slice
-		, ExprLit (Just $ length zs) $ ExprBitVector [ F | _ <- zs ]
+		[ ExprLit (Just $ length zs) $ ExprBitVector [ F | _ <- zs ]
+		, slice
 		]
 	]
 		
