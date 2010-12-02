@@ -15,7 +15,7 @@ import Language.KansasLava.Netlist.Utils
 
 -- Entities that need a _next special *extra* signal.
 toAddNextSignal :: [Id]
-toAddNextSignal = [Name "Memory" "delay",Name "Memory" "register"]
+toAddNextSignal = [Prim "register"]
 
 
 -- We have a few exceptions, where we generate some extra signals,
@@ -31,7 +31,7 @@ genDecl (i,Entity nm outputs _ _)
 	    , MemDecl (sigName n i) Nothing (sizedRange nTy)
 	    ]
 	  | (n,nTy) <- outputs  ]
-genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Name "Memory" "BRAM"
+genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Prim "BRAM"
 	= concat 
 	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
 	    , NetDecl (sigName n i) (sizedRange nTy) Nothing
