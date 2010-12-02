@@ -225,77 +225,8 @@ data Handshake c = Handshake { unHandshake :: Seq Bool -> c (Seq (Enabled a)) }
 -}
 
 
-fifo' :: forall a counter ix . 
-         (Size counter
-	, Size ix
-	, counter ~ ADD ix X1
-	, Rep a
-	, Rep counter
-	, Rep ix
-	, Num counter
-	, Num ix
-	) 
-      => ix
-      -> (Seq Bool,Seq (Enabled a)) 
-      -> (Seq Bool,Seq (Enabled a),Seq counter)
-fifo' _ (out_ready,inp) = (inp_ready,out,in_counter1)
-  where
-	mem :: Seq ix -> Seq a
-	mem = pipeToMemory wr
-
-	inp_done0 :: Seq Bool
-	inp_done0 = inp_ready `and2` isEnabled inp
-
-	inp_done1 :: Seq Bool
-	inp_done1 = register false 
-		  $ inp_done0
-		
-	inp_done2 :: Seq Bool
-	inp_done2 = register false 
-		  $ inp_done1
-
-	wr :: Seq (Enabled (ix,a))
-	wr = packEnabled (inp_ready `and2` isEnabled inp)
-			 (pack (wr_addr,enabledVal inp))
-
-	wr_addr :: Seq ix
-	wr_addr = register 0
-		$ mux2 inp_done0 (wr_addr+1,wr_addr)
-
-	rd_addr0 :: Seq ix
-	rd_addr0 = mux2 out_done0 (rd_addr1+1,rd_addr1)
-
-	rd_addr1 = register 0 rd_addr0
-
-	out_done0 :: Seq Bool
-	out_done0 = out_ready `and2` (isEnabled out)
-
-	out_done1 :: Seq Bool
-	out_done1 = register false 
-		  $ out_done0
-
-	in_counter0 :: Seq counter
-	in_counter0 = in_counter1 
-			+ mux2 inp_done0 (1,0)
-		   	- mux2 out_done0 (1,0)
-
-	in_counter1 :: Seq counter
-	in_counter1 = register 0 in_counter0
-
-	out_counter0 :: Seq counter
-	out_counter0 = out_counter1
-			+ mux2 inp_done2 (1,0)
-		 	- mux2 out_done0 (1,0)
-
-	out_counter1 = register 0 out_counter0
-	
-	out :: Seq (Enabled a)
-	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
-
-	inp_ready :: Seq Bool
-	inp_ready = in_counter1 .<. fromIntegral (size (witness :: ix))
-
-
+incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
+incGroup x = mux2 (x .==. maxBound) (0,x + 1)
 
 fifoFE :: forall a counter ix . 
          (Size counter
