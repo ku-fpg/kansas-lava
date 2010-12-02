@@ -263,7 +263,7 @@ fifoFE _ rst (HandShake hs,dec_by) = wr
 	wr_addr :: Seq ix
 	wr_addr = resetable
 		$ register 0
-		$ mux2 inp_done0 (wr_addr+1,wr_addr)
+		$ mux2 inp_done0 (liftS1 incGroup wr_addr,wr_addr)
 
 	in_counter0 :: Seq counter
 	in_counter0 = resetable
@@ -309,7 +309,7 @@ fifoBE _ rst (inc_by,mem_rd) = HandShake $ \ out_ready ->
 
 	rd_addr0 :: Seq ix
 	rd_addr0 = resetable 
-		 $ mux2 out_done0 (rd_addr1+1,rd_addr1)
+		 $ mux2 out_done0 (liftS1 incGroup rd_addr1,rd_addr1)
 
 	rd_addr1 = register 0 
 		 $ rd_addr0

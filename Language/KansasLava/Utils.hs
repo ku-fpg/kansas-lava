@@ -100,6 +100,10 @@ instance (Show a, Rep a, Num a) => Num (CSeq c a) where
     signum = liftS1 signum
     fromInteger n = pureS (fromInteger n)
 
+instance (Bounded a, Rep a) => Bounded (Comb a) where
+    minBound = pureS $ minBound 
+    maxBound = pureS $ maxBound
+	
 -- Somehow, these ignore the type name
 instance (Show a, Bits a, Rep a)
 	=> Bits (Comb a) where
