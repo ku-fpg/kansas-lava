@@ -9,6 +9,7 @@ module Language.KansasLava (
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Protocols.FSL,
     module Language.KansasLava.Reify,
+    module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Stream,
@@ -38,6 +39,7 @@ import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
 import Language.KansasLava.Protocols.FSL
 import Language.KansasLava.Reify
+import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Simulate

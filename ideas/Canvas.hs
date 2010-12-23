@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes,GADTs, ExistentialQuantification, KindSignatures, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes,GADTs, ExistentialQuantification, KindSignatures, ScopedTypeVariables, NoMonomorphismRestriction, TypeFamilies #-}
 
 import Language.KansasLava
 import Control.Concurrent.MVar
@@ -6,7 +6,9 @@ import System.IO.Unsafe
 import Data.Sized.Matrix
 import Data.Sized.Unsigned (U7)
 import Data.Default
+import Data.Sized.Matrix as M
 
+{-
 data REG c a = REG (forall v . (IsReg v) => v c a)
 
 data ARR c ix a = ARR (forall v . (IsReg v) => CSeq c ix -> v c a)
@@ -38,6 +40,7 @@ infixr 0 :=
 data RTL c a where
 	RTL :: (Maybe (CSeq c Bool) -> IO (a,[CSeq c Bool])) -> RTL c a
 	(:=) :: forall c b . Reg c b -> CSeq c b -> RTL c ()
+	CASE :: [Cond c] -> RTL c ()
 
 runRTL :: forall c a . (Clock c) => RTL c a -> IO a
 runRTL rtl = do
@@ -145,6 +148,8 @@ foo = do
 -}
 
 infixr 2 <|>
+
+-- This operator
 (<|>) :: RTL c () -> RTL c () -> RTL c ()
 (<|>) rtl1 rtl2 = RTL $ \ c -> do
 	((),fs0) <- unRTL rtl1 c
@@ -254,3 +259,109 @@ main = do
 xx = updateMatrix :: Seq X4 -> Seq U7 -> Seq (Matrix X4 U7) -> Seq (Matrix X4 U7)
 yy = (.!.) :: Seq (Matrix X4 U7) -> Seq X4 -> Seq U7
 
+
+cond :: [ Cond c ]
+cond = undefined
+
+data Cond c
+	= IF (CSeq c Bool) (RTL c ())
+	| OTHERWISE (RTL c ())
+
+infix 0 ==>
+	
+(==>) :: CSeq c Bool -> RTL c () -> Cond c
+(==>) = IF
+
+example t x = do
+	CASE [ IF (x .==. 10) $ do
+			t := 1
+	     , IF (x .>. 10) $ do
+			t := 1
+	     , (x .>. 10) ==> do
+			t := 10
+	     , OTHERWISE $ do
+		t := 1
+	     ]
+
+
+-}
+
+
+
+example1 :: (Clock c) => CSeq c Int -> CSeq c Int
+example1 r' = runRTL $ do
+	r <- newReg (0 :: Comb Int)
+	r := r'
+	return $ reg r
+
+example2 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example2 = runRTL $ do
+	r  <- newReg (0 :: Comb Int)
+	r := reg r + 1
+	return $ reg r
+
+example3 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example3 = runRTL $ do
+	r  <- newReg (0 :: Comb Int)
+	CASE [ IF (reg r .<. 10) $ do
+		r := reg r + 1
+	     , OTHERWISE $ do
+		r := 0
+	     ]
+	return $ reg r
+
+example4 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example4 = runRTL $ do
+	r  <- newReg (0 :: Comb Int)
+	CASE [ IF (reg r .==. 0) $ r := 10
+	     , IF (reg r .==. 1) $ r := 20
+	     , OTHERWISE $ do
+		r := 999999
+	     ]
+	return $ reg r
+	
+{-
+example3 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example3 = runRTL $ do
+	arr  <- newArr 0 :: RTL s c (CSeq c X10 -> Reg s c Int)
+	arr 3 := reg (arr 2)
+	return $ reg $ arr 3
+-}
+{-	
+	sequence_ 
+		[ arr n := if i == (9 :: X10) then 99 else reg (arr (n + 1))
+		| i <- [0..9]
+		, let n = fromIntegral i
+		]
+	return $ M.forAll $ \i -> reg (arr (fromIntegral i))
+-}
+
+main = do
+	c1 <- reifyCircuit (example1 :: CSeq () Int -> CSeq () Int) -- TODO: figure out combinator here
+	writeDotCircuit "c1.dot" c1
+	
+	c2 <- reifyCircuit (example2 :: CSeq () Int)	-- TODO: figure out combinator here
+	writeDotCircuit "c2.dot" c2
+
+	c3 <- reifyCircuit (example3 :: (CSeq () Int))	-- TODO: figure out combinator here
+	writeDotCircuit "c3.dot" c3
+	c3' <- optimizeCircuit def c3
+	writeDotCircuit "c3o.dot" c3'
+	return ()
+
+	c4 <- reifyCircuit (example4 :: (CSeq () Int))	-- TODO: figure out combinator here
+	writeDotCircuit "c4.dot" c4
+	c4' <- optimizeCircuit def c4
+	writeDotCircuit "c4o.dot" c4'
+	return ()	
+
+{-
+main = do
+	x <- runRTL (foo)
+
+	c <- reifyCircuit x
+
+	c' <- optimizeCircuit def c
+	writeDotCircuit "x.dot" c'
+	print c'
+-}
