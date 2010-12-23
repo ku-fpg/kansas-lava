@@ -725,3 +725,10 @@ takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
 
+(<!>) :: (Size ix, Rep a, Rep ix, Signal sig) => sig (ix -> a) -> sig ix -> sig a
+(<!>) = liftS2 $ \ (Comb (XFunction m) me) (Comb x xe) -> 
+			Comb (case (unX x) of
+				    Just x' -> m M.! x'
+				    Nothing -> optX Nothing
+			     )
+		$ entity2 (Prim "index") xe me -- order reversed

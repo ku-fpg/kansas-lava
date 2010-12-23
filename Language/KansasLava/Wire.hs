@@ -584,6 +584,31 @@ instance (Size ix) => RepWire (StdLogicVector ix) where
 -}
 
 -----------------------------------------------------------------------------
+-- The grandfather of them all, functions.
+
+instance (Size ix, Rep a) => Rep (ix -> a) where
+    data X (ix -> a) = XFunction (Matrix ix (X a))
+    optX (Just f)   = XFunction $ M.forAll $ \ ix -> optX (Just $ f ix)
+    optX Nothing    = XFunction $ forAll $ \ ix -> optX (Nothing :: Maybe a)
+    unX (XFunction m) = do
+		xs <- liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
+		return $ \ ix -> xs M.! ix
+    wireType m = MatrixTy (size (ix m)) (wireType (a m))
+        where
+            ix :: (ix -> a) -> ix
+            ix = error "ix/Matrix"
+            a :: (ix -> a) -> a
+            a = error "a/Matrix"
+
+    toRep (XFunction m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
+    fromRep (RepValue xs) = XFunction $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
+	    where unconcat [] = []
+		  unconcat xs = take len xs : unconcat (drop len xs)
+		
+		  len = Prelude.length xs `div` size (witness :: ix)
+
+
+-----------------------------------------------------------------------------
 
 log2 :: Int -> Int
 log2 0 = 0
@@ -653,6 +678,7 @@ instance RepWire ALPHA where
 
 -----------------------------------------------------------------------------
 
+{-
 -- New ideas
 -- Only total functions, for now
 instance (Rep a, Rep b) => Rep (a -> b) where
@@ -667,6 +693,7 @@ instance (Rep a, Rep b) => Rep (a -> b) where
 	fromRep = error "Can not find the rep for functions"
 
 	showRep _ _ = "<function>"
+-}
 	
 ---applyRep :: (Rep a, Rep b, Signal sig) => sig a -> sig (a -> b) -> sig b
 --applyRep = undefined
