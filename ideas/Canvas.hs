@@ -4,7 +4,7 @@ import Language.KansasLava
 import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Data.Sized.Matrix
-import Data.Sized.Unsigned (U7)
+import Data.Sized.Unsigned
 import Data.Default
 import Data.Sized.Matrix as M
 
@@ -320,13 +320,34 @@ example4 = runRTL $ do
 	     ]
 	return $ reg r
 	
-{-
-example3 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
-example3 = runRTL $ do
-	arr  <- newArr 0 :: RTL s c (CSeq c X10 -> Reg s c Int)
+
+example5 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example5 = runRTL $ do
+	arr  <- newArr (Witness :: Witness X10)
 	arr 3 := reg (arr 2)
 	return $ reg $ arr 3
+
+example6 :: forall c sig . (Clock c, sig ~ CSeq c) => Matrix X10 (sig U4)
+example6 = runRTL $ do
+	r <- newReg (0 :: Comb X10)	-- fix bounded issue
+	CASE [ IF (reg r .==. 9) $ do
+		r := 0
+	     , OTHERWISE $ do
+		r := reg r + 1
+	     ]
+
+	arr <- newArr (Witness :: Witness X10)
+
+	let r' :: CSeq c U4
+	    r' = fromStdLogicVector (toStdLogicVector $ reg r)
+
+	arr (reg r) := r' * r'
+{-
+	arr 3 := reg (arr 2)
 -}
+	return $ M.forAll $ \ ix -> reg $ arr (fromIntegral ix)
+
+
 {-	
 	sequence_ 
 		[ arr n := if i == (9 :: X10) then 99 else reg (arr (n + 1))
@@ -335,6 +356,18 @@ example3 = runRTL $ do
 		]
 	return $ M.forAll $ \i -> reg (arr (fromIntegral i))
 -}
+
+example7 :: forall c sig . (Clock c, sig ~ CSeq c) => sig Int
+example7 =  example2
+{-
+	r  <- newReg (undefinedComb :: Comb (Matrix X4 Int))
+
+	assign r 4 := 99
+
+	return $ (reg r .!. 4)
+
+-}
+
 
 main = do
 	c1 <- reifyCircuit (example1 :: CSeq () Int -> CSeq () Int) -- TODO: figure out combinator here
@@ -347,12 +380,27 @@ main = do
 	writeDotCircuit "c3.dot" c3
 	c3' <- optimizeCircuit def c3
 	writeDotCircuit "c3o.dot" c3'
-	return ()
 
 	c4 <- reifyCircuit (example4 :: (CSeq () Int))	-- TODO: figure out combinator here
 	writeDotCircuit "c4.dot" c4
 	c4' <- optimizeCircuit def c4
 	writeDotCircuit "c4o.dot" c4'
+
+	c5 <- reifyCircuit (example5 :: (CSeq () Int))	-- TODO: figure out combinator here
+	writeDotCircuit "c5.dot" c5
+	c5' <- optimizeCircuit def c5
+	writeDotCircuit "c5o.dot" c5'
+	
+	c6 <- reifyCircuit (example6 :: Matrix X10  (CSeq () U4))	-- TODO: figure out combinator here
+	writeDotCircuit "c6.dot" c6
+	c6' <- optimizeCircuit def c6
+	writeDotCircuit "c6o.dot" c6'	
+
+	c7 <- reifyCircuit (example7 :: (CSeq () Int))	-- TODO: figure out combinator here
+	writeDotCircuit "c7.dot" c7
+	c7' <- optimizeCircuit def c7
+	writeDotCircuit "c7o.dot" c7'	
+
 	return ()	
 
 {-
