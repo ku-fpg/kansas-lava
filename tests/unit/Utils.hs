@@ -9,6 +9,7 @@ import Data.Default
 import Data.List ( sortBy )
 import Data.Ord ( comparing )
 import Data.Maybe as Maybe
+import Data.List
 import Control.Applicative
 
 import qualified System.Random as R
@@ -44,7 +45,9 @@ instance Default Options where
 -------------------------------------------------------------------------------------
 
 testMe _ Nothing     = True
-testMe nm (Just nms) = nm `elem` nms
+testMe nm (Just nms) = or [ n `isPrefixOf` nm
+			  | n <- nms
+			  ]
 
 verbose opt n m | verboseOpt opt >= n = putStrLn m
 		| otherwise	      = return ()

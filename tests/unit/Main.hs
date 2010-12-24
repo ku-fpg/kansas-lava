@@ -20,9 +20,11 @@ import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
 import Utils
 
+
+
 main = do
-	let opt = def { verboseOpt = 2
---	 	      , testOnly = return [ "memory/const/X1xBool" ]
+	let opt = def { verboseOpt = 4	-- 4 == show cases that failed
+--	 	      , testOnly = return [ "memory/X2xU4" ]
 	 	      }
 
 	count <- newMVar (0,0) :: IO (MVar (Int,Int))
@@ -341,11 +343,10 @@ testMemory (TestSeq test toList) tyName ws = do
 		        )
 	    res :: Seq w2
 	    res = toSeq' $
-		    [ Nothing ] ++
 		    [ last $
 		     [Nothing] ++
 		     [ Just b
-		     | Just (a,b) <- take (i-2) writes
+		     | Just (a,b) <- take (i - 1) writes
 		     , a == fromIntegral r
 		     ]
 		    | (i,r) <- zip [1..(length writes-1)] reads
@@ -362,11 +363,11 @@ testConstMemory (TestSeq test toList) tyName ws = do
 		        )
 	    res :: M.Matrix w1 (Seq w2)
 	    res = M.matrix
-		$ [ toSeq' $ [Nothing] ++
+		$ [ toSeq' $ 
 		    [ last $
 		     [Nothing] ++
 		     [ Just b
-		     | Just (a,b) <- take (i-2) writes
+		     | Just (a,b) <- take (i - 1) writes
 		     , a == fromIntegral x
 		     ]
 		    | i <- [1..(length writes-1)]
