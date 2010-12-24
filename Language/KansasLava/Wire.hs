@@ -21,6 +21,7 @@ import Data.Bits
 import qualified Data.Traversable as T
 import qualified Data.Maybe as Maybe
 import Data.Dynamic
+import Language.KansasLava.Radix as Radix
 
 -- | A 'Wire a' is an 'a' value that we 'Rep'resents, aka we can push it over a wire.
 class Rep w where
@@ -586,13 +587,15 @@ instance (Size ix) => RepWire (StdLogicVector ix) where
 -----------------------------------------------------------------------------
 -- The grandfather of them all, functions.
 
-instance (Size ix, Rep a) => Rep (ix -> a) where
-    data X (ix -> a) = XFunction (Matrix ix (X a))
-    optX (Just f)   = XFunction $ M.forAll $ \ ix -> optX (Just $ f ix)
-    optX Nothing    = XFunction $ forAll $ \ ix -> optX (Nothing :: Maybe a)
-    unX (XFunction m) = do
-		xs <- liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
-		return $ \ ix -> xs M.! ix
+instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
+    data X (ix -> a) = XFunction (ix -> X a)
+
+    optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
+    optX Nothing    = XFunction $ const (optX Nothing)
+
+    -- assumes total function
+    unX (XFunction f) = return (Maybe.fromJust . unX . f)
+
     wireType m = MatrixTy (size (ix m)) (wireType (a m))
         where
             ix :: (ix -> a) -> ix
@@ -600,13 +603,11 @@ instance (Size ix, Rep a) => Rep (ix -> a) where
             a :: (ix -> a) -> a
             a = error "a/Matrix"
 
-    toRep (XFunction m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
-    fromRep (RepValue xs) = XFunction $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
-	    where unconcat [] = []
-		  unconcat xs = take len xs : unconcat (drop len xs)
-		
-		  len = Prelude.length xs `div` size (witness :: ix)
-
+    -- reuse the matrix encodings here
+    toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
+    fromRep (RepValue xs) = XFunction $ \ ix -> 
+	case fromRep (RepValue xs) of
+	   XMatrix m -> m M.! ix
 
 -----------------------------------------------------------------------------
 

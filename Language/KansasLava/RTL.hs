@@ -22,13 +22,13 @@ import Data.STRef
 data Reg s c a  = Reg (CSeq c a) 					-- the "final" answer
 		      (STRef s [CSeq c a -> CSeq c a])
 		      Int
---		      (STRef s [(Maybe (CSeq c Bool),CSeq c a)])	-- the "assignments"
-{-
-	      | forall ix . 
+	      | forall ix . (Rep ix) =>
 		  Arr (CSeq c a)
 		      (CSeq c ix)
-	    	      (STRef s [(Maybe (CSeq c Bool),CSeq c ix, CSeq c a)])	-- the "assignments"
--}
+	    	      (STRef s [CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))])
+		      Int
+						-- the "assignments"
+--	(Maybe (CSeq c Bool),CSeq c ix, CSeq c a)])	
 
 -- type R a b c = ()
 {-
@@ -53,7 +53,7 @@ instance IsReg (CCSeq) where
 
 reg :: Reg s c a -> CSeq c a
 reg (Reg seq _ _) = seq
---reg (Arr seq _ _) = seq
+reg (Arr seq _ _ _) = seq
 
 -------------------------------------------------------------------------------
 
@@ -77,7 +77,7 @@ data RTL s c a where
 	(:=) :: forall c b s . (Rep b) => Reg s c b -> CSeq c b -> RTL s c ()
 	CASE :: [Cond s c] -> RTL s c ()
 
--- everything except ($)
+-- everything except ($) bids tighter
 infixr 0 :=
 
 instance Monad (RTL s c) where
@@ -97,14 +97,11 @@ unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
 unRTL ((Reg _ var uq) := ss) = \ c _u -> do
 	modifySTRef var ((:) (\ r -> muxPred c (ss,r)))
---	writeSTRef var ((c,ss) : vs)
 	return ((), [uq])
-{-
-unRTL ((Arr _ ix var) := ss) = \ c -> do
-	vs <- readSTRef var
-	writeSTRef var ((c,ix,ss) : vs)
-	return ((), [])
--}
+unRTL ((Arr _ ix var uq) := ss) = \ c _u -> do
+	modifySTRef var ((:) (\ r -> muxPred c (enabledS (pack (ix,ss)),r)))
+	return ((), [uq])
+
 unRTL (CASE alts) = \ c u -> do
 	sequence_ 
 	   [ case alt of
@@ -141,14 +138,17 @@ newReg def = RTL $ \ _ u -> do
 		return $ v_old
 	return (Reg proj var uq,[])
 
-{-
-newArr :: forall a c ix s . (Clock c, Rep a, Num ix, Rep ix) => Comb Integer -> RTL s c (CSeq c ix -> Reg s c a)
-newArr sz = 
-	RTL $ \ _ -> do 
+
+-- Arrays support partual updates.
+
+newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (CSeq c ix -> Reg s c a)
+newArr Witness = RTL $ \ _ u -> do 
+	uq <- readSTRef u
+	writeSTRef u (uq + 1)
 	var <- newSTRef []
 	proj <- unsafeInterleaveST $ do
 		assigns <- readSTRef var
-
+{-
 		let memMux :: forall a . (Rep a) => (Maybe (CSeq c Bool), CSeq c ix, CSeq c a) -> CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))
 		    memMux (Nothing,ix,v) d  = enabledS (pack (ix,v))
 		    memMux (Just p,ix,v) d  = mux2 p (enabledS (pack (ix,v)),d)
@@ -156,11 +156,15 @@ newArr sz =
 --			let mux :: forall a . (Rep a) => (Maybe (CSeq c Bool),CSeq c a) -> CSeq c a -> CSeq c a
 --		    mux (Nothing,a) d = a	-- Nothing is used to represent always true
 --		    mux (Just b,a) d  = mux2 b (a,d)
-		let ass = foldr memMux (pureS Nothing) assigns
+-}
+		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
 		let look ix = pipeToMemory (ass :: CSeq c (Maybe (ix,a))) ix
 		return $ look
-	return (\ ix -> Arr (proj ix) ix var,[])
--}
+	return (\ ix -> Arr (proj ix) ix var uq, [])
+
+--assign :: Reg s c (Matrix ix a) -> CSeq c ix -> Reg s c a
+--assign (Reg seq var uq) = Arr 
+
 {-
 	var <- newMVar []
 	proj <- unsafeInterleaveIO $ do

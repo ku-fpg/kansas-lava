@@ -17,6 +17,7 @@ import Control.Applicative
 import Data.Maybe  as Maybe
 import Data.Sized.Unsigned (Unsigned,U1)
 import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Radix
 
 type Enabled a = Maybe a
 
@@ -42,27 +43,37 @@ memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
 	(en,a) = unpack enA
 
 
--- Does not work for two clocks, *YET*
-pipeToMemory :: forall a d clk1 clk2. (Clock clk1, Clock clk2, Rep a, Rep d)
+pipeToMemory :: forall a d clk1 clk2. (Size a, Clock clk1, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
-	-> Memory clk2 a d
-pipeToMemory  pipe addr2 = res
+	-> Memory clk1 a d
+pipeToMemory pipe addr2 = unpack (pipeToMemory' pipe) addr2 
+
+-- Later, we will have a two clock version.
+
+-- Does not work for two clocks, *YET*
+pipeToMemory' :: forall a d clk1 clk2. (Clock clk1, Size a, Rep a, Rep d)
+	=> CSeq clk1 (Pipe a d)
+	-> CSeq clk1 (a -> d)
+pipeToMemory' pipe = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
-	(wEn,pipe') = unpack $ register (pureS Nothing) $ pipe
+	-- TODO: figure this out, and fix it properly
+	(wEn,pipe') = unpack $ {- register (pureS Nothing) $ -} pipe
 	(addr,dat) = unpack pipe'
 
-    	res :: CSeq clk2 d
+    	res :: CSeq clk1 (a -> d)
     	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
 
-	shallowRes :: Stream (X d)
-	shallowRes = pure (\ m a2 -> case getValidRepValue (toRep a2) of
-				       Nothing -> optX Nothing
-				       Just a' -> case lookupMEM a' m of
-						    Nothing -> optX Nothing
-						    Just v -> optX (Just v)
-			  ) <*> (emptyMEM :~ mem)
-			    <*> (optX Nothing :~ seqValue addr2)
+	shallowRes :: Stream (X (a -> d))
+	shallowRes = pure (\ m -> XFunction $ \ ix -> 
+			case getValidRepValue (toRep (optX (Just ix))) of
+			       Nothing -> optX Nothing
+			       Just a' -> case lookupRadix a' m of
+					    Nothing -> optX Nothing
+					    Just v -> optX (Just v)
+			  ) 
+			<*> mem -- (emptyMEM :~ mem)
+--			    <*> ({- optX Nothing :~ -} seqValue addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
@@ -98,15 +109,15 @@ pipeToMemory  pipe addr2 = res
 		| m <- Stream.toList mem
 		]
 -}
-	mem :: Stream (Mem d)
+	mem :: Stream (Radix d)
 	mem = stepifyStream (\ a -> a `seq` ())
-	    $ emptyMEM :~ Stream.fromList
+	    $ emptyRadix :~ Stream.fromList
 		[ case u of
-		    Nothing           -> emptyMEM	-- unknown again
+		    Nothing           -> emptyRadix	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) ->
 			case getValidRepValue (toRep (optX (Just a))) of
-			  Just bs -> ((insertMEM $! bs) $! d) $! m
+			  Just bs -> ((insertRadix $! bs) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
@@ -115,12 +126,11 @@ pipeToMemory  pipe addr2 = res
     	entity =
 		Entity (Prim "BRAM")
 			[ ("o0",bitTypeOf res)]
-			[ ("env1",ClkDomTy, unD $ (clock :: D clk1))
-			, ("env2",ClkDomTy, unD $ (clock :: D clk2))
+			[ ("env",ClkDomTy, unD $ (clock :: D clk1))
 			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
 			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
-			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
+--			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
 			]
 		[]
 
@@ -394,41 +404,4 @@ instance (Eval a) => Eval (Maybe a) where
 instance (Eval a, Eval b) => Eval (a,b) where
 	eval (a,b) = eval a `seq` eval b `seq` ()
 -}
-
-
--- LATER: GADTs
-data Mem a
-  = Res !a
-  | NoRes
-  | Choose !(Mem a) !(Mem a)
-	deriving Show
-
-emptyMEM :: Mem a
-emptyMEM = NoRes
-
-insertMEM :: [Bool] -> a -> Mem a -> Mem a
-
-insertMEM []    y (Res _) = Res $! y
-insertMEM []    y NoRes   = Res $! y
-insertMEM []    y (Choose _ _) = error "inserting with short key"
-
-insertMEM (x:a) y NoRes   = insertMEM (x:a) y expanded
-insertMEM (x:a) y (Res _) = error "inserting with to long a key"
-insertMEM (x:a) y (Choose l r)
-	| x == True 	  = Choose (insertMEM a y l) r
-	| x == False	  = Choose l (insertMEM a y r)
-
--- Would this be lifted
-expanded = Choose NoRes NoRes
-
-lookupMEM :: [Bool] -> Mem a -> Maybe a
-lookupMEM [] (Res v) = Just v
-lookupMEM [] NoRes   = Nothing
-lookupMEM [] _       = error "lookup error with short key"
-
-lookupMEM (x:a) (Res _) = error "lookup error with long key"
-lookupMEM (x:a) NoRes   = Nothing
-lookupMEM (True:a) (Choose l r) = lookupMEM a l
-lookupMEM (False:a) (Choose l r) = lookupMEM a r
-
 
