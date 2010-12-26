@@ -3,8 +3,7 @@
 module Language.KansasLava (
     module Language.KansasLava.Comb,
     module Language.KansasLava.Circuit,
-    module Language.KansasLava.Entity,
-    module Language.KansasLava.Entity.Utils,
+    module Language.KansasLava.Deep,
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Protocols.FSL,
@@ -33,8 +32,7 @@ module Language.KansasLava (
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Circuit
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Deep
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
 import Language.KansasLava.Protocols.FSL

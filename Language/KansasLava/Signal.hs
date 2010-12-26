@@ -5,12 +5,12 @@ module Language.KansasLava.Signal where
 import Control.Applicative
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Entity
+-- import Language.KansasLava.Entity
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Deep
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned as U

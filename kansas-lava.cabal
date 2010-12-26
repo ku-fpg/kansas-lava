@@ -35,8 +35,7 @@ Library
        Language.KansasLava.Circuit
        Language.KansasLava.Circuit.Depth
        Language.KansasLava.Circuit.Optimization
-       Language.KansasLava.Entity
-       Language.KansasLava.Entity.Utils
+       Language.KansasLava.Deep
        Language.KansasLava.Internals
        Language.KansasLava.Netlist
        Language.KansasLava.Netlist.Decl

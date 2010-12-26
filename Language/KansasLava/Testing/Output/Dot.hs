@@ -1,7 +1,7 @@
 -- | The 'Dot' module converts a Lava circuit into a graphical Graphviz format.
 module Language.KansasLava.Testing.Output.Dot (writeDotCircuit) where
 
-import Language.KansasLava.Entity
+-- import Language.KansasLava.Entity
 import Language.KansasLava.Types
 import Language.KansasLava.Reify
 import Language.KansasLava.Circuit

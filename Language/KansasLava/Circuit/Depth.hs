@@ -4,14 +4,14 @@ module Language.KansasLava.Circuit.Depth
 	, depthTable
 	) where
 
-import Language.KansasLava.Entity
+-- import Language.KansasLava.Entity
 import Language.KansasLava.Circuit
 
 import Data.Reify
 import Data.List as L
 import qualified Data.Map as Map
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq

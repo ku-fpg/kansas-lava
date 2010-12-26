@@ -4,7 +4,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Signal
 import Language.KansasLava.Comb
 import Language.KansasLava.Wire
-import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Deep
 import Data.Dynamic
 
 -- We use identity "black boxes" as arbitary tags in the syntax, 

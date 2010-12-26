@@ -3,7 +3,7 @@ module Language.KansasLava.Protocols where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
-import Language.KansasLava.Entity
+-- import Language.KansasLava.Entity
 import Language.KansasLava.Wire
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
@@ -16,7 +16,7 @@ import Data.Word
 import Control.Applicative
 import Data.Maybe  as Maybe
 import Data.Sized.Unsigned (Unsigned,U1)
-import Language.KansasLava.Entity.Utils
+import Language.KansasLava.Deep
 import Language.KansasLava.Radix
 
 type Enabled a = Maybe a

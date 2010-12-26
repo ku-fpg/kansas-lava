@@ -3,8 +3,6 @@
 
 module Language.KansasLava.Wire where
 
---import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Entity
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Control.Applicative

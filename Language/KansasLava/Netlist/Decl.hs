@@ -6,8 +6,8 @@ import Language.Netlist.AST
 import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 
 import Data.Reify.Graph (Unique)
 

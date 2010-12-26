@@ -15,8 +15,8 @@ import Data.Reify
 import Language.KansasLava.Circuit
 import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Wire
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq

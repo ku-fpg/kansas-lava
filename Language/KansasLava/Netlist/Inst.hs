@@ -7,8 +7,8 @@ import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Wire
 import qualified Data.Map as M
 

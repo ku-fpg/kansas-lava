@@ -11,8 +11,8 @@ import Data.Word
 import Debug.Trace
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Entity as E
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity as E
+import Language.KansasLava.Deep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector as SLV

@@ -16,8 +16,8 @@ import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Wire
 

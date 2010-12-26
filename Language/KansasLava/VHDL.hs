@@ -6,7 +6,7 @@ module Language.KansasLava.VHDL(writeVhdlCircuit) where
 -- import qualified Language.KansasLava.Entity as E
 import Language.KansasLava.Reify(reifyCircuit,Ports)
 import Language.KansasLava.Types
-import Language.KansasLava.Entity
+-- import Language.KansasLava.Entity
 
 import Language.KansasLava.Netlist
 import Language.KansasLava.Netlist.Utils

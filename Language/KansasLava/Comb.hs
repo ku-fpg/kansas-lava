@@ -2,8 +2,8 @@
 
 module Language.KansasLava.Comb where
 
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Types
 import Language.KansasLava.Wire
 import Data.Sized.Unsigned as U

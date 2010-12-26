@@ -13,8 +13,8 @@ import qualified Data.Traversable as T
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
-import Language.KansasLava.Entity
-import Language.KansasLava.Entity.Utils
+-- import Language.KansasLava.Entity
+import Language.KansasLava.Deep
 import Language.KansasLava.Stream as S
 
 import Control.Applicative
