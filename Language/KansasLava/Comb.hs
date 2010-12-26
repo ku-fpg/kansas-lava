@@ -1,8 +1,5 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ScopedTypeVariables #-}
 
-{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
-
 module Language.KansasLava.Comb where
 
 import Language.KansasLava.Entity
@@ -12,10 +9,8 @@ import Language.KansasLava.Wire
 import Data.Sized.Unsigned as U
 
 
--- import Control.Applicative
-
 ----------------------------------------------------------------------------------------------------
--- an obserable (k)ombinatoral value. Not a functor, applicative functor, or monad.
+-- | An obserable Combinatoral value. Not a functor, applicative functor, or monad.
 
 data Comb a = Comb !(X a) (D a)
 
