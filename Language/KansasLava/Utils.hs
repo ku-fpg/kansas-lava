@@ -190,11 +190,11 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 						 [("i0",tA,ae)]
 						 []
 				     )
-	where tA = wireType (error "table" :: a)
-	      tB = wireType (error "table" :: b)
+	where tA = wireType (Witness :: Witness a)
+	      tB = wireType (Witness :: Witness b)
 
 	      all_a_bitRep :: [RepValue]
-	      all_a_bitRep = allReps (witness :: a)
+	      all_a_bitRep = allReps (Witness :: Witness a)
 
 	      tab' :: [(RepValue,RepValue)]
 	      tab' = [ ( w_a
@@ -213,9 +213,9 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 
 	      tab :: [(Integer,String,Integer,String)]
 	      tab = [ ( fromRepToInteger w_a
-		      , showRep (witness :: a) $ optX $ Just a
+		      , showRep (Witness :: Witness a) $ optX $ Just a
 		      , fromRepToInteger w_b
-		      , showRep (witness :: b) $ optX $ Just b
+		      , showRep (Witness :: Witness b) $ optX $ Just b
 		      )
 		    | w_a <- all_a_bitRep
 		    , a <- case unX $ fromRep w_a of
@@ -242,25 +242,10 @@ mux2 i (t,e)
 	= liftS3 (\ (Comb i ei)
 	 	    (Comb t et)
 	 	    (Comb e ee)
-			-> Comb (mux2shallow (witness :: a) i t e)
+			-> Comb (mux2shallow i t e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
 	         ) i t e
 
-mux2' :: forall sig a . (Signal sig, sig a ~ Seq a, Rep a) => sig Bool -> (sig a,sig a) -> sig a
-mux2' i (t,e)
-	= liftS3' (\ (Comb i ei)
-	 	    (Comb t et)
-	 	    (Comb e ee)
-			-> Comb (mux2shallow (witness :: a) i t e)
-			        (entity3 (Name "Lava" "mux2") ei et ee)
-	         ) i t e
-
---liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
---       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-{-
-liftS3' f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
--}
--- BUGGS?
 liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
 liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
@@ -271,8 +256,8 @@ liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
 		      Comb d _ -> d
 
 
-mux2shallow :: forall a . (Rep a) => a -> X Bool -> X a -> X a -> X a
-mux2shallow _ i t e =
+mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
+mux2shallow i t e =
    case unX i of
        Nothing -> optX Nothing
        Just True -> t
@@ -619,11 +604,11 @@ instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 toSLV :: forall w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
-toSLV v = case toRep (witness :: w) (optX (return v) :: X w) of
+toSLV v = case toRep (Witness :: Witness w) (optX (return v) :: X w) of
 		RepValue v -> StdLogicVector $ M.matrix $ v
 
 fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
-fromSLV x@(StdLogicVector v) = unX (fromRep (witness :: w) (RepValue (M.toList v))) :: Maybe w
+fromSLV x@(StdLogicVector v) = unX (fromRep (Witness :: Witness w) (RepValue (M.toList v))) :: Maybe w
 
 -}
 
@@ -688,8 +673,8 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (WireVal a))     = return a
 	unX (XSampled WireUnknown)   = fail "Wire Sampled"
-	wireType x   	    = SampledTy (size (witness :: m)) (size (witness :: ix))
-	toRep (XSampled WireUnknown) = unknownRepValue (witness :: Sampled.Sampled m ix)
+	wireType x   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
+	toRep (XSampled WireUnknown) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
 	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
@@ -700,7 +685,7 @@ factor :: forall a a1 a2 sig . (Rep a, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Size
 	   , Signal sig, Rep a2, Rep a1
 	   , StdLogic a, StdLogic a1, StdLogic a2) => sig a -> sig (a1,a2)
 factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
-		 , fromStdLogicVector $ extractStdLogicVector (size (witness :: WIDTH a1)) vec
+		 , fromStdLogicVector $ extractStdLogicVector (size (error "witness" :: WIDTH a1)) vec
 		 )
 	 where vec :: sig (StdLogicVector (WIDTH a))
 	       vec = toStdLogicVector a

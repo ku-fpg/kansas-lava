@@ -154,7 +154,7 @@ allValues = xs
 	xs = Maybe.catMaybes
 	   $ fmap (unX :: X w -> Maybe w)
 	   $ fmap (fromRep :: RepValue -> X w)
-	   $ (allReps (witness :: w))
+	   $ (allReps (Witness :: Witness w))
 
 allBounded :: (Enum w, Bounded w) => [w]
 allBounded = [minBound..maxBound]
@@ -372,7 +372,7 @@ testConstMemory (TestSeq test toList) tyName ws = do
 		     ]
 		    | i <- [1..(length writes-1)]
 		    ]
-		  | x <- [0..(size (witness :: w1) - 1 )]
+		  | x <- [0..(size (error "witness" :: w1) - 1 )]
 		  ]
 	test ("memory/const/" ++ tyName) (length writes) thu (pack res)
 	return ()

@@ -40,7 +40,7 @@ module Language.KansasLava.Types (
 	, circuitSignature
 	-- *Witness
 	, Witness(..)
-	, witness
+--	, witness
 	-- * TO REMOVE
 	, MuE(..) -- TODO: remove
 	, Annotation(..)
@@ -492,11 +492,13 @@ circuitSignature cir = Signature
 -------------------------------------------------------------------------------------
 -- | Create a type witness, to help resolve some of the type issues.
 -- Really, we are using this in a system-F style. 
--- (As suggested by a anonymous TFP referee, as a better alterntive to using 'error "witness"').
+-- (As suggested by an anonymous TFP referee, as a better alterntive to using 'error "witness"').
+
+-- TODO: Move into sized types.
 
 data Witness w = Witness
 
 -- | TODO: change to Witness a Not a type, but used as a first class type.
-witness :: a
-witness = error "witness"
+--witness :: a
+--witness = error "witness"
 

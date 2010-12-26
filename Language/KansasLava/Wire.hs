@@ -36,7 +36,7 @@ class Rep w where
 
     -- | Each wire has a known type.
     -- TODO: call repTupe
-    wireType :: w -> Type
+    wireType :: Witness w -> Type
 
     -- | convert to binary (rep) format
     toRep   :: X w -> RepValue
@@ -44,7 +44,7 @@ class Rep w where
     fromRep :: RepValue -> X w
 
     -- show the value (in its Haskell form, default is the bits)
-    showRep :: w -> X w -> String
+    showRep :: Witness w -> X w -> String
     showRep w x = show (toRep x)
 
 -- D w ->
@@ -106,7 +106,7 @@ allWireReps = [U.toMatrix count | count <- counts ]
 -}
 
 -- Give me all possible (non-X) representations (2^n of them).
-allReps :: (Rep w) => w -> [RepValue]
+allReps :: (Rep w) => Witness w -> [RepValue]
 allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
    where
     n = repWidth w
@@ -116,12 +116,12 @@ allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
 
 -- | Figure out the width in bits of a type.
 
-repWidth :: (Rep w) => w -> Int
+repWidth :: (Rep w) => Witness w -> Int
 repWidth w = typeWidth (wireType w)
 
 
 -- | unknownRepValue returns a RepValue that is completely filled with 'X'.
-unknownRepValue :: (Rep w) => w -> RepValue
+unknownRepValue :: (Rep w) => Witness w -> RepValue
 unknownRepValue w = RepValue [ WireUnknown | _ <- [1..repWidth w]]
 
 allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
@@ -145,7 +145,7 @@ pureX = optX . Just
 
 -- This is not wired into the class because of the extra 'Show' requirement.
 
-showRepDefault :: forall w. (Show w, Rep w) => w -> X w -> String
+showRepDefault :: forall w. (Show w, Rep w) => Witness w -> X w -> String
 showRepDefault w v = case unX v :: Maybe w of
             Nothing -> "?"
             Just v' -> show v'
@@ -175,9 +175,9 @@ fromRepToUnsigned w1 w2 r = optX (fmap (\ xs -> fromIntegral $ U.fromMatrix (M.m
 
 toRepFromIntegral :: forall v . (Rep v, Integral v) => X v -> RepValue
 toRepFromIntegral v = case unX v :: Maybe v of
-                 Nothing -> unknownRepValue (witness :: v)
+                 Nothing -> unknownRepValue (Witness :: Witness v)
                  Just v' -> RepValue
-                    $ take (repWidth (witness :: v))
+                    $ take (repWidth (Witness :: Witness v))
                     $ map WireVal
                     $ map odd
                     $ iterate (`div` 2)
@@ -208,12 +208,12 @@ fromRepToInteger (RepValue xs) =
 
 -- | compare a golden value with a generated value.
 --
-cmpRep :: (Rep a) => a -> X a -> X a -> Bool
-cmpRep w g v = toRep g `cmpRepValue` toRep v
+cmpRep :: (Rep a) => Witness a -> X a -> X a -> Bool
+cmpRep Witness g v = toRep g `cmpRepValue` toRep v
 
 -- basic conversion to trace representation
 toTrace :: forall w . (Rep w) => Stream (X w) -> TraceStream
-toTrace stream = TraceStream (wireType (witness :: w)) [toRep xVal | xVal <- Stream.toList stream ]
+toTrace stream = TraceStream (wireType (Witness :: Witness w)) [toRep xVal | xVal <- Stream.toList stream ]
 
 fromTrace :: (Rep w) => TraceStream -> Stream (X w)
 fromTrace (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
@@ -348,7 +348,7 @@ instance (Rep a, Rep b) => Rep (a,b) where
                             return (x,y)
 --  wireName _ = "Tuple_2"
 
-    wireType ~(a,b) = TupleTy [wireType a, wireType b]
+    wireType Witness = TupleTy [wireType (Witness :: Witness a), wireType (Witness :: Witness b)]
 {-
     wireCapture (D d) = [ (wireType (error "wireCapture (a,)" :: a),Port (Var "o0") $ E $ eFst)
                 , (wireType (error "wireCapture (,b)" :: b),Port (Var "o0") $ E $ eSnd)
@@ -382,8 +382,8 @@ instance (Rep a, Rep b) => Rep (a,b) where
     fromRep (RepValue vs) = XTuple ( fromRep (RepValue (take size_a vs))
                   , fromRep (RepValue (drop size_a vs))
                   )
-        where size_a = typeWidth (wireType (witness :: a))
-    showRep _ (XTuple (a,b)) = "(" ++ showRep (witness :: a) a ++ "," ++ showRep (witness :: b) b ++ ")"
+        where size_a = typeWidth (wireType (Witness :: Witness a))
+    showRep _ (XTuple (a,b)) = "(" ++ showRep (Witness :: Witness a) a ++ "," ++ showRep (Witness :: Witness b) b ++ ")"
 
 {-
 instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => RepWire (a,b) where
@@ -409,15 +409,15 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 {-
 --  TO ADD
     toRep _ (a,b) = RepValue (avals ++ bvals)
-        where (RepValue avals) = toRep (witness :: a) a
-              (RepValue bvals) = toRep (witness :: b) b
-    fromRep w (RepValue vs) = ( fromRep (witness :: a) (RepValue (take size_a vs))
-                  , fromRep (witness :: b) (RepValue (drop size_a vs))
+        where (RepValue avals) = toRep (Witness :: Witness a) a
+              (RepValue bvals) = toRep (Witness :: Witness b) b
+    fromRep w (RepValue vs) = ( fromRep (Witness :: Witness a) (RepValue (take size_a vs))
+                  , fromRep (Witness :: Witness b) (RepValue (drop size_a vs))
                   )
         where size_a = typeWidth (wireType w)
 -}
 
-    wireType ~(a,b,c) = TupleTy [wireType a, wireType b,wireType c]
+    wireType Witness = TupleTy [wireType (Witness :: Witness a), wireType (Witness :: Witness b),wireType (Witness :: Witness c)]
     toRep (XTriple (a,b,c)) = RepValue (avals ++ bvals ++ cvals)
         where (RepValue avals) = toRep a
               (RepValue bvals) = toRep b
@@ -426,11 +426,11 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
 				  , fromRep (RepValue (take size_b (drop size_a vs)))
                   , fromRep (RepValue (drop (size_a + size_b) vs))
                   )
-        where size_a = typeWidth (wireType (witness :: a))
-              size_b = typeWidth (wireType (witness :: b))
-    showRep _ (XTriple (a,b,c)) = "(" ++ showRep (witness :: a) a ++
-                "," ++ showRep (witness :: b) b ++
-                "," ++ showRep (witness :: c) c ++ ")"
+        where size_a = typeWidth (wireType (Witness :: Witness a))
+              size_b = typeWidth (wireType (Witness :: Witness b))
+    showRep _ (XTriple (a,b,c)) = "(" ++ showRep (Witness :: Witness a) a ++
+                "," ++ showRep (Witness :: Witness b) b ++
+                "," ++ showRep (Witness :: Witness c) c ++ ")"
 
 
 
@@ -463,7 +463,7 @@ instance (Rep a) => Rep (Maybe a) where
                 Just True  -> Just $ unX b
                 Just False -> Just Nothing
 --  wireName _  = "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
-    wireType _  = TupleTy [ B, wireType (error "witness" :: a)]
+    wireType _  = TupleTy [ B, wireType (Witness :: Witness a)]
 
     toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)
         where (RepValue avals) = toRep a
@@ -472,7 +472,7 @@ instance (Rep a) => Rep (Maybe a) where
                   , fromRep (RepValue (drop 1 vs))
                   )
     showRep w (XMaybe (XBool WireUnknown,a)) = "?"
-    showRep w (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (witness :: a) a
+    showRep w (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (Witness :: Witness a) a
     showRep w (XMaybe (XBool (WireVal False),a)) = "Nothing"
 
 --instance Size (ADD X1 a) => Size a where
@@ -498,18 +498,13 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     optX Nothing    = XMatrix $ forAll $ \ ix -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
 --  wireName _  = "Matrix"
-    wireType m  = MatrixTy (size (ix m)) (wireType (a m))
-        where
-            ix :: Matrix ix a -> ix
-            ix = error "ix/Matrix"
-            a :: Matrix ix a -> a
-            a = error "a/Matrix"
+    wireType Witness = MatrixTy (size (error "witness" :: ix)) (wireType (Witness :: Witness a))
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
 		  unconcat xs = take len xs : unconcat (drop len xs)
 		
-		  len = Prelude.length xs `div` size (witness :: ix)
+		  len = Prelude.length xs `div` size (error "witness" :: ix)
 
 --  showWire _ = show
 
@@ -596,12 +591,7 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
     -- assumes total function
     unX (XFunction f) = return (Maybe.fromJust . unX . f)
 
-    wireType m = MatrixTy (size (ix m)) (wireType (a m))
-        where
-            ix :: (ix -> a) -> ix
-            ix = error "ix/Matrix"
-            a :: (ix -> a) -> a
-            a = error "a/Matrix"
+    wireType Witness = MatrixTy (size (error "witness" :: ix)) (wireType (Witness :: Witness a))
 
     -- reuse the matrix encodings here
     toRep (XFunction f) = toRep (XMatrix $ M.forAll f)

@@ -24,7 +24,7 @@ class Signal f where
     deepS  :: f a -> D a
 
 bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
-bitTypeOf _ = wireType (error "bitTypeOf" :: w)
+bitTypeOf _ = wireType (Witness :: Witness w)
 
 -- TODO: remove
 op :: forall f w . (Signal f, Rep w) => f w -> String -> Id
@@ -91,11 +91,9 @@ fun2 :: forall a b c sig . (Signal sig, Rep a, Rep b, Rep c) => String -> (a -> 
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b))
 	  $ entity2 (Name (wireName (error "fun2" :: c)) nm) ae be
 
--- Hack for now
+-- TODO: Hack for now, remove
 wireName :: (Rep a) => a -> String
-wireName a = case wireType a of
-		_ -> "Lava"
---		ty -> error $ "Type Name not found for " ++ show ty
+wireName a = "Lava"
 
 
 label :: (Rep a, Signal sig) => String -> sig a -> sig a

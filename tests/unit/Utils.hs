@@ -103,12 +103,12 @@ data Gen a = Gen Integer (Integer -> Maybe a)
 arbitrary :: forall w . (Rep w) => Gen w
 arbitrary = Gen sz integer2rep
   where
-	sz = 2^fromIntegral (repWidth (witness :: w))
+	sz = 2^fromIntegral (repWidth (Witness :: Witness w))
 	integer2rep :: Integer -> Maybe w
 	integer2rep v = unX
 		$ fromRep
 		$ RepValue
-		$ take (repWidth (witness :: w))
+		$ take (repWidth (Witness :: Witness w))
 		$ map WireVal
 		$ map odd
 		$ iterate (`div` 2)

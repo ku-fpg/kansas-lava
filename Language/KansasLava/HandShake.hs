@@ -193,36 +193,6 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 	handShakeToShallowFifo rFIFO rHS
 	return ()
 
---liftEnabledToHandshake :: Enabled a -> Handshake a
---fifo1 ::  Handshake a -> Handshake a
---fifo1 
-{-
-fifo :: forall a counter ix . 
-         (Size counter
-	, Size ix
-	, counter ~ ADD ix X1
-	, Rep a
-	, Rep counter
-	, Rep ix
-	, Num counter
-	, Num ix
-	) 
-      => ix
-      -> Env () 
-      -> Handshake a
-      -> Handshake (a,counter)
-fifo w env (Handshake inp) = Handshake out
-   where
-	out :: Seq Bool -> Seq (Enabled a,counter)
-	out out_ready = pack (out_data,counter)
-	   where
-		in_data = inp in_ready
-		(in_ready,out_data,counter) = fifo' w env (out_ready,in_data)
-
--- IDEA: Handl
-data Handshake c = Handshake { unHandshake :: Seq Bool -> c (Seq (Enabled a)) }
-
--}
 
 
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
@@ -238,13 +208,13 @@ fifoFE :: forall a counter ix .
 	, Num counter
 	, Num ix
 	) 
-      => ix
+      => Witness ix
       -> Seq Bool
       -> (HandShake (Seq (Enabled a)),Seq counter)
 	 -- ^ HS, and Seq trigger of how much to decrement the counter
       -> Seq (Enabled (ix,a))
 	 -- ^ inc_counter * backedge for HandShake.
-fifoFE _ rst (HandShake hs,dec_by) = wr
+fifoFE Witness rst (HandShake hs,dec_by) = wr
   where
 	resetable x = mux2 rst (0,x)
 
@@ -278,7 +248,7 @@ fifoFE _ rst (HandShake hs,dec_by) = wr
 --	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
 
 	inp_ready :: Seq Bool
-	inp_ready = (in_counter1 .<. fromIntegral (size (witness :: ix)))
+	inp_ready = (in_counter1 .<. fromIntegral (size (error "witness" :: ix)))
 			`and2`
 		    (bitNot rst)
 
@@ -292,7 +262,7 @@ fifoBE :: forall a counter ix .
 	, Num counter
 	, Num ix
 	) 
-      => ix
+      => Witness ix
       -> Seq Bool	-- ^ reset
 --      -> (Comb Bool -> Comb counter -> Comb counter)
 --      -> Seq (counter -> counter)
@@ -303,7 +273,7 @@ fifoBE :: forall a counter ix .
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShake
-fifoBE _ rst (inc_by,mem_rd) = HandShake $ \ out_ready ->
+fifoBE Witness rst (inc_by,mem_rd) = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (0,x)
 
@@ -368,16 +338,16 @@ fifo :: forall a counter ix .
 	, Num counter
 	, Num ix
 	) 
-      => ix
+      => Witness ix
       -> Seq Bool
       -> HandShake (Seq (Enabled a))
       -> HandShake (Seq (Enabled a))
-fifo w rst hs = HandShake $ \ out_ready ->
+fifo w_ix@Witness rst hs = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (low,x)
 
 	wr :: Seq (Maybe (ix, a))
-	wr = fifoFE w rst (hs,dec_by)
+	wr = fifoFE w_ix rst (hs,dec_by)
 
 	inp_done2 :: Seq Bool
 	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
@@ -385,7 +355,7 @@ fifo w rst hs = HandShake $ \ out_ready ->
 	mem :: Seq ix -> Seq (Enabled a)
 	mem = enabledS . pipeToMemory wr
 
-	((rd_addr0,out_done0),out) = fifoBE w rst (inc_by,mem rd_addr0) <~~ out_ready
+	((rd_addr0,out_done0),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) <~~ out_ready
 
 
 	dec_by = liftS1 (\ b -> mux2 b (1,0)) out_done0
@@ -415,17 +385,17 @@ fifoToMatrix :: forall a counter counter2 ix iy iz .
 --	, Integral (Seq counter)
 
 	) 
-      => ix
-      -> iy
+      => Witness ix
+      -> Witness iy
       -> Seq Bool
       -> HandShake (Seq (Enabled a))
       -> HandShake (Seq (Enabled (M.Matrix iz a)))
-fifoToMatrix w w_iy rst hs = HandShake $ \ out_ready ->
+fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShake $ \ out_ready ->
     let
 	resetable x = mux2 rst (low,x)
 
 	wr :: Seq (Maybe (ix, a))
-	wr = fifoFE w rst (hs,dec_by)
+	wr = fifoFE w_ix rst (hs,dec_by)
 
 	inp_done2 :: Seq Bool
 	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
@@ -441,8 +411,8 @@ fifoToMatrix w w_iy rst hs = HandShake $ \ out_ready ->
 
 	((rd_addr0,out_done0),out) = fifoBE w_iy rst (inc_by,mem) <~~ out_ready
 
-	dec_by = mulBy (witness :: iz) out_done0
-	inc_by = divBy (witness :: iz) rst inp_done2
+	dec_by = mulBy (Witness :: Witness iz) out_done0
+	inc_by = divBy (Witness :: Witness iz) rst inp_done2
     in
 	out
 
@@ -455,13 +425,13 @@ splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
 				   	           (pack (a2,d))
 
 
-mulBy :: forall x sz sig . (Size sz, Num sz, Num x, Rep x) => sz -> Seq Bool -> Seq x
-mulBy sz trig = mux2 trig (pureS $ fromIntegral $ size (witness :: sz),pureS 0)
+mulBy :: forall x sz sig . (Size sz, Num sz, Num x, Rep x) => Witness sz -> Seq Bool -> Seq x
+mulBy Witness trig = mux2 trig (pureS $ fromIntegral $ size (error "witness" :: sz),pureS 0)
 
-divBy :: forall x sz sig . (Size sz, Num sz, Rep sz, Num x, Rep x) => sz -> Seq Bool -> Seq Bool -> Seq x
-divBy sz rst trig = mux2 issue (1,0)
+divBy :: forall x sz sig . (Size sz, Num sz, Rep sz, Num x, Rep x) => Witness sz -> Seq Bool -> Seq Bool -> Seq x
+divBy Witness rst trig = mux2 issue (1,0)
 	where 
-		issue = trig .&&. (counter1 .==. (pureS $ fromIntegral (size (witness :: sz) - 1)))
+		issue = trig .&&. (counter1 .==. (pureS $ fromIntegral (size (error "witness" :: sz) - 1)))
 
 		counter0 :: Seq sz
 		counter0 = cASE [ (rst,0)
@@ -474,54 +444,3 @@ divBy sz rst trig = mux2 issue (1,0)
 
 
 
----------------------------
-{-
-data CounterCntl = IncCounter | DecCounter | RstCounter | MaxCounter 
-	deriving (Eq, Ord, Enum, Show)
-
-instance Rep CounterCntl where
-    data X CounterCntl     = XCounterCntl CounterCntl
-			   | XCounterCntlUnknown
-    optX (Just b)             = XCounterCntl $ b
-    optX Nothing              = XCounterCntlUnknown
-    unX (XCounterCntl v)      = return v
-    unX (XCounterCntlUnknown) = fail "Wire CounterCntl"
-    wireType _  	      = V 2
-
-    toRep   		      = enum_toRep counterCntls
-    fromRep		      = enum_fromRep counterCntls
-    showRep _ (XCounterCntl c)  = show c
-    showRep _ _		      = "?"
-
-counterCntls = [IncCounter,DecCounter,RstCounter,MaxCounter]
-
--- This can be moved
-enum_toRep :: forall a . (Eq a, Rep a) => [a] -> X a -> RepValue
-enum_toRep alls x_a = case unX x_a of
-			Just a -> case lookup a env of
-			   Just v -> v
-			   Nothing -> unknownRepValue (witness :: a)
-			Nothing -> unknownRepValue (witness :: a)
-	where
-		env = alls `zip` (allReps (witness :: a))
-
-
-enum_fromRep :: forall a . (Rep a) => [a] -> RepValue -> X a
-enum_fromRep alls repVal = optX $ lookup repVal env
-	where
-		env = (allReps (witness :: a)) `zip` alls 
-
-counter :: forall a. (Size a, Num a, Rep a) => Seq (Enabled CounterCntl) -> Seq a
-counter cntr = out0
-  where
-	out0 :: Seq a
-	out0 = cASE 
-		[(cntr .==. pureS (Just IncCounter),out1 + 1)
-		,(cntr .==. pureS (Just DecCounter),out1 - 1)
-		,(cntr .==. pureS (Just RstCounter),0)
-		,(cntr .==. pureS (Just MaxCounter),fromIntegral ((size (witness :: a)) - 1))
-		] out1
-
-	out1 :: Seq a
-	out1 = register 0 out0
--}

@@ -47,7 +47,7 @@ seqDriver (Seq a d) = d
 
 instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
-         	= concat [ showRep (undefined :: a) x ++ " "
+         	= concat [ showRep (Witness :: Witness a) x ++ " "
                          | x <- take 20 $ toList vs
                          ] ++ "..."
 
@@ -65,7 +65,7 @@ undefinedSeq ::  forall a c . (Rep a) => CSeq c a
 undefinedSeq = liftS0 undefinedComb
 
 seqAll :: forall w. (Rep w) => Seq w
-seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (witness :: w) ]
+seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (Witness :: Witness w) ]
 
 instance Signal (CSeq c) where
   liftS0 ~(Comb a e) = Seq (pure a) e
@@ -120,7 +120,7 @@ encSeqBool = encSeq enc
 
 showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
 showStreamList ss =
-	[ showRep (witness :: a) x
+	[ showRep (Witness :: Witness a) x
 	| x <- toList (seqValue ss)
 	]
 
@@ -134,7 +134,7 @@ cmpSeqRep :: forall a c . (Rep a) => Int -> CSeq c a -> CSeq c a -> Bool
 cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith (cmpRep w)
 								(seqValue s1)
 								(seqValue s2)
-	where w = witness :: a
+	where w = Witness :: Witness a
 
 -----------------------------------------------------------------------------------
 -- TODO: move into its own module
@@ -202,4 +202,4 @@ showSeqVals ss = [ showRep witness i
 	 	 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
 
-     where witness = error "witness" :: a
+     where witness = Witness :: Witness a

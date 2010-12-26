@@ -114,7 +114,7 @@ serialize (Trace c ins outs ps) = unlines
                                ++ showMap ps
     where showMap :: TraceMap OVar -> [String]
           showMap m = concat [[show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
-          showStrm s = unwords [concatMap ((showRep (witness :: Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
+          showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
 
 deserialize :: String -> Trace
 deserialize str = Trace { len = c, inputs = ins, outputs = outs, probes = ps }

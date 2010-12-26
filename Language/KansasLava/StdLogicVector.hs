@@ -36,7 +36,7 @@ instance (Size ix) => Num (StdLogicVector ix) where
 	(*) = error "(*) is undefined for StdLogicVector"
 	abs = error "abs is undefined for StdLogicVector"
 	signum = error "signum is undefined for StdLogicVector"
-	fromInteger n = StdLogicVector $ fmap WireVal $ matrix $ take (size (witness :: ix)) $ map odd $ iterate (`div` 2) n
+	fromInteger n = StdLogicVector $ fmap WireVal $ matrix $ take (size (error "witness" :: ix)) $ map odd $ iterate (`div` 2) n
 
 instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
 	bitSize s = size (error "witness" :: ix)
@@ -94,7 +94,7 @@ splice low v = coerce $ shiftR v low
 coerce :: forall a b . (Size a, Size b) => StdLogicVector a -> StdLogicVector b
 coerce (StdLogicVector m) = StdLogicVector
 			  $ M.matrix
-			  $ take (size (witness :: b))
+			  $ take (size (error "witness" :: b))
 			  $ M.toList m ++ repeat (WireVal False)
 
 -- TODO: Add Rep to the superclass list
