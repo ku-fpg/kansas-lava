@@ -597,3 +597,11 @@ resolveNames cir
 		    ]
 
 
+
+data CircuitOptions
+        = DebugReify            -- ^ show debugging output of the reification stage
+        | OptimizeReify         -- ^ perform basic optimizations
+        | NoRenamingReify       -- ^ do not use renaming of variables
+        | CommentDepth
+              [(Id,DepthOp)]    -- ^ add comments that denote depth
+        deriving (Eq, Show)

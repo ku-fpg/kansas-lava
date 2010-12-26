@@ -66,3 +66,7 @@ depthTable =
 	, (Name "StdLogicVector" "coerceStdLogicVector", AddDepth 0)
 	, (Name "StdLogicVector" "spliceStdLogicVector", AddDepth 0)
         ]
+
+data DepthOp = AddDepth Float
+             | NewDepth Float
+        deriving (Eq, Show)

@@ -1,6 +1,50 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs #-}
 
-module Language.KansasLava.Types where
+-- | This module contains the key internal types for Kansas Lava,
+-- and some basic utilties (like Show instances) for these types.
+
+module Language.KansasLava.Types (
+	-- * Types
+	  Type(..)
+	, typeWidth
+	, isTypeSigned
+	-- * OVar
+	, OVar(..)
+	-- * Id
+	, Id(..)
+	, Box(..)
+	-- * Entity
+	, Entity(..)
+	, E(..)
+	-- * Driver
+	, Driver(..)
+	, D(..)
+	-- * Clock
+	, Clock(..)	-- type class
+	-- * WireVal
+	, WireVal(..)
+	-- * RepValue
+	, RepValue(..)
+	, appendRepValue
+	, isValidRepValue
+	, getValidRepValue
+	, cmpRepValue
+	-- * Tracing
+	, TraceStream(..)
+	, TraceMap
+	, Trace(..)
+
+	-- * Circuit
+	, Circuit(..)
+	, Signature(..)
+	, circuitSignature
+	-- *Witness
+	, Witness(..)
+	, witness
+	-- * TO REMOVE
+	, MuE(..) -- TODO: remove
+	, Annotation(..)
+	) where
 
 import Control.Applicative
 
@@ -12,27 +56,27 @@ import Data.Monoid
 import Data.Reify
 import qualified Data.Traversable as T
 
--- Key internal type
-
+-------------------------------------------------------------------------
 -- | Type captures HDL-representable types.
 data Type
         -- basic representations
         = B             -- ^ Bit
-        | S Int         -- ^ Signed vector, with a width
-        | U Int         -- ^ Unsigned vector, with a width
-        | V Int         -- ^ std_logic_vector
+        | S Int         -- ^ Signed vector, with a width.
+        | U Int         -- ^ Unsigned vector, with a width.
+        | V Int         -- ^ std_logic_vector, with a width.
 
         -- type of bit, used only for clock (TODO: do we need this?)
         | ClkTy         -- ^ Clock Signal
 
-	| ClkDomTy	-- ^ The clock domain type (clk, clk_en, rst)?
+	| ClkDomTy	-- ^ The clock domain type, which has a clock, a clock enable,
+			-- and an asyncronized reset.
 
         | GenericTy     -- ^ generics in VHDL, right now just Integer
 
         | TupleTy [Type]
-                        -- ^ Tuple, represented as a larget std_logic_vector
+                        -- ^ Tuple, represented as a larger std_logic_vector
         | MatrixTy Int Type
-                        -- ^ Matrix, vhdl array.
+                        -- ^ Matrix, for example a vhdl array.
 
         | SampledTy Int Int
                         -- ^ Our "floating" values.
@@ -40,7 +84,7 @@ data Type
                         --   The second number is the bits used to represent this number
         deriving (Eq, Ord)
 
--- | typeWidth returns the width of a type when represented in VHDL.
+-- | 'typeWidth' returns the width of a type when represented in VHDL.
 typeWidth :: Type -> Int
 typeWidth B  = 1
 typeWidth ClkTy = 1
@@ -90,7 +134,9 @@ instance Read Type where
 
 
 -------------------------------------------------------------------------
--- OVar
+-- | 'OVar' is an order Var, with a number that is used for sorting purposes.
+-- This is used for names of arguments in VHDL, and other places, so
+-- that arguments can preserve order through transformation.
 
 data OVar = OVar Int String             -- The # is used purely for sorting order.
         deriving (Eq, Ord)
@@ -106,26 +152,27 @@ instance Read OVar where
                           _         -> [] -- no parse
 
 -------------------------------------------------------------------------
--- Id
+-- | Id is the name/tag of a block of compuation.
 
-data Id = Name String String                    -- external thing
-        | Prim String                           -- built in thing
+data Id = Name String String                    -- ^ external thing (TODO: remove)
+        | Prim String                           -- ^ built in thing
 	| External String			-- 
-        | Function [(RepValue,RepValue)]        -- anonymous function
+        | Function [(RepValue,RepValue)]        -- ^ anonymous function
 
-						-- Why are the OVar's here?
-        | TraceVal [OVar] TraceStream           -- trace (probes, etc)
+
+						-- 
+        | TraceVal [OVar] TraceStream           -- ^ trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
                                                 -- for later inspection
+						-- (Why are the OVar's here?)
 
-	| ClockId String			-- An environment box
+	| ClockId String			-- ^ An environment box
 
-
-	| Label String				-- An identity; also a name
-	| Comment' [String]
-	| BlackBox (Box Dynamic)		-- These can be removed without harm
+	| Label String				-- ^ An identity; also a name, used to tag function arguments
+	| Comment' [String]			-- ^ An identity; also a multi-line comments
+	| BlackBox (Box Dynamic)		-- ^ 'BlackBox' can be removed without harm
 						-- The rule is you can only insert you own
 						-- types in here (or use newtype).
 						-- Prelude or other peoples types
@@ -133,14 +180,6 @@ data Id = Name String String                    -- external thing
 
     deriving (Eq, Ord)
 
--- The type indirection to to allow the Eq/Ord to be provided without
--- crashing the Dynamic Eq/Ord space.
-newtype Box a = Box a
-
--- I do not like this, but at least it is defined.
--- All black boxes are the same.
-instance Eq (Box a) where { (==) _ _ = True }
-instance Ord (Box a) where { compare _ _ = EQ }
 
 instance Show Id where
     show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
@@ -154,15 +193,21 @@ instance Show Id where
     show (Function _)  = "<fn>"
     show (BlackBox bx) = "<bb>"
 
+-- | The type indirection to to allow the Eq/Ord to be provided without
+-- crashing the Dynamic Eq/Ord space.
+newtype Box a = Box a
+
+-- I do not like this, but at least it is defined.
+-- All black boxes are the same.
+instance Eq (Box a) where { (==) _ _ = True }
+instance Ord (Box a) where { compare _ _ = EQ }
 
 -------------------------------------------------------------------------
--- Entity
-
--- An Entity is our central "BOX" of compuation.
-
+-- | An 'Entity' Entity is our central "BOX" of compuation, round an 'Id'.
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
--- TODO: remove Table, remove annotations
+-- TODO, remove annotations; specialize to Type (because we always do).
+
 data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
               deriving (Show, Eq, Ord)
 
@@ -176,19 +221,35 @@ instance F.Foldable (Entity ty a) where
 instance Functor (Entity ty a) where
     fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
 
--------------------------------------------------------------------------
--- Driver
 
--- A Driver is a specific driven 'wire' (signal in VHDL),
+-- 'E' is our knot tieing version of Entity.
+newtype E = E (Entity Type Annotation E)
+
+-- TODO: Remove after specialization
+type MuE u = Entity Type Annotation u
+
+-- You want to observe
+instance MuRef E where
+  type DeRef E = Entity Type Annotation
+  mapDeRef f (E s) = T.traverse f s
+
+instance Show E where
+    show (E s) = show s
+
+-- Consider this carefully
+instance Eq E where
+   (E s1) == (E s2) = s1 == s2
+
+-------------------------------------------------------------------------
+-- | A 'Driver' is a specific driven 'wire' (signal in VHDL),
 -- which types contains a value that changes over time.
 
-data Driver s = Port String s   -- a specific port on the entity
-              | Pad OVar        --
-	      | ClkDom String	-- the clock domain
-              | Lit RepValue    -- A representable Value (including unknowns)
-              | Generic Integer -- A generic argument, always fully defined
-              | Error String    -- A call to err, in Datatype format for reification purposes
---	      | Env' Env'
+data Driver s = Port String s   -- ^ a specific port on the entity
+              | Pad OVar        -- ^ an input pad
+	      | ClkDom String	-- ^ the clock domain
+              | Lit RepValue    -- ^ A representable Value (including unknowns, aka X in VHDL)
+              | Generic Integer -- ^ A generic argument, always fully defined
+              | Error String    -- ^ A call to err, in Datatype format for reification purposes
               deriving (Eq, Ord)
 
 instance Show i => Show (Driver i) where
@@ -229,18 +290,24 @@ instance Functor Driver where
     fmap _ (Error s)     = Error s
 
 
+-- A 'D' is a "Deep", phantom-typed driver into an MuE or Entity
+newtype D a = D { unD :: Driver E }
+        deriving Show
+
 ---------------------------------------------------------------------------------------------------------
+-- | class 'Clock' is a type that can be be used to represent a clock.
 
 class Clock clk where
 	clock :: D clk 
-	
+
+-- '()' is the default/standard/vanilla clock.	
 instance Clock () where
 	clock = D $ ClkDom "unit"
 
 ---------------------------------------------------------------------------------------------------------
--- Should be called SignalVal? Par Cable? hmm.
--- TODO: call StdLogic?
--- data StdLogicValue a = Unknown | Value a
+-- | 'WireVal' is a value over a wire, either known or representing unknown.
+-- The 'Show' class is overloaded to 'show' "?" for unknowns.
+
 
 data WireVal a = WireUnknown | WireVal a
     deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
@@ -265,12 +332,8 @@ instance Show a => Show (WireVal a) where
         show (WireVal a) = show a
 
 ---------------------------------------------------------------------------------------------------------
---
--- | Our representation value is a list of WireVal.
---
-
--- The least significant bit is at the front.
--- TODO: call this StdLogicVector, because it is.
+---- | Our bitwise representation value is a list of 'WireVal'.
+-- The least significant bit is at the front of the list.
 
 newtype RepValue = RepValue { unRepValue :: [WireVal Bool] }
         deriving (Eq, Ord)
@@ -283,11 +346,14 @@ instance Show RepValue where
                                | v <- vals
                                ]
 
--- Read for RepValue?
+-- TODO: Read for RepValue?
 
+-- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
 appendRepValue :: RepValue -> RepValue -> RepValue
 appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
 
+
+-- | 'isValidRepValue' checks to see is a 'RepValue' is completely valid.
 isValidRepValue :: RepValue -> Bool
 isValidRepValue (RepValue m) = and $ fmap isGood $ m
    where
@@ -295,14 +361,15 @@ isValidRepValue (RepValue m) = and $ fmap isGood $ m
         isGood WireUnknown  = False
         isGood (WireVal {}) = True
 
--- Returns a binary rep, or Nothing is any bits are 'X'.
+-- | 'getValidRepValue' Rreturns a binary rep, or Nothing is *any* bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
 getValidRepValue r@(RepValue m)
         | isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
         | otherwise         = Nothing
 
--- | compare a golden value with another value, returning the bits that are different
-
+-- | 'cmpRepValue' compares a golden value with another value, returning the bits that are different.
+-- The first value may contain 'X', in which case *any* value in that bit location will
+-- match. This means that 'cmpRepValue' is not commutative.
 cmpRepValue :: RepValue -> RepValue -> Bool
 cmpRepValue (RepValue gs) (RepValue vs)
 	| length gs == length vs
@@ -315,16 +382,17 @@ cmpRepValue (RepValue gs) (RepValue vs)
 cmpRepValue _ _ = False
 
 ---------------------------------------------------------------------------------------------------------
---
---
+-- 'TraceStream' is a typed stream, 
 
 -- TODO: Consider why the Empty?
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
                  | Empty
     deriving (Eq, Ord, Show)
 
+
 type TraceMap k = M.Map k TraceStream
 
+-- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
 data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap OVar
                    , outputs :: TraceMap OVar
@@ -333,8 +401,8 @@ data Trace = Trace { len :: Maybe Int
                    }
 
 ---------------------------------------------------------------------------------------------------------
---
 
+-- TODO: Remove
 data Annotation = Comment String                -- intended to arrive in the VHDL
                 | Ann String Int
 --                | Ann String Dynamic
@@ -346,35 +414,7 @@ instance Show Annotation where
     show _             = error "Show: Unknown Annotation"
 
 ---------------------------------------------------------------------------------------------------------
-
-newtype E = E (MuE E)
-
--- What should this be called. Pre-MuE?
-type MuE u = Entity Type Annotation u
-
--- You want to observe
-instance MuRef E where
-  type DeRef E = Entity Type Annotation
-  mapDeRef f (E s) = T.traverse f s
-
-instance Show E where
-    show (E s) = show s
-
--- Consider this carefully
-instance Eq E where
-   (E s1) == (E s2) = s1 == s2
-
----------------------------------------------------------------------------------------------------------
-
--- A pin to an E/Entity
-newtype D a = D (Driver E)
-        deriving Show
-
--- TODO: is this used?
-unD :: D a -> Driver E
-unD (D a) = a
-
----------------------------------------------------------------------------------------------------------
+-- | 'Circuit' isd our primary way of representing a graph of entities.
 
 data Circuit = Circuit
         { theCircuit :: [(Unique,MuE Unique)]
@@ -434,6 +474,7 @@ instance Show Circuit where
                 ++ bar
 
 
+-- | A 'Signature' is the structure-level type of a Circuit.
 data Signature = Signature
         { sigInputs   :: [(OVar,Type)]
         , sigOutputs  :: [(OVar,Type)]
@@ -441,38 +482,21 @@ data Signature = Signature
         }
         deriving (Show, Read, Eq)
 
-
 circuitSignature :: Circuit -> Signature
 circuitSignature cir = Signature
         { sigInputs   = theSrcs cir
         , sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
-        , sigGenerics = []
+        , sigGenerics = [] -- TODO: fix this
         }
--- for now, we just use the show and read
-
------
-
--- These are here for now
-
-data CircuitOptions
-        = DebugReify            -- ^ show debugging output of the reification stage
-        | OptimizeReify         -- ^ perform basic optimizations
-        | NoRenamingReify       -- ^ do not use renaming of variables
-        | CommentDepth
-              [(Id,DepthOp)]    -- ^ add comments that denote depth
-        deriving (Eq, Show)
-
-
--- Does a specific thing
-data DepthOp = AddDepth Float
-             | NewDepth Float
-        deriving (Eq, Show)
 
 -------------------------------------------------------------------------------------
--- We will start using this more. As suggested by the TFP referee.
+-- | Create a type witness, to help resolve some of the type issues.
+-- Really, we are using this in a system-F style. 
+-- (As suggested by a anonymous TFP referee, as a better alterntive to using 'error "witness"').
+
 data Witness w = Witness
 
----- Not a type, but used as a first class type.
+-- | TODO: change to Witness a Not a type, but used as a first class type.
 witness :: a
 witness = error "witness"
 
