@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs #-}
 
 -- | This module contains the key internal types for Kansas Lava,
--- and some basic utilties (like Show instances) for these types.
+-- and some basic utilities (like Show instances) for these types.
 
 module Language.KansasLava.Types (
 	-- * Types
