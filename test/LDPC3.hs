@@ -64,7 +64,7 @@ instance Wire DecodeCntl where
 	unX (WireVal v)  = return v
 	unX (WireUnknown) = fail "Wire DecodeCntl"
 	wireName _ = "DecodeCntl"
-	wireType _ = U 4 -- TODO: derving this
+	repType _ = U 4 -- TODO: derving this
 
 instance RepWire DecodeCntl where	
 	type WIDTH DecodeCntl = X5
