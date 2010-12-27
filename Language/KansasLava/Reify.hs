@@ -237,7 +237,7 @@ allocEntities cir = [ highest + i | i <- [1..]]
 
 
 wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]
-wireCapture (D d) = [(wireType (Witness :: Witness w), d)]
+wireCapture (D d) = [(repType (Witness :: Witness w), d)]
 
 
 showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String

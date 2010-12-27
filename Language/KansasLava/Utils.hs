@@ -190,8 +190,8 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 						 [("i0",tA,ae)]
 						 []
 				     )
-	where tA = wireType (Witness :: Witness a)
-	      tB = wireType (Witness :: Witness b)
+	where tA = repType (Witness :: Witness a)
+	      tB = repType (Witness :: Witness b)
 
 	      all_a_bitRep :: [RepValue]
 	      all_a_bitRep = allReps (Witness :: Witness a)
@@ -536,7 +536,7 @@ instance Wire SysEnv where
         optX _ = error "Wire.SysEnv(optX)"
         unX _ = error "Wire.SystEnv(unX)"
 	wireName _	= "SysEnv"
-	wireType _	= TupleTy [ClkTy, RstTy]
+	repType _	= TupleTy [ClkTy, RstTy]
 
 instance Rep SysEnv where
   type WIDTH SysEnv = X2
@@ -673,7 +673,7 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (WireVal a))     = return a
 	unX (XSampled WireUnknown)   = fail "Wire Sampled"
-	wireType x   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
+	repType x   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
 	toRep (XSampled WireUnknown) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
 	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)

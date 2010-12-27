@@ -24,7 +24,7 @@ class Signal f where
     deepS  :: f a -> D a
 
 bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
-bitTypeOf _ = wireType (Witness :: Witness w)
+bitTypeOf _ = repType (Witness :: Witness w)
 
 -- TODO: remove
 op :: forall f w . (Signal f, Rep w) => f w -> String -> Id

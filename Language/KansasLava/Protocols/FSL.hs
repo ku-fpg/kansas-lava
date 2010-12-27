@@ -43,7 +43,7 @@ instance Rep IsRead where
 	optX Nothing	= fail "Rep IsRead"
 	unX (WireVal v)  = return (IsRead v)
 	unX (WireUnknown) = fail "Rep IsRead"
-	wireType _	= B		-- a bit internally
+	repType _	= B		-- a bit internally
 	toRep w v	= RepValue [v]
 	fromRep w (RepValue [v]) = v
 	fromRep w rep	 	 = error ("size error for IsRead" ++ show rep)
@@ -70,7 +70,7 @@ instance Rep IsFull where
 	optX Nothing	= fail "Rep IsFull"
 	unX (WireVal v)  = return (IsFull v)
 	unX (WireUnknown) = fail "Rep IsFull"
-	wireType _	= B		-- a bit internally
+	repType _	= B		-- a bit internally
 	toRep w v	= RepValue [v]
 	fromRep w (RepValue [v]) = v
 	fromRep w rep	 	 = error ("size error for IsFull" ++ show rep)
