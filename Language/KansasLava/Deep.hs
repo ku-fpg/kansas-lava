@@ -4,21 +4,8 @@
 -- | This module contains ways of building deep embedings.
 
 module Language.KansasLava.Deep where
-
-import qualified Data.Traversable as T
-import qualified Data.Foldable as F
-import Control.Applicative
-import Data.Monoid
-
-import Language.KansasLava.Types
-import Data.Reify
-import qualified Data.Traversable as T
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
-import Language.KansasLava.Stream
-
-import Control.Applicative
-import Data.Dynamic
 
 entity0 :: forall o . (Rep o) => Id -> D o
 entity0 nm = D $ Port ("o0") $ E $
