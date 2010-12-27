@@ -69,11 +69,7 @@ allOkayRep m | okay      = return (fmap (\ (XBool (WireVal a)) -> a) m)
                        WireUnknown -> False
                        _ -> True) (M.toList m))
 
--- toWriteRep' :: (Size w) => (Matrix w Bool -> a) -> Matrix w (
-
-liftX0 :: (Rep w1) => w1 -> X w1
-liftX0 = pureX
-
+-- | return a 'w' inside X.
 pureX :: (Rep w) => w -> X w
 pureX = optX . Just
 
