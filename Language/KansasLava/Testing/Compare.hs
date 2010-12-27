@@ -37,7 +37,7 @@ import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.TruthTable
 import Language.KansasLava.Testing.Utils
 import Language.KansasLava.Utils
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.VHDL
 
 import Language.Netlist.GenVHDL

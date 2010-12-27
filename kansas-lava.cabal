@@ -52,7 +52,7 @@ Library
        Language.KansasLava.Types
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
-       Language.KansasLava.Wire
+       Language.KansasLava.Shallow
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
        Language.KansasLava.Shallow.FIFO
@@ -67,6 +67,7 @@ Library
        Language.KansasLava.Testing.Unit
        Language.KansasLava.Testing.Utils
   Other-modules:
+       Language.KansasLava.Radix
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types

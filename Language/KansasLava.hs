@@ -4,6 +4,7 @@ module Language.KansasLava (
     module Language.KansasLava.Comb,
     module Language.KansasLava.Circuit,
     module Language.KansasLava.Deep,
+    module Language.KansasLava.Shallow,
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Protocols.FSL,
@@ -16,7 +17,6 @@ module Language.KansasLava (
     module Language.KansasLava.Types,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
-    module Language.KansasLava.Wire,
     module Language.KansasLava.StdLogicVector,
     module Language.KansasLava.Shallow.FIFO,
 
@@ -45,7 +45,7 @@ import Language.KansasLava.Stream hiding (head,tail,zipWith)
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Testing.Output.Dot
 
 import Language.KansasLava.StdLogicVector

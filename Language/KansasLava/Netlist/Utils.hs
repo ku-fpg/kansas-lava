@@ -7,7 +7,7 @@ import Language.Netlist.Util
 import Language.Netlist.Inline
 import Language.Netlist.GenVHDL
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Deep
 
 import qualified Data.Map as Map

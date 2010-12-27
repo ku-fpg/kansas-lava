@@ -7,7 +7,7 @@ import Control.Monad
 
 import Data.Sized.Matrix as M
 import Language.KansasLava.Types
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Data.Sized.Arith
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S

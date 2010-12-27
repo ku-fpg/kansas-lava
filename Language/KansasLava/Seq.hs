@@ -19,7 +19,7 @@ import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Deep
 import Language.KansasLava.Stream as S
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 
 import Data.Sized.Unsigned as UNSIGNED
 import Data.Sized.Signed as SIGNED

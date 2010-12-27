@@ -2,7 +2,7 @@
 module Language.KansasLava.Testing.Observe where
 
 import Language.KansasLava.Types
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Seq
 import Language.KansasLava.Stream
 import Debug.Trace

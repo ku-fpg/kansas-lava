@@ -27,7 +27,7 @@ import Data.Sized.Ix as X
 
 import Language.KansasLava.Comb
 import Data.List as List
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Shallow.FIFO 

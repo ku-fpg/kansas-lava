@@ -13,7 +13,7 @@ module Language.KansasLava.Shallow.FIFO
 	) where
 
 import Language.KansasLava.Stream
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 import Language.KansasLava.Seq

@@ -12,7 +12,7 @@ import Data.List as L
 import qualified Data.Map as Map
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Deep
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal

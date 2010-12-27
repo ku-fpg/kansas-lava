@@ -8,7 +8,7 @@ import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Deep
 

@@ -4,7 +4,7 @@
 module Language.KansasLava.RTL where
 
 import Language.KansasLava.Seq
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Comb
 import Language.KansasLava.Types
 import Language.KansasLava.Utils

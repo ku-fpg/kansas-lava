@@ -3,7 +3,7 @@ module Language.KansasLava.Dynamic where
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 import Language.KansasLava.Comb
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Deep
 import Data.Dynamic
 

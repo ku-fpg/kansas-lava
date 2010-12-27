@@ -18,7 +18,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector as SLV
 import Language.KansasLava.Stream  as S
 import Language.KansasLava.Types
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 
 import Data.Sized.Arith
 import Data.Sized.Matrix	as M

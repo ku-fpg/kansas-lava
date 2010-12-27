@@ -9,7 +9,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,writeToFile, readFromFile, checkExpected, execute) where
 
 import Language.KansasLava.Types
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Comb

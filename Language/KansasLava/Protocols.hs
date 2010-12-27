@@ -4,7 +4,7 @@ module Language.KansasLava.Protocols where
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Wire
+import Language.KansasLava.Shallow
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
 import Language.KansasLava.Stream as Stream
