@@ -1,6 +1,6 @@
 -- | This module provides some basic support for co-opting an identity entity block as a box
--- containing some 'Dynamic' data. Uses must assume that any optimization pass
--- will assume the block is an identity, and perhaps remove it.
+-- containing some 'Dynamic' data. Any optimization pass
+-- will assume these blocks are identities, and perhaps remove them.
 
 module Language.KansasLava.Dynamic where
 	
