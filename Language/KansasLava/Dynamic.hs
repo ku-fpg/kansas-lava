@@ -1,3 +1,7 @@
+-- | This module provides some basic support for co-opting an identity entity block as a box
+-- containing some 'Dynamic' data. Uses must assume that any optimization pass
+-- will assume the block is an identity, and perhaps remove it.
+
 module Language.KansasLava.Dynamic where
 	
 import Language.KansasLava.Types
@@ -13,7 +17,7 @@ addDynamic :: (Signal sig, Rep a) => Dynamic -> sig a -> sig a
 addDynamic bb = liftS1 $ \ (Comb a ae) -> Comb a (entity1 (BlackBox $ Box bb) $ ae)
 
 -- | Get any chain of (deep) black boxes on this signal.
-getDynamics :: (Signal sig) => sig b -> [Dynamic]
+getDynamics :: (Signal sig) => sig a -> [Dynamic]
 getDynamics sig = find (unD $ deepS sig)
   where
 	find :: Driver E -> [Dynamic]
