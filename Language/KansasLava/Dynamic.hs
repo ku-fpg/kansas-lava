@@ -7,13 +7,12 @@ import Language.KansasLava.Shallow
 import Language.KansasLava.Deep
 import Data.Dynamic
 
--- We use identity "black boxes" as arbitary tags in the syntax, 
--- for extentablity.
+-- | We use identity "black boxes" as arbitary tags in the syntax, for extentablity.
 
 addDynamic :: (Signal sig, Rep a) => Dynamic -> sig a -> sig a
 addDynamic bb = liftS1 $ \ (Comb a ae) -> Comb a (entity1 (BlackBox $ Box bb) $ ae)
 
--- Get any chain of black boxes on this 
+-- | Get any chain of (deep) black boxes on this signal.
 getDynamics :: (Signal sig) => sig b -> [Dynamic]
 getDynamics sig = find (unD $ deepS sig)
   where
