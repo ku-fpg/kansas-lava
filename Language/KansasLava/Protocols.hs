@@ -17,7 +17,7 @@ import Control.Applicative
 import Data.Maybe  as Maybe
 import Data.Sized.Unsigned (Unsigned,U1)
 import Language.KansasLava.Deep
-import Language.KansasLava.Radix
+import Language.KansasLava.Radix as Radix
 
 type Enabled a = Maybe a
 
@@ -68,7 +68,7 @@ pipeToMemory' pipe = res
 	shallowRes = pure (\ m -> XFunction $ \ ix -> 
 			case getValidRepValue (toRep (optX (Just ix))) of
 			       Nothing -> optX Nothing
-			       Just a' -> case lookupRadix a' m of
+			       Just a' -> case Radix.lookup a' m of
 					    Nothing -> optX Nothing
 					    Just v -> optX (Just v)
 			  ) 
@@ -111,13 +111,13 @@ pipeToMemory' pipe = res
 -}
 	mem :: Stream (Radix d)
 	mem = stepifyStream (\ a -> a `seq` ())
-	    $ emptyRadix :~ Stream.fromList
+	    $ Radix.empty :~ Stream.fromList
 		[ case u of
-		    Nothing           -> emptyRadix	-- unknown again
+		    Nothing           -> Radix.empty	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) ->
 			case getValidRepValue (toRep (optX (Just a))) of
-			  Just bs -> ((insertRadix $! bs) $! d) $! m
+			  Just bs -> ((Radix.insert $! bs) $! d) $! m
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]
