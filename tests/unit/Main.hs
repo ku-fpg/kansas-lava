@@ -337,7 +337,7 @@ testRegister  (TestSeq test toList) tyName ws = do
 testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testMemory (TestSeq test toList) tyName ws = do
 	let (writes,reads) = unzip $ toList ws
-	let mem = pipeToMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
+	let mem = readMemory . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 	let thu = Thunk mem
 		        (\ f -> f (toSeq writes) (toSeq reads)
 		        )
@@ -357,7 +357,7 @@ testMemory (TestSeq test toList) tyName ws = do
 testConstMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
 testConstMemory (TestSeq test toList) tyName ws = do
 	let writes = toList ws
-	let mem = memoryToMatrix . pipeToMemory :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
+	let mem = memoryToMatrix . writeMemory :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
 	let thu = Thunk mem
 		        (\ f -> f (toSeq writes)
 		        )

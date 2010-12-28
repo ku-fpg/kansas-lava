@@ -43,18 +43,19 @@ memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
 	(en,a) = unpack enA
 
 
-pipeToMemory :: forall a d clk1 clk2. (Size a, Clock clk1, Rep a, Rep d)
+pipeToMemory :: forall a d clk1 . (Size a, Clock clk1, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> Memory clk1 a d
-pipeToMemory pipe addr2 = unpack (delay (pipeToMemory' pipe)) (delay addr2)
+pipeToMemory pipe addr2 = unpack (delay (writeMemory pipe)) (delay addr2)
 
 -- Later, we will have a two clock version.
 
 -- Does not work for two clocks, *YET*
-pipeToMemory' :: forall a d clk1 clk2. (Clock clk1, Size a, Rep a, Rep d)
+-- call writeMemory
+writeMemory :: forall a d clk1 . (Clock clk1, Size a, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> CSeq clk1 (a -> d)
-pipeToMemory' pipe = res
+writeMemory pipe = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
 	-- TODO: figure this out, and fix it properly
@@ -134,6 +135,17 @@ pipeToMemory' pipe = res
 			]
 		[]
 
+readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+	=> sig (a -> d) -> sig a -> sig d
+readMemory mem addr = unpack mem addr
+
+-- | memoryToMatrix should be used with caution/simulation  only, 
+-- because this actually clones the memory to allow this to work, 
+-- generating lots of LUTs and BRAMS.
+
+memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk) 
+	=> sig (a -> d) -> sig (Matrix a d)
+memoryToMatrix mem = pack (forAll $ \ x -> readMemory mem (pureS x))
 
 fullEnabled :: forall a b sig . (Signal sig, Show a, Rep a, Show b, Rep b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
@@ -275,9 +287,6 @@ joinEnabled = liftS2 $ \ e1 e2 ->
 	                in pack (en1 `or2` en2, mux2 en1 (v1,v2))
 
 
--- Used for simulation, because this actually clones the memory to allow this to work, generating lots of LUTs.
-memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d) => Memory clk a d -> CSeq clk (Matrix a d)
-memoryToMatrix mem = pack (forAll $ \ x -> mem $ pureS x)
 
 shiftRegister :: (Rep d, Integral x, Size x, Clock clk) =>  CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
 shiftRegister inp = pack m
