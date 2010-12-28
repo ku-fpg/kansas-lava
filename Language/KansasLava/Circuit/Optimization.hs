@@ -28,34 +28,34 @@ import Data.List
 -- A very simple optimizer.
 
 -- This returns an optimized version of the Entity, or fails to optimize.
-optimizeEntity :: (Unique -> MuE Unique) -> MuE Unique -> Maybe (MuE Unique)
-optimizeEntity env (Entity (Name "Lava" "fst") [(o0,tO)] [(i0,tI,Port o0' u)] []) =
+optimizeEntity :: (Unique -> Entity Unique) -> Entity Unique -> Maybe (Entity Unique)
+optimizeEntity env (Entity (Name "Lava" "fst") [(o0,tO)] [(i0,tI,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
+	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i1',t1,p1)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)] []) =
+optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)] []
+	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i2',t2,p2)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)] []) =
+optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)]) =
 	case (env u0,env u1) of
-	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)] []
-	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] []
+	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)]
+	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] 
 	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
 			return $ replaceWith o0 ("o0",tO,p1)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)] _)
+optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)])
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
-optimizeEntity env (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)] []) =
+optimizeEntity env (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)]) =
   return $ replaceWith o0 (i0,ti,pi)
 optimizeEntity env _ = Nothing
 
 ----------------------------------------------------------------------
 
-replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)] []
+replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)]
 --replaceWith (i,t,x) = error $ "replaceWith " ++ show (i,t,x)
 
 ----------------------------------------------------------------------
@@ -97,14 +97,14 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 		  ]
 	      , theCircuit =
 		 [ (u,case e of
-			Entity nm outs ins tags -> Entity nm outs (map fixInPort ins) tags
+			Entity nm outs ins -> Entity nm outs (map fixInPort ins)
 		   )
 		 | (u,e) <- env0
 		 ]
 	      }
 
 	renamings = [ ((u,o),other)
-		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(i,tI,other)] []) <- env0
+		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(i,tI,other)]) <- env0
 		    , tO == tI	-- should always be, anyway
 		    ]
 
@@ -130,7 +130,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		 , not (u `elem` (map fst (map head rCirX)))
 	         ]
 
-	rCirX :: [[(Unique, MuE Unique)]]
+	rCirX :: [[(Unique, Entity Unique)]]
 	rCirX = map canonicalize
 		-- We want to combine anything *except* idents's
 		-- because we would just replace them with new idents's (not a problem)
@@ -140,18 +140,17 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	      $ theCircuit rCir
 
 
-	isId (Entity (Name "Lava" "id") _ _ _) = True
+	isId (Entity (Name "Lava" "id") _ _) = True
 	isId _ = False
 
 	-- The outputs do not form part of the comparison here,
 	-- because they *can* be different, without effecting
 	-- the CSE opertunity.
-	mycompare (Entity nm outs ins misc)
-	 	  (Entity nm' outs' ins' misc') =
+	mycompare (Entity nm outs ins)
+	 	  (Entity nm' outs' ins') =
 		chain
 		  [ nm `compare` nm'
 		  , ins `compare` ins'
-		  , misc `compare` misc'
 		  ]
 
 	chain (LT:_ ) = LT
@@ -161,11 +160,11 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 
 	-- Build the identites
 
-	canonicalize ((u0,e0@(Entity _ outs _ _)):rest) =
+	canonicalize ((u0,e0@(Entity _ outs _)):rest) =
 		(u0,e0) : [ ( uX
 		            , case eX of
-			     	Entity nm' outs' _ _ | length outs == length outs'
-				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ] []
+			     	Entity nm' outs' _ | length outs == length outs'
+				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ]
 			    )
 			  | (uX,eX) <- rest
 			  ]
@@ -183,7 +182,7 @@ dceCircuit rCir = if optCount == 0
 	allNames :: [Unique]
 	allNames = nub (concat
 		       [ case e of
-			  Entity nm _ outs _ -> concatMap outFrees outs
+			  Entity nm _ outs -> concatMap outFrees outs
 		       | (u,e) <- theCircuit rCir
 		       ] ++ concatMap outFrees (theSinks rCir)
 		       )

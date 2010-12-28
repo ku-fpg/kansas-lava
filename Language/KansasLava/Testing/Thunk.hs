@@ -109,7 +109,7 @@ exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
           n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
           probes = sort [ (pname, n, outs)
-                        | (n, Entity (TraceVal pnames _) outs _ _) <- theCircuit rc
+                        | (n, Entity (TraceVal pnames _) outs _) <- theCircuit rc
                         , pname <- pnames ]
           exposed = nub [ (p, oty, Port onm n)
                         | (p@(OVar _ pname), n, outs) <- probes
@@ -134,7 +134,7 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     -- TODO: figure out why we can't call mergeProbes on this
     rcWithData <- reifyCircuit $ k probed
 
-    let pdata = [ (k,v) | (_,Entity (TraceVal ks v) _ _ _) <- theCircuit rcWithData , k <- ks ]
+    let pdata = [ (k,v) | (_,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k <- ks ]
         io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
         (OVar outPNum _, _) = head io
         ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]

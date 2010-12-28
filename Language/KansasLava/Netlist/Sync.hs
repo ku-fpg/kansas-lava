@@ -17,7 +17,7 @@ import qualified Data.Map as Map
 
 -- TODO: change into uncurried.
 
-genSync :: [(Unique,MuE Unique)] -> [Decl]
+genSync :: [(Unique,Entity Unique)] -> [Decl]
 genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
                           (concatMap (uncurry bramProc ) $  brams)
   where -- Handling registers
@@ -27,7 +27,7 @@ genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
 -- genSync nlOpts _ _ = []
 
 regProc :: (Driver Unique, Driver Unique,  Driver Unique)
-        -> [(Unique, MuE Unique)]
+        -> [(Unique, Entity Unique)]
 	-> [Decl]
 regProc (clk,rst,clk_en) [] = []
 regProc (clk,rst,clk_en) es

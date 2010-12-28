@@ -50,7 +50,6 @@ reifyCircuit circuit = do
              	[ ("i" ++ show i,tys, dr)
 	     	| (i,(tys,dr)) <- zip [0..] os
              	]
-             	[]
 
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
@@ -61,13 +60,13 @@ reifyCircuit circuit = do
 				        , nid /= out
 			     ]
 		   case lookup out gr of
-                     Just (Entity (Name "Lava" "top")  _ ins _) ->
+                     Just (Entity (Name "Lava" "top")  _ ins) ->
                        return $ (gr',[(sink,ity, driver)
                                        | (_,ity,driver) <- ins
                                        | sink <- outputNames
 				       ])
 		     -- if the circuit is trivial??
-                     Just (Entity (Name _ _) outs _ _) ->
+                     Just (Entity (Name _ _) outs _) ->
                        return $ (gr', [(sink,oty, Port ovar out)
                                       | (ovar,oty) <- outs
                                       | sink <- outputNames
@@ -84,7 +83,7 @@ reifyCircuit circuit = do
 
 	let backoutputs =
 	      [ (OVar n ("b" ++ show n), vTy, dr)
-	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _) <- gr
+	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)]) <- gr
 	      | n <- [newOut..]
 	      ]
 
@@ -93,7 +92,7 @@ reifyCircuit circuit = do
 
 	let hofs =
 	      [ i
-	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)] _)  <- gr
+	      | (i,Entity (Prim "hof") _ [(v,vTy,dr)])  <- gr
 	      ]
 --	print hofs
 
@@ -109,8 +108,8 @@ reifyCircuit circuit = do
 
 	let gr' = [ ( i
 	            , case g of
-			 Entity nm outs ins g ->
-				Entity nm outs (map remap_hofs ins) g
+			 Entity nm outs ins ->
+				Entity nm outs (map remap_hofs ins)
 		    )
 		  | (i,g) <- gr
 		  , not (i `elem` hofs)
@@ -118,7 +117,7 @@ reifyCircuit circuit = do
 	let gr = gr'
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [ (v,vTy) | (_,Entity nm _ ins _) <- gr
+        let inputs = [ (v,vTy) | (_,Entity nm _ ins) <- gr
 			       , (_,vTy,Pad v) <- ins]
 
         let rCit = Circuit { theCircuit = gr
@@ -138,6 +137,7 @@ reifyCircuit circuit = do
 
 	-- TODO likewisse, remove, its a seperate pass
 	rCit3 <- case depthss of
+{-
 		    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
 				        env = Map.fromList [ (u,d) | (d,u) <- concat chains ]
 				    return $ rCit2 { theCircuit = [ (u,case e of
@@ -148,10 +148,11 @@ reifyCircuit circuit = do
 							  _ -> e)
 						     | (u,e) <- theCircuit rCit2
 						     ]}
+-}
 		    []        -> return rCit2
 
 
-	let domains = nub $ concat $ visitEntities rCit3 $ \ u e@(Entity nm ins outs ann) ->
+	let domains = nub $ concat $ visitEntities rCit3 $ \ u e@(Entity nm ins outs) ->
 		return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
 		  
 	-- The clock domains
@@ -175,15 +176,14 @@ reifyCircuit circuit = do
 			, Entity (Prim "Env") 
 			       [ ("env",ClkDomTy) ]
 			       [ (nm,ty,Pad (OVar i nm)) | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]]
-			       []
 			)
 		      | (u,dom,i) <- zip3 allocs domains [0,-1..]
-	             ] :: [(String,	Unique,MuE Unique)]
+	             ] :: [(String,	Unique,Entity Unique)]
 		
 	let rCit4 = rCit3 { theCircuit = 
 				[ (u,e) | (_,u,e) <- envSrcs ] ++
 				[  (u,case e of
-					Entity nm outs ins ann -> Entity 
+					Entity nm outs ins -> Entity 
 						nm
 						outs
 						[ case o of
@@ -193,10 +193,11 @@ reifyCircuit circuit = do
 							     , dom == cdnm ])
 						   _ -> o
 						| o <- ins ]
-						ann) | (u,e) <- theCircuit rCit3 ]
+				    )
+				| (u,e) <- theCircuit rCit3 ]
 			  , theSrcs =
 				[ (ovar,ty)
-				| (_,u,Entity _ _ outs _) <- envSrcs
+				| (_,u,Entity _ _ outs) <- envSrcs
 				, (_,ty,Pad ovar) <- outs
 				] ++
 				theSrcs rCit3
@@ -216,14 +217,14 @@ reifyCircuit circuit = do
 
 -- TODO: move these somewhere better 
 
-visitEntities :: Circuit -> (Unique -> MuE Unique -> Maybe a) -> [a]
+visitEntities :: Circuit -> (Unique -> Entity Unique -> Maybe a) -> [a]
 visitEntities cir fn =
 	[ a
 	| (u,m) <- theCircuit cir
 	, Just a <- [fn u m]
 	]
 
-mapEntities :: Circuit -> (Unique -> MuE Unique -> Maybe (MuE Unique)) -> Circuit
+mapEntities :: Circuit -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> Circuit
 mapEntities cir fn = cir { theCircuit = 
 				[ (u,a)
 				| (u,m) <- theCircuit cir
@@ -251,9 +252,9 @@ debugCircuit opt c = showCircuit opt c >>= putStr
 insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
 insertProbe n s@(TraceStream ty _) = mergeNested
     where mergeNested :: Driver E -> Driver E
-          mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins attrs)))
-                        = Port nm (E (Entity (TraceVal (n:names) strm) outs ins attrs))
-          mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)] []))
+          mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins)))
+                        = Port nm (E (Entity (TraceVal (n:names) strm) outs ins))
+          mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)]))
 
 -- | The 'Ports' class generates input pads for a function type, so that the
 -- function can be Reified. The result of the circuit, as a driver, as well as
@@ -538,7 +539,7 @@ resolveNames cir
 	error2 =  [ v
 			| (_,e) <- newCircuit
 			, v <- case e of
-			    Entity _ _ ins _ -> [ nm | (_,_,Pad nm) <- ins ]
+			    Entity _ _ ins -> [ nm | (_,_,Pad nm) <- ins ]
 			, v `elem` oldSrcs
 			]
 	error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))
@@ -546,8 +547,8 @@ resolveNames cir
 	newCircuit =
 		[ ( u
 		  , case e of
-		      Entity nm outs ins misc ->
-			Entity nm outs [ (n,t,fnInputs p) | (n,t,p) <- ins ] misc
+		      Entity nm outs ins ->
+			Entity nm outs [ (n,t,fnInputs p) | (n,t,p) <- ins ]
 --		      Entity (Name "Lava" "input") outs [(oNm,oTy,Pad (OVar i _))] misc
 --			-> Entity (Name "Lava" "id") outs [(oNm,oTy,Pad (OVar i oNm))] misc
 --		      Entity (Name "Lava" io) outs ins misc
@@ -575,14 +576,14 @@ resolveNames cir
 	newSinks = [ case dr of
 		      Port _ u ->
 			case lookup u (theCircuit cir) of
-			  Just (Entity (Label nm') _ _ _) -> (OVar i nm',ty,dr)
+			  Just (Entity (Label nm') _ _) -> (OVar i nm',ty,dr)
 		          _ -> (nm,ty,dr)
 		      _ -> (nm,ty,dr)
 		   | (nm@(OVar i _),ty,dr) <- theSinks cir
 		   ]
 
 	isOutput u = case lookup u (theCircuit cir) of
-			Just (Entity (Name "Lava" "output") _ _ _) -> True
+			Just (Entity (Name "Lava" "output") _ _) -> True
 			_ -> False
 
 	fnInputs :: Driver Unique -> Driver Unique
@@ -593,7 +594,7 @@ resolveNames cir
 
 	mapInputs :: [(OVar,OVar)]
 	mapInputs = [ (OVar i inp,OVar i nm)
-		    | (_,Entity (Label nm) _ [(_,_,Pad (OVar i inp))] _) <- theCircuit cir
+		    | (_,Entity (Label nm) _ [(_,_,Pad (OVar i inp))]) <- theCircuit cir
 		    ]
 
 

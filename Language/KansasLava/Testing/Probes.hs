@@ -26,17 +26,17 @@ probeCircuit :: (Ports b) => Int -> b -> IO [(OVar, TraceStream)]
 probeCircuit n applied = do
     rc <- (reifyCircuit >=> mergeProbesIO) applied
 
-    return [(nm,TraceStream ty $ take n strm) | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _ _) <- theCircuit rc
+    return [(nm,TraceStream ty $ take n strm) | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _) <- theCircuit rc
                       , nm <- nms ]
 
 probeNames :: DRG.Unique -> Circuit -> [OVar]
 probeNames n circuit = case lookup n $ theCircuit circuit of
-                        Just (Entity (TraceVal nms _) _ _ _) -> nms
+                        Just (Entity (TraceVal nms _) _ _) -> nms
                         _ -> []
 
 probeValue :: DRG.Unique -> Circuit -> TraceStream
 probeValue n circuit = case lookup n $ theCircuit circuit of
-                        Just (Entity (TraceVal _ strm) _ _ _) -> strm
+                        Just (Entity (TraceVal _ strm) _ _) -> strm
                         _ -> Empty
 
 {-

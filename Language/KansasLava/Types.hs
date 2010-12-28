@@ -40,10 +40,6 @@ module Language.KansasLava.Types (
 	, circuitSignature
 	-- *Witness
 	, Witness(..)
---	, witness
-	-- * TO REMOVE
-	, MuE(..) -- TODO: remove
-	, Annotation(..)
 	) where
 
 import Control.Applicative
@@ -208,29 +204,29 @@ instance Ord (Box a) where { compare _ _ = EQ }
 -- We tie the knot at the 'Entity' level, for observable sharing.
 -- TODO, remove annotations; specialize to Type (because we always do).
 
-data Entity ty a s = Entity Id [(String,ty)] [(String,ty,Driver s)] [a]
+data Entity s = Entity Id [(String,Type)] [(String,Type,Driver s)]
               deriving (Show, Eq, Ord)
 
-instance T.Traversable (Entity ty a) where
-  traverse f (Entity v vs ss dyn) =
-    Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss) <*> pure dyn
+instance T.Traversable Entity where
+  traverse f (Entity v vs ss) =
+    Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss)
 
-instance F.Foldable (Entity ty a) where
-  foldMap f (Entity _ _ ss _) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
+instance F.Foldable Entity where
+  foldMap f (Entity _ _ ss) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
-instance Functor (Entity ty a) where
-    fmap f (Entity v vs ss dyn) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) dyn
+instance Functor Entity where
+    fmap f (Entity v vs ss) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) 
 
 
 -- 'E' is our knot tieing version of Entity.
-newtype E = E (Entity Type Annotation E)
+newtype E = E (Entity E)
 
 -- TODO: Remove after specialization
-type MuE u = Entity Type Annotation u
+--type Entity u = Entity Type Annotation u
 
 -- You want to observe
 instance MuRef E where
-  type DeRef E = Entity Type Annotation
+  type DeRef E = Entity
   mapDeRef f (E s) = T.traverse f s
 
 instance Show E where
@@ -290,7 +286,7 @@ instance Functor Driver where
     fmap _ (Error s)     = Error s
 
 
--- A 'D' is a "Deep", phantom-typed driver into an MuE or Entity
+-- A 'D' is a "Deep", phantom-typed driver into an Entity or Entity
 newtype D a = D { unD :: Driver E }
         deriving Show
 
@@ -401,7 +397,7 @@ data Trace = Trace { len :: Maybe Int
                    }
 
 ---------------------------------------------------------------------------------------------------------
-
+{-
 -- TODO: Remove
 data Annotation = Comment String                -- intended to arrive in the VHDL
                 | Ann String Int
@@ -412,12 +408,12 @@ instance Ord Annotation where {}
 instance Show Annotation where
     show (Comment str) = "Comment: " ++ str
     show _             = error "Show: Unknown Annotation"
-
+-}
 ---------------------------------------------------------------------------------------------------------
 -- | 'Circuit' isd our primary way of representing a graph of entities.
 
 data Circuit = Circuit
-        { theCircuit :: [(Unique,MuE Unique)]
+        { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.
         , theSrcs    :: [(OVar,Type)]
                 -- ^ this is a (convenence) list of the src values.
@@ -447,7 +443,7 @@ instance Show Circuit where
 
         circuit = unlines
                 [ case e of
-                    Entity nm outs ins ann ->
+                    Entity nm outs ins ->
                         "(" ++ show uq ++ ") " ++ show nm ++ "\n"
                             ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
                             ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
@@ -455,7 +451,6 @@ instance Show Circuit where
 				       | (Function pairs) <- [nm]
 				       , (x,y) <- pairs
 				       ]
-                            ++ unlines [ "      comment " ++ str | Comment str <- ann ]
                 | (uq,e) <- theCircuit rCir
                 ]
 

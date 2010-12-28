@@ -195,13 +195,13 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
                                         (ExprLit Nothing (ExprNum (next + 1))))
 
 -- Find some specific (named) input inside the entity.
-lookupInput :: (Show a, Show b) => String -> Entity a a' b -> Driver b
-lookupInput i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
+lookupInput :: (Show b) => String -> Entity b -> Driver b
+lookupInput i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                       Just (_,_,d) -> d
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
 -- Find some specific (named) input's type inside the entity.
-lookupInputType i (Entity _ _ inps _) = case find (\(v,_,_) -> v == i) inps of
+lookupInputType i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
 
@@ -255,13 +255,13 @@ cleanupName other = other
 
 -- only works for a single clock domain, for now.
 getSynchs :: [String]
-	  -> [(Unique,MuE Unique)]
-	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, MuE Unique)])]
+	  -> [(Unique,Entity Unique)]
+	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, Entity Unique)])]
 getSynchs nms ents = 
 	[ ((clk_dr,rst_dr,en_dr),
-	    [ e | e@(_,Entity (Prim n) _ _ _) <- ents,  n `elem` nms ]
+	    [ e | e@(_,Entity (Prim n) _ _) <- ents,  n `elem` nms ]
            )
-	| (i,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)] _) <- ents 
+	| (i,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)]) <- ents 
 	]
 {-
   where

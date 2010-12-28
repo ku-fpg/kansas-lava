@@ -188,7 +188,6 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 					$ Entity (Function tab')
 					         [("o0",tB)]
 						 [("i0",tA,ae)]
-						 []
 				     )
 	where tA = repType (Witness :: Witness a)
 	      tB = repType (Witness :: Witness b)
@@ -524,7 +523,7 @@ register c@(Comb def edef) l@ ~(Seq line eline) = res
                     [("def", bitTypeOf res, unD $ edef),
 		     ("i0", bitTypeOf res, unD eline),
 		     ("env",ClkDomTy, unD $ (clock :: D clk))
-		    ] []
+		    ]
 
 
 -- hack

@@ -21,7 +21,7 @@ getDynamics :: (Signal sig) => sig a -> [Dynamic]
 getDynamics sig = find (unD $ deepS sig)
   where
 	find :: Driver E -> [Dynamic]
-	find (Port _ (E (Entity (BlackBox (Box bb)) _ ins _))) = 
+	find (Port _ (E (Entity (BlackBox (Box bb)) _ ins))) = 
 			bb : case ins of
 				[(_,_,i)] -> find i
 	find _ = []

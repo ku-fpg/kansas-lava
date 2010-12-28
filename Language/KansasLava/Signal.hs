@@ -44,14 +44,9 @@ undefinedS = liftS0 undefinedComb
 
 ----------------------------------------------------------------------------------------------------
 
+-- TODO: insert Id/Comment
 comment :: (Signal sig, Rep a) => String -> sig a -> sig a
-comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s $ D $
-			   case d of
-			     Port v (E e) -> Port v $ E $
-				case e of
-				  (Entity nm ins outs ann) -> Entity nm ins outs (ann ++ [Comment msg])
-			     Lit v -> error "can not add comment to literal"
-			     other -> error $ "can not add comment to " ++ show other
+comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s (D d)
 
 ----------------------------------------------------------------------------------------------------
 

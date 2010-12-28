@@ -123,7 +123,7 @@ writeMemory pipe = res
 		| m <- Stream.toList mem
 		]
 
-    	entity :: MuE E
+    	entity :: Entity E
     	entity =
 		Entity (Prim "BRAM")
 			[ ("o0",bitTypeOf res)]
@@ -133,7 +133,6 @@ writeMemory pipe = res
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
 --			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
 			]
-		[]
 
 readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d

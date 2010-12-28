@@ -22,16 +22,16 @@ toAddNextSignal = [Prim "register"]
 -- but in general, we generate a single signal decl for each 
 -- entity.
 
-genDecl :: (Unique, MuE Unique) -> [Decl]
+genDecl :: (Unique, Entity Unique) -> [Decl]
 -- Special cases
-genDecl (i,Entity nm outputs _ _)
+genDecl (i,Entity nm outputs _)
         | nm `elem` toAddNextSignal
 	= concat
 	  [ [ NetDecl (next $ sigName n i) (sizedRange nTy) Nothing
 	    , MemDecl (sigName n i) Nothing (sizedRange nTy)
 	    ]
 	  | (n,nTy) <- outputs  ]
-genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Prim "BRAM"
+genDecl (i,e@(Entity nm outputs@[_] inputs)) | nm == Prim "BRAM"
 	= concat 
 	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
 	    , NetDecl (sigName n i) (sizedRange nTy) Nothing
@@ -40,11 +40,11 @@ genDecl (i,e@(Entity nm outputs@[_] inputs _)) | nm == Prim "BRAM"
   where
 	aTy = lookupInputType "wAddr" e
 
-genDecl (i,Entity nm outputs _ _)
+genDecl (i,Entity nm outputs _)
         | nm `elem` isVirtualEntity
 	= []
 	
 -- General case
-genDecl (i,Entity nm outputs _ _)
+genDecl (i,Entity nm outputs _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing
 	  | (n,nTy) <- outputs  ]

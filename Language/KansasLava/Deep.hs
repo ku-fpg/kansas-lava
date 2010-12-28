@@ -11,7 +11,6 @@ entity0 :: forall o . (Rep o) => Id -> D o
 entity0 nm = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
 		  []
-		  []
    where oTy = repType (Witness :: Witness o)
 
 entity1 :: forall a o . (Rep a, Rep o) => Id -> D a -> D o
@@ -20,7 +19,7 @@ entity1 nm (D w1) = D $ Port ("o0") $ E $
 		  [(inp,ty,val) | inp <- ["i0","i1"]
 				| ty <- [aTy]
 				| val <- [w1]
-		  ] []
+		  ]
    where aTy = repType (Witness :: Witness a)
          oTy = repType (Witness :: Witness o)
 
@@ -30,7 +29,7 @@ entity2 nm (D w1) (D w2) = D $ Port ("o0") $ E $
 		  [(inp,ty,val) | inp <- ["i0","i1"]
 				| ty <- [aTy,bTy]
 				| val <- [w1,w2]
-		  ] []
+		  ]
    where aTy = repType (Witness :: Witness a)
          bTy = repType (Witness :: Witness b)
          oTy = repType (Witness :: Witness o)
@@ -41,7 +40,7 @@ entity3 nm (D w1) (D w2) (D w3) = D $ Port ("o0") $ E $
 		  [(inp,ty,val) | inp <- ["i0","i1","i2"]
 				| ty <- [aTy,bTy,cTy]
 				| val <- [w1,w2,w3]
-		  ] []
+		  ]
    where aTy = repType (Witness :: Witness a)
          bTy = repType (Witness :: Witness b)
          cTy = repType (Witness :: Witness c)
@@ -53,6 +52,6 @@ entityN nm ds = D $ Port ("o0") $ E $
 		  [(inp,ty,val) | inp <- ["i" ++ show n | n <- [0..]]
 				| ty <- repeat aTy
 				| val <- [w | D w <- ds]
-		  ] []
+		  ]
    where aTy = repType (Witness :: Witness a)
          oTy = repType (Witness :: Witness o)

@@ -53,7 +53,7 @@ writeDotCircuit filename circuit = do
                                                         _ -> "rounded")
                                          ]
                               return (n,nd)
-                        | (n,Entity nm outs ins []) <- nodes ]
+                        | (n,Entity nm outs ins) <- nodes ]
 
         let nds = nds0
 
@@ -85,7 +85,7 @@ writeDotCircuit filename circuit = do
                  ]
 
         sequence [ drawEdge dr (findNd n) v
-                 | (n,Entity _ _ ins _) <- nodes
+                 | (n,Entity _ _ ins) <- nodes
                  , (v,_,dr) <- ins
                  ]
 

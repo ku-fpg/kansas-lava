@@ -33,8 +33,8 @@ findChains fn cir = reverse
 	where
 		res = Map.map findEntityChain $ Map.fromList $ theCircuit cir
 
-		findEntityChain :: MuE Unique -> Float
-		findEntityChain (Entity nm _ ins _) =
+		findEntityChain :: Entity Unique -> Float
+		findEntityChain (Entity nm _ ins) =
 			plus (maximum [ findDriverChain d | (_,_,d) <- ins ])
 		   where plus = case lookup nm fn of
 			          Nothing -> (+ 1)
