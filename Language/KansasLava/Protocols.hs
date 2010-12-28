@@ -46,7 +46,7 @@ memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
 pipeToMemory :: forall a d clk1 clk2. (Size a, Clock clk1, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> Memory clk1 a d
-pipeToMemory pipe addr2 = unpack (pipeToMemory' pipe) addr2 
+pipeToMemory pipe addr2 = unpack (delay (pipeToMemory' pipe)) (delay addr2)
 
 -- Later, we will have a two clock version.
 
