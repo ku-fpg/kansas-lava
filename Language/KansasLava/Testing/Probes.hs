@@ -34,10 +34,10 @@ probeNames n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms _) _ _) -> nms
                         _ -> []
 
-probeValue :: DRG.Unique -> Circuit -> TraceStream
+probeValue :: DRG.Unique -> Circuit -> Maybe TraceStream
 probeValue n circuit = case lookup n $ theCircuit circuit of
-                        Just (Entity (TraceVal _ strm) _ _) -> strm
-                        _ -> Empty
+                        Just (Entity (TraceVal _ strm) _ _) -> Just strm
+                        _ -> Nothing
 
 {-
 -- | 'probe' indicates a Lava shallowly-embedded value should be logged with the given name.

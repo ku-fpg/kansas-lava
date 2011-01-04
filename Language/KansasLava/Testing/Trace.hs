@@ -113,7 +113,7 @@ serialize (Trace c ins outs ps) = unlines
                                ++ showMap outs
                                ++ ["PROBES"]
                                ++ showMap ps
-    where showMap :: TraceMap OVar -> [String]
+    where showMap :: TraceMap -> [String]
           showMap m = concat [[show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
 
@@ -159,14 +159,13 @@ toXBit = maybe 'X' (\b -> if b then '1' else '0')
 -- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]
 showTraceStream c (TraceStream _ s) = [map (toXBit . unX . XBool) $ reverse val | RepValue val <- takeMaybe c s]
-showTraceStream c Empty = repeat "Empty"
 
 readStrm :: [String] -> (TraceStream, [String])
 readStrm ls = (strm,rest)
     where (m,rest) = readMap ls
-          [(_,strm)] = M.toList (m :: TraceMap OVar)
+          [(_,strm)] = M.toList (m :: TraceMap)
 
-readMap :: (Ord k, Read k) => [String] -> (TraceMap k, [String])
+readMap :: [String] -> (TraceMap, [String])
 readMap ls = (go $ takeWhile cond ls, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
           rest = dropWhile cond ls
@@ -177,11 +176,11 @@ readMap ls = (go $ takeWhile cond ls, rest)
           toWireVal '0' = return False
           toWireVal _   = fail "unknown"
 
-addStream :: forall a w. (Ord a, Rep w) => a -> TraceMap a -> Stream (X w) -> TraceMap a
+addStream :: forall w. (Rep w) => OVar -> TraceMap -> Stream (X w) -> TraceMap
 addStream key m stream = M.insert key (toTrace stream) m
 
-addSeq :: forall a b. (Ord a, Rep b) => a -> Seq b -> TraceMap a -> TraceMap a
-addSeq key seq m = addStream key m (seqValue seq :: Stream (X b))
+addSeq :: forall w. (Rep w) => OVar -> Seq w -> TraceMap -> TraceMap
+addSeq key seq m = addStream key m (seqValue seq :: Stream (X w))
 
 toVCD :: Trace -> String
 toVCD (Trace Nothing _ _ _)  = error "can't turn infinite trace into vcd"

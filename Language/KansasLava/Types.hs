@@ -4,43 +4,43 @@
 -- and some basic utilities (like Show instances) for these types.
 
 module Language.KansasLava.Types (
-	-- * Types
-	  Type(..)
-	, typeWidth
-	, isTypeSigned
-	-- * OVar
-	, OVar(..)
-	-- * Id
-	, Id(..)
-	, Box(..)
-	-- * Entity
-	, Entity(..)
-	, E(..)
-	-- * Driver
-	, Driver(..)
-	, D(..)
-	-- * Clock
-	, Clock(..)	-- type class
-	-- * WireVal
-	, WireVal(..)
-	-- * RepValue
-	, RepValue(..)
-	, appendRepValue
-	, isValidRepValue
-	, getValidRepValue
-	, cmpRepValue
-	-- * Tracing
-	, TraceStream(..)
-	, TraceMap
-	, Trace(..)
+        -- * Types
+          Type(..)
+        , typeWidth
+        , isTypeSigned
+        -- * OVar
+        , OVar(..)
+        -- * Id
+        , Id(..)
+        , Box(..)
+        -- * Entity
+        , Entity(..)
+        , E(..)
+        -- * Driver
+        , Driver(..)
+        , D(..)
+        -- * Clock
+        , Clock(..)     -- type class
+        -- * WireVal
+        , WireVal(..)
+        -- * RepValue
+        , RepValue(..)
+        , appendRepValue
+        , isValidRepValue
+        , getValidRepValue
+        , cmpRepValue
+        -- * Tracing
+        , TraceStream(..)
+        , TraceMap
+        , Trace(..)
 
-	-- * Circuit
-	, Circuit(..)
-	, Signature(..)
-	, circuitSignature
-	-- *Witness
-	, Witness(..)
-	) where
+        -- * Circuit
+        , Circuit(..)
+        , Signature(..)
+        , circuitSignature
+        -- *Witness
+        , Witness(..)
+        ) where
 
 import Control.Applicative
 
@@ -64,8 +64,8 @@ data Type
         -- type of bit, used only for clock (TODO: do we need this?)
         | ClkTy         -- ^ Clock Signal
 
-	| ClkDomTy	-- ^ The clock domain type, which has a clock, a clock enable,
-			-- and an asyncronized reset.
+        | ClkDomTy      -- ^ The clock domain type, which has a clock, a clock enable,
+                        -- and an asyncronized reset.
 
         | GenericTy     -- ^ generics in VHDL, right now just Integer
 
@@ -152,27 +152,27 @@ instance Read OVar where
 
 data Id = Name String String                    -- ^ external thing (TODO: remove)
         | Prim String                           -- ^ built in thing
-	| External String			-- 
+        | External String                       --
         | Function [(RepValue,RepValue)]        -- ^ anonymous function
 
 
-						-- 
+                                                --
         | TraceVal [OVar] TraceStream           -- ^ trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
                                                 -- for later inspection
-						-- (Why are the OVar's here?)
+                                                -- (Why are the OVar's here?)
 
-	| ClockId String			-- ^ An environment box
+        | ClockId String                        -- ^ An environment box
 
-	| Label String				-- ^ An identity; also a name, used to tag function arguments
-	| Comment' [String]			-- ^ An identity; also a multi-line comments
-	| BlackBox (Box Dynamic)		-- ^ 'BlackBox' can be removed without harm
-						-- The rule is you can only insert you own
-						-- types in here (or use newtype).
-						-- Prelude or other peoples types
-						-- are not allowed (because typecase becomes ambigious)
+        | Label String                          -- ^ An identity; also a name, used to tag function arguments
+        | Comment' [String]                     -- ^ An identity; also a multi-line comments
+        | BlackBox (Box Dynamic)                -- ^ 'BlackBox' can be removed without harm
+                                                -- The rule is you can only insert you own
+                                                -- types in here (or use newtype).
+                                                -- Prelude or other peoples types
+                                                -- are not allowed (because typecase becomes ambigious)
 
     deriving (Eq, Ord)
 
@@ -184,7 +184,7 @@ instance Show Id where
     show (Prim nm)     = nm
     show (Label nm)    = show nm
     show (TraceVal ovar _) = "^" ++ show ovar
-    show (ClockId nm)    = "@" ++ nm	
+    show (ClockId nm)    = "@" ++ nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
     show (BlackBox bx) = "<bb>"
@@ -215,7 +215,7 @@ instance F.Foldable Entity where
   foldMap f (Entity _ _ ss) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
 
 instance Functor Entity where
-    fmap f (Entity v vs ss) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss) 
+    fmap f (Entity v vs ss) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss)
 
 
 -- 'E' is our knot tieing version of Entity.
@@ -242,7 +242,7 @@ instance Eq E where
 
 data Driver s = Port String s   -- ^ a specific port on the entity
               | Pad OVar        -- ^ an input pad
-	      | ClkDom String	-- ^ the clock domain
+              | ClkDom String   -- ^ the clock domain
               | Lit RepValue    -- ^ A representable Value (including unknowns, aka X in VHDL)
               | Generic Integer -- ^ A generic argument, always fully defined
               | Error String    -- ^ A call to err, in Datatype format for reification purposes
@@ -294,11 +294,11 @@ newtype D a = D { unD :: Driver E }
 -- | class 'Clock' is a type that can be be used to represent a clock.
 
 class Clock clk where
-	clock :: D clk 
+        clock :: D clk
 
--- '()' is the default/standard/vanilla clock.	
+-- '()' is the default/standard/vanilla clock.
 instance Clock () where
-	clock = D $ ClkDom "unit"
+        clock = D $ ClkDom "unit"
 
 ---------------------------------------------------------------------------------------------------------
 -- | 'WireVal' is a value over a wire, either known or representing unknown.
@@ -368,31 +368,28 @@ getValidRepValue r@(RepValue m)
 -- match. This means that 'cmpRepValue' is not commutative.
 cmpRepValue :: RepValue -> RepValue -> Bool
 cmpRepValue (RepValue gs) (RepValue vs)
-	| length gs == length vs
-		= and $ zipWith (\ g v ->
-			     case (g,v) of
-				(WireUnknown,_)               -> True
-				(WireVal True,WireVal True)   -> True
-				(WireVal False,WireVal False) -> True
-				_ -> False) gs vs
+        | length gs == length vs
+                = and $ zipWith (\ g v ->
+                             case (g,v) of
+                                (WireUnknown,_)               -> True
+                                (WireVal True,WireVal True)   -> True
+                                (WireVal False,WireVal False) -> True
+                                _ -> False) gs vs
 cmpRepValue _ _ = False
 
 ---------------------------------------------------------------------------------------------------------
--- 'TraceStream' is a typed stream, 
+-- 'TraceStream' is a typed stream,
 
--- TODO: Consider why the Empty?
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
-                 | Empty
     deriving (Eq, Ord, Show)
 
-
-type TraceMap k = M.Map k TraceStream
+type TraceMap = M.Map OVar TraceStream
 
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
 data Trace = Trace { len :: Maybe Int
-                   , inputs :: TraceMap OVar
-                   , outputs :: TraceMap OVar
-                   , probes :: TraceMap OVar
+                   , inputs :: TraceMap
+                   , outputs :: TraceMap
+                   , probes :: TraceMap
 --                   , opts :: DebugOpts -- can see a case for this eventually
                    }
 
@@ -432,13 +429,13 @@ instance Show Circuit where
         inputs = unlines
                 [ show var ++ " : " ++ show ty
                 | (var,ty) <- sortBy (\ (OVar i _,_) (OVar j _,_) -> i `compare` j)
-			    $ theSrcs rCir
+                            $ theSrcs rCir
                 ]
 
         outputs = unlines
                 [ show var   ++ " <- " ++ showDriver dr ty
                 | (var,ty,dr) <- sortBy (\ (OVar i _,_,_) (OVar j _,_,_) -> i `compare` j)
-			       $ theSinks rCir
+                               $ theSinks rCir
                 ]
 
         circuit = unlines
@@ -447,10 +444,10 @@ instance Show Circuit where
                         "(" ++ show uq ++ ") " ++ show nm ++ "\n"
                             ++ unlines [ "      out    " ++ v ++ ":" ++ show ty | (v,ty) <- outs ]
                             ++ unlines [ "      in     " ++ v ++ " <- " ++ showDriver dr ty | (v,ty,dr) <- ins ]
-			    ++ unlines [ "      case   " ++ show x ++ " -> " ++ show y
-				       | (Function pairs) <- [nm]
-				       , (x,y) <- pairs
-				       ]
+                            ++ unlines [ "      case   " ++ show x ++ " -> " ++ show y
+                                       | (Function pairs) <- [nm]
+                                       , (x,y) <- pairs
+                                       ]
                 | (uq,e) <- theCircuit rCir
                 ]
 
@@ -486,7 +483,7 @@ circuitSignature cir = Signature
 
 -------------------------------------------------------------------------------------
 -- | Create a type witness, to help resolve some of the type issues.
--- Really, we are using this in a system-F style. 
+-- Really, we are using this in a system-F style.
 -- (As suggested by an anonymous TFP referee, as a better alterntive to using 'error "witness"').
 
 -- TODO: Move into sized types.

@@ -138,7 +138,7 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
         io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
         (OVar outPNum _, _) = head io
         ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
-        outs = M.fromList [ (k,probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
+        outs = M.fromList [ (k,fromJust $ probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
         ps = M.fromList pdata M.\\ M.fromList io
 
     return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
