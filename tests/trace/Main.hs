@@ -66,6 +66,7 @@ main = do
     print newTrace
 
     t <- mkTrace limit thunk2
+    writeFile "test.vcd" $ toVCD t
     t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     t3 <- mkTrace limit thunk
 
@@ -94,15 +95,13 @@ main = do
 
 -- Andy's tests
     -- The lavaId is because we can not annotate funMap
-    let funThunk =  Thunk (lavaId . funMap (\ x -> return (x + 1)) . lavaId :: Seq Word8 -> Seq Word8)
+    let funThunk =  Thunk (lavaId . funMap (\ x -> return (x + 1)) . lavaId :: Seq X8 -> Seq X8)
                           (\ f -> f (toSeq [1..100]))
 
     debug "funMap" 200 funThunk
 
-    let ptm = Thunk (pipeToMemory :: Env () -> Env () -> Seq (Pipe Word8 Int) -> Seq Word8 -> Seq Int)
-                            $ \ cir -> cir shallowEnv
-                                           shallowEnv
-                                           (toSeq $ [Nothing,Nothing,Nothing,Nothing,Nothing]
+    let ptm = Thunk (pipeToMemory :: Seq (Pipe X8 Int) -> Seq X8 -> Seq Int)
+                            $ \ cir -> cir (toSeq $ [Nothing,Nothing,Nothing,Nothing,Nothing]
                                                     ++ [ return (0,100)
                                                        , return (1,101)
                                                        , return (2,102)
@@ -123,17 +122,17 @@ main = do
     runDeep "halfAdder" 100 thunk2 (return) modelsim
     runDeep "funMap" 200 funThunk (return) modelsim
 
-    let foo :: Env () -> Seq FLOAT -> Seq FLOAT
+    let foo :: Seq FLOAT -> Seq FLOAT
         foo = delay
 
-    dtrace <- mkTrace (return 100) $ Thunk foo $ \ cir -> cir shallowEnv (toSeq  [1..4])
+    dtrace <- mkTrace (return 100) $ Thunk foo $ \ cir -> cir (toSeq  [1..4])
     print dtrace
 
     print $ traceSignature t
     print $ traceSignature dtrace
 
 
-accum :: Env () -> Seq U4
-accum env = out
-    where out' = probe "register" register env 0 out
+accum :: Seq U4
+accum = out
+    where out' = probe "register" register 0 out
           out = out' + 1
