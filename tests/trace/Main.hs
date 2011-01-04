@@ -1,5 +1,6 @@
 import Language.KansasLava
 import Language.KansasLava.Testing
+import Language.KansasLava.Testing.Output.VCD
 
 import qualified Data.Map as M
 import Data.Sized.Unsigned
