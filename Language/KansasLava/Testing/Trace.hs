@@ -3,7 +3,6 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
-                                         ,seqAll
                                          ,diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo
                                          ,writeToFile, readFromFile, checkExpected, execute) where
