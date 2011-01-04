@@ -13,7 +13,7 @@ toVCD :: Trace -> String
 toVCD (Trace Nothing _ _ _)  = error "can't turn infinite trace into vcd"
 toVCD (Trace (Just n) i o p) = unlines
     [ "$timescale 10ns $end"
-    , "$scope module logic $end"
+    , "$scope top $end"
     ]
     ++ unlines [ unwords ["$var wire", show l, id, show k, "$end"]
                | (id,(k,TraceStream ty strm)) <- signals
