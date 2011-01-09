@@ -13,6 +13,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 import System.Cmd
 import System.Directory
 import System.FilePath.Posix
@@ -112,10 +114,10 @@ exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
                         | (n, Entity (TraceVal pnames _) outs _) <- theCircuit rc
                         , pname <- pnames ]
           exposed = nub [ (p, oty, Port onm n)
-                        | (p@(OVar _ pname), n, outs) <- probes
+                        | (p@(Probe pname _ _), n, outs) <- probes
                         , or [ nm `isPrefixOf` pname | nm <- names ]
                         , (onm,oty) <- outs ]
-          showPNames x (OVar i n) = n ++ "_" ++ show i ++ "_" ++ show x
+          showPNames x pname = show pname ++ "_" ++ show x
 
           newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ node))) <- zip [n..] exposed ]
 
@@ -125,8 +127,7 @@ mkTraceCM :: (Ports a)
           -> (Circuit -> IO Circuit) -- Circuit Mod
           -> IO (Trace, Circuit)
 mkTraceCM c (Thunk circuit k) circuitMod = do
-    let uname = "wholeCircuit5471" -- probably need a better solution than this
-    let probed = probe uname circuit
+    let probed = probeWholeCircuit circuit
 
     rc <- (reifyCircuit >=> mergeProbesIO >=> circuitMod) probed
 
@@ -134,11 +135,14 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     -- TODO: figure out why we can't call mergeProbes on this
     rcWithData <- reifyCircuit $ k probed
 
-    let pdata = [ (k,v) | (_,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k <- ks ]
-        io = sortBy (\(k1,_) (k2,_) -> compare k2 k1) [ s | s@(OVar _ name, _) <- pdata, uname `isPrefixOf` name ]
-        (OVar outPNum _, _) = head io
-        ins = M.fromList [ v | v@(OVar k _,_) <- io, k /= outPNum ]
-        outs = M.fromList [ (k,fromJust $ probeValue n rcWithData) | (k,_,Port _ n) <- sort $ theSinks rc ]
-        ps = M.fromList pdata M.\\ M.fromList io
+    let pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k <- ks ]
+        outNum = maximum [ i | (_, WholeCircuit _ i _, _) <- pdata ]
+        uniqueWCs = map head
+                  $ groupBy (\ (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) -> s1 == s2 && i1 == i2)
+                  $ sortBy (\ (_, l, _) (_, r, _) -> compare l r)
+                    [ wc | wc@(_, WholeCircuit _ _ _, _) <- pdata ]
+        ins = M.fromList [ (WholeCircuit s i nid, strm) | (nid, WholeCircuit s i _, strm) <- uniqueWCs, i /= outNum ]
+        outs = M.fromList [ (WholeCircuit s i nid, strm) | (nid, WholeCircuit s i _, strm) <- uniqueWCs, i == outNum ]
+        ps = M.fromList [ (Probe nm i nid, strm) | (nid, Probe nm i _, strm) <- pdata ]
 
     return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)

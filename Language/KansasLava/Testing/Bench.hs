@@ -147,7 +147,10 @@ genProbes :: String -> Circuit -> [String]
 genProbes top c = concatMap getProbe graph
     where graph = theCircuit c
           getProbe (ident, (Entity (TraceVal nms _) [( v, _)] _)) =
-            ["add wave -label " ++ name ++ "_" ++ show i ++ " " ++ sig
-            | OVar i name <- nms
+            ["add wave -label " ++ name ++ "_" ++ show i ++ "_" ++ show nid ++ " " ++ sig
+            | nm <- nms
+            , let (name,i,nid) = case nm of
+                                    Probe n arg nodeid -> (n,arg,nodeid)
+                                    WholeCircuit suf arg nodeid -> (top ++ suf,arg,nodeid)
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
           getProbe _ = []

@@ -24,10 +24,10 @@ s3 = toSeq $ cycle $ (replicate 4 True) ++ (replicate 4 False)
 
 main = do
     rc <- reifyCircuit fullAdder
-    writeDotCircuit "fa.dot" rc
+    writeDotCircuit "fa.dot" $ mergeProbes rc
     system "dot -Tpng fa.dot > fa.png"
     print rc
-
+{-
     rc' <- reifyCircuit $ stupid
     writeDotCircuit "s.dot" rc'
     system "dot -Tpng s.dot > s.png"
@@ -35,6 +35,7 @@ main = do
     system "dot -Tpng sprime.dot > sprime.png"
     print rc'
 
+-}
     let thunk = Thunk fullAdder (\circuit -> circuit s1 s2 s3)
         cMod = (writeDotCircuit "exposeb.dot") >=> (exposeProbesIO ["ha1"]) >=> (writeDotCircuit "exposea.dot")
 
@@ -42,4 +43,4 @@ main = do
     print trace
     system "dot -Tpng exposeb.dot > exposeb.png"
     system "dot -Tpng exposea.dot > exposea.png"
-    runTestBench "test/fullAdder" modelsim
+--    runTestBench "test/fullAdder" modelsim

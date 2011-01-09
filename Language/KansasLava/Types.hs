@@ -30,10 +30,10 @@ module Language.KansasLava.Types (
         , getValidRepValue
         , cmpRepValue
         -- * Tracing
+        , ProbeName(..)
         , TraceStream(..)
         , TraceMap
         , Trace(..)
-
         -- * Circuit
         , Circuit(..)
         , Signature(..)
@@ -157,12 +157,11 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
 
 
                                                 --
-        | TraceVal [OVar] TraceStream           -- ^ trace (probes, etc)
+        | TraceVal [ProbeName] TraceStream      -- ^ trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
                                                 -- for later inspection
-                                                -- (Why are the OVar's here?)
 
         | ClockId String                        -- ^ An environment box
 
@@ -383,7 +382,25 @@ cmpRepValue _ _ = False
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
     deriving (Eq, Ord, Show)
 
-type TraceMap = M.Map OVar TraceStream
+data ProbeName = Probe String Int Int -- name, arg-order (if any), node id
+               | WholeCircuit String Int Int -- special probe used by mkTrace
+    deriving (Eq, Ord)
+
+instance Show ProbeName where
+    show (Probe nm argnum nodeid) = nm ++ "_" ++ show argnum ++ "_" ++ show nodeid
+    show (WholeCircuit suf argnum nodeid) = "WholeCircuit" ++ suf ++ "_" ++ show argnum ++ "_" ++ show nodeid
+
+instance Read ProbeName where
+        readsPrec _ xs = case span (/= '_') xs of
+                          (n,'_':r1) -> case span (/= '_') r1 of
+                                            (argnum,'_':r2) -> [ if "WholeCircuit" `isPrefixOf` n
+                                                                    then (WholeCircuit (maybe "" id (stripPrefix "WholeCircuit" n)) (read argnum) i,r3)
+                                                                    else (Probe n (read argnum) i,r3)
+                                                               | (i,r3) <- reads r2 ]
+                                            _         -> [] -- no parse
+                          _         -> [] -- no parse
+
+type TraceMap = M.Map ProbeName TraceStream
 
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
 data Trace = Trace { len :: Maybe Int

@@ -14,12 +14,21 @@ toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                        | (n1,Entity _ _ ins) <- theCircuit rc
                                        , (_,_,Port _ n2) <- ins ]
 
+-- | Gives probes their node ids. This should be run after mergeProbes
+addProbeIds :: Circuit -> Circuit
+addProbeIds circuit = circuit { theCircuit = newCircuit }
+    where newCircuit = [ addId entity | entity <- theCircuit circuit ]
+          addId (nid, Entity (TraceVal nms strm) outs ins) = (nid, Entity (TraceVal (map (addToName nid) nms) strm) outs ins)
+          addId other = other
+          addToName nid (Probe nm arg _) = Probe nm arg nid
+          addToName nid (WholeCircuit suf arg _) = WholeCircuit suf arg nid
+
 mergeProbesIO :: Circuit -> IO Circuit
 mergeProbesIO = return . mergeProbes
 
 -- | Rewrites the circuit graph and commons up probes that have the same stream value.
 mergeProbes :: Circuit -> Circuit
-mergeProbes circuit = go (probeList circuit) circuit
+mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
     where go ((pid,Entity (TraceVal pnames strm) outs ins@[(_,_,d)]):pl) rc =
                          let others = probesOnAL d pl
                              otherIds = [ k | (k,_) <- others, k /= pid ]
@@ -58,10 +67,10 @@ replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
 probeList :: Circuit -> [(DRG.Unique, Entity DRG.Unique)]
 probeList rc = [ (n,e) | (n,e@(Entity (TraceVal _ _) _ _)) <- theCircuit rc ]
 
-probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[OVar])]
+probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[ProbeName])]
 probesOn x rc = probesOnAL x $ theCircuit rc
 
-probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[OVar])]
+probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[ProbeName])]
 probesOnAL x al = [ (id,nms) | (id, Entity (TraceVal nms _) _ ins) <- al
                              , (_,_,d) <- ins
                              , d == x ]

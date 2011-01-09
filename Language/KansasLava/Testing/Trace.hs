@@ -5,7 +5,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addProbe, getProbe, remProbe
                                          ,diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo
-                                         ,writeToFile, readFromFile, checkExpected, execute) where
+                                         ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
@@ -33,38 +33,38 @@ import Debug.Trace
 
 traceSignature :: Trace -> Signature
 traceSignature (Trace _ ins outs _) = Signature inps outps []
-    where inps = [ (k,ty) | (k,TraceStream ty _) <- M.toList ins ]
-          outps = [ (k,ty) | (k,TraceStream ty _) <- M.toList outs ]
+    where inps = [ (OVar i ("WholeCircuit" ++ s),ty) | (WholeCircuit s i _,TraceStream ty _) <- M.toList ins ]
+          outps = [ (OVar i nm,ty) | (Probe nm i _,TraceStream ty _) <- M.toList outs ]
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
-addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addInput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
 
-getInput :: (Rep w) => OVar -> Trace -> Seq w
+getInput :: (Rep w) => ProbeName -> Trace -> Seq w
 getInput key trace = getSignal $ (inputs trace) M.! key
 
-remInput :: OVar -> Trace -> Trace
+remInput :: ProbeName -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
-addOutput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addOutput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addOutput key seq t@(Trace _ _ outs _) = t { outputs = addSeq key seq outs }
 
-getOutput :: (Rep w) => OVar -> Trace -> Seq w
+getOutput :: (Rep w) => ProbeName -> Trace -> Seq w
 getOutput key trace = getSignal $ (outputs trace) M.! key
 
-remOutput :: OVar -> Trace -> Trace
+remOutput :: ProbeName -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
 
-addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addProbe :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
 
-getProbe :: (Rep w) => OVar -> Trace -> Seq w
+getProbe :: (Rep w) => ProbeName -> Trace -> Seq w
 getProbe key trace = getSignal $ (probes trace) M.! key
 
-remProbe :: OVar -> Trace -> Trace
+remProbe :: ProbeName -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
@@ -142,13 +142,22 @@ readFromFile fp = do
     return $ deserialize str
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
+{-
 checkExpected :: (Ports a) => a -> Trace -> (Bool, Trace)
 checkExpected circuit trace = (trace == result, result)
     where result = execute circuit trace
 
 execute :: (Ports a) => a -> Trace -> Trace
-execute circuit t@(Trace _ _ outs _) = t { outputs = M.adjust (\_ -> run circuit t) k outs }
-    where k = head $ M.keys outs
+execute circuit t@(Trace _ _ outs _) = t { outputs = newOutputs }
+    where res@(TraceStream ty _) = run circuit t
+          sig = getSignal res -- need type ascription here and can't get it
+          newOutputs = foldr (\(k,v) m -> M.adjust (\_ -> v) k m) outs $ zip ks vs
+          ks = take (length ty) $ M.keys outs
+          vs = case unpack of
+                (s1, s2) -> [toTrace s1, toTrace s2]
+                (s1, s2, s3) -> [toTrace s1, toTrace s2, toTrace s3]
+                other -> toTrace other
+-}
 
 -- Functions below are not exported.
 
@@ -175,8 +184,8 @@ readMap ls = (go $ takeWhile cond ls, rest)
           toWireVal '0' = return False
           toWireVal _   = fail "unknown"
 
-addStream :: forall w. (Rep w) => OVar -> TraceMap -> Stream (X w) -> TraceMap
+addStream :: forall w. (Rep w) => ProbeName -> TraceMap -> Stream (X w) -> TraceMap
 addStream key m stream = M.insert key (toTrace stream) m
 
-addSeq :: forall w. (Rep w) => OVar -> Seq w -> TraceMap -> TraceMap
+addSeq :: forall w. (Rep w) => ProbeName -> Seq w -> TraceMap -> TraceMap
 addSeq key seq m = addStream key m (seqValue seq :: Stream (X w))

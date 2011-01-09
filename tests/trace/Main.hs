@@ -31,9 +31,9 @@ lavaFst a b = a
 type FLOAT = Sampled X8 X8
 
 main = do
-    let pv1 = OVar 0 "bools0"
-        pv2 = OVar 1 "bools1"
-        pv3 = OVar 2 "ints"
+    let pv1 = Probe "bools0" 0 0
+        pv2 = Probe "bools1" 1 0
+        pv3 = Probe "ints" 2 0
 
         seq1 = toSeq $ cycle [True, False]
         seq2 = toSeq' $ cycle [Nothing, Just True, Just False]
@@ -67,11 +67,13 @@ main = do
     print newTrace
 
     t <- mkTrace limit thunk2
+    print t
     writeFile "test.vcd" $ toVCD t
     t2 <- mkTrace limit $ Thunk (lavaFst :: Seq Bool -> Seq Bool -> Seq Bool) (\f -> f (toSeq $ cycle [True,False]) (toSeq $ cycle [True,True,False,False]))
     t3 <- mkTrace limit thunk
 
     -- TODO: Fix mkThunk to handle -> mkThunk t halfAdder :: Thunk (Seq Bool, Seq Bool)
+{-
     putStrLn "mkThunk test:"
     print $ runShallow (mkThunk t2 lavaFst :: Thunk (Seq Bool))
 
@@ -79,12 +81,13 @@ main = do
     print $ checkExpected lavaFst t2
     putStrLn "halfAdder Result:"
     print $ checkExpected halfAdder t
+-}
     putStrLn "halfAdder Run:"
     print $ run halfAdder t
-    putStrLn "halfAdder Execute:"
-    print $ execute halfAdder t
 
     debug "halfAdder" 100 thunk2
+
+{-
 
     putStrLn "unit test:"
     test "lavaFst" 100 thunk (toSeq $ cycle [True,False])
@@ -131,6 +134,7 @@ main = do
 
     print $ traceSignature t
     print $ traceSignature dtrace
+-}
 
 
 accum :: Seq U4

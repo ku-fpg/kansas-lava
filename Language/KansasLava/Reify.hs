@@ -5,6 +5,8 @@ module Language.KansasLava.Reify
         , Input(..)
         , input
         , output
+        , probe
+        , probeWholeCircuit
         ) where
 
 import Data.Default
@@ -249,12 +251,20 @@ showCircuit opt c = do
 debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()
 debugCircuit opt c = showCircuit opt c >>= putStr
 
-insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
+insertProbe :: ProbeName -> TraceStream -> Driver E -> Driver E
 insertProbe n s@(TraceStream ty _) = mergeNested
     where mergeNested :: Driver E -> Driver E
           mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins)))
                         = Port nm (E (Entity (TraceVal (n:names) strm) outs ins))
           mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)]))
+
+-- this is the public facing method for probing
+probe :: (Ports a) => String -> a -> a
+probe name = probe' [ Probe name i 0 | i <- [0..] ]
+
+-- used to make traces
+probeWholeCircuit :: (Ports a) => a -> a
+probeWholeCircuit = probe' [ WholeCircuit "" i 0 | i <- [0..] ]
 
 -- | The 'Ports' class generates input pads for a function type, so that the
 -- function can be Reified. The result of the circuit, as a driver, as well as
@@ -263,21 +273,16 @@ insertProbe n s@(TraceStream ty _) = mergeNested
 class Ports a where
     ports :: Int -> a -> [(Type, Driver E)]
 
-    -- this is the public facing method
-    probe :: String -> a -> a
-    probe = probe' [0..]
-
     -- probe' is used internally for a name supply.
-    probe' :: [Int] -> String -> a -> a
+    probe' :: [ProbeName] -> a -> a
 
     run :: a -> Trace -> TraceStream
 
 instance (Clock c, Rep a) => Ports (CSeq c a) where
     ports _ sig = wireCapture (seqDriver sig)
 
-    probe' (i:_) name (Seq s (D d)) = Seq s (D (insertProbe n strm d))
-        where n = OVar i name
-              strm = toTrace s
+    probe' (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+        where strm = toTrace s
 
     run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = toTrace s
@@ -285,9 +290,8 @@ instance (Clock c, Rep a) => Ports (CSeq c a) where
 instance Rep a => Ports (Comb a) where
     ports _ sig = wireCapture (combDriver sig)
 
-    probe' (i:_) name c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
-        where n = OVar i name
-              strm = toTrace $ Stream.fromList $ repeat s
+    probe' (n:_) c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
+        where strm = toTrace $ Stream.fromList $ repeat s
 
     run (Comb s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = toTrace $ Stream.fromList $ repeat s
@@ -305,12 +309,18 @@ instance Clock clk => Ports (Env clk) where
         where (rst',clk_en') = unpack $ probe' is name $ (pack (rst, clk_en) :: CSeq clk (Bool, Bool))
 -}
 
+addSuffixToProbeNames :: [ProbeName] -> String -> [ProbeName]
+addSuffixToProbeNames pns suf = [ case pn of
+                                        Probe name a i -> Probe (name ++ suf) a i
+                                        WholeCircuit s a i -> WholeCircuit (s ++ suf) a i
+                                | pn <- pns ]
+
 instance (Ports a, Ports b) => Ports (a,b) where
     ports _ (a,b) = ports bad b ++ ports bad a
         where bad = error "bad using of arguments in Reify"
 
-    probe' is name (x,y) = (probe' is (name ++ "_1") x,
-                            probe' is (name ++ "_0") y)
+    probe' names (x,y) = (probe' (addSuffixToProbeNames names "-fst") x,
+                          probe' (addSuffixToProbeNames names "-snd") y)
 
     -- note order of zip matters! must be consistent with fromWireXRep
     run (x,y) t = TraceStream (TupleTy [ty1,ty2]) $ zipWith appendRepValue strm1 strm2
@@ -324,9 +334,9 @@ instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
     ports _ (a,b,c) = ports bad c ++ ports bad b ++ ports bad a
         where bad = error "bad using of arguments in Reify"
 
-    probe' is name (x,y,z) = (probe' is (name ++ "_2") x,
-                              probe' is (name ++ "_1") y,
-                              probe' is (name ++ "_0") z)
+    probe' names (x,y,z) = (probe' (addSuffixToProbeNames names "-fst") x,
+                            probe' (addSuffixToProbeNames names "-snd") y,
+                            probe' (addSuffixToProbeNames names "-thd") z)
 
     -- note order of zip matters! must be consistent with fromWireXRep
     run (x,y,z) t = TraceStream (TupleTy [ty1,ty2,ty3]) (zipWith appendRepValue strm1 $ zipWith appendRepValue strm2 strm3)
@@ -344,7 +354,7 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     ports vs f = ports vs' $ f a
         where (a,vs') = inPorts vs
 
-    probe' (i:is) name f x = probe' is name $ f (probe' [i] name x)
+    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
 
     run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
         where (ins', fn') = apply ins fn
