@@ -211,10 +211,10 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
 incGroup x = mux2 (x .==. maxBound) (0,x + 1)
 
-fifoFE :: forall c a counter ix . 
+fifoFE :: forall c a counter ix .
          (Size counter
 	, Size ix
-	, counter ~ ADD ix X1
+	, counter ~ ix
 	, Rep a
 	, Rep counter
 	, Rep ix
@@ -266,10 +266,10 @@ fifoFE Witness rst (HandShaken hs,dec_by) = wr
 			`and2`
 		    (bitNot rst)
 
-fifoBE :: forall a c counter ix . 
+fifoBE :: forall a c counter ix .
          (Size counter
 	, Size ix
-	, counter ~ ADD ix X1
+	, counter ~ ix -- ADD ix X1
 	, Rep a
 	, Rep counter
 	, Rep ix
