@@ -17,6 +17,10 @@ import Data.Sized.Unsigned (U7)
 import Data.Default
 import Control.Monad.ST
 import Data.STRef
+import Data.List as L
+
+import Debug.Trace
+
 -------------------------------------------------------------------------------
 
 data Reg s c a  = Reg (CSeq c a) 					-- the "final" answer
@@ -51,9 +55,9 @@ instance IsReg (CCSeq) where
 -}
 
 
-reg :: Reg s c a -> CSeq c a
-reg (Reg seq _ _) = seq
-reg (Arr seq _ _ _) = seq
+val :: Reg s c a -> CSeq c a
+val (Reg seq _ _) = seq
+val (Arr seq _ _ _) = seq
 
 -------------------------------------------------------------------------------
 
@@ -76,6 +80,7 @@ data RTL s c a where
 	RTL :: (Pred c -> STRef s Int -> ST s (a,[Int])) -> RTL s c a
 	(:=) :: forall c b s . (Rep b) => Reg s c b -> CSeq c b -> RTL s c ()
 	CASE :: [Cond s c] -> RTL s c ()
+	WHEN :: CSeq c Bool -> RTL s c () -> RTL s c ()
 
 -- everything except ($) bids tighter
 infixr 0 :=
@@ -103,15 +108,22 @@ unRTL ((Arr _ ix var uq) := ss) = \ c _u -> do
 	return ((), [uq])
 
 unRTL (CASE alts) = \ c u -> do
-	sequence_ 
+	-- fix
+	let conds = [ p | IF p _ <- alts ]
+	    -- assumes a resonable optimizer will remove this if needed
+	    other_p = bitNot $ foldr (.||.) low conds
+	res <- sequence
 	   [ case alt of
 		IF p m -> do
 		 unRTL m (andPred c p) u 
 		OTHERWISE m -> do
-		 unRTL m c u
+		 unRTL m (andPred c other_p) u 
 	   | alt <- alts
 	   ]
-	return ((),[])
+	let assignments = L.nub $ concat [ xs | (_,xs) <- res ]
+	() <- trace (show res) $ return ()
+	return ((),assignments)
+unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
 -------------------------------------------------------------------------------
 
