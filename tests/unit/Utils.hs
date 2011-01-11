@@ -3,6 +3,7 @@ module Utils where
 
 import Language.KansasLava
 import Language.KansasLava.Testing.Thunk
+import Language.KansasLava.Testing.Trace
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Data.Default
@@ -12,6 +13,9 @@ import Data.Maybe as Maybe
 import Data.List
 import Control.Applicative
 
+import System.Cmd
+import System.Directory
+import System.FilePath.Posix as FP
 import qualified System.Random as R
 -- Our Unit Tests
 
@@ -20,19 +24,19 @@ import qualified System.Random as R
 data TestData = Rand Int | Complete
 
 data Options = Options
-	{ shallowOpt :: Bool
-	, verboseOpt :: Int
-	, testOnly   :: Maybe [String]
-	, testData   :: Maybe Int	--- cut off for random testing
-	}
+        { genDeep    :: Bool
+        , verboseOpt :: Int
+        , testOnly   :: Maybe [String]
+        , testData   :: Maybe Int       --- cut off for random testing
+        }
 
 instance Default Options where
-	def = Options
-		{ shallowOpt = True
-		, verboseOpt = 3
-		, testOnly = Nothing
-		, testData = Just 1000
-		}
+        def = Options
+                { genDeep = True
+                , verboseOpt = 3
+                , testOnly = Nothing
+                , testData = Just 1000
+                }
 
 -------------------------------------------------------------------------------------
 -- Verbose table
@@ -46,11 +50,11 @@ instance Default Options where
 
 testMe _ Nothing     = True
 testMe nm (Just nms) = or [ n `isPrefixOf` nm
-			  | n <- nms
-			  ]
+                          | n <- nms
+                          ]
 
 verbose opt n m | verboseOpt opt >= n = putStrLn m
-		| otherwise	      = return ()
+                | otherwise           = return ()
 
 -------------------------------------------------------------------------------------
 
@@ -58,29 +62,68 @@ verbose opt n m | verboseOpt opt >= n = putStrLn m
 -- do some tests for sanity.
 
 data TestSeq = TestSeq
-	(forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
-	(forall a. Gen a -> [a])
+        (forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
+        (forall a. Gen a -> [a])
 
 testSeq :: (Rep a, Show a, Eq a) => Options -> (Bool -> IO ()) -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
 testSeq opts pass nm count th master | testMe nm (testOnly opts) = do
-	let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
-	verb 2 $ "testing(" ++ show count ++ ")"
-	verb 9 $ show ("master",master)
+        let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
+        verb 2 $ "testing(" ++ show count ++ ")"
+        verb 9 $ show ("master",master)
 
-	-- First run the shallow
+        -- First run the shallow
         let shallow = runShallow th
-	verb 9 $ show ("shallow",shallow)
-	if cmpSeqRep count master shallow
-	  then do verb 3 $ "shallow passed"
-		  pass True
-	  else do verb 1 $ "shallow FAILED"
-		  pass False
-		  verb 4 $ show ("master",master)
-		  verb 4 $ show ("shallow",shallow)
+        verb 9 $ show ("shallow",shallow)
+        if cmpSeqRep count master shallow
+          then do verb 3 $ "shallow passed"
+                  pass True
+          else do verb 1 $ "shallow FAILED"
+                  pass False
+                  verb 4 $ show ("master",master)
+                  verb 4 $ show ("shallow",shallow)
 
-				| otherwise = return ()
+                                     | otherwise = return ()
 
 
+-- instead of running shallow tests, generate deep tests
+deepTestSeq :: (Rep a, Show a, Eq a) => Options -> (Bool -> IO ()) -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
+deepTestSeq opts pass nm count th master = do
+    let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
+        path = "tests" </> nm
+        newPass p = do
+            pass p -- call the original pass first
+
+            if genDeep opts
+                then do createDirectoryIfMissing True path
+
+                        writeFile "tests/run" $ unlines testRunner
+                        system "chmod +x tests/run"
+
+                        verb 3 $ "generating deep(" ++ show count ++ ")"
+
+                        t <- recordThunk path count (return) th
+
+                        verb 9 $ show ("trace",t)
+
+                        return ()
+                else return ()
+
+    testSeq opts newPass nm count th master
+
+testRunner :: [String]
+testRunner = ["#!/bin/bash"
+             ,"curdir=`pwd`"
+             ,"find . -iname \"*.do\" | while read f"
+             ,"do"
+             ,"    echo \"Simulating: $f\""
+             ,"    p=`dirname \"$f\"`"
+             ,"    b=`basename \"$f\"`"
+             ,"    cd $p"
+             ,"    res=`vsim -c -do $b`"
+             ,"    echo $res >> sim.log"
+             ,"    cd $curdir"
+             ,"done"
+             ]
 
 -------------------------------------------------------------------------------------
 
@@ -88,7 +131,7 @@ testSeq opts pass nm count th master | testMe nm (testOnly opts) = do
 unsort :: [x] -> [x]
 unsort es = map snd . sortBy (comparing fst) $ zip rs es
   where rs = R.randoms stdGen :: [Integer]
-	stdGen = R.mkStdGen 0
+        stdGen = R.mkStdGen 0
 
 -------------------------------------------------------------------------------------
 
@@ -103,16 +146,16 @@ data Gen a = Gen Integer (Integer -> Maybe a)
 arbitrary :: forall w . (Rep w) => Gen w
 arbitrary = Gen sz integer2rep
   where
-	sz = 2^fromIntegral (repWidth (Witness :: Witness w))
-	integer2rep :: Integer -> Maybe w
-	integer2rep v = unX
-		$ fromRep
-		$ RepValue
-		$ take (repWidth (Witness :: Witness w))
-		$ map WireVal
-		$ map odd
-		$ iterate (`div` 2)
-		$ fromIntegral v
+        sz = 2^fromIntegral (repWidth (Witness :: Witness w))
+        integer2rep :: Integer -> Maybe w
+        integer2rep v = unX
+                $ fromRep
+                $ RepValue
+                $ take (repWidth (Witness :: Witness w))
+                $ map WireVal
+                $ map odd
+                $ iterate (`div` 2)
+                $ fromIntegral v
 
 loop :: Integer -> Gen w -> Gen w
 loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
@@ -122,19 +165,19 @@ loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
 -- Random messes this up a bit, but its still an approximation.
 dubSeq :: Gen w -> Gen w
 dubSeq g = ((\ a b c -> if a then b else c) <$> arbitrary)
-	<*> g
-	<*> g
+        <*> g
+        <*> g
 
 
 instance Functor Gen where
-	fmap g (Gen n f) = Gen n (\i -> do r <- f i
-					   return $ g r)
+        fmap g (Gen n f) = Gen n (\i -> do r <- f i
+                                           return $ g r)
 
 instance Applicative Gen where
-	pure a = Gen 1 (const $ return a)
-	(Gen n1 f1) <*> (Gen n2 f2) = Gen (n1 * n2) (\ i -> do r1 <- f1 (i `mod` n1)
-							       r2 <- f2 (i `div` n1)
-							       return $ r1 r2)
+        pure a = Gen 1 (const $ return a)
+        (Gen n1 f1) <*> (Gen n2 f2) = Gen (n1 * n2) (\ i -> do r1 <- f1 (i `mod` n1)
+                                                               r2 <- f2 (i `div` n1)
+                                                               return $ r1 r2)
 
 -- get *all* elements from a Gen
 genToList :: Gen a -> [a]
@@ -144,8 +187,8 @@ genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
 -- If it is small, then just output all the values.
 genToRandom :: Gen a -> [a]
 genToRandom (Gen n f)
-	| n <= 100 = unsort $ genToList (Gen n f)
-	| otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
+        | n <= 100 = unsort $ genToList (Gen n f)
+        | otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
 
 
 largeNumber = 10000
