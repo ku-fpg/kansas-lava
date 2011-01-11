@@ -293,10 +293,10 @@ instance Rep a => Ports (Comb a) where
         where TraceStream ty strm = toTrace $ Stream.fromList $ repeat s
 
 -- Need to add the clock
-instance (Rep a) => Input (HandShake (Seq a)) where
+instance (Clock clk, Rep a) => Input (HandShaken clk (Seq a)) where
     inPorts v =  (fn , v)
         -- We need the ~ because the output does not need to depend on the input
-        where fn = HandShake $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
+        where fn = HandShaken $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
     input _ a = a
 
 {-
@@ -317,8 +317,8 @@ instance (Ports a, Ports b) => Ports (a,b) where
         where TraceStream ty1 strm1 = run x t
               TraceStream ty2 strm2 = run y t
 
-instance Ports a => Ports (HandShake a) where
-    ports vs (HandShake f) = ports vs f
+instance (Clock clk, Ports a) => Ports (HandShaken clk a) where
+    ports vs (HandShaken f) = ports vs f
 
 instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
     ports _ (a,b,c) = ports bad c ++ ports bad b ++ ports bad a
