@@ -5,9 +5,9 @@ import Data.Maybe
 
 -- surely this exists in the prelude?
 mergeWith :: (a -> a -> a) -> [[a]] -> [a]
-mergeWith fn probes = go probes []
-    where go (p:ps) []  = go ps p
-          go (p:ps) acc = go ps $ zipWith fn acc p
+mergeWith fn lists = go lists []
+    where go (l:ls) []  = go ls l
+          go (l:ls) acc = go ls $ zipWith fn acc l
           go []     acc = acc
 
 -- Seems like this should also exist in the Prelude
