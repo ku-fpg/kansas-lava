@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp,
+    RankNTypes  #-}
 
 module Language.KansasLava.HandShake where
 
@@ -42,26 +43,26 @@ import Control.Concurrent
 
 -- Need to add concept of clock
 
-type Handshake a = HandShake (Seq (Enabled a))
+-- type Handshake a = HandShaken (Seq (Enabled a))
 
 
-data HandShake a = HandShake { unHandShake :: Seq Bool -> a }
+data HandShaken c a = HandShaken { unHandShaken :: CSeq c Bool -> a }
 
 infix 4 <~~
 
-(<~~) :: HandShake a -> Seq Bool -> a
-(HandShake h) <~~ a = h a
+(<~~) :: HandShaken c a -> CSeq c Bool -> a
+(HandShaken h) <~~ a = h a
 
-instance Functor HandShake where
-	fmap f (HandShake g) = HandShake (f . g)
+instance Functor (HandShaken c) where
+	fmap f (HandShaken g) = HandShaken (f . g)
 
-instance Applicative HandShake where
-	pure a = HandShake $ const a					-- K
-	(HandShake f) <*> (HandShake g) = HandShake (\ s -> f s (g s))	-- S
+instance Applicative (HandShaken c) where
+	pure a = HandShaken $ const a					-- K
+	(HandShaken f) <*> (HandShaken g) = HandShaken (\ s -> f s (g s))	-- S
 
-instance Monad HandShake where
-	return a = HandShake $ const a					-- K
-	(HandShake f) >>= k = HandShake $ \ s -> unHandShake (k (f s)) s
+instance Monad (HandShaken c) where
+	return a = HandShaken $ const a					-- K
+	(HandShaken f) >>= k = HandShaken $ \ s -> unHandShaken (k (f s)) s
 
 
 {-
@@ -77,8 +78,8 @@ instance Signal Handshake where
 -}
 
 
---liftHandShake :: (a -> b) -> Handshake a -> Handshake b
---liftHandShake = undefined
+--liftHandShaken :: (a -> b) -> Handshake a -> Handshake b
+--liftHandShaken = undefined
 
 ----------------------------------------------------------------------------------------------------
 {-
@@ -101,8 +102,8 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 			(Just _:rs) 	     -> fn (pred p:ps) xs rs -- nothing read
 -}
 
-toHandShake' :: (Rep a) => [Int] -> [Maybe a] -> HandShake (Seq (Enabled a))
-toHandShake' stutter xs = HandShake $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
+toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
+toHandShaken' stutter xs = HandShaken $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
@@ -119,13 +120,13 @@ toHandShake' stutter xs = HandShake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 
 
 
-fromHandShake' :: forall a . (Rep a) => [Int] -> HandShake (Seq (Enabled a)) -> [Maybe a]
-fromHandShake' stutter (HandShake sink) = map snd internal
+fromHandShaken' :: forall a c . (Clock c, Rep a) => [Int] -> HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
+fromHandShaken' stutter (HandShaken sink) = map snd internal
    where
-	val :: Seq (Enabled a)
+	val :: CSeq c (Enabled a)
 	val = sink full
 
-	full :: Seq Bool
+	full :: CSeq c Bool
 	full = toSeq (map fst internal)
 
 	internal :: [(Bool,Maybe a)]
@@ -168,19 +169,19 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- | This function takes a ShallowFIFO object, and gives back a Handshake.
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
-shallowFifoToHandShake :: (Show a, Rep a) => ShallowFIFO a -> IO (HandShake (Seq (Enabled a)))
-shallowFifoToHandShake fifo = do
+shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (HandShaken c (CSeq c (Enabled a)))
+shallowFifoToHandShaken fifo = do
 	xs <- getFIFOContents fifo
-	return (toHandShake' (repeat 0) (xs ++ repeat Nothing))
+	return (toHandShaken' (repeat 0) (xs ++ repeat Nothing))
 
-handShakeToShallowFifo :: (Show a, Rep a) => ShallowFIFO a -> HandShake (Seq (Enabled a)) -> IO ()
+handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> HandShaken c (CSeq c (Enabled a)) -> IO ()
 handShakeToShallowFifo fifo sink = do
-	putFIFOContents fifo (fromHandShake' (repeat 0) sink)
+	putFIFOContents fifo (fromHandShaken' (repeat 0) sink)
 	return ()
 
 -- create a lambda bridge from a FIFO to a FIFO.
 -- (Could be generalize to Matrix of FIFO  to Matrix of FIFO)
-handShakeLambdaBridge :: (HandShake (Seq (Enabled Byte)) -> HandShake (Seq (Enabled Byte))) -> IO ()
+handShakeLambdaBridge :: (Clock c) => (HandShaken c (CSeq c (Enabled Byte)) -> HandShaken c (CSeq c (Enabled Byte))) -> IO ()
 handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 	sFIFO <- newShallowFIFO
 	rFIFO <- newShallowFIFO
@@ -188,7 +189,7 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 	forkIO $ hGetToFIFO send sFIFO
 	hPutFromFIFO recv rFIFO
 
-	sHS <- shallowFifoToHandShake sFIFO
+	sHS <- shallowFifoToHandShaken sFIFO
 	let rHS = fn sHS
 	handShakeToShallowFifo rFIFO rHS
 	return ()
@@ -198,7 +199,7 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
 incGroup x = mux2 (x .==. maxBound) (0,x + 1)
 
-fifoFE :: forall a counter ix . 
+fifoFE :: forall c a counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -207,14 +208,15 @@ fifoFE :: forall a counter ix .
 	, Rep ix
 	, Num counter
 	, Num ix
+	, Clock c
 	) 
       => Witness ix
-      -> Seq Bool
-      -> (HandShake (Seq (Enabled a)),Seq counter)
+      -> CSeq c Bool
+      -> (HandShaken c (CSeq c (Enabled a)),CSeq c counter)
 	 -- ^ HS, and Seq trigger of how much to decrement the counter
-      -> Seq (Enabled (ix,a))
-	 -- ^ inc_counter * backedge for HandShake.
-fifoFE Witness rst (HandShake hs,dec_by) = wr
+      -> CSeq c (Enabled (ix,a))
+	 -- ^ inc_counter * backedge for HandShaken.
+fifoFE Witness rst (HandShaken hs,dec_by) = wr
   where
 	resetable x = mux2 rst (0,x)
 
@@ -223,36 +225,36 @@ fifoFE Witness rst (HandShake hs,dec_by) = wr
 --	mem :: Seq ix -> Seq a
 --	mem = pipeToMemory env env wr
 
-	inp_done0 :: Seq Bool
+	inp_done0 :: CSeq c Bool
 	inp_done0 = inp_ready `and2` isEnabled inp
 
-	wr :: Seq (Enabled (ix,a))
+	wr :: CSeq c (Enabled (ix,a))
 	wr = packEnabled (inp_done0)
 			 (pack (wr_addr,enabledVal inp))
 
-	wr_addr :: Seq ix
+	wr_addr :: CSeq c ix
 	wr_addr = resetable
 		$ register 0
 		$ mux2 inp_done0 (liftS1 incGroup wr_addr,wr_addr)
 
-	in_counter0 :: Seq counter
+	in_counter0 :: CSeq c counter
 	in_counter0 = resetable
 		    $ in_counter1 
 			+ mux2 inp_done0 (1,0)
 		   	- dec_by
 
-	in_counter1 :: Seq counter
+	in_counter1 :: CSeq c counter
 	in_counter1 = register 0 in_counter0
 	
 --	out :: Seq (Enabled a)
 --	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
 
-	inp_ready :: Seq Bool
+	inp_ready :: CSeq c Bool
 	inp_ready = (in_counter1 .<. fromIntegral (size (error "witness" :: ix)))
 			`and2`
 		    (bitNot rst)
 
-fifoBE :: forall a counter ix . 
+fifoBE :: forall a c counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -261,36 +263,37 @@ fifoBE :: forall a counter ix .
 	, Rep ix
 	, Num counter
 	, Num ix
+	, Clock c
 	) 
       => Witness ix
-      -> Seq Bool	-- ^ reset
+      -> CSeq c Bool	-- ^ reset
 --      -> (Comb Bool -> Comb counter -> Comb counter)
 --      -> Seq (counter -> counter)
-      -> (Seq counter,Seq (Enabled a))
+      -> (CSeq c counter,CSeq c (Enabled a))
 	-- inc from FE
 	-- input from Memory read
-      -> HandShake ((Seq ix, Seq Bool), Seq (Enabled a))
+      -> HandShaken c ((CSeq c ix, CSeq c Bool), CSeq c (Enabled a))
 	-- address for Memory read
 	-- dec to FE
-	-- output for HandShake
-fifoBE Witness rst (inc_by,mem_rd) = HandShake $ \ out_ready ->
+	-- output for HandShaken
+fifoBE Witness rst (inc_by,mem_rd) = HandShaken $ \ out_ready ->
     let
 	resetable x = mux2 rst (0,x)
 
-	rd_addr0 :: Seq ix
+	rd_addr0 :: CSeq c ix
 	rd_addr0 = resetable 
 		 $ mux2 out_done0 (liftS1 incGroup rd_addr1,rd_addr1)
 
 	rd_addr1 = register 0 
 		 $ rd_addr0
 
-	out_done0 :: Seq Bool
+	out_done0 :: CSeq c Bool
 	out_done0 = out_ready `and2` (isEnabled out)
 
-	out :: Seq (Enabled a)
+	out :: CSeq c (Enabled a)
 	out = packEnabled (out_counter1 .>. 0 `and2` bitNot rst `and2` isEnabled mem_rd) (enabledVal mem_rd)
 
-	out_counter0 :: Seq counter
+	out_counter0 :: CSeq c counter
 	out_counter0 = resetable
 		     $ out_counter1
 			+ inc_by
@@ -328,7 +331,7 @@ fifoCounter' rst inc dec = counter1
 
 
 
-fifo :: forall a counter ix . 
+fifo :: forall a c counter ix . 
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -337,22 +340,23 @@ fifo :: forall a counter ix .
 	, Rep ix
 	, Num counter
 	, Num ix
+	, Clock c
 	) 
       => Witness ix
-      -> Seq Bool
-      -> HandShake (Seq (Enabled a))
-      -> HandShake (Seq (Enabled a))
-fifo w_ix@Witness rst hs = HandShake $ \ out_ready ->
+      -> CSeq c Bool
+      -> HandShaken c (CSeq c (Enabled a))
+      -> HandShaken c (CSeq c (Enabled a))
+fifo w_ix rst hs = HandShaken $ \ out_ready ->
     let
 	resetable x = mux2 rst (low,x)
 
-	wr :: Seq (Maybe (ix, a))
+	wr :: CSeq c (Maybe (ix, a))
 	wr = fifoFE w_ix rst (hs,dec_by)
 
-	inp_done2 :: Seq Bool
+	inp_done2 :: CSeq c Bool
 	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
 
-	mem :: Seq ix -> Seq (Enabled a)
+	mem :: CSeq c ix -> CSeq c (Enabled a)
 	mem = enabledS . pipeToMemory wr
 
 	((rd_addr0,out_done0),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) <~~ out_ready
@@ -363,7 +367,7 @@ fifo w_ix@Witness rst hs = HandShake $ \ out_ready ->
     in
 	out
 
-fifoToMatrix :: forall a counter counter2 ix iy iz . 
+fifoToMatrix :: forall a counter counter2 ix iy iz c . 
          (Size counter
 	, Size ix
 	, Size counter2, Rep counter2, Num counter2
@@ -381,26 +385,24 @@ fifoToMatrix :: forall a counter counter2 ix iy iz .
 	StdLogic iz, Size iz, Rep iz, Num iy
 	, WIDTH counter ~ ADD (WIDTH iz) (WIDTH counter2)
 	, Num iz
---	ADD (WIDTH iz) (WIDTH counter2) ~ WIDTH counter
---	, Integral (Seq counter)
-
+	, Clock c
 	) 
       => Witness ix
       -> Witness iy
-      -> Seq Bool
-      -> HandShake (Seq (Enabled a))
-      -> HandShake (Seq (Enabled (M.Matrix iz a)))
-fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShake $ \ out_ready ->
+      -> CSeq c Bool
+      -> HandShaken c (CSeq c (Enabled a))
+      -> HandShaken c (CSeq c (Enabled (M.Matrix iz a)))
+fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShaken $ \ out_ready ->
     let
 	resetable x = mux2 rst (low,x)
 
-	wr :: Seq (Maybe (ix, a))
+	wr :: CSeq c (Maybe (ix, a))
 	wr = fifoFE w_ix rst (hs,dec_by)
 
-	inp_done2 :: Seq Bool
+	inp_done2 :: CSeq c Bool
 	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
 
-	mem :: Seq (Enabled (M.Matrix iz a))
+	mem :: CSeq c (Enabled (M.Matrix iz a))
 	mem = enabledS 
 	 	$ pack
 	 	$ fmap (\ f -> f rd_addr0)
@@ -417,7 +419,8 @@ fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShake $ \ out_ready ->
 	out
 
 -- Move into a Commute module? 
-splitWrite :: forall a a1 a2 d . (Rep a1, Rep a2, Rep d, Size a1) => Seq (Pipe (a1,a2) d) -> M.Matrix a1 (Seq (Pipe a2 d))
+-- classical find the implementation problem.
+splitWrite :: forall a a1 a2 d c . (Rep a1, Rep a2, Rep d, Size a1) => CSeq c (Pipe (a1,a2) d) -> M.Matrix a1 (CSeq c (Pipe a2 d))
 splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
 			               (a,d)   = unpack v
 			               (a1,a2) = unpack a
@@ -425,22 +428,28 @@ splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
 				   	           (pack (a2,d))
 
 
-mulBy :: forall x sz sig . (Size sz, Num sz, Num x, Rep x) => Witness sz -> Seq Bool -> Seq x
+mulBy :: forall x sz sig c . (Clock c, Size sz, Num sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c x
 mulBy Witness trig = mux2 trig (pureS $ fromIntegral $ size (error "witness" :: sz),pureS 0)
 
-divBy :: forall x sz sig . (Size sz, Num sz, Rep sz, Num x, Rep x) => Witness sz -> Seq Bool -> Seq Bool -> Seq x
+divBy :: forall x sz sig c . (Clock c, Size sz, Num sz, Rep sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c Bool -> CSeq c x
 divBy Witness rst trig = mux2 issue (1,0)
 	where 
 		issue = trig .&&. (counter1 .==. (pureS $ fromIntegral (size (error "witness" :: sz) - 1)))
 
-		counter0 :: Seq sz
+		counter0 :: CSeq c sz
 		counter0 = cASE [ (rst,0)
 				, (trig,counter1 + 1)
 				] counter1
-		counter1 :: Seq sz
+		counter1 :: CSeq c sz
 		counter1 = register 0 
 			 $ mux2 issue (0,counter0)
 
 
+-- sub-domain for the inner clock.
+liftHandShaken :: (Clock c1) 
+	=> (forall c0 . (Clock c0) => Clocked c0 a -> Clocked c0 b)
+	-> HandShaken c1 (Enabled a) 
+	-> HandShaken c1 (Enabled b)
+liftHandShaken f = undefined
 
 
