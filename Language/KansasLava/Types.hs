@@ -44,10 +44,12 @@ module Language.KansasLava.Types (
 
 import Control.Applicative
 
+import Data.Char
 import Data.Dynamic
 import qualified Data.Foldable as F
 import Data.List as L
 import qualified Data.Map as M
+import Data.Maybe
 import Data.Monoid
 import Data.Reify
 import qualified Data.Traversable as T
@@ -107,26 +109,32 @@ instance Show Type where
         show B          = "B"
         show ClkTy      = "Clk"
         show ClkDomTy   = "ClkDom"
+        show GenericTy  = "G"
         show (S i)      = show i ++ "S"
         show (U i)      = show i ++ "U"
         show (V i)      = show i ++ "V"
-        show GenericTy  = "G"
         show (TupleTy tys) = show tys
         show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
         show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
 
 -- This is required for the deserialization of Trace objects.
 instance Read Type where
-    readsPrec _ "B" = [(B,"")]
-    readsPrec _ "CLK" = [(ClkTy,"")]
-    readsPrec _ "G" = [(GenericTy,"")]
-    readsPrec _ str | (last str) `elem` ['U', 'S', 'V'] = [(con int,"")]
-        where con = case last str of
+    readsPrec _ xs | hasSizePrefix xs = [fromJust $ parseSize xs]
+        where hasSizePrefix = isJust . parseSize
+              parseSize str = let (ds,c:cs) = span isDigit str
+                              in if (not $ null ds) && c `elem` ['U', 'S', 'V']
+                                    then Just ((con c) (read ds :: Int), cs)
+                                    else Nothing
+              con ch = case ch of
                         'U' -> U
                         'S' -> S
                         'V' -> V
-              int = read (init str) :: Int
-    readsPrec _ _   = error "read BaseTy: no parse"
+
+    readsPrec _ xs = concat [ maybe [] (\rest -> [(con,rest)]) (stripPrefix str xs)
+                            | (con,str) <- zip [B  , ClkTy, ClkDomTy, GenericTy]
+                                               ["B", "Clk", "ClkDom", "G"      ]
+                            ]
+    readsPrec _ what = error $ "read Type - can't parse: " ++ what
 
 
 -------------------------------------------------------------------------
