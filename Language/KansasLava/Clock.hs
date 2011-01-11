@@ -18,6 +18,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Signal
 	
+
 rate :: forall x clk . (Clock clk, Size x) => Witness x -> Rational -> CSeq clk Bool
 rate Witness n 
   | step * 2 > 2^sz = error $ "bit-size " ++ show sz ++ " too small for punctuate Witness " ++ show n
@@ -27,24 +28,24 @@ rate Witness n
 	count <- newReg (0 :: Comb (Unsigned x))
 	cut   <- newReg (0 :: Comb (Unsigned x))
 	err   <- newReg (0  :: Comb (Signed x))
-	CASE [ IF (val count .<. (fromIntegral step + val cut - 1)) $ do
-		  count := val count + 1
+	CASE [ IF (reg count .<. (fromIntegral step + reg cut - 1)) $ do
+		  count := reg count + 1
 --		  cut := val cut
 --		  err := val err
 	     , OTHERWISE $ do
 		  count := 0
-		  CASE [ IF (val err .>=. 0) $ do
+		  CASE [ IF (reg err .>=. 0) $ do
 		            cut := 1
-			    err   := val err + fromIntegral nerr
+			    err   := reg err + fromIntegral nerr
 		        , OTHERWISE $ do
 		            cut := 0
-			    err   := val err + fromIntegral perr
+			    err   := reg err + fromIntegral perr
 			]
 		 
 	     ]
 	return $ 
 --		pack (val err, val count) 
-		(val count .==. 0)
+		(reg count .==. 0)
 
    where sz = fromIntegral (size (error "witness" :: x)) 
 	 num = numerator n

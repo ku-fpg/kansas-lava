@@ -23,7 +23,8 @@ import Debug.Trace
 
 -------------------------------------------------------------------------------
 
-data Reg s c a  = Reg (CSeq c a) 					-- the "final" answer
+data Reg s c a  = Reg (CSeq c a) 		-- output of register
+		      (CSeq c a)		-- input to register
 		      (STRef s [CSeq c a -> CSeq c a])
 		      Int
 	      | forall ix . (Rep ix) =>
@@ -54,10 +55,13 @@ instance IsReg (CCSeq) where
 --	fromReg (Arr seq _ _) = seq
 -}
 
+reg :: Reg s c a -> CSeq c a
+reg (Reg seq _ _ _) = seq
+reg (Arr seq _ _ _) = seq
 
-val :: Reg s c a -> CSeq c a
-val (Reg seq _ _) = seq
-val (Arr seq _ _ _) = seq
+var :: Reg s c a -> CSeq c a
+var (Reg seq _ _ _) = seq
+var (Arr seq _ _ _) = seq
 
 -------------------------------------------------------------------------------
 
@@ -100,7 +104,7 @@ runRTL rtl = runST (do
 -- This is where our fixed (constant) names get handled.	
 unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
-unRTL ((Reg _ var uq) := ss) = \ c _u -> do
+unRTL ((Reg _ _ var uq) := ss) = \ c _u -> do
 	modifySTRef var ((:) (\ r -> muxPred c (ss,r)))
 	return ((), [uq])
 unRTL ((Arr _ ix var uq) := ss) = \ c _u -> do
@@ -148,7 +152,7 @@ newReg def = RTL $ \ _ u -> do
 		let v_old = register def v_new
 		    v_new = foldr (.) id (reverse assigns) v_old
 		return $ v_old
-	return (Reg proj var uq,[])
+	return (Reg proj proj var uq,[])
 
 
 -- Arrays support partual updates.
