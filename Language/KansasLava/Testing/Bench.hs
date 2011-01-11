@@ -135,22 +135,24 @@ doscript name circuit = unlines $
         ,"vsim -lib "  ++ workDir ++ " " ++ name ++ "_tb"
         ,"add wave -r /*"
         ]
-        ++ waves ++
+        ++ -- waves ++
         ["run -all"
         ,"quit"
         ]
     where workDir = "mywork"
-          waves = genProbes name circuit
+--          waves = genProbes name circuit
+
+{-
+As of modelsim 6.6, you can't label waves anymore.
+The add wave -r /* above puts waves on all signals.
 
 -- Generating probes
 genProbes :: String -> Circuit -> [String]
 genProbes top c = concatMap getProbe graph
     where graph = theCircuit c
           getProbe (ident, (Entity (TraceVal nms _) [( v, _)] _)) =
-            ["add wave -label " ++ name ++ "_" ++ show i ++ "_" ++ show nid ++ " " ++ sig
+            ["add wave -label " ++ show nm ++ " " ++ sig
             | nm <- nms
-            , let (name,i,nid) = case nm of
-                                    Probe n arg nodeid -> (n,arg,nodeid)
-                                    WholeCircuit suf arg nodeid -> (top ++ suf,arg,nodeid)
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
           getProbe _ = []
+-}
