@@ -39,6 +39,7 @@ class Rep w where
     fromRep :: RepValue -> X w
 
     -- show the value (in its Haskell form, default is the bits)
+    -- TODO: remove Witness, its not needed any longer
     showRep :: Witness w -> X w -> String
     showRep w x = show (toRep x)
 
