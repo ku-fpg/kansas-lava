@@ -205,3 +205,9 @@ newReg def = do
 -}
 
 -------------------------------------------------------------------------------
+
+-- | match checks for a enabled value, and if so, executes the given RTL in context,
+--   by constructing the correct 'Cond'-itional.
+match :: (Rep a) => CSeq c (Enabled a) -> (CSeq c a -> RTL s c ()) -> Cond s c
+match inp fn = IF (isEnabled inp) (fn (enabledVal inp))
+-- To consider: This is almost a bind operator?
