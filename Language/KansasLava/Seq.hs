@@ -37,6 +37,7 @@ import Data.Sized.Ix as X
 
 data CSeq c a = Seq (Stream (X a)) (D a)
 
+type Clocked c a = CSeq c a	-- new name, start using
 type Seq a = CSeq () a
 
 seqValue :: CSeq c a -> Stream (X a)
