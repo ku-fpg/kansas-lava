@@ -396,6 +396,10 @@ instance (Ord a, Rep a) => Ord (CSeq c a) where
   max = liftS2 max
   min = liftS2 min
 
+instance (Bounded a, Rep a) => Bounded (CSeq c a) where
+    minBound = liftS0 minBound 
+    maxBound = liftS0 maxBound
+
 boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
 	liftS2 $ \ (Comb a ea) (Comb b eb) ->
