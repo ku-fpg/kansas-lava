@@ -4,7 +4,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
                                          ,diff, emptyTrace, takeTrace, dropTrace
-                                         ,serialize, deserialize, genShallow, genInfo
+                                         ,serialize, deserialize, genShallow, genInfo, readDeep
                                          ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
 import Language.KansasLava.Types
@@ -20,6 +20,8 @@ import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Stream (Stream)
 import Language.KansasLava.Testing.Utils
 
+import Control.Applicative
+
 import qualified Data.Sized.Matrix as Matrix
 
 import Data.Char
@@ -31,10 +33,16 @@ import Debug.Trace
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
+-- generate a signature from a trace
+-- TODO: support generics in both these functions?
 traceSignature :: Trace -> Signature
-traceSignature (Trace _ ins outs _) = Signature inps outps []
-    where inps = [ (OVar i ("WholeCircuit" ++ s),ty) | (WholeCircuit s i _,TraceStream ty _) <- M.toList ins ]
-          outps = [ (OVar i nm,ty) | (Probe nm i _,TraceStream ty _) <- M.toList outs ]
+traceSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
+    where convert m = [ (OVar i (show wc),ty) | (wc@(WholeCircuit s i _),TraceStream ty _) <- M.toList m ]
+
+-- creates an (obviously empty) trace from a signature
+signatureTrace :: Signature -> Trace
+signatureTrace (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) M.empty
+    where convert l = M.fromList [ (read nm, TraceStream ty [])  | (OVar i nm, ty) <- l ]
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
@@ -128,6 +136,23 @@ genShallow :: Trace -> [String]
 genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
     where alldata = (M.elems ins) ++ (M.elems outs)
 
+-- inverse of genShallow
+-- readDeep :: [String] -> Signature -> Trace
+readDeep lines sig = et { inputs = ins, outputs = outs }
+    where et = setCycles (length lines) $ signatureTrace sig
+          widths = [ typeWidth ty
+                   | (_,TraceStream ty _) <- M.assocs (inputs et) ++ M.assocs (outputs et)
+                   ]
+          (inSigs, outSigs) = splitAt (M.size $ inputs et) $ splitLists lines widths
+          addToMap sigs m = M.fromList [ (k,TraceStream ty (map (RepValue . (map fromXBit)) strm))
+                                       | (strm,(k,TraceStream ty _)) <- zip sigs $ M.assocs m
+                                       ]
+          (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
+
+splitLists :: [[a]] -> [Int] -> [[[a]]]
+splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
+splitLists _  []     = [[]]
+
 genInfo :: Trace -> [String]
 genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
     where alldata = (M.elems ins) ++ (M.elems outs)
@@ -161,12 +186,19 @@ execute circuit t@(Trace _ _ outs _) = t { outputs = newOutputs }
 
 -- Functions below are not exported.
 
-toXBit :: Maybe Bool -> Char
-toXBit = maybe 'X' (\b -> if b then '1' else '0')
+toXBit :: WireVal Bool -> Char
+toXBit WireUnknown = 'X'
+toXBit (WireVal True) = '1'
+toXBit (WireVal False) = '0'
+
+fromXBit :: Char -> WireVal Bool
+fromXBit 'X' = WireUnknown
+fromXBit '1' = WireVal True
+fromXBit '0' = WireVal False
 
 -- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]
-showTraceStream c (TraceStream _ s) = [map (toXBit . unX . XBool) $ reverse val | RepValue val <- takeMaybe c s]
+showTraceStream c (TraceStream _ s) = [map toXBit $ reverse val | RepValue val <- takeMaybe c s]
 
 readStrm :: [String] -> (TraceStream, [String])
 readStrm ls = (strm,rest)
