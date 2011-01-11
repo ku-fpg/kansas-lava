@@ -32,6 +32,7 @@ module Language.KansasLava.Types (
         -- * Tracing
         , ProbeName(..)
         , TraceStream(..)
+        , cmpTraceStream
         , TraceMap
         , Trace(..)
         -- * Circuit
@@ -389,6 +390,15 @@ cmpRepValue _ _ = False
 
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
     deriving (Eq, Ord, Show)
+
+-- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
+-- uses 'cmpRepValue' under the hood, so the first argument is considered the
+-- golden trace.
+cmpTraceStream :: Int -> TraceStream -> TraceStream -> Bool
+cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
+    where countLTs1 = count <= (length $ take count s1)
+          s1LTs2 = (length $ take count s1) <= (length $ take count s2)
+          eql = and $ take count $ zipWith cmpRepValue s1 s2
 
 data ProbeName = Probe String Int Int -- name, arg-order (if any), node id
                | WholeCircuit String Int Int -- special probe used by mkTrace

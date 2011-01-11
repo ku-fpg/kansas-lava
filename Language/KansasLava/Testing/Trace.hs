@@ -3,7 +3,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
-                                         ,diff, emptyTrace, takeTrace, dropTrace
+                                         ,cmpTrace, diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo, readDeep
                                          ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
@@ -88,6 +88,15 @@ instance Eq Trace where
               outEqual = (sorted o1) == (sorted o2)
               probesEqual = (sorted p1) == (sorted p2)
 
+cmpTrace :: Trace -> Trace -> Bool
+cmpTrace (Trace Nothing _ _ _)     _                           = False
+cmpTrace (Trace c1 _ _ _)          (Trace c2 _ _ _) | c1 /= c2 = False
+cmpTrace (Trace (Just c) i1 o1 p1) (Trace _ i2 o2 p2)          =
+    and [ k1 == k2 && cmpTraceStream c s1 s2
+        | (m1, m2) <- zip [i1,o1,p1] [i2,o2,p2]
+        , ((k1,s1),(k2,s2)) <- zip (M.assocs m1) (M.assocs m2)
+        ]
+
 -- something more intelligent someday?
 diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
@@ -144,7 +153,7 @@ readDeep lines sig = et { inputs = ins, outputs = outs }
                    | (_,TraceStream ty _) <- M.assocs (inputs et) ++ M.assocs (outputs et)
                    ]
           (inSigs, outSigs) = splitAt (M.size $ inputs et) $ splitLists lines widths
-          addToMap sigs m = M.fromList [ (k,TraceStream ty (map (RepValue . (map fromXBit)) strm))
+          addToMap sigs m = M.fromList [ (k,TraceStream ty (map (RepValue . reverse . (map fromXBit)) strm))
                                        | (strm,(k,TraceStream ty _)) <- zip sigs $ M.assocs m
                                        ]
           (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
