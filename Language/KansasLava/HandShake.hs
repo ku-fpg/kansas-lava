@@ -33,20 +33,32 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Shallow.FIFO 
 import Language.KansasLava.StdLogicVector
-import Foreign.LambdaBridge.Service
 
 import Language.KansasLava.Utils
 import Control.Applicative
 import Control.Concurrent
 
 -----------------------------------------------------------------------------------------------
+--
+-- In 
 
--- Need to add concept of clock
 
+
+-----------------------------------------------------------------------------------------------
 -- type Handshake a = HandShaken (Seq (Enabled a))
 
+{- | 
+
+A Handshaken value is a value that has a has been accepted backedge.
+
+> DIAGRAM
+
+There is nothing wrong with trying to accept a value that is not sent.
+
+-}
 
 data HandShaken c a = HandShaken { unHandShaken :: CSeq c Bool -> a }
+
 
 infix 4 <~~
 
@@ -179,6 +191,7 @@ handShakeToShallowFifo fifo sink = do
 	putFIFOContents fifo (fromHandShaken' (repeat 0) sink)
 	return ()
 
+{- TODO: move into another location
 -- create a lambda bridge from a FIFO to a FIFO.
 -- (Could be generalize to Matrix of FIFO  to Matrix of FIFO)
 handShakeLambdaBridge :: (Clock c) => (HandShaken c (CSeq c (Enabled Byte)) -> HandShaken c (CSeq c (Enabled Byte))) -> IO ()
@@ -193,8 +206,7 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 	let rHS = fn sHS
 	handShakeToShallowFifo rFIFO rHS
 	return ()
-
-
+-}
 
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
 incGroup x = mux2 (x .==. maxBound) (0,x + 1)
