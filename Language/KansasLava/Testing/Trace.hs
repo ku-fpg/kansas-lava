@@ -3,7 +3,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
-                                         ,cmpTrace, diff, emptyTrace, takeTrace, dropTrace
+                                         ,cmpTrace, cmpTraceIO, diff, emptyTrace, takeTrace, dropTrace
                                          ,serialize, deserialize, genShallow, genInfo, readDeep
                                          ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
@@ -88,6 +88,7 @@ instance Eq Trace where
               outEqual = (sorted o1) == (sorted o2)
               probesEqual = (sorted p1) == (sorted p2)
 
+-- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
 cmpTrace :: Trace -> Trace -> Bool
 cmpTrace (Trace Nothing _ _ _)     _                           = False
 cmpTrace (Trace c1 _ _ _)          (Trace c2 _ _ _) | c1 /= c2 = False
@@ -96,6 +97,10 @@ cmpTrace (Trace (Just c) i1 o1 p1) (Trace _ i2 o2 p2)          =
         | (m1, m2) <- zip [i1,o1,p1] [i2,o2,p2]
         , ((k1,s1),(k2,s2)) <- zip (M.assocs m1) (M.assocs m2)
         ]
+
+-- | Like cmpTrace but only compares inputs and outputs.
+cmpTraceIO :: Trace -> Trace -> Bool
+cmpTraceIO (Trace c1 i1 o1 _) (Trace c2 i2 o2 _) = cmpTrace (Trace c1 i1 o1 M.empty) (Trace c2 i2 o2 M.empty)
 
 -- something more intelligent someday?
 diff :: Trace -> Trace -> Bool
