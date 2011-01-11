@@ -59,6 +59,7 @@ recordThunk path cycles circuitMod thunk@(Thunk c k) = do
 
     writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
     writeFile (path </> name <.> "info") $ unlines $ genInfo trace
+    writeFile (path </> name <.> "sig") $ show $ traceSignature trace
 
     mkTestbench name path rc
 
