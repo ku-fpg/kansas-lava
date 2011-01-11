@@ -130,13 +130,14 @@ portAssigns inputs outputs = imap ++ omap
 doscript :: String -> Circuit -> String
 doscript name circuit = unlines $
         ["vlib " ++ workDir
-        ,"vcom -work " ++ workDir ++ " " ++ name ++ ".vhd"
-        ,"vcom -work " ++ workDir ++ " " ++ name ++ "_tb.vhd"
-        ,"vsim -lib "  ++ workDir ++ " " ++ name ++ "_tb"
-        ,"add wave -r /*"
-        ]
-        ++ -- waves ++
-        ["run -all"
+        ,"if [catch {vcom -work " ++ workDir ++ " " ++ name ++ ".vhd} einfo] {"
+        ,"    puts $einfo"
+        ," } else {"
+        ,"    vcom -work " ++ workDir ++ " " ++ name ++ "_tb.vhd"
+        ,"    vsim -lib "  ++ workDir ++ " " ++ name ++ "_tb"
+        ,"    add wave -r /*"
+        ,"    run -all"
+        ," }"
         ,"quit"
         ]
     where workDir = "mywork"
