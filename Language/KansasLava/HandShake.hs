@@ -214,7 +214,7 @@ incGroup x = mux2 (x .==. maxBound) (0,x + 1)
 fifoFE :: forall c a counter ix .
          (Size counter
 	, Size ix
-	, counter ~ ix
+	, counter ~ ADD ix X1
 	, Rep a
 	, Rep counter
 	, Rep ix
@@ -230,6 +230,8 @@ fifoFE :: forall c a counter ix .
 	 -- ^ inc_counter * backedge for HandShaken.
 fifoFE Witness rst (HandShaken hs,dec_by) = wr
   where
+
+        resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
 	resetable x = mux2 rst (0,x)
 
 	inp = hs inp_ready
@@ -269,7 +271,7 @@ fifoFE Witness rst (HandShaken hs,dec_by) = wr
 fifoBE :: forall a c counter ix .
          (Size counter
 	, Size ix
-	, counter ~ ix -- ADD ix X1
+ 	, counter ~ ADD ix X1
 	, Rep a
 	, Rep counter
 	, Rep ix
@@ -290,6 +292,7 @@ fifoBE :: forall a c counter ix .
 	-- output for HandShaken
 fifoBE Witness rst (inc_by,mem_rd) = HandShaken $ \ out_ready ->
     let
+        resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
 	resetable x = mux2 rst (0,x)
 
 	rd_addr0 :: CSeq c ix
