@@ -27,14 +27,23 @@ import Report
 data TestData = Rand Int | Complete
 
 data Options = Options
-        { genSim     :: Bool
-        , runSim     :: Bool
-        , simCmd     :: String
-        , simPath    :: FilePath
-        , verboseOpt :: Int
-        , testOnly   :: Maybe [String]
+        { genSim     :: Bool            -- Generate modelsim testbenches for each test?
+        , runSim     :: Bool            -- Run the tests after generation?
+        , simCmd     :: String          -- Command to run the .do file with
+        , simPath    :: FilePath        -- Path into which we place all our simulation directories.
+        , verboseOpt :: Int             -- See verbose table below.
+        , testOnly   :: Maybe [String]  -- Lists of tests to execute. Nothing means all tests.
         , testData   :: Maybe Int       --- cut off for random testing
         }
+
+-------------------------------------------------------------------------------------
+-- Verbose table
+-- 1: Failures
+-- 2: what was run
+-- 3: what worked
+-- 4: debugging from failures
+-- 9: debugging from everything that happened
+-------------------------------------------------------------------------------------
 
 instance Default Options where
         def = Options
@@ -46,16 +55,6 @@ instance Default Options where
                 , testOnly = Nothing
                 , testData = Just 1000
                 }
-
--------------------------------------------------------------------------------------
--- Verbose table
--- 1: Failures
--- 2: what was run
--- 3: what worked
--- 4: debugging from failures
--- 9: debugging from everything that happened
-
--------------------------------------------------------------------------------------
 
 testMe _ Nothing     = True
 testMe nm (Just nms) = or [ n `isPrefixOf` nm
