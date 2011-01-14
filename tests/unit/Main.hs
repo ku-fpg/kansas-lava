@@ -58,12 +58,12 @@ tests test = do
         -- Just the Eq Stuff
         let t str arb = testOpsEq test str arb
 
-        t "StdLogicVector/1" (arbitrary :: Gen (StdLogicVector X1))
-        t "StdLogicVector/2" (arbitrary :: Gen (StdLogicVector X2))
-        t "StdLogicVector/3" (arbitrary :: Gen (StdLogicVector X3))
-        t "StdLogicVector/4" (arbitrary :: Gen (StdLogicVector X4))
-        t "StdLogicVector/8" (arbitrary :: Gen (StdLogicVector X8))
-        t "StdLogicVector/32" (arbitrary :: Gen (StdLogicVector X32))
+        t "StdLogicVector/X1" (arbitrary :: Gen (StdLogicVector X1))
+        t "StdLogicVector/X2" (arbitrary :: Gen (StdLogicVector X2))
+        t "StdLogicVector/X3" (arbitrary :: Gen (StdLogicVector X3))
+        t "StdLogicVector/X4" (arbitrary :: Gen (StdLogicVector X4))
+        t "StdLogicVector/X8" (arbitrary :: Gen (StdLogicVector X8))
+        t "StdLogicVector/X32" (arbitrary :: Gen (StdLogicVector X32))
 
         -- Just the Ord Stuff
         let t str arb = testOpsOrd test str arb
@@ -73,13 +73,13 @@ tests test = do
         -- Just the Num Stuff
         let t str arb = testOpsNum test str arb
 
-        t "Sampled/8x8" (arbitrary :: Gen (Sampled X8 X8))
-        t "Sampled/4x2" (arbitrary :: Gen (Sampled X4 X2))
-        t "Sampled/2x2" (arbitrary :: Gen (Sampled X2 X2))
-        t "Sampled/2x1" (arbitrary :: Gen (Sampled X2 X1))
-        t "Sampled/1x2" (arbitrary :: Gen (Sampled X1 X2))
-        t "Sampled/1x4" (arbitrary :: Gen (Sampled X1 X4))
-        t "Sampled/8x10"(arbitrary :: Gen (Sampled X8 X10))
+        t "Sampled/X8xX8" (arbitrary :: Gen (Sampled X8 X8))
+        t "Sampled/X4xX2" (arbitrary :: Gen (Sampled X4 X2))
+        t "Sampled/X2xX2" (arbitrary :: Gen (Sampled X2 X2))
+        t "Sampled/X2xX1" (arbitrary :: Gen (Sampled X2 X1))
+        t "Sampled/X1xX2" (arbitrary :: Gen (Sampled X1 X2))
+        t "Sampled/X1xX4" (arbitrary :: Gen (Sampled X1 X4))
+        t "Sampled/X8xX10"(arbitrary :: Gen (Sampled X8 X10))
 
         -- Just the Bits Stuff
         let t str arb = testOpsBits test str arb
