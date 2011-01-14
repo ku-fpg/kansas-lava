@@ -4,7 +4,7 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addOutput, getOutput, remOutput
                                          ,addProbe, getProbe, remProbe
                                          ,cmpTrace, cmpTraceIO, diff, emptyTrace, takeTrace, dropTrace
-                                         ,serialize, deserialize, genShallow, genInfo, readDeep
+                                         ,serialize, deserialize, genShallow, genInfo, asciiToTrace
                                          ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
 import Language.KansasLava.Types
@@ -151,8 +151,8 @@ genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- al
     where alldata = (M.elems ins) ++ (M.elems outs)
 
 -- inverse of genShallow
--- readDeep :: [String] -> Signature -> Trace
-readDeep lines sig = et { inputs = ins, outputs = outs }
+asciiToTrace :: [String] -> Signature -> Trace
+asciiToTrace lines sig = et { inputs = ins, outputs = outs }
     where et = setCycles (length lines) $ signatureTrace sig
           widths = [ typeWidth ty
                    | (_,TraceStream ty _) <- M.assocs (inputs et) ++ M.assocs (outputs et)
@@ -207,6 +207,7 @@ toXBit (WireVal False) = '0'
 
 fromXBit :: Char -> WireVal Bool
 fromXBit 'X' = WireUnknown
+fromXBit 'U' = WireUnknown -- is this really the case?
 fromXBit '1' = WireVal True
 fromXBit '0' = WireVal False
 
