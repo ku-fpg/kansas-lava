@@ -4,9 +4,8 @@ module Report where
 import Language.KansasLava.Internals
 import Language.KansasLava.Testing.Trace
 
-import qualified Control.Exception as E
-
 import Control.Applicative
+import qualified Control.Exception as E
 import System.Directory
 import System.FilePath
 
@@ -91,7 +90,7 @@ reportToHtml (Report summary results) = do
                                            ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, show ts])
                                            ShallowPass -> ("shallowpass", "Shallow Passed", unDiv [""])
                                            SimGenerated -> ("simgenerated", "Simulation Generated", unDiv [""])
-                                           CodeGenFail s -> ("codegenfail", "Reification Failed", unDiv [s])
+                                           CodeGenFail s -> ("codegenfail", "VHDL Generation Failed", unDiv [s])
                                            CompileFail s -> ("compilefail", "VHDL Compilation Failed", unDiv [s])
                                            SimFail s -> ("simfail", "Simulation Failed (other)", unDiv [s])
                                            CompareFail t1 t2 s -> ("comparefail", "Failed", unDiv [show t1, show t2, s])
