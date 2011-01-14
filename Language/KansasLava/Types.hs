@@ -130,11 +130,15 @@ instance Read Type where
                         'U' -> U
                         'S' -> S
                         'V' -> V
-
-    readsPrec _ xs = concat [ maybe [] (\rest -> [(con,rest)]) (stripPrefix str xs)
-                            | (con,str) <- zip [B  , ClkTy, ClkDomTy, GenericTy]
-                                               ["B", "Clk", "ClkDom", "G"      ]
-                            ]
+    readsPrec _ xs | "Sampled" `isPrefixOf` xs = [(SampledTy (read m :: Int) (read n :: Int),rest)]
+        where ("Sampled ",r1) = span (not . isDigit) xs
+              (m,' ':r2) = span isDigit r1
+              (n,rest) = span isDigit r2
+    readsPrec _ xs | foldr (\s b -> b || s `isPrefixOf` xs) False strs =
+                        concat [ maybe [] (\rest -> [(con,rest)]) (stripPrefix str xs)
+                               | (con,str) <- zip [B  , ClkTy, ClkDomTy, GenericTy] strs
+                               ]
+        where strs = ["B", "Clk", "ClkDom", "G"]
     readsPrec _ what = error $ "read Type - can't parse: " ++ what
 
 
