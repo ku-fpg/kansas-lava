@@ -12,11 +12,14 @@ import Data.Ord ( comparing )
 import Data.Maybe as Maybe
 import Data.List
 import Control.Applicative
+import qualified Control.Exception as E
 
 import System.Cmd
 import System.Directory
 import System.FilePath.Posix as FP
 import qualified System.Random as R
+
+import Report
 -- Our Unit Tests
 
 -------------------------------------------------------------------------------------
@@ -24,7 +27,10 @@ import qualified System.Random as R
 data TestData = Rand Int | Complete
 
 data Options = Options
-        { genDeep    :: Bool
+        { genSim     :: Bool
+        , runSim     :: Bool
+        , simCmd     :: String
+        , simPath    :: FilePath
         , verboseOpt :: Int
         , testOnly   :: Maybe [String]
         , testData   :: Maybe Int       --- cut off for random testing
@@ -32,7 +38,10 @@ data Options = Options
 
 instance Default Options where
         def = Options
-                { genDeep = True
+                { genSim = True
+                , runSim = True
+                , simCmd = "vsim -c -do"
+                , simPath = "sims"
                 , verboseOpt = 3
                 , testOnly = Nothing
                 , testData = Just 1000
@@ -65,50 +74,87 @@ data TestSeq = TestSeq
         (forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
         (forall a. Gen a -> [a])
 
-testSeq :: (Rep a, Show a, Eq a) => Options -> (Bool -> IO ()) -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
-testSeq opts pass nm count th master | testMe nm (testOnly opts) = do
-        let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
+testSeq :: (Rep a, Show a, Eq a)
+        => Options                  -- Options
+        -> (TestCase -> IO ())      -- Called with the result
+        -> String                   -- Test Name
+        -> Int                      -- Number of Cycles
+        -> Thunk (Seq a)            -- Circuit and Input
+        -> Seq a                    -- Expected Result
+        -> IO ()
+testSeq opts r name count thunk expected | testMe name (testOnly opts) = do
+        let verb n m = verbose opts n (name ++ " :" ++ take n (repeat ' ') ++ m)
+            path = (simPath opts) </> name
+            report = (curry r) name
+
         verb 2 $ "testing(" ++ show count ++ ")"
-        verb 9 $ show ("master",master)
+        verb 9 $ show ("expected",expected)
 
         -- First run the shallow
-        let shallow = runShallow th
+        let shallow = runShallow thunk
         verb 9 $ show ("shallow",shallow)
-        if cmpSeqRep count master shallow
+        if cmpSeqRep count expected shallow
           then do verb 3 $ "shallow passed"
-                  pass True
+                  if genSim opts
+                    then do createDirectoryIfMissing True path
+
+                            verb 2 $ "generating simulation(" ++ show count ++ ")"
+
+                            t <- E.catch (Just <$> (recordThunk path count (return) thunk))
+                                         (\e -> do verb 3 "vhdl generation failed"
+                                                   verb 4 $ show (e :: E.SomeException)
+                                                   report $ CodeGenFail (show (e :: E.SomeException))
+                                                   return Nothing)
+
+                            if t /= Nothing
+                                then do if runSim opts
+                                            then simulate opts path report verb
+                                            else do verb 3 "simulation generated"
+                                                    report SimGenerated
+                                        verb 9 $ show ("trace",t)
+                                else return ()
+
+                            return ()
+                    else report ShallowPass
           else do verb 1 $ "shallow FAILED"
-                  pass False
-                  verb 4 $ show ("master",master)
-                  verb 4 $ show ("shallow",shallow)
+                  trace <- mkTrace (return count) thunk
+                  report $ ShallowFail trace (toTrace $ seqValue expected)
 
-                                     | otherwise = return ()
+                                         | otherwise = return ()
 
+simulate :: Options -> FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
+simulate opts path report verb = do
+    let localname = last $ splitPath path
 
--- instead of running shallow tests, generate deep tests
-deepTestSeq :: (Rep a, Show a, Eq a) => Options -> (Bool -> IO ()) -> String -> Int -> Thunk (Seq a) -> Seq a -> IO ()
-deepTestSeq opts pass nm count th master = do
-    let verb n m = verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m)
-        path = "tests" </> nm
-        newPass p = do
-            pass p -- call the original pass first
+    verb 2 $ "simulating with modelsim"
+    pwd <- getCurrentDirectory
+    setCurrentDirectory path
+    system $ "echo `" ++ simCmd opts ++ " \"" ++ localname <.> "do\"` > \"" ++ "sim.log\""
+    setCurrentDirectory pwd
+    log <- readFile (path </> "sim.log")
 
-            if genDeep opts
-                then do createDirectoryIfMissing True path
+    success <- doesFileExist $ path </> localname <.> "deep"
+    if success
+        then do shallow <- lines <$> readFile (path </> localname <.> "shallow")
+                deep    <- lines <$> readFile (path </> localname <.> "deep")
+                sig     <- read  <$> readFile (path </> localname <.> "sig")
 
-                        writeFile "tests/run" $ unlines testRunner
-                        system "chmod +x tests/run"
+                let t1 = asciiToTrace shallow sig
+                    t2 = asciiToTrace deep sig
+                if cmpTraceIO t1 t2
+                    then do verb 3 "simulation passed"
+                            report $ Pass t1 t2 log
+                    else do verb 3 "simulation failed"
+                            verb 4 $ show ("shallow",t1)
+                            verb 4 $ show ("deep",t2)
+                            report $ CompareFail t1 t2 log
 
-                        verb 3 $ "generating deep(" ++ show count ++ ")"
+        else do verb 3 "VHDL compilation failed"
+                verb 4 log
+                report $ CompileFail log
 
-                        t <- recordThunk path count (return) th
-
-                        verb 9 $ show ("trace",t)
-
-                        return ()
-                else return ()
-
-    testSeq opts newPass nm count th master
+--    writeFile "tests/run" $ unlines testRunner
+--    system "chmod +x tests/run"
 
 testRunner :: [String]
 testRunner = ["#!/bin/bash"
