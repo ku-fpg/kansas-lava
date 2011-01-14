@@ -128,9 +128,9 @@ simulate opts path report verb = do
     verb 2 $ "simulating with modelsim"
     pwd <- getCurrentDirectory
     setCurrentDirectory path
-    system $ "echo `" ++ simCmd opts ++ " \"" ++ localname <.> "do\"` > \"" ++ "sim.log\""
+    system $ "echo `" ++ simCmd opts ++ " \"" ++ localname <.> "do\"` > \"" ++ "everything.log\""
     setCurrentDirectory pwd
-    log <- readFile (path </> "sim.log")
+    log <- readFile (path </> "transcript")
 
     success <- doesFileExist $ path </> localname <.> "deep"
     if success
