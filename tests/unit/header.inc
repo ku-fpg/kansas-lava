@@ -9,16 +9,17 @@
                        margin-bottom: 2em;
                      }
             .additional { display: none; }
+            .additional > div { white-space: pre-line; }
             .status { float: right; }
 
-            .shallowfail { background-color: red; }
-            .shallowpass { background-color: green; }
-            .simgenerated { background-color: green; }
-            .codegenfail { background-color: yellow; }
-            .compilefail { background-color: orange; }
-            .simfail { background-color: orange; }
-            .comparefail { background-color: red; }
-            .pass { background-color: green; }
+            .shallowfail { background-color: #FF3366; }
+            .shallowpass { background-color: #99FF66; }
+            .simgenerated { background-color: #99FF66; }
+            .codegenfail { background-color: #FFFF99; }
+            .compilefail { background-color: #FFFF99; }
+            .simfail { background-color: #FFFF99; }
+            .comparefail { background-color: #FF3366; }
+            .pass { background-color: #99FF66; }
          -->
         </style>
         <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.min.js"></script>
