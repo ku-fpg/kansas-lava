@@ -21,11 +21,15 @@ import Trace.Hpc.Tix
 import Report
 import Utils
 
+import System.Cmd
+
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
 --                      , testOnly = return [ "memory/X2xU4" ]
 --                      , genDeep = False
                       }
+
+        system "ghc -i../.. -o tracediff --make Diff.hs"
 
         results <- newMVar [] :: IO (MVar [(String,Result)])
 

@@ -106,7 +106,8 @@ testSeq opts r name count thunk expected | testMe name (testOnly opts) = do
                                                    return Nothing)
 
                             if t /= Nothing
-                                then do if runSim opts
+                                then do writeFile (path </> "Makefile") $ localMake name
+                                        if runSim opts
                                             then simulate opts path report verb
                                             else do verb 3 "simulation generated"
                                                     report SimGenerated
@@ -169,6 +170,25 @@ testRunner = ["#!/bin/bash"
              ,"    cd $curdir"
              ,"done"
              ]
+
+localMake :: String -> String
+localMake relativePath = unlines
+    ["vsim:"
+    ,"\tvsim -c -do " ++ name ++ ".do"
+    ,""
+    ,"diff:"
+    ,"\t" ++ dots ++ "/tracediff " ++ name ++ ".shallow " ++ name ++ ".deep " ++ name ++ ".sig"
+    ,"\tgtkwave diff.vcd"
+    ,""
+    ,"vcd:"
+    ,"\twlf2vcd vsim.wlf > " ++ name ++ ".vcd"
+    ,""
+    ,"view: vcd"
+    ,"\tgtkwave " ++ name ++ ".vcd"
+    ]
+    where dots = joinPath $ replicate l ".."
+          l = 1 + (length $ splitPath relativePath)
+          name = last $ splitPath relativePath
 
 -------------------------------------------------------------------------------------
 
