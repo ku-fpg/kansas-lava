@@ -246,8 +246,8 @@ testOpsEq test tyName ws = do
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
           | (name,op,lavaOp) <-
-                [ ("==",(==),(.==.))
---              , ("/=",(/=),(./=.))
+                [ ("double-equal",(==),(.==.))
+--              , ("not-equal",(/=),(./=.))
                 ]
           ]
 
@@ -264,10 +264,10 @@ testOpsOrd test tyName ws = do
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName)  op lavaOp ws2
           | (name,op,lavaOp) <-
-                [ (">",(>),(.>.))
-                , ("<",(<),(.<.))
-                , (">=",(>=),(.>=.))
-                , ("<=",(<=),(.<=.))
+                [ ("greater-than",(>),(.>.))
+                , ("less-than",(<),(.<.))
+                , ("gt-equal",(>=),(.>=.))
+                , ("lt-equal",(<=),(.<=.))
                 ]
           ]
 
@@ -321,8 +321,8 @@ testOpsBits test tyName ws = do
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName) op lavaOp ws2
           | (name,op,lavaOp) <-
-                [ (".&.",(.&.),(.&.))
-                , (".|.",(.|.),(.|.))
+                [ ("bitwise-and",(.&.),(.&.))
+                , ("bitwise-or",(.|.),(.|.))
                 , ("xor",(xor),(xor))
                 ]
           ]
