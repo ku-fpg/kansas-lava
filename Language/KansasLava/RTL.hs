@@ -149,7 +149,6 @@ newReg def = RTL $ \ _ u -> do
 	var <- newSTRef []
 	~(reg,variable) <- unsafeInterleaveST $ do
 		assigns <- readSTRef var
-		debugs <- readSTRef debug
 		let v_old = register def v_new
 		    v_new = foldr (.) id (reverse assigns) v_old
 --		    v_new' = debugWith debugs v_new'
