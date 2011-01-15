@@ -30,41 +30,39 @@ genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 -- Some entities never appear in output
 genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
 
--- The replacements or aliases
 
--- TODO: support comments
-{-
-genInst env i (Entity name outputs inputs (Comment msg:rest)) =
-	[ CommentDecl msg
-	] ++ genInst env i (Entity name outputs inputs rest)
--}
-
+-- For now, translate primitives to Prim
+genInst env i (Entity (Name "Lava" nm) ins outs) =
+	genInst env i (Entity (Prim nm) ins outs)
+genInst env i (Entity (Name "" nm) ins outs) =
+	genInst env i (Entity (Prim nm) ins outs)
+	
 -- Probes are turned into id nodes, add comments to indicate
 -- which probes are on which signals in the vhdl.
 genInst env i (Entity (TraceVal nms _) ins outs) =
-	genInst env i (Entity (Name "Lava" "id") ins outs) -- TODO: add [Comment (intercalate ", " $ map show nms)])
+	genInst env i (Entity (Prim "id") ins outs) -- TODO: add [Comment (intercalate ", " $ map show nms)])
 
 -- Blackbox nodes should have been removed by reification, but alas, no.
 genInst env i (Entity (BlackBox box) ins outs) =
-  genInst env i (Entity (Name "Lava" "id") ins outs)
+  genInst env i (Entity (Prim "id") ins outs)
 
 
-genInst env i (Entity (Name "Lava" "pair") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "concat") outputs inputs)
-genInst env i (Entity (Name "Lava" "triple") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "concat") outputs inputs)
+genInst env i (Entity (Prim "pair") outputs inputs)
+	= genInst env i (Entity (Prim "concat") outputs inputs)
+genInst env i (Entity (Prim "triple") outputs inputs)
+	= genInst env i (Entity (Prim "concat") outputs inputs)
 
 
-genInst env i (Entity (Name "Lava" "fst") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "index") outputs (addNum 0 inputs))
-genInst env i (Entity (Name "Lava" "snd") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "index") outputs (addNum 1 inputs))
-genInst env i (Entity (Name "Lava" "fst3") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "index") outputs (addNum 0 inputs))
-genInst env i (Entity (Name "Lava" "snd3") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "index") outputs (addNum 1 inputs))
-genInst env i (Entity (Name "Lava" "thd3") outputs inputs)
-	= genInst env i (Entity (Name "Lava" "index") outputs (addNum 2 inputs))
+genInst env i (Entity (Prim "fst") outputs inputs)
+	= genInst env i (Entity (Prim "index") outputs (addNum 0 inputs))
+genInst env i (Entity (Prim "snd") outputs inputs)
+	= genInst env i (Entity (Prim "index") outputs (addNum 1 inputs))
+genInst env i (Entity (Prim "fst3") outputs inputs)
+	= genInst env i (Entity (Prim "index") outputs (addNum 0 inputs))
+genInst env i (Entity (Prim "snd3") outputs inputs)
+	= genInst env i (Entity (Prim "index") outputs (addNum 1 inputs))
+genInst env i (Entity (Prim "thd3") outputs inputs)
+	= genInst env i (Entity (Prim "index") outputs (addNum 2 inputs))
 
 -- TMP aliases
 
@@ -74,7 +72,7 @@ genInst env i (Entity (Name "Lava" "thd3") outputs inputs)
 
 -- identity
 
-genInst env i (Entity (Name "Lava" "id") [(vO,_)] [(vI,ty,d)] ) =
+genInst env i (Entity (Prim "id") [(vO,_)] [(vI,ty,d)] ) =
 	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
 
 genInst env i (Entity (Label label) [(vO,_)] [(vI,ty,d)] ) =
@@ -84,13 +82,13 @@ genInst env i (Entity (Label label) [(vO,_)] [(vI,ty,d)] ) =
 
 -- Concat and index (join, project)
 
-genInst env i (Entity (Name "Lava" "concat") [("o0",_)] inps) =
+genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
                 [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps]
 
-genInst env i (Entity (Name "Lava" "index")
+genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", GenericTy, (Generic idx)),
 		   ("i1",ty,input)]
@@ -99,7 +97,7 @@ genInst env i (Entity (Name "Lava" "index")
   where tys = case ty of
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
-genInst env i (Entity (Name "Lava" "index")
+genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", ixTy, ix),
 		   ("i1",eleTy,input)]) =
@@ -161,7 +159,7 @@ genInst env i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2
 -- Sampled
 
 -- TODO: check all arguments types are the same
-genInst env i (Entity (Name "Lava" op) [("o0",ty@(SampledTy m n))] ins)
+genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 	| op `elem` (map fst mappings)
 	= genInst env i (Entity (Name "Sampled" nm) [("o0",ty)]
 				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
@@ -177,7 +175,7 @@ genInst env i (Entity (Name "Lava" op) [("o0",ty@(SampledTy m n))] ins)
 		, ("negate","negate")
 		]
 -- For compares, we need to use one of the arguments.
-genInst env i (Entity (Name "Lava" op) [("o0",B)] ins@(("i0",SampledTy m n,_):_))
+genInst env i (Entity (Prim op) [("o0",B)] ins@(("i0",SampledTy m n,_):_))
 	| op `elem` (map fst mappings)
 	= genInst env i (Entity (Name "Sampled" nm) [("o0",B)]
 				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
@@ -193,7 +191,7 @@ genInst env i (Entity (Name "Lava" op) [("o0",B)] ins@(("i0",SampledTy m n,_):_)
 
 
 -- This is only defined over constants that are powers of two.
-genInst env i (Entity (Name "Lava" "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)])
+genInst env i (Entity (Prim "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)])
 --	= trace (show n)
 	|  fromRepToInteger lit == 16 * 4
 		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
@@ -228,7 +226,7 @@ genInst env i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
-genInst env i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
+genInst env i (Entity n@(Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (U n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
@@ -250,7 +248,7 @@ genInst env i (Entity n@(Name "Lava" "toStdLogicVector") [("o0",t_out)] [("i0",t
 
 -- <= x(7 downto 2)
 
-genInst env i (Entity n@(Name "Lava" "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)])
+genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)])
 {-
 	| outs < (ins - fromIntegral x) 
 	= 
@@ -347,7 +345,7 @@ mkSpecialUnary
 	-> [(String, UnaryOp)]
 	-> [(Id, NetlistOperation)]
 mkSpecialUnary coerceR coerceF ops =
-       [( Name "Lava" lavaName
+       [( Prim lavaName
 	, NetlistOp 1 $ \ fTy [(ity,i)] ->
 		coerceR fTy (ExprUnary netListOp
 					(coerceF ity i))
@@ -363,7 +361,7 @@ mkSpecialBinary
 	-> [(String, BinaryOp)]
 	-> [(Id, NetlistOperation)]
 mkSpecialBinary coerceR coerceF ops =
-       [( Name "Lava" lavaName
+       [( Prim lavaName
 	, NetlistOp 2 $ \ fTy [(lty,l),(rty,r)] ->
 		coerceR fTy (ExprBinary netListOp
 					(coerceF lty l)
@@ -374,7 +372,7 @@ mkSpecialBinary coerceR coerceF ops =
          ]
 
 mkSpecialShifts ops =
-    [(Name "Lava" lavaName
+    [(Prim lavaName
       , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
                           toStdLogicExpr fTy $ ExprFunCall funName [toTypedExpr lty l, toIntegerExpr rty r])
      )
@@ -385,7 +383,7 @@ mkSpecialShifts ops =
 -- of a bit-vector.
 -- This generates:    invar(indexVal);
 mkSpecialTestBit =
-    [(Name "Lava" lavaName
+    [(Prim lavaName
       , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
                           let (ExprVar varname) =  toStdLogicExpr lty l
                           in (ExprIndex varname (toIntegerExpr rty r)))
