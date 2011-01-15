@@ -173,6 +173,14 @@ reifyCircuit circuit = do
         let allocs = allocEntities rCit3
         let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]     -- in reverse order for a reason
 
+
+	let domToPorts = 
+		[ (dom, [ (nm,ty,Pad (OVar i nm)) 
+		       | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]
+		       ])
+		| (dom,i) <- zip domains [0,-1..]
+                ]
+{-
         let envSrcs = [ ( dom
                         , u
                         , Entity (Prim "Env")
@@ -180,28 +188,28 @@ reifyCircuit circuit = do
                                [ (nm,ty,Pad (OVar i nm)) | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]]
                         )
                       | (u,dom,i) <- zip3 allocs domains [0,-1..]
-                     ] :: [(String,     Unique,Entity Unique)]
-
+                     ] :: [(String,Unique,Entity Unique)]
+-}
         let rCit4 = rCit3 { theCircuit =
-                                [ (u,e) | (_,u,e) <- envSrcs ] ++
+--                                [ (u,e) | (_,u,e) <- envSrcs ] ++
                                 [  (u,case e of
                                         Entity nm outs ins -> Entity
                                                 nm
                                                 outs
+						(concat
                                                 [ case o of
                                                    (nm,ClkDomTy,ClkDom cdnm) ->
-                                                        (nm,ClkDomTy,Port "env" $ head [ u
-                                                             | (dom,u,_) <- envSrcs
-                                                             , dom == cdnm ])
-                                                   _ -> o
-                                                | o <- ins ]
+							case lookup cdnm domToPorts of
+							   Nothing -> error $ "can not find port: " ++ show cdnm
+							   Just outs -> outs
+                                                   _ -> [o]
+                                                | o <- ins ])
                                     )
                                 | (u,e) <- theCircuit rCit3 ]
-                          , theSrcs =
-                                [ (ovar,ty)
-                                | (_,u,Entity _ _ outs) <- envSrcs
-                                , (_,ty,Pad ovar) <- outs
-                                ] ++
+                          , theSrcs = 
+                                [ (ovar,ty) | (dom,outs) <- domToPorts
+					    , (_,ty,Pad ovar) <- outs
+				] ++
                                 theSrcs rCit3
                           }
 

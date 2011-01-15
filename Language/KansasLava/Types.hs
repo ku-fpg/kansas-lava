@@ -64,11 +64,11 @@ data Type
         | U Int         -- ^ Unsigned vector, with a width.
         | V Int         -- ^ std_logic_vector, with a width.
 
-        -- type of bit, used only for clock (TODO: do we need this?)
+	-- TODO: change to StdLogicTy, because it is clock independent
         | ClkTy         -- ^ Clock Signal
 
         | ClkDomTy      -- ^ The clock domain type, which has a clock, a clock enable,
-                        -- and an asyncronized reset.
+                        -- and an hybrid asyncronized/syncronized reset.
 
         | GenericTy     -- ^ generics in VHDL, right now just Integer
 

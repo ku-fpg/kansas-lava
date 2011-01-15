@@ -14,8 +14,8 @@ import Data.Reify.Graph (Unique)
 import Language.KansasLava.Netlist.Utils
 
 -- Entities that need a _next special *extra* signal.
-toAddNextSignal :: [Id]
-toAddNextSignal = [Prim "register"]
+--toAddNextSignal :: [Id]
+--toAddNextSignal = [Prim "register"]
 
 
 -- We have a few exceptions, where we generate some extra signals,
@@ -24,6 +24,7 @@ toAddNextSignal = [Prim "register"]
 
 genDecl :: (Unique, Entity Unique) -> [Decl]
 -- Special cases
+{-
 genDecl (i,Entity nm outputs _)
         | nm `elem` toAddNextSignal
 	= concat
@@ -43,7 +44,7 @@ genDecl (i,e@(Entity nm outputs@[_] inputs)) | nm == Prim "BRAM"
 genDecl (i,Entity nm outputs _)
         | nm `elem` isVirtualEntity
 	= []
-	
+-}	
 -- General case
 genDecl (i,Entity nm outputs _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing

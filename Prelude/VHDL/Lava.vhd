@@ -5,6 +5,74 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
+
+entity lava_register is
+        generic(
+                width : natural
+        );
+        port(
+                rst : in std_logic;
+                clk : in std_logic;
+                clk_en : in std_logic;
+                i0 : in std_logic_vector(width-1 downto 0);
+                def : in std_logic_vector(width-1 downto 0);
+                o0 : out std_logic_vector(width-1 downto 0)
+        );
+end entity lava_register;
+
+architecture Behavioral of lava_register is
+begin
+  proc : process(rst, clk, clk_en) is
+  begin
+    if rst = '1' then
+        o0 <= def;
+    elsif rising_edge(clk) then
+      if (clk_en = '1') then
+        o0 <= i0;
+      end if;
+    end if;
+  end process proc;
+end Behavioral;
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lava_bit_register is
+        generic(
+                width : natural
+        );
+        port(
+                rst : in std_logic;
+                clk : in std_logic;
+                clk_en : in std_logic;
+		i0 : in std_logic;
+		def : in std_logic;
+                o0 : out std_logic
+        );
+end entity lava_bit_register;
+
+architecture Behavioral of lava_bit_register is
+begin
+  proc : process(rst, clk, clk_en) is
+  begin
+    if rst = '1' then
+        o0 <= def;
+    elsif rising_edge(clk) then
+      if (clk_en = '1') then
+        o0 <= i0;
+      end if;
+    end if;
+  end process proc;
+end Behavioral;
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
 use work.all;
 
 entity Sampled_addition is

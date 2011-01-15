@@ -27,8 +27,27 @@ genInst' env i e =
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
 
--- Some entities never appear in output
+-- Some entities never appear in output (because they are virtual)
 genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
+
+{-
+-- We expand out all the ClkDom's, projecting into the components,
+-- for VHDL generation purposes.
+genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 = 
+	genInst env i (Entity (Prim nm) outs (ins' ++ ins2))
+   where
+	ins' = [ p | p@(nm,ty,dr) <- ins, ty /= ClkDomTy ]
+
+	ins2 = concat 
+		[ case M.lookup p_id env of
+	   	    Just (Entity (Prim "Env") _ ins_e) -> 
+				[ (env_nm ++ "_" ++ nm,ty,dr) 
+				| (nm,ty,dr) <- ins_e 
+				]
+	   	    _ -> error $ "can not find clock domain for " ++ show (p_id,e)
+		| (env_nm,ClkDomTy, Port "env" p_id) <- ins 
+		]
+-}
 
 
 -- For now, translate primitives to Prim
@@ -113,6 +132,7 @@ genInst env i (Entity (Prim "index")
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
 
+{-
 genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing = 
 	genInst env i (Entity nm' outs (ins' ++ ins2))
    where
@@ -135,7 +155,7 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 	ins2 = case M.lookup p_id env of
 	   	   Just (Entity (Prim "Env") _ ins_e) -> [ (nm,ty,dr) | (nm,ty,dr) <- ins_e ]
 	   	   _ -> error $ "can not find clock domain for " ++ show (p_id,e)
- 	       
+-}	       
 
 genInst env i e@(Entity (Name "Memory" "register") [("o0",_)] inputs) =
           [NetAssign input (toStdLogicExpr ty d) ]
@@ -300,11 +320,35 @@ genInst env i (Entity n@(Name _ _) [("o0",oTy)] ins)
 genInst env i (Entity n@(Prim "update") [("o0",oTy)] [("i0",i0Ty,d0),("i1",i1Ty,d1),("i2",i2Ty,d2)]) = 
 	error "XX"
 
+genInst env i (Entity n@(Prim "register") outs@[("o0",ty)] ins) =
+   case toStdLogicTy ty of
+	B   -> genInst env i (Entity (External "lava_bit_register") outs ins)
+	V n -> genInst env i (Entity (External "lava_register") outs 
+			     	     (ins ++ [("width",GenericTy,Generic $ fromIntegral n)]))
+	_ -> error $ "register typing issue  (should not happen)"
+
 -- And the defaults
 
 -- Right now, we *assume* that every external entity
 -- has in and outs of type std_logic[_vector].
 --
+genInst env i (Entity n@(External nm) outputs inputs) =
+	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+          [ InstDecl nm ("inst" ++ show i)
+		[ (n,case x of
+			Generic v -> ExprLit Nothing (ExprNum v)
+			_ -> error $ "genInst, Generic, " ++ show (n,nTy,x)
+	          )
+		| (n,nTy,x) <- inputs, isGenericTy nTy
+		]
+                [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
+		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
+          ]
+   where isGenericTy GenericTy = True
+         isGenericTy _         = False
+
+
+
 genInst env i (Entity n@(Name mod_nm nm) outputs inputs) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
