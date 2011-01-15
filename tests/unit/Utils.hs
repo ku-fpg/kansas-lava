@@ -47,8 +47,8 @@ data Options = Options
 
 instance Default Options where
         def = Options
-                { genSim = True
-                , runSim = True
+                { genSim = False
+                , runSim = False
                 , simCmd = "vsim -c -do"
                 , simPath = "sims"
                 , verboseOpt = 3
