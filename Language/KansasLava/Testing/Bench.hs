@@ -58,7 +58,7 @@ dut name inputs outputs sequentials = unlines $ [
     ["\t" ++ c ++ " => " ++ case n of
 				(-1) -> "'1',"
 				(-2) -> "clk,"
-				(-3) -> "'0',"
+				(-3) -> "rst,"
 	 	| (OVar n c,_) <- sequentials] ++
     (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
     [");"]
@@ -72,6 +72,7 @@ stimulus name inputs outputs = unlines $ [
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType (inputs ++ outputs) ++ ";",
   "\tvariable output_var : " ++ portType (inputs ++ outputs) ++ ";",
+  "\tvariable needs_rst : boolean := true;",
 
   "begin",
 
@@ -89,10 +90,17 @@ stimulus name inputs outputs = unlines $ [
   "\t\tclk <= '1';",
   pause 1,
   "\t\tinput <= input_var;",
+  "\t\tif needs_rst then",
+  "\t\t\trst <= '1';",
+  "\t\tend if;",
   "\t\toutput(" ++ outputRange ++ ") <= input_var(" ++ outputRange ++ ");",
   pause 4,
   "\t\tclk <= '0';",
   pause 4,
+  "\t\tif needs_rst then",
+  "\t\t\trst <= '0';",
+  "\t\t\tneeds_rst := false;",
+  "\t\tend if;",
   "\t\toutput_var := output;",
   "\t\tWRITE(line_out, output_var);",
   "\t\tWRITELINE(" ++ outputfile ++ ", line_out);",
