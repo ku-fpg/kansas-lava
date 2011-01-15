@@ -147,12 +147,14 @@ newReg def = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
 	var <- newSTRef []
-	proj <- unsafeInterleaveST $ do
+	~(reg,variable) <- unsafeInterleaveST $ do
 		assigns <- readSTRef var
+		debugs <- readSTRef debug
 		let v_old = register def v_new
 		    v_new = foldr (.) id (reverse assigns) v_old
-		return $ v_old
-	return (Reg proj proj var uq,[])
+--		    v_new' = debugWith debugs v_new'
+		return $ (v_old,v_new)
+	return (Reg reg variable var uq,[])
 
 
 -- Arrays support partual updates.
@@ -174,7 +176,8 @@ newArr Witness = RTL $ \ _ u -> do
 --		    mux (Just b,a) d  = mux2 b (a,d)
 -}
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
-		let look ix = pipeToMemory (ass :: CSeq c (Maybe (ix,a))) ix
+		let look ix = writeMemory (ass :: CSeq c (Maybe (ix,a)))
+					`readMemory` ix
 		return $ look
 	return (\ ix -> Arr (proj ix) ix var uq, [])
 
