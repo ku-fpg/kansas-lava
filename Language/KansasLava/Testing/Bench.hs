@@ -142,6 +142,7 @@ portAssigns inputs outputs = imap ++ omap
 doscript :: String -> Circuit -> String
 doscript name circuit = unlines $
         ["vlib " ++ workDir
+	,"vcom -work mywork Lava.vhd"
         ,"if [catch {vcom -work " ++ workDir ++ " " ++ name ++ ".vhd} einfo] {"
         ,"    puts $einfo"
         ," } else {"

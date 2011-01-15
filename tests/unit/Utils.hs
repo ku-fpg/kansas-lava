@@ -31,6 +31,7 @@ data Options = Options
         , runSim     :: Bool            -- Run the tests after generation?
         , simCmd     :: String          -- Command to run the .do file with
         , simPath    :: FilePath        -- Path into which we place all our simulation directories.
+	, preludePath :: FilePath	-- ^ location of the Lava prelude.
         , verboseOpt :: Int             -- See verbose table below.
         , testOnly   :: Maybe [String]  -- Lists of tests to execute. Nothing means all tests.
         , testData   :: Maybe Int       --- cut off for random testing
@@ -51,6 +52,7 @@ instance Default Options where
                 , runSim = False
                 , simCmd = "vsim -c -do"
                 , simPath = "sims"
+		, preludePath = "../../Prelude/VHDL"
                 , verboseOpt = 3
                 , testOnly = Nothing
                 , testData = Just 1000
@@ -107,6 +109,7 @@ testSeq opts r name count thunk expected | testMe name (testOnly opts) = do
 
                             if t /= Nothing
                                 then do writeFile (path </> "Makefile") $ localMake name
+                                        copyLavaPrelude opts path
                                         if runSim opts
                                             then simulate opts path report verb
                                             else do verb 3 "simulation generated"
@@ -189,6 +192,14 @@ localMake relativePath = unlines
     where dots = joinPath $ replicate l ".."
           l = 1 + (length $ splitPath relativePath)
           name = last $ splitPath relativePath
+
+
+preludeFile = "Lava.vhd"
+
+copyLavaPrelude :: Options -> FilePath -> IO ()
+copyLavaPrelude opts dest = do
+	prel <- readFile (preludePath opts </> preludeFile)
+	writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
 
