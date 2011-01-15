@@ -190,11 +190,11 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
 
 
 instance Show Id where
-    show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
+--    show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
     show (External nm) = "$" ++ nm
     show (Prim nm)     = nm
-    show (Label nm)    = show nm
+    show (Label nm)    = show nm ++ ":"
     show (TraceVal ovar _) = "^" ++ show ovar
     show (ClockId nm)    = "@" ++ nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
