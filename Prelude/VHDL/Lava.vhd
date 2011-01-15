@@ -41,9 +41,6 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity lava_bit_register is
-        generic(
-                width : natural
-        );
         port(
                 rst : in std_logic;
                 clk : in std_logic;
