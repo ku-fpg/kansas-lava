@@ -221,6 +221,9 @@ genInst env i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in
 	   (V n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
+	   (V n,MatrixTy m B) | n == m ->
+		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
+		]
 	   (V n,SampledTy _ m) | n == m ->
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
