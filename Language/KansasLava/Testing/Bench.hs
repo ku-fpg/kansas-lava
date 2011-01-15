@@ -55,7 +55,11 @@ dut :: String -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
 dut name inputs outputs sequentials = unlines $ [
     "dut: entity work." ++ name,
     "port map ("] ++
-    ["\t" ++ c ++ " => clk," | (OVar _ c,_) <- sequentials] ++
+    ["\t" ++ c ++ " => " ++ case n of
+				(-1) -> "'1',"
+				(-2) -> "clk,"
+				(-3) -> "'0',"
+	 	| (OVar n c,_) <- sequentials] ++
     (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
     [");"]
 
@@ -106,9 +110,9 @@ stimulus name inputs outputs = unlines $ [
 -- Manipulating ports
 ports :: Circuit -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports reified = (sort inputs, sort outputs, sort clocks)
-    where inputs  = [(nm,ty) | (nm,ty) <- theSrcs reified, not (ty `elem` [ClkTy])]
+    where inputs  = [(nm,ty) | (nm@(OVar n _),ty) <- theSrcs reified, n >= 0 ]
           outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
-          clocks  = [(nm,ClkTy) | (nm,ClkTy) <- theSrcs reified]
+          clocks  = [(nm,ty) | (nm@(OVar n _),ty) <- theSrcs reified, n < 0 ]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
 portType :: [(a, Type)] -> [Char]
