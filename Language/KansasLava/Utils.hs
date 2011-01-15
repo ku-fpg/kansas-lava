@@ -665,6 +665,10 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 					return $ SLV.append a' b')
 			     (entity2 (Name "Lava" "concat") ea eb)
 
+
+to :: forall sig a b . (Signal sig, Rep a, StdLogic a, Rep b, StdLogic b, WIDTH a ~ WIDTH b) => sig a -> sig b
+to = fromStdLogicVector . toStdLogicVector
+
 -- This is the funny one, needed for our application
 instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
 	type WIDTH (Sampled.Sampled m ix) = m
