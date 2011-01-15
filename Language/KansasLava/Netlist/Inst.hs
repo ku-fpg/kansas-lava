@@ -165,11 +165,11 @@ genInst env i e@(Entity (Name "Memory" "register") [("o0",_)] inputs) =
 
 
 -- Muxes
-genInst env i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",fTy,f)])
+genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst env i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal False])),("i1",tTy,t),("i2",fTy,f)])
+genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal False])),("i1",tTy,t),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
-genInst env i (Entity (Name _ "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
+genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i)
                      (ExprCond cond
                       (toStdLogicExpr tTy t)
@@ -231,7 +231,7 @@ genInst env i (Entity nm outputs inputs)
 
 -- Logic assignments
 
-genInst env i (Entity n@(Name _ "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
+genInst env i (Entity n@(Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (V n,U m) | n == m ->
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
@@ -307,10 +307,9 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
      low = fromIntegral x
 
 
--- The specials (from a table)
+-- The specials (from a table). Only Prim's can be special.
 
-
-genInst env i (Entity n@(Name _ _) [("o0",oTy)] ins)
+genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
