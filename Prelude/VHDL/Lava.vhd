@@ -90,17 +90,22 @@ entity lava_bram is
 end entity lava_bram;
 
 architecture Behavioral of lava_bram is
+  type mem_type is array (element_count-1 downto 0) of std_logic_vector(data_width-1 downto 0);
+  signal mem : mem_type := (others => (others => 'X'));
 begin
   proc : process(rst, clk, clk_en) is
   begin
     if rising_edge(clk) then
       if (clk_en = '1') then
-        o0 <= wData;
+        if (wEn = '1') then
+           mem(to_integer(unsigned(wAddr))) <= wData;
+        end if;
       end if;
     end if;
   end process proc;
+  -- continuous; someone else adding any delays on writing.
+  o0 <= mem(to_integer(unsigned(rAddr)));
 end Behavioral;
-
 
 
 library IEEE;
