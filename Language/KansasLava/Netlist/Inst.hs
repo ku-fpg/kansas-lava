@@ -316,9 +316,14 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
 --------------------------------------------------------------------------------
 
 genInst env i (Entity (Prim "*") outs@[("o0",U n)] ins) =
-        genInst env i $ Entity (External "lava_unsigned_mul") outs ins
+        genInst env i $ Entity (External "lava_unsigned_mul")
+                                outs 
+                                (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 genInst env i (Entity (Prim "*") outs@[("o0",S n)] ins) =
-        genInst env i $ Entity (External "lava_signed_mul") outs ins
+        genInst env i $ Entity (External "lava_signed_mul")
+                                outs 
+                                (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
+        
 
 --------------------------------------------------------------------------------
 -- Clocked primitives
