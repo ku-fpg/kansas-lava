@@ -30,6 +30,9 @@ genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 -- Some entities never appear in output (because they are virtual)
 genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
 
+-- You never actually write something that is zero width.
+genInst env i (Entity nm [(_,ty)] outs) | toStdLogicTy ty == V 0 = []
+
 {-
 -- We expand out all the ClkDom's, projecting into the components,
 -- for VHDL generation purposes.
@@ -318,8 +321,11 @@ genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
 		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 
 
+-- A bit of a hack to handle Bool or zero-width arguments.
 genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
    case (toStdLogicTy data_ty,toStdLogicTy addr_ty) of
+	(V n, V 0) -> genInst env i $ zeroArg $ inst n 1
+	(B  , V 0) -> genInst env i $ boolTrick ["wData","o0"] $ zeroArg $ inst 1 1
 	(B  , V m) -> genInst env i $ boolTrick ["wData","o0"] $ inst 1 m
 	(V n, V m) -> genInst env i $ inst n m
 	_ -> error $ "RAM typing issue (should not happen)"
@@ -331,6 +337,15 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
 		    (ins ++ [("data_width",GenericTy,Generic $ fromIntegral n)
 			    ,("addr_width",GenericTy,Generic $ fromIntegral m)
 			    ])
+        zeroArg (Entity nm outs ins) = 
+                        Entity nm outs $
+                               [ (n,V 1,Lit $ RepValue [WireVal False])
+                               | n <- ["wAddr","rAddr"]
+                               ] ++
+                               [ (n,t,d) | (n,t,d) <- ins, n /= "wAddr" 
+                                                        && n /= "rAddr"
+                               ]
+
 
 -- For read, we find the pairing write, and call back for "RAM".
 -- This may produce multiple RAMs, if there are multiple reads.

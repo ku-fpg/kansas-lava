@@ -48,4 +48,6 @@ genDecl (i,Entity nm outputs _)
 -- General case
 genDecl (i,Entity nm outputs _)
 	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing
-	  | (n,nTy) <- outputs  ]
+	  | (n,nTy) <- outputs
+	  , toStdLogicTy nTy /= V 0
+	  ]
