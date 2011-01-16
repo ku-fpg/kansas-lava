@@ -104,6 +104,12 @@ genInst env i (Entity (Label label) [(vO,_)] [(vI,ty,d)] ) =
 
 -- Concat and index (join, project)
 
+-- hack to handle bit to vector with singleton bools.
+genInst env i (Entity (Prim "concat") outs ins@[(n,B,_)]) =
+        genInst env i (Entity (Prim "concat") 
+                              (outs)
+                              (ins ++ [("_",V 0,Lit (RepValue []))]))
+        
 genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
@@ -374,10 +380,15 @@ genInst env i (Entity n@(External nm) outputs inputs) =
 		| (n,nTy,x) <- inputs, isGenericTy nTy
 		]
                 [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
-		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
+		[ (n,ExprVar $ sigName (fixName nTy n) i) | (n,nTy)   <- outputs ]
           ]
    where isGenericTy GenericTy = True
          isGenericTy _         = False
+
+         -- A hack to match 'boolTrick'. Should think again about this
+         -- Think of this as a silent (0) at the end of the right hand size.
+         fixName B nm | "(0)" `isSuffixOf` nm = reverse (drop 3 (reverse nm))
+         fixName _ nm = nm
 
 
 
