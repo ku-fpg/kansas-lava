@@ -33,7 +33,8 @@ data Options = Options
         , simPath    :: FilePath        -- Path into which we place all our simulation directories.
 	, preludePath :: FilePath	-- ^ location of the Lava prelude.
         , verboseOpt :: Int             -- See verbose table below.
-        , testOnly   :: Maybe [String]  -- Lists of tests to execute. Nothing means all tests.
+        , testOnly   :: Maybe [String]  -- Lists of tests to execute. Can match either end. Nothing means all tests.
+        , testNever  :: [String]        -- ^ List of tests to never execute. Can match either end.
         , testData   :: Maybe Int       --- cut off for random testing
         }
 
@@ -55,13 +56,18 @@ instance Default Options where
 		, preludePath = "../../Prelude/VHDL"
                 , verboseOpt = 3
                 , testOnly = Nothing
+                , testNever = []
                 , testData = Just 1000
                 }
 
 testMe _ Nothing     = True
-testMe nm (Just nms) = or [ n `isPrefixOf` nm
+testMe nm (Just nms) = or [ (n `isPrefixOf` nm) || (n `isSuffixOf` nm)
                           | n <- nms
                           ]
+
+neverTestMe nm nms = or  [ (n `isPrefixOf` nm) || (n `isSuffixOf` nm)
+                         | n <- nms
+                         ]
 
 verbose opt n m | verboseOpt opt >= n = putStrLn m
                 | otherwise           = return ()
@@ -83,7 +89,8 @@ testSeq :: (Rep a, Show a, Eq a)
         -> Thunk (Seq a)            -- Circuit and Input
         -> Seq a                    -- Expected Result
         -> IO ()
-testSeq opts r name count thunk expected | testMe name (testOnly opts) = do
+testSeq opts r name count thunk expected 
+   | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb n m = verbose opts n (name ++ " :" ++ take n (repeat ' ') ++ m)
             path = (simPath opts) </> name
             report = (curry r) name
