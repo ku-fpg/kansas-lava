@@ -77,8 +77,9 @@ data Type
         | MatrixTy Int Type
                         -- ^ Matrix, for example a vhdl array.
 
+        -- TODO: Call this FixedPointTy
         | SampledTy Int Int
-                        -- ^ Our "floating" values.
+                        -- ^ Our "floating" values. 
                         --   The first number is the precision/scale (+/- N)
                         --   The second number is the bits used to represent this number
         deriving (Eq, Ord)
