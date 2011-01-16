@@ -5,3 +5,4 @@ dist/
 .hpc/
 *.o
 *.hi
+tests/unit/sims/
