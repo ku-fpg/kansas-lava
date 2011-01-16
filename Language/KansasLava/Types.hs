@@ -123,10 +123,17 @@ instance Show Type where
 instance Read Type where
     readsPrec _ xs | hasSizePrefix xs = [fromJust $ parseSize xs]
         where hasSizePrefix = isJust . parseSize
-              parseSize str = let (ds,c:cs) = span isDigit str
-                              in if (not $ null ds) && c `elem` ['U', 'S', 'V']
-                                    then Just ((con c) (read ds :: Int), cs)
-                                    else Nothing
+              parseSize str = let (ds,cs) = span isDigit str
+                              in case cs of
+                                   (c:rest) | (not $ null ds) && c `elem` ['U', 'S', 'V']
+                                            -> Just ((con c) (read ds :: Int), rest)
+                                   ('[':rest) | (not $ null ds) ->
+                                        case [ (MatrixTy (read ds :: Int) ty,rest')
+                                             | (ty,']':rest') <- reads rest
+                                             ] of 
+                                          [] -> Nothing
+                                          (x:_) -> Just x
+                                   _ -> Nothing
               con ch = case ch of
                         'U' -> U
                         'S' -> S
@@ -140,6 +147,7 @@ instance Read Type where
                                | (con,str) <- zip [B  , ClkTy, ClkDomTy, GenericTy] strs
                                ]
         where strs = ["B", "Clk", "ClkDom", "G"]
+    readsPrec _ xs@('[':_) = [ (TupleTy tys,rest)| (tys,rest) <- readList xs ]
     readsPrec _ what = error $ "read Type - can't parse: " ++ what
 
 
