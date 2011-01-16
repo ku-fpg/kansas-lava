@@ -109,7 +109,7 @@ instance (Show a, Bits a, Rep a)
 	=> Bits (Comb a) where
     s1 .&. s2 = fun2 ".&." (.&.) s1 s2
     s1 .|. s2 = fun2 ".|." (.|.) s1 s2
-    s1 `xor` s2 = fun2 "xor" (xor) s1 s2
+    s1 `xor` s2 = fun2 ".^." (xor) s1 s2
     s1 `shiftL` n = fun2 "shiftL" (shiftL) s1 (fromIntegral n)
     s1 `shiftR` n = fun2 "shiftR" (shiftR) s1 (fromIntegral n)
     s1 `rotateL` n = fun2 "rotateL" (rotateL) s1 (fromIntegral n)
@@ -357,6 +357,7 @@ muxMatrix = (.!.)
 			     (entity2 (Name "Lava" "index") xe me) -- order reversed
 	         ) m x
 
+{-
 updateMatrix :: forall sig x a
 	 . (Signal sig, Size x, Rep x, Rep a)
 	=> sig x
@@ -373,7 +374,7 @@ updateMatrix x v m = liftS3 (\
 				)
 			     (entity3 (Prim "update") xe ve me)
 	         ) x v m
-
+-}
 	
 -------------------------------------------------------------------------------------------------
 
