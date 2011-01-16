@@ -302,13 +302,6 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
      low = fromIntegral x
 
 
--- The specials (from a table). Only Prim's can be special.
-
-genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
-        | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
-          [NetAssign  (sigName "o0" i)
-                  (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
-
 
 
 --------------------------------------------------------------------------------
@@ -323,7 +316,20 @@ genInst env i (Entity (Prim "*") outs@[("o0",S n)] ins) =
         genInst env i $ Entity (External "lava_signed_mul")
                                 outs 
                                 (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
-        
+
+-- negate of unsigned things (under Haskell) treats the bits not like logicial negate, 
+-- but 2s complement negate. So we treat it as such.
+genInst env i (Entity (Prim "negate") [("o0",U n)] [("i0",U m,dr)]) =
+        genInst env i (Entity (Prim "negate") [("o0",S n)] [("i0",S m,dr)])
+
+-- The specials (from a table). Only Prim's can be special.
+-- To revisit RSN.
+
+genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
+        | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
+          [NetAssign  (sigName "o0" i)
+                  (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
+
 
 --------------------------------------------------------------------------------
 -- Clocked primitives
