@@ -326,7 +326,7 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
  where
         ("rAddr",addr_ty,_) = last ins
         inst n m = Entity 
-                    (External "lava_register") 
+                    (External "lava_bram") 
                     outs 
 		    (ins ++ [("data_width",GenericTy,Generic $ fromIntegral n)
 			    ,("addr_width",GenericTy,Generic $ fromIntegral m)
