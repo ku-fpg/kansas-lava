@@ -1,6 +1,7 @@
 -- These are core Lava built-in functions Lava programs can rely on having
 -- Todo: Consider prepending lava_ to the names.
 
+--------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
@@ -35,6 +36,7 @@ begin
 end Behavioral;
 
 
+--------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
@@ -66,6 +68,7 @@ begin
 end Behavioral;
 
 
+--------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
@@ -108,6 +111,61 @@ begin
 end Behavioral;
 
 
+--------------------------------------------------------------------------------
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lava_unsigned_mul is
+        generic(
+                width : natural
+	);
+        port (
+                i0     : in std_logic_vector(width-1 downto 0);
+                i1     : in std_logic_vector(width-1 downto 0);
+                o0     : out std_logic_vector(width-1 downto 0)
+        );
+end entity lava_unsigned_mul;
+
+
+architecture Behavioral of lava_unsigned_mul is
+  signal tmp : std_logic_vector(2*width-1 downto 0);
+begin
+  -- a version of multiply that has the same sized output
+  tmp <= std_logic_vector((unsigned(i0)) * (unsigned(i1)));
+  o0 <= tmp(width-1 downto 0);
+end Behavioral;
+
+--------------------------------------------------------------------------------
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lava_signed_mul is
+        generic(
+                width : natural
+	);
+        port (
+                i0     : in std_logic_vector(width-1 downto 0);
+                i1     : in std_logic_vector(width-1 downto 0);
+                o0     : out std_logic_vector(width-1 downto 0)
+        );
+end entity lava_signed_mul;
+
+
+architecture Behavioral of lava_signed_mul is
+  signal tmp : std_logic_vector(2*width-1 downto 0);
+begin
+  -- a version of multiply that has the same sized output
+  tmp <= std_logic_vector((signed(i0)) * (signed(i1)));
+  o0 <= tmp(width-1 downto 0);
+end Behavioral;
+
+
+--------------------------------------------------------------------------------
+-- TO fix below this
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;

@@ -310,6 +310,16 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
 
 
+
+--------------------------------------------------------------------------------
+-- Arith
+--------------------------------------------------------------------------------
+
+genInst env i (Entity (Prim "*") outs@[("o0",U n)] ins) =
+        genInst env i $ Entity (External "lava_unsigned_mul") outs ins
+genInst env i (Entity (Prim "*") outs@[("o0",S n)] ins) =
+        genInst env i $ Entity (External "lava_signed_mul") outs ins
+
 --------------------------------------------------------------------------------
 -- Clocked primitives
 --------------------------------------------------------------------------------
@@ -492,7 +502,6 @@ specials =
    ++ mkSpecialBinary toStdLogicExpr toTypedExpr
         [("+",Plus)
 	, ("-",Minus)
-	, ("*", Times)
 	, ("/", Divide)
 	]
    ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
