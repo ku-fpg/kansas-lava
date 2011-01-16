@@ -156,6 +156,7 @@ instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m _ <- ms ]
 				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
 				 in Comb (XMatrix sh) de) (M.toList m)
+        -- unpack :: sig (Matrix ix a) -> Matrix ix (sig a)
 	unpack s = forAll $ \ ix ->
 			liftS1 (\ (Comb (XMatrix s) d) -> Comb (s ! ix)
 					       (entity2 (Name "Lava" "index")
@@ -178,5 +179,5 @@ instance (Size ix, Rep ix, Rep a, Signal sig) => Pack sig (ix -> a) where
 				    	Just x' -> f x'
 				    	Nothing -> optX Nothing
 			     	     )
-			$ entity2 (Prim "index") xe me 
+			$ entity2 (Prim "read") me xe 
 

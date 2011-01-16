@@ -125,13 +125,16 @@ writeMemory pipe = res
 
     	entity :: Entity E
     	entity =
-		Entity (Prim "BRAM")
+		Entity (Prim "write")
 			[ ("o0",bitTypeOf res)]
 			[ ("env",ClkDomTy, unD $ (clock :: D clk1))
 			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
 			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
---			, ("rAddr",bitTypeOf addr2,unD $ seqDriver addr2)
+                        , ("element_count"
+                          , GenericTy
+                          , Generic (fromIntegral (M.size (error "witness" :: a)))
+                          )
 			]
 
 readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)

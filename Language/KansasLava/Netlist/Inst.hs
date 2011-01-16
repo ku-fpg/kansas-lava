@@ -129,7 +129,7 @@ genInst env i (Entity (Prim "index")
 		)
 	]
   where tys = case eleTy of
-		MatrixTy sz eleTy -> take sz $ repeat eleTy
+		-- MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
 
 {-
@@ -176,39 +176,25 @@ genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",
                       (toStdLogicExpr fTy f))]
   where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprLit Nothing (ExprBit T))
 
+--------------------------------------------------------------------------------------------
 -- Sampled
+--------------------------------------------------------------------------------------------
 
 -- TODO: check all arguments types are the same
 genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
-	| op `elem` (map fst mappings)
-	= genInst env i (Entity (Name "Sampled" nm) [("o0",ty)]
+	| op `elem` ["+","-","negate"]
+	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
 				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
 					        , ("width_size",GenericTy, Generic $ fromIntegral n)
 					        ]))
 
-  where
-	Just nm = lookup op mappings
-
-	mappings =
-		[ ("+","addition")
-		, ("-","subtraction")
-		, ("negate","negate")
-		]
 -- For compares, we need to use one of the arguments.
 genInst env i (Entity (Prim op) [("o0",B)] ins@(("i0",SampledTy m n,_):_))
-	| op `elem` (map fst mappings)
-	= genInst env i (Entity (Name "Sampled" nm) [("o0",B)]
+	| op `elem` [".>.",".<.",".>=.",".<=."]
+	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",B)]
 				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
 					        , ("width_size",GenericTy, Generic $ fromIntegral n)
 					        ]))
-
-  where
-	Just nm = lookup op mappings
-
-	mappings =
-		[ (".>.","greaterThan")
-		]
-
 
 -- This is only defined over constants that are powers of two.
 genInst env i (Entity (Prim "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)])
@@ -315,16 +301,48 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
 
 
--- TODO
-genInst env i (Entity n@(Prim "update") [("o0",oTy)] [("i0",i0Ty,d0),("i1",i1Ty,d1),("i2",i2Ty,d2)]) = 
-	error "XX"
+--------------------------------------------------------------------------------
+-- Clocked primitives
+--------------------------------------------------------------------------------
 
-genInst env i (Entity n@(Prim "register") outs@[("o0",ty)] ins) =
+
+genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
    case toStdLogicTy ty of
-	B   -> genInst env i (Entity (External "lava_bit_register") outs ins)
-	V n -> genInst env i (Entity (External "lava_register") outs 
-			     	     (ins ++ [("width",GenericTy,Generic $ fromIntegral n)]))
+	B   -> genInst env i $ boolTrick ["def","i0","o0"] (inst 1)
+	V n -> genInst env i $ inst n
 	_ -> error $ "register typing issue  (should not happen)"
+  where 
+        inst n = Entity 
+                    (External "lava_register") 
+                    outs 
+		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
+
+
+genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
+   case (toStdLogicTy data_ty,toStdLogicTy addr_ty) of
+	(B  , V m) -> genInst env i $ boolTrick ["wData","o0"] $ inst 1 m
+	(V n, V m) -> genInst env i $ inst n m
+	_ -> error $ "RAM typing issue (should not happen)"
+ where
+        ("rAddr",addr_ty,_) = last ins
+        inst n m = Entity 
+                    (External "lava_register") 
+                    outs 
+		    (ins ++ [("data_width",GenericTy,Generic $ fromIntegral n)
+			    ,("addr_width",GenericTy,Generic $ fromIntegral m)
+			    ])
+
+-- For read, we find the pairing write, and call back for "RAM".
+-- This may produce multiple RAMs, if there are multiple reads.
+genInst env i (Entity (Prim "read") outs@[("o0",ty)] [ ("i0",ty1,Port "o0" read_id)
+                                                     , ("i1",ty2,dr2)
+                                                     ]) =
+  case M.lookup read_id env of
+     Just (Entity (Prim "write") _ ins) -> 
+        genInst env i (Entity (Prim "RAM") outs (ins ++ [("rAddr",ty2,dr2)]))
+     o -> error ("found a read without a write in code generator " ++ show (i,read_id,o))
+
+--------------------------------------------------------------------------------
 
 -- And the defaults
 
@@ -350,7 +368,7 @@ genInst env i (Entity n@(External nm) outputs inputs) =
 
 genInst env i (Entity n@(Name mod_nm nm) outputs inputs) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
-          [ InstDecl (mod_nm ++ "_" ++ cleanupName nm) ("inst" ++ show i)
+          [ InstDecl (mod_nm ++ "_" ++ sanitizeName nm) ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
 			_ -> error $ "genInst, Generic, " ++ show (n,nTy,x)
@@ -458,7 +476,9 @@ specials =
    ++ mkSpecialUnary  toStdLogicExpr toTypedExpr
 	[("negate",Neg)]
    ++ mkSpecialUnary  (\ _ e -> e) toStdLogicExpr
-	[("not",LNeg)]
+	[("not",LNeg)
+	,("complement",LNeg)
+	]
    ++   mkSpecialTestBit
    ++   mkSpecialShifts
         [ ("shiftL", "shift_left")

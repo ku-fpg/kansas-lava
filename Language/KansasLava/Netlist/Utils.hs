@@ -240,12 +240,16 @@ instance AddNext (Driver i) where
 ------------------------------------------------------------------------------
 -- Turn a name into something VHDL could use
 
-cleanupName :: String -> String
-cleanupName "+" = "addition"
-cleanupName "-" = "subtraction"
-cleanupName "*" = "multiplication"
-cleanupName ".>." = "greaterThan"
-cleanupName other = other
+sanitizeName :: String -> String
+sanitizeName "+"         = "add"
+sanitizeName "-"         = "sub"
+sanitizeName "*"         = "mul"
+sanitizeName ".>."       = "gt"
+sanitizeName ".<."       = "lt"
+sanitizeName ".<=."      = "ge"
+sanitizeName ".>=."      = "le"
+-- TODO: Add check for symbols
+sanitizeName other       = other
 
 ------------------------------------------------------------------------------------
 
@@ -276,4 +280,21 @@ getSynchs nms ents =
 
 -- Entities that never result in code generation
 isVirtualEntity :: [Id]
-isVirtualEntity = [Prim "Env"]
+isVirtualEntity = 
+        [ Prim "write"  -- write (to an array) requires a counterpart read.
+                        -- the read generates the entire operation, cloning
+                        -- the write node if needed.
+        ]
+        
+
+-- We sometimes store std_logic's as singleton std_logic_vectors.
+--boolTrick :: [String] -> Entity a -> Entity a
+boolTrick nms (Entity (External nm) outs ins) =
+        Entity (External nm)
+               [ (trick n,t) | (n,t) <- outs ]
+               [ (trick n,t,d) | (n,t,d) <- ins ]
+   where
+           trick n | n `elem` nms = n ++ "(0)"
+                   | otherwise    = n
+        
+boolTrick _ other = error "applying bool Trick to non-external entity"

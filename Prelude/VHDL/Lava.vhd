@@ -70,6 +70,43 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
+
+entity lava_bram is
+        generic(
+                addr_width : natural;
+                data_width : natural;
+                element_count : natural
+        );
+        port (
+                rst    : in std_logic;
+                clk    : in std_logic;
+                clk_en : in std_logic;
+                wEn    : in std_logic;
+                wAddr  : in std_logic_vector(addr_width-1 downto 0);
+                wData  : in std_logic_vector(data_width-1 downto 0);
+                rAddr  : in std_logic_vector(addr_width-1 downto 0);
+                o0     : out std_logic_vector(data_width-1 downto 0)
+        );
+end entity lava_bram;
+
+architecture Behavioral of lava_bram is
+begin
+  proc : process(rst, clk, clk_en) is
+  begin
+    if rising_edge(clk) then
+      if (clk_en = '1') then
+        o0 <= wData;
+      end if;
+    end if;
+  end process proc;
+end Behavioral;
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
 use work.all;
 
 entity Sampled_addition is
