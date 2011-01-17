@@ -193,15 +193,15 @@ genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",
 genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 	| op `elem` ["+","-","*","negate"]
 	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
-				        (ins ++ [ ("int_width", 
+				        (ins ++ [ ("frac_width", 
 				                        GenericTy, 
-				                        Generic $ fromIntegral $ succ $ log2 m)
+				                        Generic $ fromIntegral $ n - (1 + log2 m))
 					        , ("width",GenericTy, Generic $ fromIntegral n)
 					        ]))
                 where
                         -- Use the log of the resolution + 1 bit for sign
                         log2 1 = 0
-                        log2 n = 1 + log2 (n `div` 2)
+                        log2 n | n > 1 = 1 + log2 (n `div` 2)
 
 -- For compares, we need to use one of the arguments.
 -- With fixed width, we can just consider the bits to be "signed".

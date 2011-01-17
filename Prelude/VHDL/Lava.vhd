@@ -175,7 +175,7 @@ use work.all;
 entity lava_sampled_add is
   generic (
     width : natural := 8;     -- signal width
-    int_width : natural := 8);      -- value for max * min 	
+    frac_width : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width-1 downto 0);
        i1 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
@@ -205,7 +205,7 @@ use work.all;
 entity lava_sampled_sub is
   generic (
     width : natural := 8;     -- signal width
-    int_width : natural := 8);      -- value for max * min 	
+    frac_width : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width-1 downto 0);
        i1 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
@@ -232,7 +232,7 @@ use work.all;
 entity lava_sampled_mul is
   generic (
     width : natural := 8;     -- signal width
-    int_width : natural := 4);      -- value for max * min 	
+    frac_width : natural := 4);      -- value for max * min 	
   port(i0 : in std_logic_vector(width-1 downto 0);
        i1 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
@@ -241,21 +241,21 @@ end entity lava_sampled_mul;
 architecture Behavioral of lava_sampled_mul is
  signal tmp     : signed(2*width-1 downto 0);
  signal topBits : signed(width-1 downto 0);
- signal r0      : signed(2*width-1 downto int_width);
- signal r1      : signed(2*width-1 downto int_width);
+ signal r0      : signed(2*width-1 downto frac_width);
+ signal r1      : signed(2*width-1 downto frac_width);
  constant zeros : std_logic_vector(width - 2 downto 0) := (others => '0');
  constant ones  : std_logic_vector(width - 2 downto 0) := (others => '1');
 begin
   tmp <= signed (i0) * signed (i1);
-  r0 <= tmp(2*width-1 downto int_width);
+  r0 <= tmp(2*width-1 downto frac_width);
   -- This is Round half to even (http://en.wikipedia.org/wiki/Rounding#Round_half_to_even)
-  r1 <= r0 when tmp(int_width-1) = '0' else
-        r0 when tmp(int_width) = '0' and tmp(int_width-1) = '1' and tmp (int_width - 2 downto 0) = 0 else 
+  r1 <= r0 when tmp(frac_width-1) = '0' else
+        r0 when tmp(frac_width) = '0' and tmp(frac_width-1) = '1' and tmp (frac_width - 2 downto 0) = 0 else 
         r0 + 1;
-  o0 <= std_logic_vector(r1(int_width + width - 1 downto int_width))
-        when r1(2*width-1 downto int_width + width-1) = 0 else
-        std_logic_vector(r1(int_width + width - 1 downto int_width))
-        when r1(2*width-1 downto int_width + width-1) = -1 else
+  o0 <= std_logic_vector(r1(frac_width + width - 1 downto frac_width))
+        when r1(2*width-1 downto frac_width + width-1) = 0 else
+        std_logic_vector(r1(frac_width + width - 1 downto frac_width))
+        when r1(2*width-1 downto frac_width + width-1) = -1 else
         '1' & zeros when tmp(2*width-1) = '1'  else '0' & ones;
 end Behavioral;
 
@@ -269,7 +269,7 @@ use work.all;
 entity lava_sampled_negate is
   generic (
     width : natural := 8;     -- signal width
-    int_width : natural := 8);      -- value for max * min 	
+    frac_width : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
 end entity lava_sampled_negate;
@@ -294,7 +294,7 @@ use work.all;
 entity sampled_fixedDivPowOfTwo is
   generic (
     width : natural := 8;     -- signal width
-    int_width : natural := 8;      -- value for max * min 	
+    frac_width : natural := 8;      -- value for max * min 	
     shift_by : natural);
   port(i0 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
