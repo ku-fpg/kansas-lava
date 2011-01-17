@@ -25,14 +25,16 @@ import System.Cmd
 
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
---		      , genSim = True
+                      , genSim = True
 --                      , testOnly = return [ "memory","register"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       }
 
         -- This should be built using the cabal system,
-        -- can called from inside the ./dist directory.   
+        -- can called from inside the ./dist directory.
         system "ghc -i../.. -o tracediff --make Diff.hs"
+
+        prepareSimDirectory opt
 
         results <- newMVar [] :: IO (MVar [(String,Result)])
 

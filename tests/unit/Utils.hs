@@ -31,7 +31,7 @@ data Options = Options
         , runSim     :: Bool            -- Run the tests after generation?
         , simCmd     :: String          -- Command to run the .do file with
         , simPath    :: FilePath        -- Path into which we place all our simulation directories.
-	, preludePath :: FilePath	-- ^ location of the Lava prelude.
+        , preludePath :: FilePath       -- ^ location of the Lava prelude.
         , verboseOpt :: Int             -- See verbose table below.
         , testOnly   :: Maybe [String]  -- Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever  :: [String]        -- ^ List of tests to never execute. Can match either end.
@@ -53,7 +53,7 @@ instance Default Options where
                 , runSim = False
                 , simCmd = "vsim -c -do"
                 , simPath = "sims"
-		, preludePath = "../../Prelude/VHDL"
+                , preludePath = "../../Prelude/VHDL"
                 , verboseOpt = 3
                 , testOnly = Nothing
                 , testNever = []
@@ -89,7 +89,7 @@ testSeq :: (Rep a, Show a, Eq a)
         -> Thunk (Seq a)            -- Circuit and Input
         -> Seq a                    -- Expected Result
         -> IO ()
-testSeq opts r name count thunk expected 
+testSeq opts r name count thunk expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb n m = verbose opts n (name ++ " :" ++ take n (repeat ' ') ++ m)
             path = (simPath opts) </> name
@@ -163,8 +163,29 @@ simulate opts path report verb = do
                 verb 4 log
                 report $ CompileFail log
 
---    writeFile "tests/run" $ unlines testRunner
---    system "chmod +x tests/run"
+prepareSimDirectory :: Options -> IO ()
+prepareSimDirectory opts | genSim opts = do
+    let path = simPath opts
+    putStrLn $ "preparing simulation directory: ./" ++ path
+    pwd <- getCurrentDirectory
+
+    -- Calling out to rm -rf is safer than Haskell's removeDirectoryRecursive, which
+    -- follows symlinks. However, this still seems dangerous to put here,
+    -- so we do a bit of checking to make sure we can't delete anything
+    -- outside the present working directory.
+    ok <- doesDirectoryExist $ pwd </> path
+    if ok && not (isInfixOf ".." path)
+        then do system $ "rm -rf " ++ path
+                return ()
+        else return ()
+
+    createDirectoryIfMissing True path
+
+    writeFile (path </> "runsims") $ unlines testRunner
+    system $ "chmod +x " ++ path </> "runsims"
+
+    return ()
+                        | otherwise = return ()
 
 testRunner :: [String]
 testRunner = ["#!/bin/bash"
@@ -205,8 +226,8 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: Options -> FilePath -> IO ()
 copyLavaPrelude opts dest = do
-	prel <- readFile (preludePath opts </> preludeFile)
-	writeFile (dest </> preludeFile) prel
+        prel <- readFile (preludePath opts </> preludeFile)
+        writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
 
