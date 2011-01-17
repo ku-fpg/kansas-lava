@@ -172,16 +172,16 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use work.all;
 
-entity Sampled_addition is
+entity lava_sampled_add is
   generic (
     width_size : natural := 8;     -- signal width
     max_value : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width_size-1 downto 0);
        i1 : in std_logic_vector(width_size-1 downto 0);
        o0 : out std_logic_vector(width_size-1 downto 0));
-end entity Sampled_addition;
+end entity lava_sampled_add;
 
-architecture Behavioral of Sampled_addition is
+architecture Behavioral of lava_sampled_add is
  signal tmp       : signed(width_size-1 + 1 downto 0);
  signal top2Bits : std_logic_vector(1 downto 0);
  constant zeros : std_logic_vector(width_size - 2 downto 0) := (others => '0');
@@ -201,37 +201,17 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use work.all;
 
-entity Sampled_greaterThan is
-  generic (
-    width_size : natural := 8;     -- signal width
-    max_value : natural := 8);      -- value for max * min 	
-  port(i0 : in std_logic_vector(width_size-1 downto 0);
-       i1 : in std_logic_vector(width_size-1 downto 0);
-       o0 : out std_logic);
-end entity Sampled_greaterThan;
 
-architecture Behavioral of Sampled_greaterThan is
-begin
-  o0  <= '1' when (signed(i0) > signed(i1)) else '0';
-end Behavioral;
-
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL;
-use IEEE.NUMERIC_STD.ALL;
-use work.all;
-
-
-entity Sampled_subtraction is
+entity lava_sampled_sub is
   generic (
     width_size : natural := 8;     -- signal width
     max_value : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width_size-1 downto 0);
        i1 : in std_logic_vector(width_size-1 downto 0);
        o0 : out std_logic_vector(width_size-1 downto 0));
-end entity Sampled_subtraction;
+end entity lava_sampled_sub;
 
-architecture Behavioral of Sampled_subtraction is
+architecture Behavioral of lava_sampled_sub is
  signal tmp       : signed(width_size-1 + 1 downto 0);
  constant zeros : std_logic_vector(width_size - 2 downto 0) := (others => '0');
  constant ones  : std_logic_vector(width_size - 2 downto 0) := (others => '1');
@@ -243,6 +223,44 @@ begin
 end Behavioral;
 
 
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+use work.all;
+
+entity lava_sampled_mul is
+  generic (
+    width_size : natural := 8;     -- signal width
+    int_width : natural := 4);      -- value for max * min 	
+  port(i0 : in std_logic_vector(width_size-1 downto 0);
+       i1 : in std_logic_vector(width_size-1 downto 0);
+       o0 : out std_logic_vector(width_size-1 downto 0));
+end entity lava_sampled_mul;
+
+architecture Behavioral of lava_sampled_mul is
+ signal tmp     : signed(2*width_size-1 downto 0);
+ signal topBits : signed(width_size-1 downto 0);
+ signal r0      : signed(2*width_size-1 downto int_width);
+ signal r1      : signed(2*width_size-1 downto int_width);
+ constant zeros : std_logic_vector(width_size - 2 downto 0) := (others => '0');
+ constant ones  : std_logic_vector(width_size - 2 downto 0) := (others => '1');
+begin
+  tmp <= signed (i0) * signed (i1);
+  r0 <= tmp(2*width_size-1 downto int_width);
+  -- This is Round half to even (http://en.wikipedia.org/wiki/Rounding#Round_half_to_even)
+  r1 <= r0 when tmp(int_width-1) = '0' else
+        r0 when tmp(int_width) = '0' and tmp(int_width-1) = '1' and tmp (int_width - 2 downto 0) = 0 else 
+        r0 + 1;
+--  o0 <= std_logic_vector(tmp(2*width_size-1 downto width_size));
+--  o0 <= std_logic_vector(tmp(width_size-1 downto 0));
+
+  o0 <= std_logic_vector(r1(int_width + width_size - 1 downto int_width))
+        when r1(2*width_size-1 downto int_width + width_size-1) = 0 else
+        std_logic_vector(r1(int_width + width_size - 1 downto int_width))
+        when r1(2*width_size-1 downto int_width + width_size-1) = -1 else
+        '1' & zeros when tmp(2*width_size-1) = '1'  else '0' & ones;
+end Behavioral;
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -251,15 +269,15 @@ use IEEE.NUMERIC_STD.ALL;
 use work.all;
 
 
-entity Sampled_negate is
+entity lava_sampled_negate is
   generic (
     width_size : natural := 8;     -- signal width
     max_value : natural := 8);      -- value for max * min 	
   port(i0 : in std_logic_vector(width_size-1 downto 0);
        o0 : out std_logic_vector(width_size-1 downto 0));
-end entity Sampled_negate;
+end entity lava_sampled_negate;
 
-architecture Behavioral of Sampled_negate is
+architecture Behavioral of lava_sampled_negate is
  signal tmp       : signed(width_size-1 + 1 downto 0);
  constant zeros : std_logic_vector(width_size - 2 downto 0) := (others => '0');
  constant ones  : std_logic_vector(width_size - 2 downto 0) := (others => '1');
