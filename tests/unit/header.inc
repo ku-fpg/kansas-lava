@@ -8,6 +8,7 @@
             #summary { white-space: pre-line;
                        margin-bottom: 2em;
                      }
+            #summary > table { border: 1px solid black; }
             .additional { display: none; }
             .additional > div { white-space: pre-line; }
             .status { float: right; }

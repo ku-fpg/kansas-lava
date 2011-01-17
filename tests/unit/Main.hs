@@ -25,9 +25,10 @@ import System.Cmd
 
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
-                      , genSim = True
+--                      , genSim = True
+--                      , runSim = True
 --                      , testOnly = return [ "memory","register"]
-                      , testNever = ["max","min","abs","signum"] -- for now
+                      , testNever = ["X16xS10", "max","min","abs","signum"] -- for now
                       }
 
         -- This should be built using the cabal system,
@@ -59,6 +60,8 @@ main = do
 
         html <- reportToHtml r
         writeFile "report.html" html
+        shtml <- reportToSummaryHtml r
+        writeFile "summary.html" shtml
 
         Tix tix <- examineTix
         let counts = concat [ xs | TixModule _ _ _ xs <- tix ]
