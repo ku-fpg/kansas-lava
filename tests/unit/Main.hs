@@ -83,8 +83,10 @@ tests test = do
         -- Just the Num Stuff
         let t str arb = testOpsNum test str arb
 
-
-        -- With Sampled, use larger number, like X8xX8
+        -- With Sampled, use
+        --  * powers of two scale, larger than 1
+        --  * make sure there are enough bits to represent 
+        --     both the fractional and non-fractional part.
 
         t "Sampled/X8xX8" (arbitrary :: Gen (Sampled X8 X8))
 -- These do not represent every integer in their range, so fail
@@ -95,7 +97,7 @@ tests test = do
 --        t "Sampled/X1xX2" (arbitrary :: Gen (Sampled X1 X2))
         t "Sampled/X1xX4" (arbitrary :: Gen (Sampled X1 X4))
         t "Sampled/X8xX10"(arbitrary :: Gen (Sampled X8 X10))
-        t "Sampled/X10xX16"(arbitrary :: Gen (Sampled X10 X16))
+        t "Sampled/X128xX16"(arbitrary :: Gen (Sampled X128 X16))
 
         -- Just the Bits Stuff
         let t str arb = testOpsBits test str arb
