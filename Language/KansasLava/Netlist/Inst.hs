@@ -201,7 +201,7 @@ genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 -- With fixed width, we can just consider the bits to be "signed".
 genInst env i (Entity (Prim op) [("o0",B)] [("i0",SampledTy m n,d0),("i1",SampledTy m' n',d1)])
 	| op `elem` [".>.",".<.",".>=.",".<=."] && m == m' && n == n
-        = genInst env i $ Entity (Prim op) [("o0",B)] [("i0",U n,d0),("i1",U n',d1)]
+        = genInst env i $ Entity (Prim op) [("o0",B)] [("i0",S n,d0),("i1",S n',d1)]
 
 -- This is only defined over constants that are powers of two.
 genInst env i (Entity (Prim "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)])
