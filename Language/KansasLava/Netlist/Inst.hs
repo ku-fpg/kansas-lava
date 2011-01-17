@@ -191,7 +191,7 @@ genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",
 
 -- TODO: check all arguments types are the same
 genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
-	| op `elem` ["+","-","negate"]
+	| op `elem` ["+","-","*","negate"]
 	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
 				        (ins ++ [ ("max_value", GenericTy, Generic $ fromIntegral m)
 					        , ("width_size",GenericTy, Generic $ fromIntegral n)
