@@ -17,7 +17,7 @@ instance Show Report where
 data Summary = Summary { sfail :: Int
                        , spass :: Int
                        , generated :: Int
-                       , reifyfail :: Int
+                       , codegenfail :: Int
                        , vhdlfail :: Int
                        , simfail :: Int
                        , compfail :: Int
@@ -32,10 +32,10 @@ instance Show Summary where
               sp = "Shallow tests passed: "
                    ++ case spass summary of
                         0 -> show $ sum [ fn summary
-                                        | fn <- [generated, reifyfail, vhdlfail, simfail, compfail, passed]
+                                        | fn <- [generated, codegenfail, vhdlfail, simfail, compfail, passed]
                                         ]
                         x -> show x
-              rf = "Reification failures: " ++ show (reifyfail summary)
+              rf = "VHDL generation failures: " ++ show (codegenfail summary)
               gn = "Simulations generated: "
                    ++ case generated summary of
                         0 -> show $ sum [ fn summary
@@ -62,7 +62,7 @@ addtoSummary :: Result -> Summary -> Summary
 addtoSummary (ShallowFail _ _) s = s { sfail = 1 + (sfail s) }
 addtoSummary ShallowPass       s = s { spass = 1 + (spass s) }
 addtoSummary SimGenerated      s = s { generated = 1 + (generated s) }
-addtoSummary (CodeGenFail _)   s = s { reifyfail = 1 + (reifyfail s) }
+addtoSummary (CodeGenFail _)   s = s { codegenfail = 1 + (codegenfail s) }
 addtoSummary (CompileFail _)   s = s { vhdlfail = 1 + (vhdlfail s) }
 addtoSummary (SimFail _)       s = s { simfail = 1 + (simfail s) }
 addtoSummary (CompareFail _ _ _) s = s { compfail = 1 + (compfail s) }
