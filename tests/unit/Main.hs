@@ -4,36 +4,42 @@ module Main where
 import Language.KansasLava
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
-import Data.Sized.Arith
-import Data.Sized.Ix
-import Data.Sized.Unsigned
-import Data.Sized.Signed
-import Data.Sized.Sampled
-import qualified Data.Sized.Matrix as M
+
+import Data.Bits
 import Data.Default
 import Data.List ( sortBy, sort )
 import Data.Ord ( comparing )
 import Data.Maybe as Maybe
+import Data.Sized.Arith
+import Data.Sized.Ix
+import qualified Data.Sized.Matrix as M
+import Data.Sized.Sampled
+import Data.Sized.Signed
+import Data.Sized.Unsigned
+
 import Control.Applicative
-import Data.Bits
 import Control.Concurrent.MVar
+import System.Cmd
 import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
+
 import Report
 import Utils
 
-import System.Cmd
-
 main = do
-        let opt = def { verboseOpt = 4  -- 4 == show cases that failed
---		      , genSim = True
---                      , testOnly = return [ "memory","register"]
+        let opt = def { genSim = True
+                      , runSim = True
+                      , simMods = [("default_opts", (optimizeCircuit def))]
+--                      , testOnly = return ["memory","register"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       }
 
         -- This should be built using the cabal system,
-        -- can called from inside the ./dist directory.   
+        -- can called from inside the ./dist directory.
         system "ghc -i../.. -o tracediff --make Diff.hs"
+
+        putStrLn "Running with the following options:"
+        putStrLn $ show opt
 
         prepareSimDirectory opt
 
@@ -42,7 +48,6 @@ main = do
         let reporter (name, result) = do
                 rs <- takeMVar results
                 putMVar results $ (name,result) : rs
-
 
         let test :: TestSeq
             test = TestSeq (testSeq opt reporter)
@@ -90,7 +95,7 @@ tests test = do
 
         -- With Sampled, use
         --  * powers of two scale, larger than 1
-        --  * make sure there are enough bits to represent 
+        --  * make sure there are enough bits to represent
         --     both the fractional and non-fractional part.
 
         t "Sampled/X8xX8" (arbitrary :: Gen (Sampled X8 X8))
