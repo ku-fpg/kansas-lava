@@ -4,15 +4,17 @@ module Utils where
 import Language.KansasLava
 import Language.KansasLava.Testing.Thunk
 import Language.KansasLava.Testing.Trace
-import Data.Sized.Ix
-import Data.Sized.Unsigned
-import Data.Default
-import Data.List ( sortBy )
-import Data.Ord ( comparing )
-import Data.Maybe as Maybe
-import Data.List
+
 import Control.Applicative
 import qualified Control.Exception as E
+import Control.Monad
+
+import Data.Default
+import Data.List
+import Data.Maybe as Maybe
+import Data.Ord ( comparing )
+import Data.Sized.Ix
+import Data.Sized.Unsigned
 
 import System.Cmd
 import System.Directory
@@ -27,17 +29,39 @@ import Report
 data TestData = Rand Int | Complete
 
 data Options = Options
-        { genSim     :: Bool            -- Generate modelsim testbenches for each test?
-        , runSim     :: Bool            -- Run the tests after generation?
-        , simCmd     :: String          -- Command to run the .do file with
-        , simPath    :: FilePath        -- Path into which we place all our simulation directories.
-        , preludePath :: FilePath       -- ^ location of the Lava prelude.
-        , verboseOpt :: Int             -- See verbose table below.
-        , testOnly   :: Maybe [String]  -- Lists of tests to execute. Can match either end. Nothing means all tests.
-        , testNever  :: [String]        -- ^ List of tests to never execute. Can match either end.
-        , testData   :: Maybe Int       --- cut off for random testing
+        { genSim      :: Bool                              -- ^ Generate modelsim testbenches for each test?
+        , runSim      :: Bool                              -- ^ Run the tests after generation?
+        , simCmd      :: String                            -- ^ Command to run the .do file with
+        , simPath     :: FilePath                          -- ^ Path into which we place all our simulation directories.
+        , simMods     :: [(String, Circuit -> IO Circuit)] -- ^ List of modifications (like optimizations) to apply to
+                                                           --   the circuit before simulation.
+        , permuteMods :: Bool                              -- ^ False: Run each mod separately. True: Run all possible
+                                                           --   permutations of the mods to see if they affect each other.
+        , preludePath :: FilePath                          -- ^ location of the Lava prelude.
+        , verboseOpt  :: Int                               -- ^ See verbose table below.
+        , testOnly    :: Maybe [String]                    -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
+        , testNever   :: [String]                          -- ^ List of tests to never execute. Can match either end.
+        , testData    :: Maybe Int                         -- ^ cut off for random testing
         }
 
+instance Show Options where
+    show (Options gs rs sc sp sm pm pp vo to tn td) =
+        unlines [ "genSim: " ++ show gs
+                , "runSim: " ++ show rs
+                , "simCmd: " ++ show sc
+                , "simPath: " ++ show sp
+                , "simMods: " ++ show (map fst sm)
+                , "permuteMods: " ++ show pm
+                , "preludePath: " ++ show pp
+                , "verboseOpt: " ++ show vo
+                , "testOnly: " ++ show to
+                , "testNever: " ++ show tn
+                , "testData: " ++ show td ]
+
+instance Read Options where
+    readsPrec _ xs = [(Options (read gs) (read rs) (read sc) (read sp) [] (read pm) (read pp) (read vo) (read to) (read tn) (read td),unlines rest)]
+        where (ls, rest) = splitAt 11 $ lines xs
+              [gs,rs,sc,sp,pm,pp,vo,to,tn,td] = [ tail $ dropWhile (\c -> c /= ' ') $ ls !! i | i <- [0,1,2,3,5,6,7,8,9,10] ]
 -------------------------------------------------------------------------------------
 -- Verbose table
 -- 1: Failures
@@ -53,6 +77,8 @@ instance Default Options where
                 , runSim = False
                 , simCmd = "vsim -c -do"
                 , simPath = "sims"
+                , simMods = []
+                , permuteMods = True
                 , preludePath = "../../Prelude/VHDL"
                 , verboseOpt = 3
                 , testOnly = Nothing
@@ -108,21 +134,37 @@ testSeq opts r name count thunk expected
 
                             verb 2 $ "generating simulation(" ++ show count ++ ")"
 
-                            t <- E.catch (Just <$> (recordThunk path count (return) thunk))
-                                         (\e -> do verb 3 "vhdl generation failed"
-                                                   verb 4 $ show (e :: E.SomeException)
-                                                   report $ CodeGenFail (show (e :: E.SomeException))
-                                                   return Nothing)
+                            let sims = [ (modname, (recordThunk (path </> modname) count (snd mod) thunk))
+                                       | mod <- if permuteMods opts
+                                                    then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
+                                                           $ concatMap permutations
+                                                           $ subsequences
+                                                           $ simMods opts
+                                                    else simMods opts
+                                       , let modname = fst mod
+                                       ]
 
-                            if t /= Nothing
-                                then do writeFile (path </> "Makefile") $ localMake name
-                                        copyLavaPrelude opts path
-                                        if runSim opts
-                                            then simulate opts path report verb
-                                            else do verb 3 "simulation generated"
-                                                    report SimGenerated
-                                        verb 9 $ show ("trace",t)
-                                else return ()
+                            ts <- sequence [ E.catch (Just <$> action)
+                                                     (\e -> do verb 3 "vhdl generation failed"
+                                                               verb 4 $ show (e :: E.SomeException)
+                                                               rep $ CodeGenFail (show (e :: E.SomeException))
+                                                               return Nothing)
+                                           | (modname, action) <- sims
+                                           , let rep = (curry r) (name </> modname)
+                                           ]
+
+                            sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
+                                           copyLavaPrelude opts (path </> modname)
+                                           writeFile (path </> modname </> "options") $ show opts
+                                           if runSim opts
+                                              then simulate opts (path </> modname) rep verb
+                                              else do verb 3 "simulation generated"
+                                                      rep SimGenerated
+                                           verb 9 $ show ("trace",t)
+                                      | (modname, t) <- zip (map fst sims) ts
+                                      , isJust t
+                                      , let rep = (curry r) (name </> modname)
+                                      ]
 
                             return ()
                     else report ShallowPass
