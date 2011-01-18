@@ -84,19 +84,24 @@ reportToSummaryHtml (Report summary _) = do
 
 summaryToHtml :: Summary -> String
 summaryToHtml s = unlines [ "<table>"
-                          , "<tr><td colspan=\"2\">Total Tests</td><td>" ++ show (total s) ++ "</td></tr>"
-                          , "<tr><td>Shallow</td>"
-                          , "<td>" ++ show (total s - sfail s) ++ "/" ++ show (total s) ++ "</td>"
-                          , "<td>" ++ show (sfail s) ++ " failed</td></tr>"
-                          , "<tr><td>Deep</td>"
-                          , "<td>" ++ show (passed s) ++ "/" ++ show (total s - sfail s) ++ "</td>"
-                          , "<td>" ++ show (total s - sfail s - passed s) ++ " failed</td></tr>"
-                          , "<tr><td colspan=\"2\">VHDL Generation Failures</td><td>" ++ show (codegenfail s) ++ "</td></tr>"
-                          , "<tr><td colspan=\"2\">VHDL Compilation Failures</td><td>" ++ show (vhdlfail s) ++ "</td></tr>"
-                          , "<tr><td colspan=\"2\">Comparison Failures</td><td>" ++ show (compfail s) ++ "</td></tr>"
-                          , "<tr><td colspan=\"2\">Other Simulation Failures</td><td>" ++ show (simfail s) ++ "</td></tr>"
+                          , "<tr class=\"huge " ++ sclass ++ "\"><td>Shallow Failures:</td><td>" ++ show (sfail s) ++ "</td><td>(" ++ show (total s - sfail s) ++ "/" ++ show (total s) ++ " passed)</td></tr>"
+                          , "<tr class=\"huge " ++ dclass ++ "\"><td>Simulation Failures:</td><td>" ++ show (total s - sfail s - passed s) ++ "</td><td>(" ++ show (passed s) ++ "/" ++ show (total s - sfail s) ++ " passed)</td></tr>"
+                          , "</table>"
+                          , "<hr width=\"90%\">"
+                          , "<table>"
+                          , "<tr id=\"cgf\" class=\"kindahuge\"><td>VHDL Generation Failures:</td><td>" ++ show (codegenfail s) ++ "</td></tr>"
+                          , "<tr id=\"vcf\" class=\"kindahuge\"><td>VHDL Compilation Failures:</td><td>" ++ show (vhdlfail s) ++ "</td></tr>"
+                          , "<tr id=\"cpf\" class=\"kindahuge\"><td>Comparison Failures:</td><td>" ++ show (compfail s) ++ "</td></tr>"
+                          , "<tr id=\"osf\" class=\"kindahuge\"><td>Other Simulation Failures:</td><td>" ++ show (simfail s) ++ "</td></tr>"
                           , "</table>"
                           ]
+    where chooser x = case x of
+                        0 -> "allpass"
+                        i | i == total s -> "allfail"
+                        _ -> "somepass"
+          sclass = chooser $ sfail s
+          dclass = chooser $ total s - sfail s - passed s
+
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
@@ -104,7 +109,8 @@ reportToHtml (Report summary results) = do
     mid <- readFile "mid.inc"
     footer <- readFile "footer.inc"
 
-    let res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
+    let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
+        res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
                                ,"<span class=\"status\">", s, "</span></div>\n<div class=\"additional\">"
                                , a, "</div>"]
                       | (name, r) <- results
@@ -122,7 +128,7 @@ reportToHtml (Report summary results) = do
                                            CompareFail t1 t2 s -> ("comparefail", "Failed", unDiv [show t1, show t2, s])
                                            Pass t1 t2 s -> ("pass", "Passed", unDiv [show t1, show t2, s])
                       ]
-    return $ header ++ (summaryToHtml summary) ++ mid ++ res ++ footer
+    return $ header ++ (summaryToHtml summary) ++ mid ++ showall ++ res ++ footer
 
 unDiv :: [String] -> String
 unDiv = foldr (\s tail -> "<div>" ++ s ++ "</div>" ++ tail) ""

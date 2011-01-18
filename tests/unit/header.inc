@@ -5,10 +5,13 @@
          <!--
             div { margin: 0em 2em 0.1em 1em;
                 }
-            #summary { white-space: pre-line;
-                       margin-bottom: 2em;
-                     }
-            #summary > table { border: 1px solid black; }
+            #summary { margin-bottom: 2em; }
+            #summary td { text-align: right; padding-right: 1em; }
+            .huge { margin: 0em; font-size: 4em; }
+            .kindahuge { margin: 0em; font-size: 2em; }
+            .allpass { color: #99FF66; }
+            .somepass { color: #FF8040; }
+            .allfail { color: red; }
             .additional { display: none; }
             .additional > div { white-space: pre-line; }
             .status { float: right; }
@@ -28,6 +31,30 @@
             $(document).ready(function() {
                 $("div.header").click(function() {
                     $(this).next(".additional").toggle();
+                });
+                $("#cgf").click(function() {
+                    $(".header").hide();
+                    $(".additional").hide();
+                    $(".codegenfail").show();
+                });
+                $("#vcf").click(function() {
+                    $(".header").hide();
+                    $(".additional").hide();
+                    $(".compilefail").show();
+                });
+                $("#cpf").click(function() {
+                    $(".header").hide();
+                    $(".additional").hide();
+                    $(".comparefail").show();
+                });
+                $("#osf").click(function() {
+                    $(".header").hide();
+                    $(".additional").hide();
+                    $(".simfail").show();
+                });
+                $("#showall").click(function() {
+                    $(".additional").hide();
+                    $(".header").show();
                 });
             });
         </script>
