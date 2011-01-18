@@ -113,7 +113,8 @@ testSeq :: (Rep a, Show a, Eq a)
         -> IO ()
 testSeq opts r name count thunk expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
-        let verb n m = verbose opts n (name ++ " :" ++ take n (repeat ' ') ++ m)
+        let verbBuilder nm = (\n m -> verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m))
+            verb = verbBuilder name
             path = (simPath opts) </> name
             report = (curry r) name
 
@@ -128,8 +129,7 @@ testSeq opts r name count thunk expected
                   if genSim opts
                     then do createDirectoryIfMissing True path
 
-                            verb 2 $ "generating simulation(" ++ show count ++ ")"
-
+                            -- get permuted/unpermuted list of sims for which we generate testbenches
                             let sims = [ (modname, (recordThunk (path </> modname) count (snd mod) thunk))
                                        | mod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
@@ -140,26 +140,31 @@ testSeq opts r name count thunk expected
                                        , let modname = fst mod
                                        ]
 
-                            ts <- sequence [ E.catch (Just <$> action)
-                                                     (\e -> do verb 3 "vhdl generation failed"
-                                                               verb 4 $ show (e :: E.SomeException)
-                                                               rep $ CodeGenFail (show (e :: E.SomeException))
-                                                               return Nothing)
+                            -- generate each testbench, report any failures
+                            ts <- sequence [ do vrb 2 $ "generating simulation"
+                                                E.catch (Just <$> action)
+                                                        (\e -> do vrb 3 "vhdl generation failed"
+                                                                  vrb 4 $ show (e :: E.SomeException)
+                                                                  rep $ CodeGenFail (show (e :: E.SomeException))
+                                                                  return Nothing)
                                            | (modname, action) <- sims
                                            , let rep = (curry r) (name </> modname)
+                                           , let vrb = verbBuilder (name </> modname)
                                            ]
 
+                            -- for successfully generated testbenches, run simulations
                             sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
                                            copyLavaPrelude opts (path </> modname)
                                            writeFile (path </> modname </> "options") $ show opts
                                            if runSim opts
-                                              then simulate opts (path </> modname) rep verb
-                                              else do verb 3 "simulation generated"
+                                              then simulate opts (path </> modname) rep vrb
+                                              else do vrb 3 "simulation generated"
                                                       rep SimGenerated
-                                           verb 9 $ show ("trace",t)
+                                           vrb 9 $ show ("trace",t)
                                       | (modname, t) <- zip (map fst sims) ts
                                       , isJust t
                                       , let rep = (curry r) (name </> modname)
+                                      , let vrb = verbBuilder (name </> modname)
                                       ]
 
                             return ()
