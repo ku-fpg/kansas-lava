@@ -87,13 +87,9 @@ instance Default Options where
                 }
 
 testMe _ Nothing     = True
-testMe nm (Just nms) = or [ (n `isPrefixOf` nm) || (n `isSuffixOf` nm)
-                          | n <- nms
-                          ]
+testMe nm (Just nms) = or [ (n `isInfixOf` nm) | n <- nms ]
 
-neverTestMe nm nms = or  [ (n `isPrefixOf` nm) || (n `isSuffixOf` nm)
-                         | n <- nms
-                         ]
+neverTestMe nm nms = or [ (n `isInfixOf` nm) | n <- nms ]
 
 verbose opt n m | verboseOpt opt >= n = putStrLn m
                 | otherwise           = return ()
