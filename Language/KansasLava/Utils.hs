@@ -519,7 +519,6 @@ register c@(Comb def edef) l@ ~(Seq line eline) = res
    where
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
-
 	sres0 = line
 	sres1 = def :~ sres0
 
@@ -643,7 +642,7 @@ fromStdLogicVector = fun1' "fromStdLogicVector" $ \ x@(StdLogicVector v) ->
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
 coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
-coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerce)
+coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerceSLV)
 
 
 -- Starting at the given bit; grab the specified (by the type) number of bits.
@@ -652,7 +651,7 @@ extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, S
 extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
 		    Comb (optX $ do a' <- unX a
-			            return $ (SLV.splice i a' :: StdLogicVector b))
+			            return $ (SLV.spliceSLV i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 
 
@@ -663,12 +662,12 @@ appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD 
 appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			Comb (optX $ do a' <- unX a
 					b' <- unX b
-					return $ SLV.append a' b')
+					return $ SLV.appendSLV a' b')
 			     (entity2 (Name "Lava" "concat") ea eb)
 
 
 to :: forall sig a b . (Signal sig, Rep a, StdLogic a, Rep b, StdLogic b, WIDTH a ~ WIDTH b) => sig a -> sig b
-to = fromStdLogicVector . toStdLogicVector
+to = coerce -- fromStdLogicVector . toStdLogicVector
 
 -- This is the funny one, needed for our application
 instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
@@ -717,4 +716,19 @@ takeMaybe :: Maybe Int -> [a] -> [a]
 takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
+
+coerceX :: forall a b . (Rep a, Rep b) => X a -> X b
+coerceX = id
+       . fromRep
+       . RepValue
+       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))
+       . unRepValue
+       . toRep
+       
+coerce :: forall sig a b . (Signal sig, Rep a, Rep b) => sig a -> sig b
+coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
+
+append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c) => sig a -> sig b -> sig c
+append x y = coerce (pack (x,y) :: sig (a,b))
+
 

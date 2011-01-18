@@ -167,6 +167,7 @@ instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ a b -> b) (M.indices mx) [0..])
 
+{-
 instance (Size ix, Rep ix, Rep a, Signal sig) => Pack sig (ix -> a) where
 	type Unpacked sig (ix -> a) = sig ix -> sig a
 
@@ -181,3 +182,4 @@ instance (Size ix, Rep ix, Rep a, Signal sig) => Pack sig (ix -> a) where
 			     	     )
 			$ entity2 (Prim "read") me xe 
 
+-}

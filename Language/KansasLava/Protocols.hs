@@ -46,7 +46,7 @@ memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
 pipeToMemory :: forall a d clk1 . (Size a, Clock clk1, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> Memory clk1 a d
-pipeToMemory pipe addr2 = unpack (delay (writeMemory pipe)) (delay addr2)
+pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
 
 -- Later, we will have a two clock version.
 
@@ -136,10 +136,28 @@ writeMemory pipe = res
                           , Generic (fromIntegral (M.size (error "witness" :: a)))
                           )
 			]
-
+{-
 readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = unpack mem addr
+-}
+
+-- This is an alias
+readMemory mem addr = asyncRead mem addr
+
+
+syncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+	=> sig (a -> d) -> sig a -> sig d
+syncRead mem addr = delay (asyncRead mem addr)
+
+asyncRead :: forall a d sig clk . (Signal sig, Size a, Rep a, Rep d)
+	=> sig (a -> d) -> sig a -> sig d
+asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) -> 
+				Comb (case (unX x) of
+				    	Just x' -> f x'
+				    	Nothing -> optX Nothing
+			     	     )
+			$ entity2 (Prim "asyncRead") me xe 
 
 -- | memoryToMatrix should be used with caution/simulation  only, 
 -- because this actually clones the memory to allow this to work, 
@@ -147,7 +165,7 @@ readMemory mem addr = unpack mem addr
 
 memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk) 
 	=> sig (a -> d) -> sig (Matrix a d)
-memoryToMatrix mem = pack (forAll $ \ x -> readMemory mem (pureS x))
+memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 fullEnabled :: forall a b sig . (Signal sig, Show a, Rep a, Show b, Rep b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
@@ -356,7 +374,7 @@ counter' inc = res
 -- The order here has the function *last*, because it allows
 -- for a idiomatic way of writing things
 --
---  res = rom env inp $ \ a -> ....
+--  res = rom inp $ \ a -> ....
 --
 rom :: (Rep a, Rep b, Clock clk) => CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom inp fn = delay $ funMap fn inp

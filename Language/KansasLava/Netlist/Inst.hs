@@ -13,6 +13,7 @@ import Language.KansasLava.Shallow
 import qualified Data.Map as M
 
 import Data.List
+import Data.Maybe as Maybe
 import Data.Reify.Graph (Unique)
 
 import Language.KansasLava.Netlist.Utils
@@ -138,8 +139,10 @@ genInst env i (Entity (Prim "index")
 		)
 	]
   where tys = case eleTy of
-		-- MatrixTy sz eleTy -> take sz $ repeat eleTy
+                -- Not sure about way this works over two different types.
+		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
+		other -> error $ show ("genInst/index",other)
 
 {-
 genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing = 
@@ -306,7 +309,26 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
      low = fromIntegral x
 
 
+--------------------------------------------------------------------------------
+-- Basic Coerce, with truncation and zero padding
+--------------------------------------------------------------------------------
 
+genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
+        | typeWidth tI >= typeWidth tO =
+	[ NetAssign  (sigName "o0" i) $ 
+                ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
+	]                
+        | otherwise =
+	[ NetAssign  (sigName "o0" i) $	ExprConcat 
+		[ ExprLit (Just $ zeros) $ ExprBitVector $ take zeros$ repeat F
+		, ExprVar nm
+		]
+	]
+  where
+     zeros = typeWidth tO - typeWidth tI
+     nm = case toStdLogicExpr tI w of
+	    ExprVar n -> n
+	    other -> error $ " problem with coerce: " ++ show (w,tI,other)
 
 --------------------------------------------------------------------------------
 -- Arith
@@ -339,13 +361,38 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
 -- Clocked primitives
 --------------------------------------------------------------------------------
 
+genInst env i (Entity (Prim "register") 
+                outs@[("o0",_)] 
+                (("def",ty1,Lit n):("i0",ty2,Port "o0" read_id):ins_reg)) 
+  | Maybe.isJust async =        -- TODO: need to also check default for undefine-ness
+        case async_ins of
+          [("i0",ty,Port "o0" write_id),("i1",ty2,dr2)] ->
+            case M.lookup write_id env of
+              Just (Entity (Prim "write") _ ins_write) -> 
+                genInst env i $ Entity (Prim "RAM") 
+                                 outs
+                                 (checkClock ins_write ++ 
+                                        [ ("sync",GenericTy,Generic 1)
+                                        , ("rAddr",ty2,dr2)
+                                        ])
+             
+              o -> error ("found a sync/read without a write in code generator " ++ show (i,write_id,o))
+   where
+          -- TODO: add check for same clock domain
+        checkClock ins_write = ins_write  
+        async = case M.lookup read_id env of
+                   Just (Entity (Prim "asyncRead") _ ins) -> Just ins
+                   _ -> Nothing 
+        async_ins = Maybe.fromJust async
 
 genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
-   case toStdLogicTy ty of
+     case toStdLogicTy ty of
 	B   -> genInst env i $ boolTrick ["def","i0","o0"] (inst 1)
 	V n -> genInst env i $ inst n
 	_ -> error $ "register typing issue  (should not happen)"
   where 
+          
+
         inst n = Entity 
                     (External "lava_register") 
                     outs 
@@ -353,7 +400,7 @@ genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
 
 
 -- A bit of a hack to handle Bool or zero-width arguments.
-genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
+genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType addr_ty = 
    case (toStdLogicTy data_ty,toStdLogicTy addr_ty) of
 	(V n, V 0) -> genInst env i $ zeroArg $ inst n 1
 	(B  , V 0) -> genInst env i $ boolTrick ["wData","o0"] $ zeroArg $ inst 1 1
@@ -361,7 +408,16 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
 	(V n, V m) -> genInst env i $ inst n m
 	_ -> error $ "RAM typing issue (should not happen)"
  where
-        ("rAddr",addr_ty,_) = last ins
+        ("rAddr",addr_ty,d) = last ins
+
+{-
+        rAddr = case d of
+                  Port "o0" register_id ->
+                    case M.lookup register_id env of
+                        Just (Entity (Prim "register") _ ins) -> 
+                       _ -> 
+                  _ -> error $ ("rAddr",d)
+-}
         inst n m = Entity 
                     (External "lava_bram") 
                     outs 
@@ -376,16 +432,25 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) =
                                [ (n,t,d) | (n,t,d) <- ins, n /= "wAddr" 
                                                         && n /= "rAddr"
                                ]
+        goodAddrType ty = 
+                case ty of
+                  U n -> True
+                  _   -> error $ "unsupported address type for BRAMs: " ++ show ty
+        
 
 
 -- For read, we find the pairing write, and call back for "RAM".
 -- This may produce multiple RAMs, if there are multiple reads.
-genInst env i (Entity (Prim "read") outs@[("o0",ty)] [ ("i0",ty1,Port "o0" read_id)
-                                                     , ("i1",ty2,dr2)
-                                                     ]) =
+genInst env i (Entity (Prim "asyncRead") 
+                outs@[("o0",ty)] 
+                [ ("i0",ty1,Port "o0" read_id)
+                , ("i1",ty2,dr2)
+                ]) =
   case M.lookup read_id env of
      Just (Entity (Prim "write") _ ins) -> 
-        genInst env i (Entity (Prim "RAM") outs (ins ++ [("rAddr",ty2,dr2)]))
+        genInst env i (Entity (Prim "RAM") outs (ins ++ [ ("sync",GenericTy,Generic 0)
+                                                        , ("rAddr",ty2,dr2)
+                                                        ]))
      o -> error ("found a read without a write in code generator " ++ show (i,read_id,o))
 
 --------------------------------------------------------------------------------

@@ -78,8 +78,9 @@ entity lava_bram is
         generic(
                 addr_width : natural;
                 data_width : natural;
-                element_count : natural
-        );
+                element_count : natural;
+                sync : natural
+                );
         port (
                 rst    : in std_logic;
                 clk    : in std_logic;
@@ -105,9 +106,19 @@ begin
         end if;
       end if;
     end if;
+    if sync = 0 then
+      -- async; someone else adding any delays on writing.
+      o0 <= mem(to_integer(unsigned(rAddr)));    
+    else
+      if rising_edge(clk) then
+        if (clk_en = '1') then
+          -- sync; with built in delay
+          o0 <= mem(to_integer(unsigned(rAddr)));
+        end if;
+      end if;
+    end if;        
   end process proc;
-  -- continuous; someone else adding any delays on writing.
-  o0 <= mem(to_integer(unsigned(rAddr)));
+        
 end Behavioral;
 
 
@@ -170,7 +181,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use work.all;
 
 entity lava_sampled_add is
   generic (
@@ -199,7 +209,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use work.all;
 
 
 entity lava_sampled_sub is
@@ -227,7 +236,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use work.all;
 
 entity lava_sampled_mul is
   generic (
@@ -263,7 +271,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use work.all;
 
 
 entity lava_sampled_negate is
@@ -289,7 +296,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
-use work.all;
 
 entity sampled_fixedDivPowOfTwo is
   generic (
