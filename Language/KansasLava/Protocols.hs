@@ -25,11 +25,11 @@ type Pipe a d = Enabled (a,d)
 
 type Memory clk a d = CSeq clk a -> CSeq clk d
 
-enabledRegister :: forall a clk. (Rep a, Clock clk) =>  Comb a -> CSeq clk (Enabled a) -> CSeq clk a
-enabledRegister c inp = res
+enabledRegister :: forall a clk. (Rep a, Clock clk) => CSeq clk (Enabled a) -> CSeq clk a
+enabledRegister inp = res
    where
 	(en,v) = unpack inp
-	res    = register c (mux2 en (v,res))
+	res    = delay (mux2 en (v,res))
 
 -- | Turns a list of maybe values into enabled values.
 toEnabledSeq :: forall a . (Rep a) => [Maybe a] -> Seq (Enabled a)
@@ -265,7 +265,7 @@ isEnabled = fst .  unpackEnabled
 
 -- a 'safe' delay that uses the disabled to give a default value.
 delayEnabled :: (Rep a, Clock clk) => CSeq clk (Enabled a) -> CSeq clk (Enabled a)
-delayEnabled inp = register disabledS inp
+delayEnabled inp = register Nothing inp
 
 {-
 -- to move into a counters module
@@ -314,7 +314,7 @@ shiftRegister inp = pack m
 	(en,val) = unpack inp
 	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
 	fn (v,()) = (reg,reg)
-		where reg = enabledRegister (undefinedComb) (pack (en,v))
+		where reg = enabledRegister (pack (en,v))
 
 
 unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d, Clock clk) =>  CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)

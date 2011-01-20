@@ -2,6 +2,7 @@
 module Main where
 
 import Language.KansasLava
+import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 import Data.Sized.Arith
 import Data.Sized.Ix
@@ -25,14 +26,13 @@ import System.Cmd
 
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
---                      , genSim = True
---                      , runSim = True
+--		      , genSim = True
 --                      , testOnly = return [ "memory","register"]
-                      , testNever = ["X16xS10", "max","min","abs","signum"] -- for now
+                      , testNever = ["max","min","abs","signum"] -- for now
                       }
 
         -- This should be built using the cabal system,
-        -- can called from inside the ./dist directory.
+        -- can called from inside the ./dist directory.   
         system "ghc -i../.. -o tracediff --make Diff.hs"
 
         prepareSimDirectory opt
@@ -137,7 +137,16 @@ tests test = do
         -- None
 
         --  Now registers
+
         let t str arb = testRegister test str arb
+
+        t "U1" (loop 10 (arbitrary :: Gen U1))
+        t "U2" (loop 10 (arbitrary :: Gen U2))
+        t "U3" (loop 10 (arbitrary :: Gen U3))
+        t "Int" (loop 10 (arbitrary :: Gen Int))
+        t "Bool" (loop 10 (arbitrary :: Gen Bool))
+
+        let t str arb = testDelay test str arb
 
         t "U1" (loop 10 (arbitrary :: Gen U1))
         t "U2" (loop 10 (arbitrary :: Gen U2))
@@ -154,10 +163,17 @@ tests test = do
         t "X4xU4" (dubSeq (arbitrary :: Gen (Maybe (X4,U4))))
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X256,S10))))
 
-        let t str arb = testMemory test str arb
+        let t str arb = testSyncMemory test str arb
         t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
+
+        let t str arb = testAsyncMemory test str arb
+        t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
+        t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
+        t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
+
+
 {- ghci keeps getting killed during these, Out Of Memory maybe?
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
 -}
@@ -355,18 +371,29 @@ triple ws = pure (,,) <*> ws <*> ws <*> ws
 testRegister :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
 testRegister  (TestSeq test toList) tyName ws = do
         let (u0:us0) = toList ws
-        let reg = register ::  Comb w -> Seq w -> Seq w
-        let thu = Thunk reg
-                        (\ f -> f (toComb u0) (toSeq us0)
+        let reg = register :: w -> Seq w -> Seq w
+        let thu = Thunk (reg u0)
+                        (\ f -> f (toSeq us0)
                         )
             res = toSeq (u0 : us0)
         test ("register/" ++ tyName) (length us0) thu res
         return ()
 
-testMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
-testMemory (TestSeq test toList) tyName ws = do
+testDelay :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
+testDelay  (TestSeq test toList) tyName ws = do
+        let us0 = toList ws
+        let reg = delay :: Seq w -> Seq w
+        let thu = Thunk reg
+                        (\ f -> f (toSeq us0)
+                        )
+            res = shallowSeq (unknownX :~ S.fromList (map pureX us0))
+        test ("delay/" ++ tyName) (length us0) thu res
+        return ()
+
+testAsyncMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
+testAsyncMemory (TestSeq test toList) tyName ws = do
         let (writes,reads) = unzip $ toList ws
-        let mem = readMemory . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
+        let mem = asyncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
         let thu = Thunk mem
                         (\ f -> f (toSeq writes) (toSeq reads)
                         )
@@ -381,7 +408,28 @@ testMemory (TestSeq test toList) tyName ws = do
                     | (i,r) <- zip [1..(length writes-1)] reads
 
                     ]
-        test ("memory/" ++ tyName) (length writes) thu res
+        test ("async-memory/" ++ tyName) (length writes) thu res
+
+testSyncMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
+testSyncMemory (TestSeq test toList) tyName ws = do
+        let (writes,reads) = unzip $ toList ws
+        let mem = syncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
+        let thu = Thunk mem
+                        (\ f -> f (toSeq writes) (toSeq reads)
+                        )
+            res :: Seq w2
+            res = toSeq' $
+                    [Nothing] ++
+                    [ last $
+                     [Nothing] ++
+                     [ Just b
+                     | Just (a,b) <- take (i - 1) writes
+                     , a == fromIntegral r
+                     ]
+                    | (i,r) <- zip [1..(length writes-1)] reads
+                    ]
+        test ("sync-memory/" ++ tyName) (length writes) thu res
+
 
 testConstMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
 testConstMemory (TestSeq test toList) tyName ws = do

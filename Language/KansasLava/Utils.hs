@@ -509,14 +509,31 @@ delay :: forall a . (Rep a) => Seq a -> Seq a
 delay = register' low undefinedComb
 -}
 
-delay :: (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
-delay = register undefinedComb
+-- a delay is a register with no defined default / initial value.
 
--- register rst def v = mux2 rst (liftS0 def,delay v)
-
-register :: forall a clk .  (Rep a, Clock clk) => Comb a -> CSeq clk a -> CSeq clk a
-register c@(Comb def edef) l@ ~(Seq line eline) = res
+delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
+delay l@ ~(Seq line eline) = res
    where
+        def = optX $ Nothing
+
+        rep = toRep def
+	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
+
+	sres0 = line
+	sres1 = def :~ sres0
+
+        entity = Entity (Prim "delay")
+                    [("o0", bitTypeOf res)]
+                    [("i0", bitTypeOf res, unD eline),
+		     ("env",ClkDomTy, unD $ (clock :: D clk))
+		    ]
+
+register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
+register first l@ ~(Seq line eline) = res
+   where
+        def = optX $ Just first
+
+        rep = toRep def
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
@@ -524,8 +541,8 @@ register c@(Comb def edef) l@ ~(Seq line eline) = res
 
         entity = Entity (Prim "register")
                     [("o0", bitTypeOf res)]
-                    [("def", bitTypeOf res, unD $ edef),
-		     ("i0", bitTypeOf res, unD eline),
+                    [("i0", bitTypeOf res, unD eline),
+                     ("def",GenericTy,Generic (fromRepToInteger rep)),
 		     ("env",ClkDomTy, unD $ (clock :: D clk))
 		    ]
 

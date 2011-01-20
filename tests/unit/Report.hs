@@ -109,7 +109,11 @@ reportToHtml (Report summary results) = do
                                , a, "</div>"]
                       | (name, r) <- results
                       , let (sc, s, a) = case r of
-                                           ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, show ts])
+                                                        -- AJG: This take 1000 is a hack,
+                                                        -- We need to truncate all these infomational outputs
+                                                        -- both in terms of rows and column.
+                                                        -- Without the take, ts is an infinite list, so fills your disk with X's.
+                                           ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, take 1000 $ show ts])
                                            ShallowPass -> ("shallowpass", "Shallow Passed", unDiv [""])
                                            SimGenerated -> ("simgenerated", "Simulation Generated", unDiv [""])
                                            CodeGenFail s -> ("codegenfail", "VHDL Generation Failed", unDiv [s])

@@ -361,9 +361,9 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
 -- Clocked primitives
 --------------------------------------------------------------------------------
 
-genInst env i (Entity (Prim "register") 
+genInst env i (Entity (Prim "delay") 
                 outs@[("o0",_)] 
-                (("def",ty1,Lit n):("i0",ty2,Port "o0" read_id):ins_reg)) 
+                (("i0",ty2,Port "o0" read_id):ins_reg)) 
   | Maybe.isJust async =        -- TODO: need to also check default for undefine-ness
         case async_ins of
           [("i0",ty,Port "o0" write_id),("i1",ty2,dr2)] ->
@@ -385,14 +385,23 @@ genInst env i (Entity (Prim "register")
                    _ -> Nothing 
         async_ins = Maybe.fromJust async
 
+genInst env i (Entity (Prim "delay") outs@[("o0",ty)] ins) =
+     case toStdLogicTy ty of
+	B   -> genInst env i $ boolTrick ["i0","o0"] (inst 1)
+	V n -> genInst env i $ inst n
+	_ -> error $ "delay typing issue (should not happen)"
+  where 
+        inst n = Entity 
+                    (External "lava_delay") 
+                    outs 
+		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
+
 genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
      case toStdLogicTy ty of
-	B   -> genInst env i $ boolTrick ["def","i0","o0"] (inst 1)
+	B   -> genInst env i $ boolTrick ["i0","o0"] (inst 1)
 	V n -> genInst env i $ inst n
 	_ -> error $ "register typing issue  (should not happen)"
   where 
-          
-
         inst n = Entity 
                     (External "lava_register") 
                     outs 

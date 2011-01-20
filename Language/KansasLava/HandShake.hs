@@ -366,7 +366,7 @@ fifo w_ix rst hs = HandShaken $ \ out_ready ->
 	wr = fifoFE w_ix rst (hs,dec_by)
 
 	inp_done2 :: CSeq c Bool
-	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
+	inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
 
 	mem :: CSeq c ix -> CSeq c (Enabled a)
 	mem = enabledS . pipeToMemory wr
@@ -412,7 +412,7 @@ fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShaken $ \ out_ready ->
 	wr = fifoFE w_ix rst (hs,dec_by)
 
 	inp_done2 :: CSeq c Bool
-	inp_done2 = resetable $ register false $ resetable $ register false $ resetable $ isEnabled wr
+	inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
 
 	mem :: CSeq c (Enabled (M.Matrix iz a))
 	mem = enabledS 

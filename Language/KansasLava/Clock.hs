@@ -25,9 +25,9 @@ rate Witness n
   | n <= 0 = error "can not have rate less than or equal zero"
   | n > 1 = error $ "can not have rate greater than 1, requesting " ++ show n
   | otherwise = runRTL $ do
-	count <- newReg (0 :: Comb (Unsigned x))
-	cut   <- newReg (0 :: Comb (Unsigned x))
-	err   <- newReg (0  :: Comb (Signed x))
+	count <- newReg (0 :: (Unsigned x))
+	cut   <- newReg (0 :: (Unsigned x))
+	err   <- newReg (0  :: (Signed x))
 	CASE [ IF (reg count .<. (fromIntegral step + reg cut - 1)) $ do
 		  count := reg count + 1
 --		  cut := val cut

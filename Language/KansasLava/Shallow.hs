@@ -74,9 +74,8 @@ allOkayRep m | okay      = return (fmap (\ (XBool (WireVal a)) -> a) m)
 pureX :: (Rep w) => w -> X w
 pureX = optX . Just
 
--- Not possible to use!
---failX :: forall w . (Wire w) => X w
---failX = optX (Nothing :: Maybe w)
+unknownX :: forall w . (Rep w) => X w
+unknownX = optX (Nothing :: Maybe w)
 
 -- This is not wired into the class because of the extra 'Show' requirement.
 

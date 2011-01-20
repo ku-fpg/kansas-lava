@@ -142,7 +142,7 @@ data Cond s c
 -- Not quite sure why we need the NewReg indirection;
 -- something to do with a limitation of ImpredicativeTypes.
 
-newReg :: forall a c s . (Clock c, Rep a) => Comb a -> RTL s c (Reg s c a)
+newReg :: forall a c s . (Clock c, Rep a) => a -> RTL s c (Reg s c a)
 newReg def = RTL $ \ _ u -> do 
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
