@@ -76,7 +76,9 @@ main = do
 
 tests test = do
         -- Just the Eq Stuff
-        let t str arb = testOpsEq test str arb
+        let t :: (Eq a, Show a, Rep a) =>
+                 String -> Gen a -> IO ()
+            t str arb = testOpsEq test str arb
 
         t "StdLogicVector/X1" (arbitrary :: Gen (StdLogicVector X1))
         t "StdLogicVector/X2" (arbitrary :: Gen (StdLogicVector X2))
@@ -86,12 +88,14 @@ tests test = do
         t "StdLogicVector/X32" (arbitrary :: Gen (StdLogicVector X32))
 
         -- Just the Ord Stuff
-        let t str arb = testOpsOrd test str arb
+        let t :: (Show a, Ord a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testOpsOrd test str arb
 
         t "Bool" (arbitrary :: Gen Bool)
 
         -- Just the Num Stuff
-        let t str arb = testOpsNum test str arb
+        let t :: (Num a, Ord a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testOpsNum test str arb
 
         -- With Sampled, use
         --  * powers of two scale, larger than 1
@@ -110,7 +114,8 @@ tests test = do
         t "Sampled/X128xX16"(arbitrary :: Gen (Sampled X128 X16))
 
         -- Just the Bits Stuff
-        let t str arb = testOpsBits test str arb
+        let t :: (Ord a, Bits a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testOpsBits test str arb
 
         t "U1" (arbitrary :: Gen U1)
         t "U2" (arbitrary :: Gen U2)
@@ -142,8 +147,8 @@ tests test = do
         -- None
 
         --  Now registers
-
-        let t str arb = testRegister test str arb
+        let t :: (Eq a, Show a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testRegister test str arb
 
         t "U1" (loop 10 (arbitrary :: Gen U1))
         t "U2" (loop 10 (arbitrary :: Gen U2))
@@ -151,7 +156,8 @@ tests test = do
         t "Int" (loop 10 (arbitrary :: Gen Int))
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
 
-        let t str arb = testDelay test str arb
+        let t :: (Eq a, Show a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testDelay test str arb
 
         t "U1" (loop 10 (arbitrary :: Gen U1))
         t "U2" (loop 10 (arbitrary :: Gen U2))
@@ -160,7 +166,11 @@ tests test = do
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
 
         --  Memories
-        let t str arb = testConstMemory test str arb
+        let t :: (Eq b, Integral a, Show b,
+                 Size (Column a), Size (Row a),
+                 Size a, Rep a, Rep b) =>
+                 String -> Gen (Maybe (a,b)) -> IO ()
+            t str arb = testConstMemory test str arb
 
         t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool))))
         t "X1xU4" (dubSeq (arbitrary :: Gen (Maybe (X1,U4))))
@@ -168,12 +178,22 @@ tests test = do
         t "X4xU4" (dubSeq (arbitrary :: Gen (Maybe (X4,U4))))
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X256,S10))))
 
-        let t str arb = testSyncMemory test str arb
+        let t :: (Eq a, Integral a, Show b,
+                  Size (Column a), Size (Row a),
+                  Size a, Rep a, Rep b, Eq b
+                 ) =>
+                  String -> Gen (Maybe (a,b),a) -> IO ()
+            t str arb = testSyncMemory test str arb
         t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
-        let t str arb = testAsyncMemory test str arb
+        let t :: (Eq a, Integral a, Show b,
+                  Size (Column a), Size (Row a),
+                  Size a, Rep a, Rep b, Eq b
+                 ) =>
+                  String -> Gen (Maybe (a,b),a) -> IO ()
+            t str arb = testAsyncMemory test str arb
         t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
