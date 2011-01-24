@@ -528,6 +528,8 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
     repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
 
     -- reuse the matrix encodings here
+    -- TODO: work out how to remove the Size ix constraint,
+    -- and use Rep ix somehow instead.
     toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
     fromRep (RepValue xs) = XFunction $ \ ix -> 
 	case fromRep (RepValue xs) of
