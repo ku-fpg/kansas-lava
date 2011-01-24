@@ -734,11 +734,14 @@ takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
 
+-- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
+-- We need to read up and figure out something better.
+
 coerceX :: forall a b . (Rep a, Rep b) => X a -> X b
 coerceX = id
        . fromRep
        . RepValue
-       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))
+       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))  -- not signed extended!
        . unRepValue
        . toRep
        
