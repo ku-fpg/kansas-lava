@@ -29,13 +29,19 @@ begin
     clk_en <= '1';
     rst <= '0';
     wait for clk_period / 2;
+-- Use these three if you *need* reset.
+--    rst <= '1';
+--   wait for clk_period / 2;
+--    rst <= '0';
     while counter > 0 loop
-    report("cycle: " & integer'image(cycle_count - counter));
-    counter := counter - 1;
-    wait for clk_period / 2;
-    clk <= '1';             -- rising edge
-    wait for clk_period / 2;
-    clk <= '0';             -- falling edge
+      if (counter mod 100 = 0) then
+        report("cycle: " & integer'image(cycle_count - counter));
+      end if;
+       counter := counter - 1;
+      wait for clk_period / 2;
+      clk <= '1';             -- rising edge
+      wait for clk_period / 2;
+      clk <= '0';             -- falling edge
     end loop;
     report "End of simulation." severity note;
     wait;
