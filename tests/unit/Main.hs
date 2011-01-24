@@ -27,7 +27,8 @@ import Report
 import Utils
 
 main = do
-        let opt = def { genSim = True
+        let opt = def { verboseOpt = 4  -- 4 == show cases that failed
+                      , genSim = True
                       , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
 --                      , testOnly = return ["memory","register"]
