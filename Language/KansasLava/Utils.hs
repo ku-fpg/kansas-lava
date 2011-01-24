@@ -751,4 +751,15 @@ coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c) => sig a -> sig b -> sig c
 append x y = coerce (pack (x,y) :: sig (a,b))
 
+{-
+discardX :: forall a b . (Rep a, Rep b) => Int -> X a -> X b
+discardX n = id
+       . fromRep
+       . RepValue
+       . (\ m -> take (repWidth (Witness :: Witness b)) (drop n m ++ repeat (WireVal False)))
+       . unRepValue
+       . toRep
 
+discard :: forall sig a b . (Signal sig, Rep a, Rep b) => Int -> sig a -> sig b
+discard n = liftS1 $ \ (Comb a ae) -> Comb (discardX n a) $ entity1 (Prim "coerce") ae
+-}

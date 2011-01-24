@@ -542,3 +542,7 @@ data Witness w = Witness
 --witness :: a
 --witness = error "witness"
 
+--------------------------------------------------------------------------------------
+-- We sometimes talk about bytes, which are unsigned 8-bit values.
+
+-- type Byte = U8
