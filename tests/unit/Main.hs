@@ -16,6 +16,7 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Sampled
 import Data.Sized.Signed
 import Data.Sized.Unsigned
+import Debug.Trace
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -199,6 +200,10 @@ tests test = do
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
+        -- testing FIFOs
+
+--        let t str arb = testFIFO test str arb
+--        t "U5"  (arbitrary :: Gen (X4,Bool,Maybe U5))
 
 {- ghci keeps getting killed during these, Out Of Memory maybe?
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
@@ -480,15 +485,45 @@ testConstMemory (TestSeq test toList) tyName ws = do
         test ("memory/const/" ++ tyName) (length writes) thu (pack res)
         return ()
 
-{-
--- Testing FIFOs
---testFIFOs1 :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
-testFIFOs1 (TestSeq test toList) tyName ws = do
-        let writes = toList ws
-        let f = fifo (witness :: X32) ::  Seq Bool -> HandShake (Seq (Enabled U4)) -> HandShake (Seq (Enabled U4))
-        let thu = Thunk f
-                $ \ cir -> cir undefined undefined undefined
---      putFIFOContents
+-- stutters up to 16 cycles.
+testFIFO :: forall w . (Eq w, Rep w, Show w) => TestSeq -> String -> Gen (X4,Bool,Maybe w) -> IO ()
+testFIFO (TestSeq test toList) tyName ws = do
+        let inStut  :: [X4]
+            outBools :: [Bool]
+            vals    :: [Maybe w]
+            (inStut,outBools,vals) = unzip3 $ toList ws
+        print $ take 20 $ inStut
+        print $ take 20 $ outBools
+        print $ take 20 $ vals
 
+        let cir = fifo (Witness :: Witness X1) low :: HandShaken () (Seq (Enabled w)) -> HandShaken () (Seq (Enabled w))
+        let thu :: Thunk (CSeq () (Enabled w))
+            thu = Thunk cir
+                        (\ f -> f (toHandShaken' (map fromIntegral inStut) vals) <~~ toSeq (cycle outBools)
+                        )
+
+        let fifoSize :: Int
+            fifoSize = size (error "witness" :: X1)
+
+        let fifoSpec a b c d | trace (show ("fifoSpec",take 10 a, take 10 b, take 10 c,d)) False = undefined
+            fifoSpec (0:ns) (val:vals) outs state
+                        | length [ () | Just _ <- state ] < fifoSize
+                        = fifoSpec2 ns vals  outs (val:state)
+                          -- FIFO is full
+                        | otherwise
+                        = fifoSpec2 (0:ns) (val:vals) outs (Nothing:state)
+            fifoSpec (n:ns) vals       outs state = fifoSpec2 (pred n:ns) vals outs (Nothing:state)
+
+            fifoSpec2 ns vals (ready:outs) state = 
+                    case [ x | Just x <- reverse $ drop 3 state ] of
+                        [] -> Nothing   : fifoSpec ns vals outs state
+                        (x:_) -> Just x : fifoSpec ns vals outs (nextState state ready)
+                        
+            nextState state False = state
+            nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
+
+        let res :: Seq (Enabled w)
+            res = toSeq $ fifoSpec (map fromIntegral inStut) vals (cycle outBools) []
+        test ("fifo/" ++ tyName) (sum $ map fromIntegral inStut) thu res
         return ()
--}
+
