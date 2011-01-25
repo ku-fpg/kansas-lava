@@ -31,7 +31,7 @@ data TestData = Rand Int | Complete
 data Options = Options
         { genSim      :: Bool                              -- ^ Generate modelsim testbenches for each test?
         , runSim      :: Bool                              -- ^ Run the tests after generation?
-        , simCmd      :: String                            -- ^ Command to run the .do file with
+        , simCmd      :: FilePath -> String                -- ^ Take path relative to test root and generate command to run sim.
         , simPath     :: FilePath                          -- ^ Path into which we place all our simulation directories.
         , simMods     :: [(String, Circuit -> IO Circuit)] -- ^ List of modifications (like optimizations) to apply to
                                                            --   the circuit before simulation.
@@ -48,7 +48,7 @@ instance Show Options where
     show (Options gs rs sc sp sm pm pp vo to tn td) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
-                , "simCmd: " ++ show sc
+                , "simCmd: " ++ show (sc "/path/to/file.do")
                 , "simPath: " ++ show sp
                 , "simMods: " ++ show (map fst sm)
                 , "permuteMods: " ++ show pm
@@ -58,10 +58,12 @@ instance Show Options where
                 , "testNever: " ++ show tn
                 , "testData: " ++ show td ]
 
+{-
 instance Read Options where
     readsPrec _ xs = [(Options (read gs) (read rs) (read sc) (read sp) [] (read pm) (read pp) (read vo) (read to) (read tn) (read td),unlines rest)]
         where (ls, rest) = splitAt 11 $ lines xs
               [gs,rs,sc,sp,pm,pp,vo,to,tn,td] = [ tail $ dropWhile (\c -> c /= ' ') $ ls !! i | i <- [0,1,2,3,5,6,7,8,9,10] ]
+-}
 -------------------------------------------------------------------------------------
 -- Verbose table
 -- 1: Failures
@@ -75,7 +77,7 @@ instance Default Options where
         def = Options
                 { genSim = False
                 , runSim = False
-                , simCmd = "vsim -c -do"
+                , simCmd = \p -> "cd \"" ++ dropFileName p ++ "\" && vsim -c -do \"" ++ takeFileName p ++ "\""
                 , simPath = "sims"
                 , simMods = []
                 , permuteMods = True
@@ -181,9 +183,7 @@ simulate opts path report verb = do
 
     verb 2 $ "simulating with modelsim"
     pwd <- getCurrentDirectory
-    setCurrentDirectory path
-    system $ "echo `" ++ simCmd opts ++ " \"" ++ localname <.> "do\"` > \"" ++ "everything.log\""
-    setCurrentDirectory pwd
+    system $ "echo `" ++ (simCmd opts) (path </> localname <.> "do") ++ "` > \"" ++ path </> "everything.log\""
     log <- readFile (path </> "transcript")
 
     success <- doesFileExist $ path </> localname <.> "deep"
