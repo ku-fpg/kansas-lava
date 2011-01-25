@@ -337,6 +337,9 @@ instance (Ports a, Ports b) => Ports (a,b) where
 
 instance (Clock clk, Ports a) => Ports (HandShaken clk a) where
     ports vs (HandShaken f) = ports vs f
+    probe' names (HandShaken f) = HandShaken $ \ ready -> 
+                        let ready' = probe' (addSuffixToProbeNames names "-arg") ready
+                        in probe' (addSuffixToProbeNames names "-res") (f ready')
 
 instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
     ports _ (a,b,c) = ports bad c ++ ports bad b ++ ports bad a
