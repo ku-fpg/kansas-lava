@@ -115,7 +115,7 @@ genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
-                [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps, typeWidth ty /= 0 ]
+                [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps ]
 
 genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
