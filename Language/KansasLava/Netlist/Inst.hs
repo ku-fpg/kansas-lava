@@ -115,7 +115,7 @@ genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
-                [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps]
+                [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps, typeWidth ty /= 0 ]
 
 genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
@@ -350,6 +350,16 @@ genInst env i (Entity (Prim "negate") [("o0",U n)] [("i0",U m,dr)]) =
 
 -- The specials (from a table). Only Prim's can be special.
 -- To revisit RSN.
+
+genInst env i (Entity (Prim ".==.") 
+                [("o0",B)]
+                [ ("i0",ty0,dr0)
+                , ("i1",ty1,dr1)
+                ]) | typeWidth ty0 == 0
+        =
+        [ NetAssign (sigName "o0" i) (ExprLit Nothing (ExprBit T))
+        ]
+
 
 genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =

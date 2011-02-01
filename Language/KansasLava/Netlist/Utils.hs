@@ -77,6 +77,8 @@ class ToStdLogicExpr v where
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
+        toStdLogicExpr ty any              
+                | typeWidth ty == 0        = ExprVar $ "\"\""
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
 	toStdLogicExpr ty (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
