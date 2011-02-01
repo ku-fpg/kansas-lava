@@ -28,11 +28,11 @@ import Report
 import Utils
 
 main = do
-        let opt = def { verboseOpt = 4  -- 4 == show cases that failed
+        let opt = def { verboseOpt = 9  -- 4 == show cases that failed
                       , genSim = True
-                      , runSim = True
+--                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
---                      , testOnly = return ["memory","register"]
+                      , testOnly = return ["delay"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       }
 
@@ -203,7 +203,7 @@ tests test = do
         -- testing FIFOs
 
 --        let t str arb = testFIFO test str arb
---        t "U5"  (arbitrary :: Gen (X4,Bool,Maybe U5))
+--        t "U5"  (arbitrary :: Gen (Bool,Maybe U5))
 
 {- ghci keeps getting killed during these, Out Of Memory maybe?
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
@@ -485,45 +485,48 @@ testConstMemory (TestSeq test toList) tyName ws = do
         test ("memory/const/" ++ tyName) (length writes) thu (pack res)
         return ()
 
+{-
 -- stutters up to 16 cycles.
-testFIFO :: forall w . (Eq w, Rep w, Show w) => TestSeq -> String -> Gen (X4,Bool,Maybe w) -> IO ()
+testFIFO :: forall w . (Eq w, Rep w, Show w) => TestSeq -> String -> Gen (Bool,Maybe w) -> IO ()
 testFIFO (TestSeq test toList) tyName ws = do
-        let inStut  :: [X4]
-            outBools :: [Bool]
+        let outBools :: [Bool]
             vals    :: [Maybe w]
-            (inStut,outBools,vals) = unzip3 $ toList ws
-        print $ take 20 $ inStut
+            (outBools,vals) = unzip $ toList ws
+
         print $ take 20 $ outBools
         print $ take 20 $ vals
 
-        let cir = fifo (Witness :: Witness X1) low :: HandShaken () (Seq (Enabled w)) -> HandShaken () (Seq (Enabled w))
-        let thu :: Thunk (CSeq () (Enabled w))
+        let cir = (unHandShaken . fifo (Witness :: Witness X1) low . HandShaken)
+                                                   :: (Seq Bool -> Seq (Enabled w))
+                                                   -> (Seq Bool -> Seq (Enabled w))
+        let thu :: Thunk (CSeq () (Bool,Enabled w))
             thu = Thunk cir
-                        (\ f -> f (toHandShaken' (map fromIntegral inStut) vals) <~~ toSeq (cycle outBools)
+                        (\ f -> let 
+                        pack (high,f (unHandShaken (toHandShaken' (repeat 0) vals)) (toSeq (cycle outBools)))
                         )
 
         let fifoSize :: Int
             fifoSize = size (error "witness" :: X1)
 
-        let fifoSpec a b c d | trace (show ("fifoSpec",take 10 a, take 10 b, take 10 c,d)) False = undefined
-            fifoSpec (0:ns) (val:vals) outs state
+        let fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
+            fifoSpec (val:vals) outs state
                         | length [ () | Just _ <- state ] < fifoSize
-                        = fifoSpec2 ns vals  outs (val:state)
-                          -- FIFO is full
+                        = fifoSpec2 vals  outs (val:state)
+                          -- FIFO is full, so do not accept
                         | otherwise
-                        = fifoSpec2 (0:ns) (val:vals) outs (Nothing:state)
-            fifoSpec (n:ns) vals       outs state = fifoSpec2 (pred n:ns) vals outs (Nothing:state)
+                        = fifoSpec2  (val:vals) outs (Nothing:state)
 
-            fifoSpec2 ns vals (ready:outs) state = 
+            fifoSpec2 vals (ready:outs) state = 
                     case [ x | Just x <- reverse $ drop 3 state ] of
-                        [] -> Nothing   : fifoSpec ns vals outs state
-                        (x:_) -> Just x : fifoSpec ns vals outs (nextState state ready)
+                        [] -> Nothing   : fifoSpec vals outs state
+                        (x:_) -> Just x : fifoSpec  vals outs (nextState state ready)
                         
             nextState state False = state
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
 
-        let res :: Seq (Enabled w)
-            res = toSeq $ fifoSpec (map fromIntegral inStut) vals (cycle outBools) []
-        test ("fifo/" ++ tyName) (sum $ map fromIntegral inStut) thu res
+        let res :: Seq (Bool,Enabled w)
+            res = pack (high,toSeq $ fifoSpec vals (cycle outBools) [])
+        test ("fifo/" ++ tyName) (length vals) thu res
         return ()
 
+-}

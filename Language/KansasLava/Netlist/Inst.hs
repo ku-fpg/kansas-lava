@@ -466,9 +466,21 @@ genInst env i (Entity (Prim "asyncRead")
 
 -- And the defaults
 
+--HACK
+genInst env i (Entity (External "lava_delay") 
+                [(v_out,tO)]
+                ((v_in,tI,d):_)) = 
+        [ ProcessDecl
+         [ ( Event (ExprVar "clk") PosEdge
+           , If (isHigh (ExprVar "clk_en"))
+                (statements [Assign (ExprVar $ sigName v_out i) (toStdLogicExpr tI d)])
+                Nothing
+           )
+         ]
+        ]
 -- Right now, we *assume* that every external entity
 -- has in and outs of type std_logic[_vector].
---
+
 genInst env i (Entity n@(External nm) outputs inputs) =
 	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl nm ("inst" ++ show i)
