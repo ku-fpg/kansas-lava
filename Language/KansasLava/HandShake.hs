@@ -115,7 +115,10 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 -}
 
 toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
-toHandShaken' stutter xs = HandShaken $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
+toHandShaken' stutter xs = HandShaken $ \ ready -> toHandShaken stutter xs ready
+
+toHandShaken :: (Rep a) => [Int] -> [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
+toHandShaken stutter xs ready = toSeq (fn stutter xs (fromSeq ready))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
@@ -133,16 +136,15 @@ toHandShaken' stutter xs = HandShaken $ \ ready -> toSeq (fn stutter xs (fromSeq
 
 
 fromHandShaken' :: forall a c . (Clock c, Rep a) => [Int] -> HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
-fromHandShaken' stutter (HandShaken sink) = map snd internal
+fromHandShaken' stutter (HandShaken sink) = res
+    where (back, res) = fromHandShaken  stutter (sink back)
+
+
+fromHandShaken :: forall a c . (Clock c, Rep a) => [Int] -> CSeq c (Enabled a) -> (CSeq c Bool, [Maybe a])
+fromHandShaken stutter inp = (toSeq (map fst internal), map snd internal)
    where
-	val :: CSeq c (Enabled a)
-	val = sink full
-
-	full :: CSeq c Bool
-	full = toSeq (map fst internal)
-
 	internal :: [(Bool,Maybe a)]
-	internal = fn stutter (fromSeq val)
+	internal = fn stutter (fromSeq inp)
 	
 	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
 	fn (0:ps) ~(x:xs) = (True,rep) : rest
@@ -224,17 +226,15 @@ fifoFE :: forall c a counter ix .
 	) 
       => Witness ix
       -> CSeq c Bool
-      -> (HandShaken c (CSeq c (Enabled a)),CSeq c counter)
+      -> (CSeq c (Enabled a), CSeq c counter)
 	 -- ^ HS, and Seq trigger of how much to decrement the counter
-      -> CSeq c (Enabled (ix,a))
+      -> (CSeq c Bool, CSeq c (Enabled (ix,a)))
 	 -- ^ inc_counter * backedge for HandShaken.
-fifoFE Witness rst (HandShaken hs,dec_by) = wr
+fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
   where
 
         resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
 	resetable x = mux2 rst (0,x)
-
-	inp = hs inp_ready
 
 --	mem :: Seq ix -> Seq a
 --	mem = pipeToMemory env env wr
@@ -286,11 +286,12 @@ fifoBE :: forall a c counter ix .
       -> (CSeq c counter,CSeq c (Enabled a))
 	-- inc from FE
 	-- input from Memory read
-      -> HandShaken c ((CSeq c ix, CSeq c Bool), CSeq c (Enabled a))
+      -> CSeq c Bool
+      -> ((CSeq c ix, CSeq c Bool), CSeq c (Enabled a))
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShaken
-fifoBE Witness rst (inc_by,mem_rd) = HandShaken $ \ out_ready ->
+fifoBE Witness rst (inc_by,mem_rd) out_ready = 
     let
         resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
 	resetable x = mux2 rst (0,x)
@@ -359,14 +360,15 @@ fifo :: forall a c counter ix .
 	) 
       => Witness ix
       -> CSeq c Bool
-      -> HandShaken c (CSeq c (Enabled a))
-      -> HandShaken c (CSeq c (Enabled a))
-fifo w_ix rst hs = HandShaken $ \ out_ready ->
+      -> (CSeq c (Enabled a), CSeq c Bool)
+      -> (CSeq c Bool, CSeq c (Enabled a))
+fifo w_ix rst (inp,out_ready) = 
     let
 	resetable x = mux2 rst (low,x)
 
 	wr :: CSeq c (Maybe (ix, a))
-	wr = fifoFE w_ix rst (hs,dec_by)
+	inp_ready :: CSeq c Bool
+	(inp_ready, wr) = fifoFE w_ix rst (inp,dec_by)
 
 	inp_done2 :: CSeq c Bool
 	inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
@@ -374,14 +376,13 @@ fifo w_ix rst hs = HandShaken $ \ out_ready ->
 	mem :: CSeq c ix -> CSeq c (Enabled a)
 	mem = enabledS . pipeToMemory wr
 
-	((rd_addr0,out_done0),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) <~~ out_ready
-
+	((rd_addr0,out_done0),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) out_ready
 
 	dec_by = liftS1 (\ b -> mux2 b (1,0)) out_done0
 	inc_by = liftS1 (\ b -> mux2 b (1,0)) inp_done2
     in
-	out
-
+	(inp_ready, out)
+{-
 fifoToMatrix :: forall a counter counter2 ix iy iz c . 
          (Size counter
 	, Size ix
@@ -468,3 +469,4 @@ liftHandShaken :: (Clock c1)
 liftHandShaken f = undefined
 
 
+-}

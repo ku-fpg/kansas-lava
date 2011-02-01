@@ -496,20 +496,21 @@ testFIFO (TestSeq test toList) tyName ws = do
         print $ take 20 $ outBools
         print $ take 20 $ vals
 
-        let cir = (unHandShaken . fifo (Witness :: Witness X1) low . HandShaken)
-                                                   :: (Seq Bool -> Seq (Enabled w))
-                                                   -> (Seq Bool -> Seq (Enabled w))
+        let cir = (fifo (Witness :: Witness X1) low)
+                                                   :: (Seq (Enabled w), Seq Bool)
+                                                   -> (Seq Bool, Seq (Enabled w))
         let thu :: Thunk (CSeq () (Bool,Enabled w))
             thu = Thunk cir
-                        (\ f -> pack ( undefinedS :: CSeq () Bool
-                                     , f (unHandShaken (toHandShaken' (repeat 0) vals)) (toSeq (cycle outBools))
-                                     )
+                        (\ f -> let inp = toHandShaken (repeat 0) vals back
+                                    (back,res) = cir (inp,toSeq outBools)
+                                 in pack (back,res)
                         )
 
         let fifoSize :: Int
             fifoSize = size (error "witness" :: X1)
 
         let -- fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
+            fifoSpec :: [Maybe w] -> [Bool] -> [Maybe w] -> [Maybe w]
             fifoSpec (val:vals) outs state
                         | length [ () | Just _ <- state ] < fifoSize
                         = fifoSpec2 vals  outs (val:state)
