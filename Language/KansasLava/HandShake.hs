@@ -183,15 +183,16 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- | This function takes a ShallowFIFO object, and gives back a Handshake.
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
-shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (HandShaken c (CSeq c (Enabled a)))
+shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
 shallowFifoToHandShaken fifo = do
 	xs <- getFIFOContents fifo
-	return (toHandShaken' (repeat 0) (xs ++ repeat Nothing))
+	return (toHandShaken (repeat 0) (xs ++ repeat Nothing))
 
-handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> HandShaken c (CSeq c (Enabled a)) -> IO ()
+handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
 handShakeToShallowFifo fifo sink = do
-	putFIFOContents fifo (fromHandShaken' (repeat 0) sink)
-	return ()
+	putFIFOContents fifo (let (back,res) = fromHandShaken (repeat 0) $ sink back
+	                      in res)
+      	return ()
 
 {- TODO: move into another location
 -- create a lambda bridge from a FIFO to a FIFO.
@@ -443,7 +444,7 @@ splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
 			            in packEnabled (g .&&. (a1 .==. pureS i))
 				   	           (pack (a2,d))
 
-
+-}
 mulBy :: forall x sz sig c . (Clock c, Size sz, Num sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c x
 mulBy Witness trig = mux2 trig (pureS $ fromIntegral $ size (error "witness" :: sz),pureS 0)
 
@@ -459,7 +460,7 @@ divBy Witness rst trig = mux2 issue (1,0)
 		counter1 :: CSeq c sz
 		counter1 = register 0 
 			 $ mux2 issue (0,counter0)
-
+{-
 
 -- sub-domain for the inner clock.
 liftHandShaken :: (Clock c1) 
