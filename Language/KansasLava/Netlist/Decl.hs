@@ -46,8 +46,15 @@ genDecl (i,Entity nm outputs _)
 	= []
 -}	
 -- General case
-genDecl (i,Entity nm outputs _)
-	= [ NetDecl (sigName n i) (sizedRange nTy) Nothing
+genDecl (i,e@(Entity nm outputs _))
+	= [ NetDecl (sigName n i)
+	            (sizedRange nTy) 
+	            (case e of
+	                Entity (Prim "register") 
+	                        [("o0",ty)] 
+	                        [ _, ("def",GenericTy,n), _, _, _] ->
+	                     Just (toTypedExpr ty n)
+	                _ -> Nothing)
 	  | (n,nTy) <- outputs
 	  , toStdLogicTy nTy /= V 0
 	  ]

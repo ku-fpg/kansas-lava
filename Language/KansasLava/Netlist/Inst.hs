@@ -385,6 +385,41 @@ genInst env i (Entity (Prim "delay")
                    _ -> Nothing 
         async_ins = Maybe.fromJust async
 
+-- assumes single clock
+genInst env i (Entity (Prim "delay") outs@[("o0",ty)]    [ ("i0",tI,d)
+                                                         , ("clk_en",B,clk_en)
+                                                         , ("clk",ClkTy,clk)
+                                                         , ("rst",B,rst)
+                                                         ]) =
+        [ ProcessDecl
+         [ ( Event (toStdLogicExpr B clk) PosEdge
+           , If (isHigh (toStdLogicExpr B clk_en))
+                (statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
+                Nothing
+           )
+         ]
+        ]
+
+genInst env i (Entity (Prim "register") outs@[("o0",ty)] [ ("i0",tI,d)
+                                                         , ("def",GenericTy,n)
+                                                         , ("clk_en",B,clk_en)
+                                                         , ("clk",ClkTy,clk)
+                                                         , ("rst",B,rst)
+                                                         ]) =
+        [ ProcessDecl
+         [ (Event (toStdLogicExpr B rst) AsyncHigh
+           , statements [Assign (ExprVar $ sigName "o0" i) (toTypedExpr ty n)]
+           )
+         , ( Event (toStdLogicExpr B clk) PosEdge
+           , If (isHigh (toStdLogicExpr B clk_en))
+		(statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
+                Nothing
+           )
+         ]
+        ]
+
+{-
+-- OLD CODE
 genInst env i (Entity (Prim "delay") outs@[("o0",ty)] ins) =
      case toStdLogicTy ty of
 	B   -> genInst env i $ boolTrick ["i0","o0"] (inst 1)
@@ -406,7 +441,7 @@ genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
                     (External "lava_register") 
                     outs 
 		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
-
+-}
 
 -- A bit of a hack to handle Bool or zero-width arguments.
 genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType addr_ty = 
@@ -466,18 +501,6 @@ genInst env i (Entity (Prim "asyncRead")
 
 -- And the defaults
 
---HACK
-genInst env i (Entity (External "lava_delay") 
-                [(v_out,tO)]
-                ((v_in,tI,d):_)) = 
-        [ ProcessDecl
-         [ ( Event (ExprVar "clk") PosEdge
-           , If (isHigh (ExprVar "clk_en"))
-                (statements [Assign (ExprVar $ sigName v_out i) (toStdLogicExpr tI d)])
-                Nothing
-           )
-         ]
-        ]
 -- Right now, we *assume* that every external entity
 -- has in and outs of type std_logic[_vector].
 
