@@ -32,7 +32,7 @@ main = do
                       , genSim = True
 --                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
-                      , testOnly = return ["delay"]
+                      , testOnly = return ["fifo"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       }
 
@@ -202,8 +202,8 @@ tests test = do
 
         -- testing FIFOs
 
---        let t str arb = testFIFO test str arb
---        t "U5"  (arbitrary :: Gen (Bool,Maybe U5))
+        let t str arb = testFIFO test str arb
+        t "U5"  (arbitrary :: Gen (Bool,Maybe U5))
 
 {- ghci keeps getting killed during these, Out Of Memory maybe?
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
@@ -485,7 +485,7 @@ testConstMemory (TestSeq test toList) tyName ws = do
         test ("memory/const/" ++ tyName) (length writes) thu (pack res)
         return ()
 
-{-
+
 -- stutters up to 16 cycles.
 testFIFO :: forall w . (Eq w, Rep w, Show w) => TestSeq -> String -> Gen (Bool,Maybe w) -> IO ()
 testFIFO (TestSeq test toList) tyName ws = do
@@ -501,14 +501,15 @@ testFIFO (TestSeq test toList) tyName ws = do
                                                    -> (Seq Bool -> Seq (Enabled w))
         let thu :: Thunk (CSeq () (Bool,Enabled w))
             thu = Thunk cir
-                        (\ f -> let 
-                        pack (high,f (unHandShaken (toHandShaken' (repeat 0) vals)) (toSeq (cycle outBools)))
+                        (\ f -> pack ( undefinedS :: CSeq () Bool
+                                     , f (unHandShaken (toHandShaken' (repeat 0) vals)) (toSeq (cycle outBools))
+                                     )
                         )
 
         let fifoSize :: Int
             fifoSize = size (error "witness" :: X1)
 
-        let fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
+        let -- fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
             fifoSpec (val:vals) outs state
                         | length [ () | Just _ <- state ] < fifoSize
                         = fifoSpec2 vals  outs (val:state)
@@ -525,8 +526,6 @@ testFIFO (TestSeq test toList) tyName ws = do
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
 
         let res :: Seq (Bool,Enabled w)
-            res = pack (high,toSeq $ fifoSpec vals (cycle outBools) [])
+            res = pack (undefinedS,toSeq $ fifoSpec vals (cycle outBools) [])
         test ("fifo/" ++ tyName) (length vals) thu res
         return ()
-
--}

@@ -291,6 +291,9 @@ instance (Clock c, Rep a) => Ports (CSeq c a) where
 
     probe' (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where strm = toTrace s
+    probe' (n:_) (Seq s _) = error "probe'1"
+    probe' [] (Seq s _) = error "probe'2"
+    probe' _ _ = error "probe'3"
 
     run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = toTrace s
@@ -365,7 +368,8 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     ports vs f = ports vs' $ f a
         where (a,vs') = inPorts vs
 
-    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
+--    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
+    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
 
     run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
         where (ins', fn') = apply ins fn
