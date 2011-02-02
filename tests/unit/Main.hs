@@ -24,6 +24,7 @@ import System.Cmd
 import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
 
+import Options
 import Report
 import Utils
 
@@ -60,7 +61,7 @@ main = do
 
         -- The different tests to run (from different modules)
         tests test
-        FIFO.tests test        
+        FIFO.tests test
 
         rs <- takeMVar results
 

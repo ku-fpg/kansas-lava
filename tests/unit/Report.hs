@@ -9,6 +9,8 @@ import qualified Control.Exception as E
 import System.Directory
 import System.FilePath
 
+import Options
+
 data Report = Report Summary [TestCase]
 
 instance Show Report where
