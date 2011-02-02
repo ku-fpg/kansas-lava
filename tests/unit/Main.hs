@@ -49,7 +49,7 @@ main = do
 
         prepareSimDirectory opt
 
-        results <- newMVar [] :: IO (MVar [(String,Result)])
+        results <- newMVar [] :: IO (MVar [TestCase])
 
         let reporter (name, result) = do
                 rs <- takeMVar results
