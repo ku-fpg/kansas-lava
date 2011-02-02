@@ -19,6 +19,7 @@ tests test = do
         -- testing FIFOs
 
         let t str arb = testFIFO test str (dubSeq arb)
+
         t "U5"  (arbitrary :: Gen (Bool,Maybe U5)) (Witness :: Witness X1)
         t "U5"  (arbitrary :: Gen (Bool,Maybe U5)) (Witness :: Witness X2)
         t "U5"  (arbitrary :: Gen (Bool,Maybe U5)) (Witness :: Witness X3)
@@ -57,9 +58,11 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 
         let -- fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
             fifoSpec :: [Maybe w] -> [Bool] -> [Maybe w] -> [Maybe w]
+
 --            fifoSpec _ _ state
---                        | length [ () | Just _ <- state ] == fifoSize
---                                && trace (show ("fifoLen",fifoSize)) False = undefined
+--                        | -- length [ () | Just _ <- state ] == fifoSize &&
+--                             trace (show ("fifoLen",length [ () | Just _ <- state ])) False = undefined
+
             fifoSpec (val:vals) outs state
                         | length [ () | Just _ <- state ] < fifoSize
                         = fifoSpec2 vals  outs (val:state)
@@ -98,6 +101,30 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 
 
         test ("fifo/speed/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) thu2 res2
+
+        --------------------------------------------------------------------------------------------
+        -- A test for phasing the fifo
+
+        let vals3 = vals
+
+        let accept = concat [ if (x `div` (fifoSize * 32)) `mod` 2 == 0
+                              then if not v then [v,v,v] else [v]
+                              else if     v then [v,v,v] else [v]
+                            | (x,v) <- zip [0..] (cycle $ outBools)
+                            ]
+
+        let thu3 :: Thunk (CSeq () (Bool,Enabled w))
+            thu3 = Thunk cir
+                        (\ f -> let inp = toHandShaken vals3 back
+                                    (back,res) = f (inp,toSeq accept)
+                                 in pack (back,res)
+                        )
+
+        let res3 :: Seq (Bool,Enabled w)
+            res3 = pack (undefinedS,toSeq $ fifoSpec vals3 accept [])
+
+
+        test ("fifo/phase/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) thu3 res3
 
         --------------------------------------------------------------------------------------------
         return ()
