@@ -1,4 +1,4 @@
-module Options where
+module Types where
 
 import Language.KansasLava
 
@@ -11,7 +11,7 @@ import System.FilePath.Posix as FP
 data Options = Options
         { genSim      :: Bool                              -- ^ Generate modelsim testbenches for each test?
         , runSim      :: Bool                              -- ^ Run the tests after generation?
-        , simCmd      :: FilePath -> String                -- ^ Take path relative to test root and generate command to run sim.
+        , simCmd      :: String                            -- ^ Command to call with runSim is True
         , simPath     :: FilePath                          -- ^ Path into which we place all our simulation directories.
         , simMods     :: [(String, Circuit -> IO Circuit)] -- ^ List of modifications (like optimizations) to apply to
                                                            --   the circuit before simulation.
@@ -28,7 +28,7 @@ instance Show Options where
     show (Options gs rs sc sp sm pm pp vo to tn td) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
-                , "simCmd: " ++ show (sc "/path/to/file.do")
+                , "simCmd: " ++ show sc
                 , "simPath: " ++ show sp
                 , "simMods: " ++ show (map fst sm)
                 , "permuteMods: " ++ show pm
@@ -57,7 +57,7 @@ instance Default Options where
         def = Options
                 { genSim = False
                 , runSim = False
-                , simCmd = \p -> "cd \"" ++ dropFileName p ++ "\" && vsim -c -do \"" ++ takeFileName p ++ "\""
+                , simCmd = "sims/runsims"
                 , simPath = "sims"
                 , simMods = []
                 , permuteMods = True
@@ -67,4 +67,16 @@ instance Default Options where
                 , testNever = []
                 , testData = 1000
                 }
+
+type TestCase = (String, Result)
+
+data Result = ShallowFail Trace TraceStream  -- Shallow result doesn't match expected
+            | ShallowPass                    -- Shallow result matches, we aren't simulating
+            | SimGenerated                   -- Shallow passed, testbench generated, not running sim
+            | CodeGenFail String             -- Shallow passed, testbench generation failed
+            | CompileFail String             -- VHDL compilation failed during simulation
+            | SimFail     String             -- Modelsim failed for some other reason
+            | CompareFail Trace Trace String -- Deep result didn't match the shallow result
+            | Pass        Trace Trace String -- Deep matches shallow which matches expected
+    deriving (Show, Read)
 

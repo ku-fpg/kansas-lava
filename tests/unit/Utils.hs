@@ -18,12 +18,10 @@ import Data.Sized.Unsigned
 
 import System.Cmd
 import System.Directory
-import System.FilePath.Posix as FP
+import System.FilePath as FP
 import qualified System.Random as R
 
-import Options
-import Report
--- Our Unit Tests
+import Types
 
 -------------------------------------------------------------------------------------
 
@@ -52,18 +50,16 @@ data TestSeq = TestSeq
 
 testSeq :: (Rep a, Show a, Eq a)
         => Options                  -- Options
-        -> (TestCase -> IO ())      -- Called with the result
         -> String                   -- Test Name
         -> Int                      -- Number of Cycles
         -> Thunk (Seq a)            -- Circuit and Input
         -> Seq a                    -- Expected Result
         -> IO ()
-testSeq opts r name count thunk expected
+testSeq opts name count thunk expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
-        let verbBuilder nm = (\n m -> verbose opts n (nm ++ " :" ++ take n (repeat ' ') ++ m))
-            verb = verbBuilder name
+        let verb = verbose (verboseOpt opts) name
             path = (simPath opts) </> name
-            report = (curry r) name
+            report = fileReporter $ simPath opts
 
         verb 2 $ "testing(" ++ show count ++ ")"
         verb 9 $ show ("expected",expected)
@@ -95,64 +91,76 @@ testSeq opts r name count thunk expected
                                                                   rep $ CodeGenFail (show (e :: E.SomeException))
                                                                   return Nothing)
                                            | (modname, action) <- sims
-                                           , let rep = (curry r) (name </> modname)
-                                           , let vrb = verbBuilder (name </> modname)
+                                           , let rep = report (name </> modname)
+                                           , let vrb = verbose (verboseOpt opts) (name </> modname)
                                            ]
 
-                            -- for successfully generated testbenches, run simulations
+                            -- for successfully generated testbenches, add some files
                             sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
                                            copyLavaPrelude opts (path </> modname)
                                            writeFile (path </> modname </> "options") $ show opts
-                                           if runSim opts
-                                              then simulate opts (path </> modname) rep vrb
-                                              else do vrb 3 "simulation generated"
-                                                      rep SimGenerated
-                                           vrb 9 $ show ("trace",t)
+                                           vrb 9 $ show ("trace",fromJust t)
                                       | (modname, t) <- zip (map fst sims) ts
                                       , isJust t
-                                      , let rep = (curry r) (name </> modname)
-                                      , let vrb = verbBuilder (name </> modname)
+                                      , let vrb = verbose (verboseOpt opts) (name </> modname)
                                       ]
 
                             return ()
-                    else report ShallowPass
+                    else report name ShallowPass
           else do verb 1 $ "shallow FAILED"
                   trace <- mkTrace (return count) thunk
-                  report $ ShallowFail trace (toTrace $ seqValue expected)
+                  report name $ ShallowFail trace (toTrace $ seqValue expected)
 
                                          | otherwise = return ()
 
-simulate :: Options -> FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
-simulate opts path report verb = do
+simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
+simCompare path report verb = do
     let localname = last $ splitPath path
 
-    verb 2 $ "simulating with modelsim"
-    pwd <- getCurrentDirectory
-    system $ "echo `" ++ (simCmd opts) (path </> localname <.> "do") ++ "` > \"" ++ path </> "everything.log\""
-    log <- readFile (path </> "transcript")
+    ran <- doesFileExist $ path </> "transcript"
+    if ran
+        then do log <- readFile (path </> "transcript")
+                success <- doesFileExist $ path </> localname <.> "deep"
+                if success
+                    then do shallow <- lines <$> readFile (path </> localname <.> "shallow")
+                            deep    <- lines <$> readFile (path </> localname <.> "deep")
+                            sig     <- read  <$> readFile (path </> localname <.> "sig")
 
-    success <- doesFileExist $ path </> localname <.> "deep"
-    if success
-        then do shallow <- lines <$> readFile (path </> localname <.> "shallow")
-                deep    <- lines <$> readFile (path </> localname <.> "deep")
-                sig     <- read  <$> readFile (path </> localname <.> "sig")
+                            let t1 = asciiToTrace shallow sig
+                                t2 = asciiToTrace deep sig
+                            if cmpTraceIO t1 t2
+                                then do verb 3 "simulation passed"
+                                        report $ Pass t1 t2 log
+                                else do verb 3 "simulation failed"
+                                        verb 4 $ show ("shallow",t1)
+                                        verb 4 $ show ("deep",t2)
+                                        report $ CompareFail t1 t2 log
 
-                let t1 = asciiToTrace shallow sig
-                    t2 = asciiToTrace deep sig
-                if cmpTraceIO t1 t2
-                    then do verb 3 "simulation passed"
-                            report $ Pass t1 t2 log
-                    else do verb 3 "simulation failed"
-                            verb 4 $ show ("shallow",t1)
-                            verb 4 $ show ("deep",t2)
-                            report $ CompareFail t1 t2 log
+                    else do verb 3 "VHDL compilation failed"
+                            verb 4 log
+                            report $ CompileFail log
+        else verb 1 "Simulation hasn't been run, transcript file missing."
 
-        else do verb 3 "VHDL compilation failed"
-                verb 4 log
-                report $ CompileFail log
+postSimulation :: FilePath -> IO ()
+postSimulation spath = go "" spath
+    where go :: String -> FilePath -> IO ()
+          go name path = do
+            isSimDir <- doesFileExist $ path </> "transcript"
+            if isSimDir
+                then simCompare path (fileReporter spath name) (verbose 9 name)
+                else return ()
+
+            contents <- getDirectoryContents path
+            subdirs <- filterM (\(_,f) -> doesDirectoryExist f)
+                               [ (name </> f, path </> f)
+                               | f <- contents
+                               , f /= "."
+                               , f /= ".." ]
+
+            mapM_ (uncurry go) subdirs
 
 prepareSimDirectory :: Options -> IO ()
-prepareSimDirectory opts | genSim opts = do
+prepareSimDirectory opts = do
     let path = simPath opts
     putStrLn $ "preparing simulation directory: ./" ++ path
     pwd <- getCurrentDirectory
@@ -173,7 +181,6 @@ prepareSimDirectory opts | genSim opts = do
     system $ "chmod +x " ++ path </> "runsims"
 
     return ()
-                        | otherwise = return ()
 
 testRunner :: [String]
 testRunner = ["#!/bin/bash"

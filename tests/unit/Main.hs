@@ -21,17 +21,18 @@ import Debug.Trace
 import Control.Applicative
 import Control.Concurrent.MVar
 import System.Cmd
+import System.FilePath
 import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
 
-import Options
-import Report
+import Types
+import Report hiding (main)
 import Utils
 
 import qualified FIFO
 
 main = do
-        let opt = def { verboseOpt = 9  -- 4 == show cases that failed
+        let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
 --                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
@@ -49,31 +50,25 @@ main = do
 
         prepareSimDirectory opt
 
-        results <- newMVar [] :: IO (MVar [TestCase])
-
-        let reporter (name, result) = do
-                rs <- takeMVar results
-                putMVar results $ (name,result) : rs
-
         let test :: TestSeq
-            test = TestSeq (testSeq opt reporter)
+            test = TestSeq (testSeq opt)
                            (take (testData opt) . genToRandom)
 
         -- The different tests to run (from different modules)
         tests test
         FIFO.tests test
 
-        rs <- takeMVar results
+        -- If we didn't generate simulations, make a report for the shallow results.
+        if genSim opt
+            then if runSim opt
+                    then do system $ simCmd opt
+                            generateReport $ simPath opt
+                    else do putStrLn $ "Run simulations by using the " ++ simPath opt </> "runsims script"
+                            putStrLn   "or the individual Makefiles in each simulation subdirectory."
+                            putStrLn   "Then generate the report using main in Report.hs"
+            else generateReport $ simPath opt
 
-        let r = generateReport $ reverse rs
-
-        putStrLn $ show r
-
-        html <- reportToHtml r
-        writeFile "report.html" html
-        shtml <- reportToSummaryHtml r
-        writeFile "summary.html" shtml
-
+        -- Coverage Count
         Tix tix <- examineTix
         let counts = concat [ xs | TixModule _ _ _ xs <- tix ]
         let len = length counts
@@ -484,5 +479,4 @@ testConstMemory (TestSeq test toList) tyName ws = do
                   ]
         test ("memory/const/" ++ tyName) (length writes) thu (pack res)
         return ()
-
 

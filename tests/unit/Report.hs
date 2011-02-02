@@ -5,11 +5,14 @@ import Language.KansasLava.Internals
 import Language.KansasLava.Testing.Trace
 
 import Control.Applicative
+import Control.Monad
 import qualified Control.Exception as E
 import System.Directory
+import System.Environment
 import System.FilePath
 
-import Options
+import Types
+import Utils
 
 data Report = Report Summary [TestCase]
 
@@ -50,16 +53,49 @@ instance Show Summary where
               si = "Simulation failures (other): " ++ show (simfail summary)
               ps = "Simulation tests passed: " ++ show (passed summary)
 
-type TestCase = (String, Result)
+main = do
+    args <- getArgs
+    if length args < 1
+        then do pname <- getProgName
+                putStrLn "Need path to simulation directory."
+                putStrLn $ "USAGE: " ++ pname ++ " path"
+                putStrLn $ "Example: " ++ pname ++ " sims"
+        else generateReport $ args !! 0
 
-data Result = ShallowFail Trace TraceStream  -- Shallow result doesn't match expected
-            | ShallowPass                    -- Shallow result matches, we aren't simulating
-            | SimGenerated                   -- Shallow passed, testbench generated, not running sim
-            | CodeGenFail String             -- Shallow passed, testbench generation failed
-            | CompileFail String             -- VHDL compilation failed during simulation
-            | SimFail     String             -- Modelsim failed for some other reason
-            | CompareFail Trace Trace String -- Deep result didn't match the shallow result
-            | Pass        Trace Trace String -- Deep matches shallow which matches expected
+generateReport :: FilePath -> IO ()
+generateReport path = do
+    postSimulation path
+    rs <- buildResults path
+    putStrLn $ "rs: " ++ show (length rs)
+    let r = buildReport rs
+
+    putStrLn $ show r
+
+    html <- reportToHtml r
+    writeFile "report.html" html
+    shtml <- reportToSummaryHtml r
+    writeFile "summary.html" shtml
+
+-- Traverses all the generated simulation directories and reads the result files.
+buildResults :: FilePath -> IO [TestCase]
+buildResults spath = go "" spath
+    where go :: String -> FilePath -> IO [TestCase]
+          go name path = do
+            resE <- doesFileExist $ path </> "result"
+            res <- if resE
+                    then liftM (\r -> [(name,r)]) (read <$> (readFile $ path </> "result"))
+                    else return []
+
+            contents <- getDirectoryContents path
+            subdirs <- filterM (\(_,f) -> doesDirectoryExist f)
+                               [ (name </> f, path </> f)
+                               | f <- contents
+                               , f /= "."
+                               , f /= ".." ]
+
+            subresults <- concat <$> (mapM (uncurry go) subdirs)
+
+            return $ res ++ subresults
 
 addtoSummary :: Result -> Summary -> Summary
 addtoSummary (ShallowFail _ _) s = s { sfail = 1 + (sfail s) }
@@ -71,8 +107,8 @@ addtoSummary (SimFail _)       s = s { simfail = 1 + (simfail s) }
 addtoSummary (CompareFail _ _ _) s = s { compfail = 1 + (compfail s) }
 addtoSummary (Pass _ _ _)        s = s { passed = 1 + (passed s) }
 
-generateReport :: [TestCase] -> Report
-generateReport rs = Report summary rs
+buildReport :: [TestCase] -> Report
+buildReport rs = Report summary rs
     where rs' = map snd rs
           summary = foldr addtoSummary (Summary 0 0 0 0 0 0 0 0 (length rs')) rs'
 
