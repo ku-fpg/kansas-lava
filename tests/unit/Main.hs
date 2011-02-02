@@ -36,6 +36,7 @@ main = do
                       , simMods = [("default_opts", (optimizeCircuit def))]
                       , testOnly = return ["fifo"]
                       , testNever = ["max","min","abs","signum"] -- for now
+                      , testData = 1000
                       }
 
         -- This should be built using the cabal system,
@@ -55,9 +56,7 @@ main = do
 
         let test :: TestSeq
             test = TestSeq (testSeq opt reporter)
-                        (case testData opt of
-                           Nothing -> genToList
-                           Just i -> take i . genToRandom)
+                           (take (testData opt) . genToRandom)
 
         -- The different tests to run (from different modules)
         tests test

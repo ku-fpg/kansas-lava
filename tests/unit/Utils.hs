@@ -41,7 +41,7 @@ data Options = Options
         , verboseOpt  :: Int                               -- ^ See verbose table below.
         , testOnly    :: Maybe [String]                    -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever   :: [String]                          -- ^ List of tests to never execute. Can match either end.
-        , testData    :: Maybe Int                         -- ^ cut off for random testing
+        , testData    :: Int                               -- ^ cut off for random testing
         }
 
 instance Show Options where
@@ -85,7 +85,7 @@ instance Default Options where
                 , verboseOpt = 3
                 , testOnly = Nothing
                 , testNever = []
-                , testData = Just 1000
+                , testData = 1000
                 }
 
 testMe _ Nothing     = True
