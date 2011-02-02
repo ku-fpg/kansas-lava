@@ -16,6 +16,7 @@ module Language.KansasLava (
     module Language.KansasLava.Stream,
     module Language.KansasLava.Simulate,
     module Language.KansasLava.Types,
+    module Language.KansasLava.Testing.Observe,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
     module Language.KansasLava.StdLogicVector,
@@ -45,6 +46,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Simulate
 import Language.KansasLava.Stream hiding (head,tail,zipWith)
 import Language.KansasLava.Types
+import Language.KansasLava.Testing.Observe
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 import Language.KansasLava.Shallow
