@@ -38,6 +38,8 @@ import Language.KansasLava.Utils
 import Control.Applicative
 import Control.Concurrent
 
+import Debug.Trace
+
 -----------------------------------------------------------------------------------------------
 --
 -- In 
@@ -115,24 +117,16 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 -}
 
 toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
-toHandShaken' stutter xs = HandShaken $ \ ready -> toHandShaken stutter xs ready
+toHandShaken' stutter xs = HandShaken $ \ ready -> toHandShaken xs ready
 
-toHandShaken :: (Rep a) => [Int] -> [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
-toHandShaken stutter xs ready = toSeq (fn stutter xs (fromSeq ready))
+toHandShaken :: (Rep a) => [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
+toHandShaken xs ready = toSeq (fn xs (fromSeq ready))
 	where
-	   -- We rely on the semantics of pattern matching to not match (x:xs)
-	   -- if (0:ps) does not match.
-	   fn (0:ps) (x:xs) c
-		    = x : case (c,x) of -- read c after issuing x
-			(Nothing:rs,_)         -> error "toVariableHandshake: bad protocol state (1)"
-			(Just True:rs,_)       -> fn ps xs rs         -- has been written
-			(_:rs,_)               -> fn (0:ps) (x:xs) rs -- not written yet
-
-	   fn (p:ps) xs c
-		    = Nothing : case c of
-			(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (2)"
-			(Just _:rs) 	     -> fn (pred p:ps) xs rs -- nothing read
-
+--           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
+	   fn (x:xs) cs = x : case cs of -- read c after issuing x
+		(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (1)"
+		(Just True:rs)       -> fn xs rs         -- has been written
+		(_:rs)               -> fn (x:xs) rs -- not written yet
 
 
 fromHandShaken' :: forall a c . (Clock c, Rep a) => [Int] -> HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
@@ -186,7 +180,7 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
 shallowFifoToHandShaken fifo = do
 	xs <- getFIFOContents fifo
-	return (toHandShaken (repeat 0) (xs ++ repeat Nothing))
+	return (toHandShaken (xs ++ repeat Nothing))
 
 handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
 handShakeToShallowFifo fifo sink = do
@@ -227,10 +221,11 @@ fifoFE :: forall c a counter ix .
 	) 
       => Witness ix
       -> CSeq c Bool
+         -- ^ hard reset option
       -> (CSeq c (Enabled a), CSeq c counter)
-	 -- ^ HS, and Seq trigger of how much to decrement the counter
+	 -- ^ input, and Seq trigger of how much to decrement the counter
       -> (CSeq c Bool, CSeq c (Enabled (ix,a)))
-	 -- ^ inc_counter * backedge for HandShaken.
+	 -- ^ backedge for input, and write request for memory.
 fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
   where
 

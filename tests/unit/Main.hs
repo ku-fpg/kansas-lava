@@ -27,6 +27,8 @@ import Trace.Hpc.Tix
 import Report
 import Utils
 
+import qualified FIFO
+
 main = do
         let opt = def { verboseOpt = 9  -- 4 == show cases that failed
                       , genSim = True
@@ -57,7 +59,9 @@ main = do
                            Nothing -> genToList
                            Just i -> take i . genToRandom)
 
+        -- The different tests to run (from different modules)
         tests test
+        FIFO.tests test        
 
         rs <- takeMVar results
 
@@ -199,11 +203,6 @@ tests test = do
         t "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
-
-        -- testing FIFOs
-
-        let t str arb = testFIFO test str arb
-        t "U5"  (arbitrary :: Gen (Bool,Maybe U5))
 
 {- ghci keeps getting killed during these, Out Of Memory maybe?
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
@@ -486,47 +485,3 @@ testConstMemory (TestSeq test toList) tyName ws = do
         return ()
 
 
--- stutters up to 16 cycles.
-testFIFO :: forall w . (Eq w, Rep w, Show w) => TestSeq -> String -> Gen (Bool,Maybe w) -> IO ()
-testFIFO (TestSeq test toList) tyName ws = do
-        let outBools :: [Bool]
-            vals    :: [Maybe w]
-            (outBools,vals) = unzip $ toList ws
-
-        print $ take 20 $ outBools
-        print $ take 20 $ vals
-
-        let cir = (fifo (Witness :: Witness X1) low)
-                                                   :: (Seq (Enabled w), Seq Bool)
-                                                   -> (Seq Bool, Seq (Enabled w))
-        let thu :: Thunk (CSeq () (Bool,Enabled w))
-            thu = Thunk cir
-                        (\ f -> let inp = toHandShaken (repeat 0) vals back
-                                    (back,res) = cir (inp,toSeq outBools)
-                                 in pack (back,res)
-                        )
-
-        let fifoSize :: Int
-            fifoSize = size (error "witness" :: X1)
-
-        let -- fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
-            fifoSpec :: [Maybe w] -> [Bool] -> [Maybe w] -> [Maybe w]
-            fifoSpec (val:vals) outs state
-                        | length [ () | Just _ <- state ] < fifoSize
-                        = fifoSpec2 vals  outs (val:state)
-                          -- FIFO is full, so do not accept
-                        | otherwise
-                        = fifoSpec2  (val:vals) outs (Nothing:state)
-
-            fifoSpec2 vals (ready:outs) state = 
-                    case [ x | Just x <- reverse $ drop 3 state ] of
-                        [] -> Nothing   : fifoSpec vals outs state
-                        (x:_) -> Just x : fifoSpec  vals outs (nextState state ready)
-                        
-            nextState state False = state
-            nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
-
-        let res :: Seq (Bool,Enabled w)
-            res = pack (undefinedS,toSeq $ fifoSpec vals (cycle outBools) [])
-        test ("fifo/" ++ tyName) (length vals) thu res
-        return ()
