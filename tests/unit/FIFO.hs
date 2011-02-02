@@ -77,6 +77,27 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 
         let res :: Seq (Bool,Enabled w)
             res = pack (undefinedS,toSeq $ fifoSpec vals (cycle outBools) [])
-        print (length vals)
+
         test ("fifo/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) thu res
+
+        --------------------------------------------------------------------------------------------
+
+        -- A test for as fast as you can write
+
+        let vals2 = cycle [ Just x | Just x <- vals ]
+
+        let thu2 :: Thunk (CSeq () (Bool,Enabled w))
+            thu2 = Thunk cir
+                        (\ f -> let inp = toHandShaken vals2 back
+                                    (back,res) = f (inp,high)
+                                 in pack (back,res)
+                        )
+
+        let res2 :: Seq (Bool,Enabled w)
+            res2 = pack (undefinedS,toSeq $ fifoSpec vals2 (repeat True) [])
+
+
+        test ("fifo/speed/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) thu2 res2
+
+        --------------------------------------------------------------------------------------------
         return ()
