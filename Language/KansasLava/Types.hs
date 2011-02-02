@@ -79,7 +79,7 @@ data Type
 
         -- TODO: Call this FixedPointTy
         | SampledTy Int Int
-                        -- ^ Our "floating" values. 
+                        -- ^ Our "floating" values.
                         --   The first number is the precision/scale (+/- N)
                         --   The second number is the bits used to represent this number
         deriving (Eq, Ord)
@@ -130,7 +130,7 @@ instance Read Type where
                                    ('[':rest) | (not $ null ds) ->
                                         case [ (MatrixTy (read ds :: Int) ty,rest')
                                              | (ty,']':rest') <- reads rest
-                                             ] of 
+                                             ] of
                                           [] -> Nothing
                                           (x:_) -> Just x
                                    _ -> Nothing
@@ -363,7 +363,15 @@ instance Show RepValue where
                                | v <- vals
                                ]
 
--- TODO: Read for RepValue?
+instance Read RepValue where
+        readsPrec _ xs = [(RepValue [ case c of
+                                        'X' -> WireUnknown
+                                        '0' -> WireVal False
+                                        '1' -> WireVal True
+                                    | c <- cs
+                                    ]
+                          ,rest)]
+            where (cs,rest) = span (`elem` "01X") xs
 
 -- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
 appendRepValue :: RepValue -> RepValue -> RepValue
@@ -402,7 +410,11 @@ cmpRepValue _ _ = False
 -- 'TraceStream' is a typed stream,
 
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Read)
+
+-- We obey the rules here, so we can derive Read above
+instance Show TraceStream where
+    show (TraceStream ty strm) = "TraceStream " ++ show ty ++ " " ++ show (take 1000 strm)
 
 -- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
 -- uses 'cmpRepValue' under the hood, so the first argument is considered the
@@ -438,8 +450,8 @@ data Trace = Trace { len :: Maybe Int
                    , inputs :: TraceMap
                    , outputs :: TraceMap
                    , probes :: TraceMap
---                   , opts :: DebugOpts -- can see a case for this eventually
                    }
+    deriving (Show, Read)
 
 ---------------------------------------------------------------------------------------------------------
 {-
