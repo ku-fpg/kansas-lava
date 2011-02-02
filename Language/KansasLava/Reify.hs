@@ -368,8 +368,8 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     ports vs f = ports vs' $ f a
         where (a,vs') = inPorts vs
 
---    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
-    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
+    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
+--    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
 
     run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
         where (ins', fn') = apply ins fn
