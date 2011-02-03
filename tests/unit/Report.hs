@@ -10,6 +10,7 @@ import qualified Control.Exception as E
 import System.Directory
 import System.Environment
 import System.FilePath
+import qualified System.IO.Strict as Strict
 
 import Types
 import Utils
@@ -83,7 +84,7 @@ buildResults spath = go "" spath
           go name path = do
             resE <- doesFileExist $ path </> "result"
             res <- if resE
-                    then liftM (\r -> [(name,r)]) (read <$> (readFile $ path </> "result"))
+                    then liftM (\r -> [(name,r)]) (read <$> (Strict.readFile $ path </> "result"))
                     else return []
 
             contents <- getDirectoryContents path
@@ -114,9 +115,9 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    header <- readFile "header.inc"
-    mid <- readFile "mid.inc"
-    footer <- readFile "footer.inc"
+    header <- Strict.readFile "header.inc"
+    mid <- Strict.readFile "mid.inc"
+    footer <- Strict.readFile "footer.inc"
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -144,9 +145,9 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    header <- readFile "header.inc"
-    mid <- readFile "mid.inc"
-    footer <- readFile "footer.inc"
+    header <- Strict.readFile "header.inc"
+    mid <- Strict.readFile "mid.inc"
+    footer <- Strict.readFile "footer.inc"
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name

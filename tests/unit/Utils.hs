@@ -19,6 +19,7 @@ import Data.Sized.Unsigned
 import System.Cmd
 import System.Directory
 import System.FilePath as FP
+import qualified System.IO.Strict as Strict
 import qualified System.Random as R
 
 import Types
@@ -119,12 +120,12 @@ simCompare path report verb = do
 
     ran <- doesFileExist $ path </> "transcript"
     if ran
-        then do log <- readFile (path </> "transcript")
+        then do log <- Strict.readFile (path </> "transcript")
                 success <- doesFileExist $ path </> localname <.> "deep"
                 if success
-                    then do shallow <- lines <$> readFile (path </> localname <.> "shallow")
-                            deep    <- lines <$> readFile (path </> localname <.> "deep")
-                            sig     <- read  <$> readFile (path </> localname <.> "sig")
+                    then do shallow <- lines <$> Strict.readFile (path </> localname <.> "shallow")
+                            deep    <- lines <$> Strict.readFile (path </> localname <.> "deep")
+                            sig     <- read  <$> Strict.readFile (path </> localname <.> "sig")
 
                             let t1 = asciiToTrace shallow sig
                                 t2 = asciiToTrace deep sig
@@ -221,7 +222,7 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: Options -> FilePath -> IO ()
 copyLavaPrelude opts dest = do
-        prel <- readFile (preludePath opts </> preludeFile)
+        prel <- Strict.readFile (preludePath opts </> preludeFile)
         writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
