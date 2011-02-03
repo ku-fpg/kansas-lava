@@ -19,7 +19,9 @@ import qualified Data.Traversable as T
 import qualified Data.Maybe as Maybe
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
-class Rep w where
+class {- (Size (W w)) => -} Rep w where
+    type W w
+
     -- | a way of adding unknown inputs to this wire.
     data X w
 
@@ -86,6 +88,7 @@ showRepDefault w v = case unX v :: Maybe w of
 
 
 -- TODO: consider not using the sized types here, and just using standard counters.
+{-
 toRepFromSigned :: forall w v . (Rep v, Integral v, Size w) => w -> v -> X v -> RepValue
 toRepFromSigned w1 w2 v =
         RepValue $ M.toList $ case unX v :: Maybe v of
@@ -105,7 +108,7 @@ toRepFromUnsigned w1 w2 v =
 fromRepToUnsigned :: forall w v . (Rep v, Integral v, Size w) => w -> v -> RepValue -> X v
 fromRepToUnsigned w1 w2 r = optX (fmap (\ xs -> fromIntegral $ U.fromMatrix (M.matrix xs :: Matrix w Bool))
                      (getValidRepValue r) :: Maybe v)
-
+-}
 
 toRepFromIntegral :: forall v . (Rep v, Integral v) => X v -> RepValue
 toRepFromIntegral v = case unX v :: Maybe v of
@@ -126,7 +129,6 @@ fromRepToIntegral r =
                 , b
                 ])
           (getValidRepValue r) :: Maybe v)
-
 -- always a +ve number, unknowns defin
 fromRepToInteger :: RepValue -> Integer
 fromRepToInteger (RepValue xs) =
@@ -155,6 +157,7 @@ fromTrace (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
 ------------------------------------------------------------------------------------
 
 instance Rep Bool where
+    type W Bool     = X1
     data X Bool     = XBool (WireVal Bool)
     optX (Just b)   = XBool $ return b
     optX Nothing    = XBool $ fail "Wire Bool"
@@ -176,6 +179,7 @@ instance RepWire Bool where
 -}
 
 instance Rep Int where
+    type W Int     = X32
     data X Int  = XInt (WireVal Int)
     optX (Just b)   = XInt $ return b
     optX Nothing    = XInt $ fail "Wire Int"
@@ -197,6 +201,7 @@ instance RepWire Int where
 -}
 
 instance Rep Word8 where
+    type W Word8     = X8
     data X Word8    = XWord8 (WireVal Word8)
     optX (Just b)   = XWord8 $ return b
     optX Nothing    = XWord8 $ fail "Wire Word8"
@@ -216,6 +221,7 @@ instance RepWire Word8 where
 -}
 
 instance Rep Word32 where
+    type W Word32     = X32
     data X Word32   = XWord32 (WireVal Word32)
     optX (Just b)   = XWord32 $ return b
     optX Nothing    = XWord32 $ fail "Wire Word32"
@@ -235,6 +241,7 @@ instance RepWire Word32 where
 -}
 
 instance Rep () where
+    type W ()     = X0
     data X ()   = XUnit (WireVal ())
     optX (Just b)   = XUnit $ return b
     optX Nothing    = XUnit $ fail "Wire ()"
@@ -254,7 +261,10 @@ instance RepWire () where
     showRepWire _ = show
 -}
 
+data IntegerWidth = IntegerWidth
+
 instance Rep Integer where
+    type W Integer  = IntegerWidth
     data X Integer  = XInteger Integer   -- No fail/unknown value
     optX (Just b)   = XInteger b
     optX Nothing    = XInteger $ error "Generic failed in optX"
@@ -274,6 +284,7 @@ instance RepWire Integer where
 -- Now the containers
 
 instance (Rep a, Rep b) => Rep (a,b) where
+    type W (a,b)  = ADD (W a) (W b)
     data X (a,b)        = XTuple (X a, X b)
     optX (Just (a,b))   = XTuple (pureX a, pureX b)
     optX Nothing        = XTuple (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
@@ -330,6 +341,7 @@ instance (t ~ ADD (WIDTH a) (WIDTH b), Size t, Enum t, RepWire a, RepWire b) => 
 -}
 
 instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
+    type W (a,b,c) = ADD (W a) (ADD (W b) (W c))
     data X (a,b,c)      = XTriple (X a, X b, X c)
     optX (Just (a,b,c))     = XTriple (pureX a, pureX b,pureX c)
     optX Nothing        = XTriple ( optX (Nothing :: Maybe a),
@@ -381,6 +393,7 @@ instance (t ~ ADD (WIDTH a) (ADD (WIDTH b) (WIDTH c)), Size t, Enum t, RepWire a
 -}
 
 instance (Rep a) => Rep (Maybe a) where
+    type W (Maybe a) = ADD (W a) X1
     -- not completely sure about this representation
     data X (Maybe a) = XMaybe (X Bool, X a)
     optX b      = XMaybe ( case b of
@@ -427,6 +440,7 @@ instance (RepWire a, Size (ADD X1 (WIDTH a))) => RepWire (Maybe a) where
 -}
 
 instance (Size ix, Rep a) => Rep (Matrix ix a) where
+    type W (Matrix ix a) = MUL ix (W a)
     data X (Matrix ix a) = XMatrix (Matrix ix (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ ix -> optX (Nothing :: Maybe a)
@@ -463,6 +477,7 @@ instance forall a ix t . (t ~ WIDTH a, Size t, Size (MUL ix t), Enum (MUL ix t),
     showRepWire _ = show . M.toList . fmap (M.S . showRepWire (error "show/Matrix" :: a))
 -}
 instance (Size ix) => Rep (Unsigned ix) where
+    type W (Unsigned ix) = ix
     data X (Unsigned ix) = XUnsigned (WireVal (Unsigned ix))
     optX (Just b)       = XUnsigned $ return b
     optX Nothing        = XUnsigned $ fail "Wire Int"
@@ -480,6 +495,7 @@ instance (Enum ix, Size ix) => RepWire (Unsigned ix) where
     showRepWire _ = show
 -}
 instance (Size ix) => Rep (Signed ix) where
+    type W (Signed ix) = ix
     data X (Signed ix) = XSigned (WireVal (Signed ix))
     optX (Just b)       = XSigned $ return b
     optX Nothing        = XSigned $ fail "Wire Int"
@@ -517,6 +533,7 @@ instance (Size ix) => RepWire (StdLogicVector ix) where
 -- The grandfather of them all, functions.
 
 instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
+    type W (ix -> a) = MUL ix (W a)
     data X (ix -> a) = XFunction (ix -> X a)
 
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
@@ -544,6 +561,7 @@ log2 n = log2 (n `shiftR` 1) + 1
 
 -- Perhaps not, because what does X0 really mean over a wire, vs X1.
 instance Rep X0 where
+    type W X0 = X0
     data X X0 = X0'
     optX _ = X0'
     unX X0' = return X0
@@ -553,6 +571,7 @@ instance Rep X0 where
     showRep = showRepDefault
 
 instance (Integral x, Size x) => Rep (X0_ x) where
+    type W (X0_ x) = LOG (SUB (X0_ x) X1)
     data X (X0_ x)  = XX0 (WireVal (X0_ x))
     optX (Just x)   = XX0 $ return x
     optX Nothing    = XX0 $ fail "X0_"
@@ -565,6 +584,7 @@ instance (Integral x, Size x) => Rep (X0_ x) where
     showRep = showRepDefault
 
 instance (Integral x, Size x) => Rep (X1_ x) where
+    type W (X1_ x)  = LOG (SUB (X1_ x) X1)
     data X (X1_ x)  = XX1 (WireVal (X1_ x))
     optX (Just x)   = XX1 $ return x
     optX Nothing    = XX1 $ fail "X1_"
@@ -578,7 +598,7 @@ instance (Integral x, Size x) => Rep (X1_ x) where
 
 
 -----------------------------------------------------------------------------------------
-
+{-
 -- Wire used in simulation *only*, to show ideas.
 data ALPHA = ALPHA String
     deriving (Eq, Ord)
@@ -595,6 +615,7 @@ instance Rep ALPHA where
 --  wireName _  = "ABC"
     repType _  = U 0
 
+-}
 {-
 instance RepWire ALPHA where
     type WIDTH ALPHA    = X0
@@ -624,4 +645,12 @@ instance (Rep a, Rep b) => Rep (a -> b) where
 	
 ---applyRep :: (Rep a, Rep b, Signal sig) => sig a -> sig (a -> b) -> sig b
 --applyRep = undefined
+
+{-
+class (Rep a) => RepIntegral a where
+        toRepInteger   :: a -> Integer
+        fromRepInteger :: Integer -> a
+-}        
+
+
 

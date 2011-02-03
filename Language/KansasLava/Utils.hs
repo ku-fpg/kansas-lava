@@ -672,6 +672,18 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 
 
+{-
+append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c)
+	=> sig a
+	-> sig b
+	-> sig c
+appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
+			Comb (optX $ do a' <- unX a
+					b' <- unX b
+					return $ undefined)
+			     (entity2 (Name "Lava" "concat") ea eb)
+-}
+			     
 appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
 	=> sig (StdLogicVector a)
 	-> sig (StdLogicVector b)
@@ -683,8 +695,6 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			     (entity2 (Name "Lava" "concat") ea eb)
 
 
-to :: forall sig a b . (Signal sig, Rep a, StdLogic a, Rep b, StdLogic b, WIDTH a ~ WIDTH b) => sig a -> sig b
-to = coerce -- fromStdLogicVector . toStdLogicVector
 
 -- This is the funny one, needed for our application
 instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
@@ -734,32 +744,45 @@ takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
 
+
+coerceX :: forall a b . (Rep a, Rep b, W a ~ W b ) => X a -> X b
+coerceX = id
+       . fromRep
+       . toRep
+       
 -- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
 -- We need to read up and figure out something better.
 
-coerceX :: forall a b . (Rep a, Rep b) => X a -> X b
-coerceX = id
+-- ^ translate using raw underlying bits, Width *must* be the same.
+coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
+coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
+
+signedX :: forall a b . (Rep a, Rep b) => X a -> X b
+signedX = id
+       . fromRep
+       . RepValue
+       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (last m)))  -- not signed extended!
+       . unRepValue
+       . toRep
+
+-- | consider the bits as signed number (sign extend)
+signed :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
+signed = liftS1 $ \ (Comb a ae) -> Comb (signedX a) $ entity1 (Prim "signed") ae
+
+unsignedX :: forall a b . (Rep a, Rep b) => X a -> X b
+unsignedX = id
        . fromRep
        . RepValue
        . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))  -- not signed extended!
        . unRepValue
        . toRep
        
-coerce :: forall sig a b . (Signal sig, Rep a, Rep b) => sig a -> sig b
-coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
+-- | consider the bits an unsigned number (zero extend)
+unsigned :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
+unsigned = liftS1 $ \ (Comb a ae) -> Comb (unsignedX a) $ entity1 (Prim "unsigned") ae
 
-append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c) => sig a -> sig b -> sig c
+----------------------------------------------------------------------------
+
+append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = coerce (pack (x,y) :: sig (a,b))
 
-{-
-discardX :: forall a b . (Rep a, Rep b) => Int -> X a -> X b
-discardX n = id
-       . fromRep
-       . RepValue
-       . (\ m -> take (repWidth (Witness :: Witness b)) (drop n m ++ repeat (WireVal False)))
-       . unRepValue
-       . toRep
-
-discard :: forall sig a b . (Signal sig, Rep a, Rep b) => Int -> sig a -> sig b
-discard n = liftS1 $ \ (Comb a ae) -> Comb (discardX n a) $ entity1 (Prim "coerce") ae
--}
