@@ -45,12 +45,12 @@ testFIFO (TestSeq test toList) tyName ws wit = do
             vals    :: [Maybe w]
             (outBools,vals) = unzip $ toList ws
 
-        let cir = pack . fifo wit low :: (Seq (Enabled w), Seq Bool) -> Seq (Bool, Enabled w)
+        let cir = pack . fifo wit low . unpack :: Seq (Enabled w, Bool) -> Seq (Bool, Enabled w)
 
         let thu :: Thunk (CSeq () (Bool,Enabled w))
             thu = Thunk cir
                         (\ f -> let inp = toHandShaken vals back
-                                    (back,res) = unpack $ f (inp,toSeq outBools)
+                                    (back,res) = unpack $ f $ pack (inp,toSeq outBools)
                                  in pack (back,res)
                         )
 
@@ -93,7 +93,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
         let thu2 :: Thunk (CSeq () (Bool,Enabled w))
             thu2 = Thunk cir
                         (\ f -> let inp = toHandShaken vals2 back
-                                    (back,res) = unpack $ f (inp,high)
+                                    (back,res) = unpack $ f $ pack (inp,high)
                                  in pack (back,res)
                         )
 
@@ -117,7 +117,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
         let thu3 :: Thunk (CSeq () (Bool,Enabled w))
             thu3 = Thunk cir
                         (\ f -> let inp = toHandShaken vals3 back
-                                    (back,res) = unpack $ f (inp,toSeq accept)
+                                    (back,res) = unpack $ f $ pack (inp,toSeq accept)
                                  in pack (back,res)
                         )
 
