@@ -123,7 +123,8 @@ reportToSummaryHtml (Report summary _) = do
 summaryToHtml :: Summary -> String
 summaryToHtml s = unlines [ "<table>"
                           , "<tr class=\"huge " ++ sclass ++ "\"><td>Shallow Failures:</td><td>" ++ show (sfail s) ++ "</td><td>(" ++ show (total s - sfail s) ++ "/" ++ show (total s) ++ " passed)</td></tr>"
-                          , "<tr class=\"huge " ++ dclass ++ "\"><td>Simulation Failures:</td><td>" ++ show (total s - sfail s - passed s) ++ "</td><td>(" ++ show (passed s) ++ "/" ++ show (total s - sfail s) ++ " passed)</td></tr>"
+                          , "<tr class=\"huge " ++ dclass ++ "\"><td>Simulation Failures:</td><td>" ++ show (sum [codegenfail s, vhdlfail s, compfail s, simfail s]) ++
+                              "</td><td>(" ++ show (passed s) ++ "/" ++ show (total s - sfail s) ++ " passed)</td></tr>"
                           , "</table>"
                           , "<hr width=\"90%\">"
                           , "<table>"
@@ -153,11 +154,7 @@ reportToHtml (Report summary results) = do
                                , a, "</div>"]
                       | (name, r) <- results
                       , let (sc, s, a) = case r of
-                                                        -- AJG: This take 1000 is a hack,
-                                                        -- We need to truncate all these infomational outputs
-                                                        -- both in terms of rows and column.
-                                                        -- Without the take, ts is an infinite list, so fills your disk with X's.
-                                           ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, take 1000 $ show ts])
+                                           ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, show ts])
                                            ShallowPass -> ("shallowpass", "Shallow Passed", unDiv [""])
                                            SimGenerated -> ("simgenerated", "Simulation Generated", unDiv [""])
                                            CodeGenFail s -> ("codegenfail", "VHDL Generation Failed", unDiv [s])
@@ -169,5 +166,9 @@ reportToHtml (Report summary results) = do
     return $ header ++ (summaryToHtml summary) ++ mid ++ showall ++ res ++ footer
 
 unDiv :: [String] -> String
-unDiv = foldr (\s tail -> "<div>" ++ s ++ "</div>" ++ tail) ""
+unDiv = foldr (\s tail -> "<div>" ++ sliceString 200 80 s ++ "</div>" ++ tail) ""
 
+sliceString :: Int -> Int -> String -> String
+sliceString r c str = unlines $ take r $ chunk str
+    where chunk [] = []
+          chunk s  = let (c1,r) = splitAt c s in c1 : chunk r
