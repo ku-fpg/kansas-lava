@@ -135,6 +135,7 @@ fromSLV :: (Rep w, StdLogic w) => StdLogicVector (WIDTH w) -> Maybe w
 fromSLV x@(StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))
 
 instance (Size ix) => Rep (StdLogicVector ix) where
+        type W (StdLogicVector ix) = ix
 	data X (StdLogicVector ix) = XSV (StdLogicVector ix)
 	optX (Just b)	    = XSV b
 	optX Nothing	    = XSV $ StdLogicVector $ forAll $ \ _ -> WireUnknown
