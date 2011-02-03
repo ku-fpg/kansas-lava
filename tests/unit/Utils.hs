@@ -93,8 +93,12 @@ testMe nm (Just nms) = or [ (n `isInfixOf` nm) | n <- nms ]
 
 neverTestMe nm nms = or [ (n `isInfixOf` nm) | n <- nms ]
 
-verbose opt n m | verboseOpt opt >= n = putStrLn m
-                | otherwise           = return ()
+verbose vlvl name n m | vlvl >= n = putStrLn (name ++ " :" ++ take n (repeat ' ') ++ m)
+                      | otherwise           = return ()
+
+fileReporter path nm res = do
+    createDirectoryIfMissing True (path </> nm)
+    writeFile (path </> nm </> "result") $ show res
 
 -------------------------------------------------------------------------------------
 

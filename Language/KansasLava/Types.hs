@@ -121,6 +121,7 @@ instance Show Type where
 
 -- This is required for the deserialization of Trace objects.
 instance Read Type where
+    readsPrec p (x:xs) | isSpace x = readsPrec p xs -- chew up whitespace?
     readsPrec _ xs | hasSizePrefix xs = [fromJust $ parseSize xs]
         where hasSizePrefix = isJust . parseSize
               parseSize str = let (ds,cs) = span isDigit str
@@ -412,7 +413,8 @@ cmpRepValue _ _ = False
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
     deriving (Eq, Ord, Read)
 
--- We obey the rules here, so we can derive Read above
+-- ACF: This is a hack to prevent infinite printing,
+--      but for now we obey the rules here, so we can derive Read above
 instance Show TraceStream where
     show (TraceStream ty strm) = "TraceStream " ++ show ty ++ " " ++ show (take 1000 strm)
 
