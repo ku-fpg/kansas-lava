@@ -41,10 +41,6 @@ main = do
                       , testData = 1000
                       }
 
-        -- This should be built using the cabal system,
-        -- can called from inside the ./dist directory.
-        system "ghc -i../.. -o tracediff --make Diff.hs"
-
         putStrLn "Running with the following options:"
         putStrLn $ show opt
 
@@ -63,9 +59,11 @@ main = do
             then if runSim opt
                     then do system $ simCmd opt
                             generateReport $ simPath opt
-                    else do putStrLn $ "Run simulations by using the " ++ simPath opt </> "runsims script"
-                            putStrLn   "or the individual Makefiles in each simulation subdirectory."
-                            putStrLn   "Then generate the report using main in Report.hs"
+                    else do putStrLn $ unlines [""
+                                               ,"Run simulations by using the " ++ simPath opt </> "runsims script"
+                                               ,"or the individual Makefiles in each simulation subdirectory."
+                                               ,"Then generate the report using main in Report.hs"
+                                               ,""]
             else generateReport $ simPath opt
 
         -- Coverage Count

@@ -76,13 +76,37 @@ Library
 
 Executable kansas-lava-unittest
     if flag(unit)
-      Build-Depends: base, QuickCheck >= 2.0, hpc
+      Build-Depends: base, QuickCheck >= 2.0, hpc, strict
       buildable: True
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
+    Hs-Source-Dirs: ., tests/unit
+    Ghc-Options: -Wall -fhpc
+
+Executable kansas-lava-tracediff
+    if flag(unit)
+      Build-Depends: base, QuickCheck >= 2.0, hpc, strict
+      buildable: True
+      Other-modules:
+    else
+      Build-depends: base
+      buildable: False
+    Main-Is:        Diff.hs
+    Hs-Source-Dirs: ., tests/unit
+    Ghc-Options: -Wall -fhpc
+
+Executable kansas-lava-testreport
+    if flag(unit)
+      Build-Depends: base, QuickCheck >= 2.0, hpc, strict
+      buildable: True
+      Other-modules:
+    else
+      Build-depends: base
+      buildable: False
+    Main-Is:        GenReport.hs
     Hs-Source-Dirs: ., tests/unit
     Ghc-Options: -Wall -fhpc
 

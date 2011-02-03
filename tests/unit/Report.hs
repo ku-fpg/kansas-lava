@@ -66,9 +66,7 @@ main = do
 generateReport :: FilePath -> IO ()
 generateReport path = do
     postSimulation path
-    rs <- buildResults path
-    putStrLn $ "rs: " ++ show (length rs)
-    let r = buildReport rs
+    r <- buildReport <$> buildResults path
 
     putStrLn $ show r
 

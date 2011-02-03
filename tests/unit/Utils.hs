@@ -204,7 +204,7 @@ localMake relativePath = unlines
     ,"\tvsim -c -do " ++ name ++ ".do"
     ,""
     ,"diff:"
-    ,"\t" ++ dots ++ "/tracediff " ++ name ++ ".shallow " ++ name ++ ".deep " ++ name ++ ".sig"
+    ,"\t" ++ dots </> "dist/build/kansas-lava-tracediff/kansas-lava-tracediff " ++ name ++ ".shallow " ++ name ++ ".deep " ++ name ++ ".sig"
     ,"\tgtkwave diff.vcd"
     ,""
     ,"vcd:"
@@ -214,7 +214,7 @@ localMake relativePath = unlines
     ,"\tgtkwave " ++ name ++ ".vcd"
     ]
     where dots = joinPath $ replicate l ".."
-          l = 1 + (length $ splitPath relativePath)
+          l = 3 + (length $ splitPath relativePath)
           name = last $ splitPath relativePath
 
 
