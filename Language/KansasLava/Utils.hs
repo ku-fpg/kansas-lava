@@ -699,8 +699,8 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 -}
 
 -- This is the funny one, needed for our application
---instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
---	type WIDTH (Sampled.Sampled m ix) = m
+instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
+	type WIDTH (Sampled.Sampled m ix) = m
 
 -- Move this to a better place.
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
