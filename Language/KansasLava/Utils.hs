@@ -634,6 +634,7 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (Witness :: Witness w) (RepValue (M.
 
 
 
+{-
 instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
 	pack m = liftSL (\ ms -> let sh :: Matrix ix (WireVal Bool)
@@ -646,7 +647,7 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 --  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 -- This is pack/unpack???
-
+-}
 toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
 						       RepValue v -> StdLogicVector $ M.matrix $ v
@@ -661,7 +662,6 @@ coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
 coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerceSLV)
 
-
 -- Starting at the given bit; grab the specified (by the type) number of bits.
 extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
@@ -671,7 +671,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 			            return $ (SLV.spliceSLV i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 
-
+{-
 {-
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c)
 	=> sig a
@@ -696,9 +696,11 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 
 
 
+-}
+
 -- This is the funny one, needed for our application
-instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
-	type WIDTH (Sampled.Sampled m ix) = m
+--instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
+--	type WIDTH (Sampled.Sampled m ix) = m
 
 -- Move this to a better place.
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
@@ -715,7 +717,10 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 
 -------------------------------------------------------------------------------------
 
-factor :: forall a a1 a2 sig . (Rep a, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Size (WIDTH a1) 
+factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> sig (a1,a2)
+factor = coerce
+
+{-
 	   , Signal sig, Rep a2, Rep a1
 	   , StdLogic a, StdLogic a1, StdLogic a2) => sig a -> sig (a1,a2)
 factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
@@ -723,6 +728,7 @@ factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 		 )
 	 where vec :: sig (StdLogicVector (WIDTH a))
 	       vec = toStdLogicVector a
+-}
 
 -------------------------------------------------------------------------------------
 

@@ -32,6 +32,7 @@ import Control.Concurrent.MVar
 import Data.Char as Char 
 import System.IO
 import Control.Concurrent
+import Data.Word
 
 
 -- We include maybe, so we can simulate the concept
@@ -67,20 +68,20 @@ readFromFIFO (ShallowFIFO var) = do
 -- | readFileToFIFO returns after the file has been consumed
 -- by the FIFO.
 
-readFileToFIFO :: String -> ShallowFIFO Byte -> IO ()
+readFileToFIFO :: String -> ShallowFIFO Word8 -> IO ()
 readFileToFIFO file fifo = do
 	h <- openFile file ReadMode
 	hGetToFIFO h fifo
 
 
-writeFileFromFIFO :: String -> ShallowFIFO Byte -> IO ()
+writeFileFromFIFO :: String -> ShallowFIFO Word8 -> IO ()
 writeFileFromFIFO file fifo = do
 	h <- openFile file WriteMode
 	hSetBuffering h NoBuffering	
 	hPutFromFIFO h fifo
 
 -- | read a file into a fifo as bytes. Does not terminate.
-hGetToFIFO :: Handle -> ShallowFIFO Byte -> IO ()
+hGetToFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
 hGetToFIFO h fifo = do 
     b <- hIsEOF h
     if b then hClose h else do
@@ -91,12 +92,12 @@ hGetToFIFO h fifo = do
 	putFIFOContents fifo [Nothing]
 	hGetToFIFO h fifo
 	
-hPutFromFIFO :: Handle -> ShallowFIFO Byte -> IO ()
+hPutFromFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
 hPutFromFIFO h fifo = do
    forkIO $ do
 	xs <- getFIFOContents fifo
 	sequence_ 
-		[ do hPutChar h $ Char.chr (fromIntegral (fromByte x))
+		[ do hPutChar h $ Char.chr (fromIntegral x)
 		     hFlush h
 	        | Just x <- xs
 	        ]

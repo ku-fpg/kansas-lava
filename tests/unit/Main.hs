@@ -84,13 +84,14 @@ tests test = do
         let t :: (Eq a, Show a, Rep a) =>
                  String -> Gen a -> IO ()
             t str arb = testOpsEq test str arb
-
+{-
         t "StdLogicVector/X1" (arbitrary :: Gen (StdLogicVector X1))
         t "StdLogicVector/X2" (arbitrary :: Gen (StdLogicVector X2))
         t "StdLogicVector/X3" (arbitrary :: Gen (StdLogicVector X3))
         t "StdLogicVector/X4" (arbitrary :: Gen (StdLogicVector X4))
         t "StdLogicVector/X8" (arbitrary :: Gen (StdLogicVector X8))
         t "StdLogicVector/X32" (arbitrary :: Gen (StdLogicVector X32))
+-}
 
         -- Just the Ord Stuff
         let t :: (Show a, Ord a, Rep a) => String -> Gen a -> IO ()
@@ -234,9 +235,9 @@ allBounded :: (Enum w, Bounded w) => [w]
 allBounded = [minBound..maxBound]
 -------------------------------------------------------------------------------------------------
 testMux :: forall a .
-        (Size (ADD (WIDTH a) (WIDTH a)),
-         Enum (ADD (WIDTH a) (WIDTH a)),
-         Eq a, Show a, Rep a) => TestSeq -> String -> Gen (Bool,a,a) -> IO ()
+--        (Size (ADD (WIDTH a) (WIDTH a)),
+--         Enum (ADD (WIDTH a) (WIDTH a)),
+        (Eq a, Show a, Rep a) => TestSeq -> String -> Gen (Bool,a,a) -> IO ()
 testMux (TestSeq test toList) nm gen = do
         let (gate,us0,us1) = unzip3 $ toList gen
         let thu = Thunk (mux2 :: Seq Bool -> (Seq a, Seq a) -> Seq a)
