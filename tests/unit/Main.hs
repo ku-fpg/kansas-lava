@@ -37,7 +37,7 @@ main = do
                       , genSim = True
 --                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
---                      , testOnly = return ["fifo"]
+                      , testOnly = return ["fifo/sz_4/U5"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }

@@ -47,7 +47,14 @@ genDecl (i,Entity nm outputs _)
 -}	
 -- General case
 genDecl (i,e@(Entity nm outputs _))
-	= [ NetDecl (sigName n i)
+	= [ case toStdLogicTy nTy of
+	      MatrixTy x (V y)
+	        -> MemDecl 
+	            (sigName n i)
+	            (sizedRange (V x))
+	            (sizedRange (V y))
+	      _ -> NetDecl 
+	            (sigName n i)
 	            (sizedRange nTy) 
 	            (case e of
 	                Entity (Prim "register") 

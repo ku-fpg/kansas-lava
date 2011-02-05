@@ -16,7 +16,7 @@ import Data.List
 import Data.Maybe as Maybe
 import Data.Reify.Graph (Unique)
 
-import Language.KansasLava.Netlist.Utils
+import Language.KansasLava.Netlist.Utils as Utils
 
 import Debug.Trace
 
@@ -29,7 +29,7 @@ genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
 
 -- Some entities never appear in output (because they are virtual)
-genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
+--genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
 
 -- You never actually write something that is zero width.
 genInst env i (Entity nm [(_,ty)] outs) | toStdLogicTy ty == V 0 = []
@@ -371,6 +371,7 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
 -- Clocked primitives
 --------------------------------------------------------------------------------
 
+{-
 genInst env i (Entity (Prim "delay") 
                 outs@[("o0",_)] 
                 (("i0",ty2,Port "o0" read_id):ins_reg)) 
@@ -394,6 +395,34 @@ genInst env i (Entity (Prim "delay")
                    Just (Entity (Prim "asyncRead") _ ins) -> Just ins
                    _ -> Nothing 
         async_ins = Maybe.fromJust async
+-}
+
+genInst env i (Entity (Prim "write") [ ("o0",ty) ]
+                                     [ ("clk_en",B,clk_en)
+                                     , ("clk",ClkTy,clk)
+                                     , ("rst",B,rst)
+                                     , ("wEn",B,wEn)
+                                     , ("wAddr",wAddrTy,wAddr)
+                                     , ("wData",wDataTy,wData)
+                                      ,("element_count",GenericTy,n)            -- ignored?
+                                      ]) =
+        [ ProcessDecl
+         [ ( Event (toStdLogicExpr B clk) PosEdge
+           , If (isHigh (toStdLogicExpr B clk_en))
+                (If (isHigh (toStdLogicExpr B wEn))
+                    (statements 
+                       [Assign (ExprIndex (sigName "o0" i ++ "_ram")
+                                          (to_integer 
+                                           $ Utils.unsigned 
+                                           $ toStdLogicExpr wAddrTy wAddr))
+                               (toStdLogicExpr wDataTy wData)
+                       ])
+                       Nothing)
+                Nothing
+           )
+         ]
+        ]                                              
+
 
 -- assumes single clock
 genInst env i (Entity (Prim "delay") outs@[("o0",ty)]    [ ("i0",tI,d)
@@ -495,6 +524,28 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
 
 -- For read, we find the pairing write, and call back for "RAM".
 -- This may produce multiple RAMs, if there are multiple reads.
+
+-- This will be called index later.
+
+genInst env i (Entity (Prim "asyncRead") 
+                outs@[("o0",ty)] 
+                [ ("i0",ty1@MatrixTy {},dr1)
+                , ("i1",ty2,dr2)
+                ]) =
+   case dr1 of
+     Port v n ->
+        [NetAssign  (sigName "o0" i)
+                    (ExprIndex (sigName v (fromIntegral n) ++ "_ram")
+                               (to_integer 
+                                 $ Utils.unsigned 
+                                 $ toStdLogicExpr ty2 dr2)
+                    )
+      ]
+     _ -> error "bad array as input to asyncRead"
+ where
+    MatrixTy x (V y) = toStdLogicTy ty1
+
+{-
 genInst env i (Entity (Prim "asyncRead") 
                 outs@[("o0",ty)] 
                 [ ("i0",ty1,Port "o0" read_id)
@@ -506,6 +557,7 @@ genInst env i (Entity (Prim "asyncRead")
                                                         , ("rAddr",ty2,dr2)
                                                         ]))
      o -> error ("found a read without a write in code generator " ++ show (i,read_id,o))
+-}
 
 --------------------------------------------------------------------------------
 

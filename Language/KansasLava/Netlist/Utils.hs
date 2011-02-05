@@ -123,13 +123,16 @@ toStdLogicVectorExpr ty dr =
 -}
 
 -- Turn a Kansas Lava type into its std_logic[_vector] type (in KL format)
+-- There are three possible results (V n, B, MatrixTy n (V m))
 -- Note this function does not have an inverse.
 toStdLogicTy :: Type -> Type
-toStdLogicTy B     = B
-toStdLogicTy ClkTy = B
-toStdLogicTy (V n) = V n
-toStdLogicTy GenericTy = GenericTy
-toStdLogicTy ty    = V (fromIntegral size)
+toStdLogicTy B               = B
+toStdLogicTy ClkTy           = B
+toStdLogicTy (V n)           = V n
+toStdLogicTy GenericTy       = GenericTy
+toStdLogicTy (MatrixTy i ty) = MatrixTy i (V $ fromIntegral size)
+  where size = typeWidth ty
+toStdLogicTy ty              = V $ fromIntegral size
   where size = typeWidth ty
 --
 
@@ -145,6 +148,7 @@ sizedRange ty = case toStdLogicTy ty of
 		  V n -> Just $ Range high low
                     where high = ExprLit Nothing (ExprNum (fromIntegral n - 1))
                           low = ExprLit Nothing (ExprNum 0)
+                  MatrixTy _ _ -> error "sizedRange: does not support matrix types"
 
 -- like sizedRange, but allowing 2^n elements (for building memories)
 memRange :: Type -> Maybe Range
