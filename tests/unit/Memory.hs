@@ -13,6 +13,8 @@ import Data.Sized.Signed
 import Data.Sized.Arith
 import Data.Sized.Ix
 
+import Data.List as List
+
 import Debug.Trace
 
 tests :: TestSeq -> IO ()
@@ -50,9 +52,13 @@ tests test = do
         t "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
-{- ghci keeps getting killed during these, Out Of Memory maybe?
-        t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X16,S10),X16)))
--}
+
+        -- test ROM
+        
+        let t str arb = testRomMemory test str arb
+        
+        t "X4xU5" (dubSeq (arbitrary :: Gen (X4,X5))) 
+
 
 testAsyncMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testAsyncMemory (TestSeq test toList) tyName ws = do
@@ -72,7 +78,7 @@ testAsyncMemory (TestSeq test toList) tyName ws = do
                     | (i,r) <- zip [1..(length writes-1)] reads
 
                     ]
-        test ("async-memory/" ++ tyName) (length writes) thu res
+        test ("memory/async/" ++ tyName) (length writes) thu res
 
 testSyncMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testSyncMemory (TestSeq test toList) tyName ws = do
@@ -92,7 +98,7 @@ testSyncMemory (TestSeq test toList) tyName ws = do
                      ]
                     | (i,r) <- zip [1..(length writes-1)] reads
                     ]
-        test ("sync-memory/" ++ tyName) (length writes) thu res
+        test ("memory/sync/" ++ tyName) (length writes) thu res
 
 
 testMatrixMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
@@ -118,3 +124,25 @@ testMatrixMemory (TestSeq test toList) tyName ws = do
         test ("memory/matrix/" ++ tyName) (length writes) thu (pack res)
         return ()
 
+testRomMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (Column w1), Size (Row w1)) => TestSeq -> String -> Gen (w1,w2) -> IO ()
+testRomMemory (TestSeq test toList) tyName ws = do
+        let (addr,vals) = unzip $ toList ws
+
+        let m :: Matrix w1 w2
+            m = matrix $ take (size (error "" :: w1)) (cycle $ List.nub vals)
+
+        print $ take 10 addr
+        print $ take 10 vals
+        print $ m
+
+        let mem = funMap (\ a -> return (m M.! a)) :: Seq w1 -> Seq w2
+
+        let thu = Thunk mem
+                $ \ mem -> mem (toSeq addr)
+
+        let res :: Seq w2
+            res = toSeq [ m M.! a | a <- addr ]
+            
+        test ("memory/async/rom/" ++ tyName) (length addr) thu res
+
+        print ()
