@@ -27,6 +27,7 @@ genInst' env i e =
 
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
+genInst env i en | trace (show ("genInst",en)) False = undefined
 
 -- Some entities never appear in output (because they are virtual)
 --genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
@@ -165,6 +166,18 @@ genInst env i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)]
 
 genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
+		  [("i0", GenericTy, Generic ix),
+		   ("i1",eleTy,input)]) =
+	[ NetAssign (sigName "o0" i)
+                (case eleTy of
+                    -- Not sure about way this works over two different types.
+		    TupleTy tys -> prodSlices input tys !! (fromIntegral ix)
+		    other -> error $ show ("genInst/index",other)
+		)
+	]
+
+genInst env i (Entity (Prim "index")
+		  [("o0",outTy)]
 		  [("i0", ixTy, ix),
 		   ("i1",eleTy,input)]) =
 	[ NetAssign (sigName "o0" i)
@@ -180,6 +193,7 @@ genInst env i (Entity (Prim "index")
 		MatrixTy sz eleTy -> take sz $ repeat eleTy
 		TupleTy tys -> tys
 		other -> error $ show ("genInst/index",other)
+
 
 {-
 genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing = 
@@ -441,7 +455,7 @@ genInst env i (Entity (Prim "write") [ ("o0",ty) ]
                                      , ("wEn",B,wEn)
                                      , ("wAddr",wAddrTy,wAddr)
                                      , ("wData",wDataTy,wData)
-                                      ,("element_count",GenericTy,n)            -- ignored?
+                                      ,("element_count",GenericTy,n)            -- now ignored?
                                       ]) =
         [ ProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
