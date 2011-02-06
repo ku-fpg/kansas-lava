@@ -44,7 +44,9 @@ writeVhdlCircuit mods nm file cir = do
 -- because arguments that are of type MatrixTy are now supported.
 
 preprocessVhdlCircuit :: Circuit -> Circuit 
-preprocessVhdlCircuit cir = res -- trace (show ("preprocessVhdlCircuit",res)) res
+preprocessVhdlCircuit cir = 
+--        trace (show ("preprocessVhdlCircuit",res)) 
+        res
     where
         Circuit nodes srcs sinks = cir
         res = Circuit nodes' srcs2 sinks2
@@ -137,9 +139,11 @@ preprocessVhdlCircuit cir = res -- trace (show ("preprocessVhdlCircuit",res)) re
         fixUp (i,Entity e ins outs) = (i,
                 Entity e ins
                          [ (o,t,case d of
-                                 Pad o2 -> case [ u | (u,(o3,_)) <- extras1, o2 == o3 ] of
+                                 Pad o2@(OVar _ nm)
+                                     -> case [ u | (u,(o3,_)) <- extras1, o2 == o3 ] of
                                              [u] -> Port "o0" u
-                                             []  -> Pad o2
+                                             []  -> case [ i | (OVar i nm',_) <- srcs2, nm == nm' ] of
+                                                      [i] -> Pad (OVar i nm)
                                  other -> other
                                  ) | (o,t,d) <- outs ])
                 
