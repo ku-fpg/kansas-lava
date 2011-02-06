@@ -29,15 +29,17 @@ import Types
 import Report hiding (main)
 import Utils
 
-import qualified FIFO
+import qualified Matrix
 import qualified Memory
+import qualified FIFO
+
 
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
 --                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
-                      , testOnly = return ["fifo/sz_4/U5"]
+                      , testOnly = return ["memory/async/rom/"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }
@@ -52,9 +54,13 @@ main = do
                            (take (testData opt) . genToRandom)
 
         -- The different tests to run (from different modules)
-        tests test
-        Memory.tests    test        
-        FIFO.tests test
+        sequence_ [ t test
+                  | t <- [ tests
+                         , Matrix.tests
+                         , Memory.tests
+                         , FIFO.tests 
+                         ]
+                  ]
 
         -- If we didn't generate simulations, make a report for the shallow results.
         if genSim opt

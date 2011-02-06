@@ -43,6 +43,7 @@ import Language.KansasLava.Netlist.Sync
 --   class.  If the circuit type is a function, the function arguments will be
 --   exposed as input ports, and the result will be exposed as an output port
 --   (or ports, if it is a compound type).
+{-
 netlistCircuit' :: (Ports o) =>
 --               [CircuitOptions] -- ^ Options for controlling the observable-sharing reification.
               String         -- ^ The name of the generated entity.
@@ -51,6 +52,7 @@ netlistCircuit' :: (Ports o) =>
 netlistCircuit' name circuit = do
   rc <- reifyCircuit {- ++ [DebugReify] -} circuit
   netlistCircuit name rc
+-}
 
 -- This interface is used by the probe tools.
 netlistCircuit :: String         -- ^ The name of the generated entity.
@@ -61,12 +63,24 @@ netlistCircuit name circuit = do
 
   let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
 	         -- need size info for each input, to declare length of std_logic_vector
-  let inports = loadEnable ++ [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort srcs]
+  let inports = [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort srcs
+                                     , case toStdLogicTy ty of
+                                           MatrixTy {} -> error "can not have a matrix as an in argument"
+                                           _ -> True 
+                 ] 
                  -- need size info for each output, to declare length of std_logic_vector
-  let outports = [ (nm,sizedRange ty) | (OVar _ nm,ty,_) <- sort sinks]
+  let outports = [ (nm,sizedRange ty) | (OVar _ nm,ty,_) <- sort sinks 
+                                      , case toStdLogicTy ty of
+                                           MatrixTy {} -> error "can not have a matrix as an out argument"
+                                           _ -> True 
+                 ]
 
-  let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sort sinks ]
-
+  let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sort sinks
+                                                   , case toStdLogicTy ty of
+                                                        MatrixTy {} -> error "can not have a matrix as an out argument"
+                                                        _ -> True 
+               ] 
+               
   let env = M.fromList nodes 
 
   let mod = Module name inports outports []
@@ -75,6 +89,7 @@ netlistCircuit name circuit = do
 --		genSync nodes ++
 		 finals)
   return mod
+
 
 
 ----------------------------------------------------------------------------------------------

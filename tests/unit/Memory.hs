@@ -57,7 +57,8 @@ tests test = do
         
         let t str arb = testRomMemory test str arb
         
-        t "X4xU5" (dubSeq (arbitrary :: Gen (X4,X5))) 
+        t "X4xU5" (dubSeq (arbitrary :: Gen (X4,U5))) 
+        t "X4xU8" (dubSeq (arbitrary :: Gen (X4,U8))) 
 
 
 testAsyncMemory :: forall w1 w2 . (Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()

@@ -37,6 +37,9 @@ module Language.KansasLava.Types (
         , Trace(..)
         -- * Circuit
         , Circuit(..)
+        , visitEntities
+        , mapEntities
+        , allocEntities
         , Signature(..)
         , circuitSignature
         -- *Witness
@@ -70,7 +73,9 @@ data Type
         | ClkDomTy      -- ^ The clock domain type, which has a clock, a clock enable,
                         -- and an hybrid asyncronized/syncronized reset.
 
-        | GenericTy     -- ^ generics in VHDL, right now just Integer
+        | GenericTy     -- ^ generics in VHDL, argument must be integer
+
+        | RomTy Int     -- ^ a constant array of values.
 
         | TupleTy [Type]
                         -- ^ Tuple, represented as a larger std_logic_vector
@@ -112,6 +117,7 @@ instance Show Type where
         show ClkTy      = "Clk"
         show ClkDomTy   = "ClkDom"
         show GenericTy  = "G"
+        show (RomTy i)  = show i ++ "R"
         show (S i)      = show i ++ "S"
         show (U i)      = show i ++ "U"
         show (V i)      = show i ++ "V"
@@ -126,7 +132,7 @@ instance Read Type where
         where hasSizePrefix = isJust . parseSize
               parseSize str = let (ds,cs) = span isDigit str
                               in case cs of
-                                   (c:rest) | (not $ null ds) && c `elem` ['U', 'S', 'V']
+                                   (c:rest) | (not $ null ds) && c `elem` ['U', 'S', 'V','R']
                                             -> Just ((con c) (read ds :: Int), rest)
                                    ('[':rest) | (not $ null ds) ->
                                         case [ (MatrixTy (read ds :: Int) ty,rest')
@@ -139,6 +145,7 @@ instance Read Type where
                         'U' -> U
                         'S' -> S
                         'V' -> V
+                        'R' -> RomTy
     readsPrec _ xs | "Sampled" `isPrefixOf` xs = [(SampledTy (read m :: Int) (read n :: Int),rest)]
         where ("Sampled ",r1) = span (not . isDigit) xs
               (m,' ':r2) = span isDigit r1
@@ -210,6 +217,7 @@ instance Show Id where
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
     show (BlackBox bx) = "<bb>"
+    show (Comment' xs) = "{- " ++ show xs ++ " -}"
 
 -- | The type indirection to to allow the Eq/Ord to be provided without
 -- crashing the Dynamic Eq/Ord space.
@@ -267,6 +275,7 @@ data Driver s = Port String s   -- ^ a specific port on the entity
               | ClkDom String   -- ^ the clock domain
               | Lit RepValue    -- ^ A representable Value (including unknowns, aka X in VHDL)
               | Generic Integer -- ^ A generic argument, always fully defined
+              | Lits [RepValue] -- ^ A list of values, typically constituting a ROM initialization.
               | Error String    -- ^ A call to err, in Datatype format for reification purposes
               deriving (Eq, Ord)
 
@@ -275,6 +284,7 @@ instance Show i => Show (Driver i) where
   show (Pad v) = show v
   show (ClkDom d) = "@" ++ d
   show (Lit x) = "'" ++ show x ++ "'"
+  show (Lits xs) = (show $ take 16 xs) ++ "..."
   show (Generic x) = show x
   show (Error msg) = show $ "Error: " ++ msg
 --  show (Env' env) = "<env>"
@@ -285,6 +295,7 @@ instance T.Traversable Driver where
   traverse _ (ClkDom d)    = pure $ ClkDom d
 --  traverse _ (PathPad v)   = pure $ PathPad v
   traverse _ (Lit i)       = pure $ Lit i
+  traverse _ (Lits vals)   = pure $ Lits vals
   traverse _ (Generic i)   = pure $ Generic i
   traverse _ (Error s)     = pure $ Error s
 --  traverse _ (Env' env)     = pure $ Env' env
@@ -295,6 +306,7 @@ instance F.Foldable Driver where
   foldMap _ (ClkDom _)    = mempty
 --  foldMap _ (PathPad _)   = mempty
   foldMap _ (Lit _)       = mempty
+  foldMap _ (Lits _)       = mempty
   foldMap _ (Generic _)       = mempty
   foldMap _ (Error s)     = mempty
 
@@ -304,6 +316,7 @@ instance Functor Driver where
     fmap _ (ClkDom d)    = ClkDom d
 --    fmap _ (PathPad v)   = PathPad v
     fmap _ (Lit i)       = Lit i
+    fmap _ (Lits vals)   = Lits vals
     fmap _ (Generic i)   = Generic i
     fmap _ (Error s)     = Error s
 
@@ -527,6 +540,26 @@ instance Show Circuit where
                 ++ circuit
                 ++ bar
 
+
+visitEntities :: Circuit -> (Unique -> Entity Unique -> Maybe a) -> [a]
+visitEntities cir fn =
+        [ a
+        | (u,m) <- theCircuit cir
+        , Just a <- [fn u m]
+        ]
+
+mapEntities :: Circuit -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> Circuit
+mapEntities cir fn = cir { theCircuit =
+                                [ (u,a)
+                                | (u,m) <- theCircuit cir
+                                , Just a <- [fn u m]
+                                ] }
+
+
+allocEntities :: Circuit -> [Unique]
+allocEntities cir = [ highest + i | i <- [1..]]
+   where
+        highest = maximum (0 : (visitEntities cir $ \ u _ -> return u))
 
 -- | A 'Signature' is the structure-level type of a Circuit.
 data Signature = Signature

@@ -225,26 +225,6 @@ reifyCircuit circuit = do
 
 
 
--- TODO: move these somewhere better
-
-visitEntities :: Circuit -> (Unique -> Entity Unique -> Maybe a) -> [a]
-visitEntities cir fn =
-        [ a
-        | (u,m) <- theCircuit cir
-        , Just a <- [fn u m]
-        ]
-
-mapEntities :: Circuit -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> Circuit
-mapEntities cir fn = cir { theCircuit =
-                                [ (u,a)
-                                | (u,m) <- theCircuit cir
-                                , Just a <- [fn u m]
-                                ] }
-
-allocEntities :: Circuit -> [Unique]
-allocEntities cir = [ highest + i | i <- [1..]]
-   where
-        highest = maximum (0 : (visitEntities cir $ \ u _ -> return u))
 
 
 wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]

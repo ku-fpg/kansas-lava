@@ -69,7 +69,14 @@ genInst env i (Entity (TraceVal nms _) ins outs) =
 genInst env i (Entity (BlackBox box) ins outs) =
   genInst env i (Entity (Prim "id") ins outs)
 
-
+genInst env i (Entity (Comment' comments) [] []) =
+        [ CommentDecl (unlines comments)
+        ] 
+genInst env i (Entity (Comment' comments) ins@[_] outs@[_]) =
+        [ CommentDecl (unlines comments)
+        ] ++ 
+	genInst env i (Entity (Prim "id") ins outs) 
+		
 genInst env i (Entity (Prim "pair") outputs inputs)
 	= genInst env i (Entity (Prim "concat") outputs inputs)
 genInst env i (Entity (Prim "triple") outputs inputs)
@@ -105,6 +112,18 @@ genInst env i (Entity (Label label) [(vO,_)] [(vI,ty,d)] ) =
 
 -- Concat and index (join, project)
 
+genInst env i (Entity (Prim "concat") [("o0",ty)] ins)
+        | case toStdLogicTy ty of
+            MatrixTy {} -> True
+            _ -> False
+        =
+        [ MemAssign 
+                (sigName ("o0") i) 
+                (ExprLit Nothing $ ExprNum $ j)
+                (toStdLogicExpr tyIn dr)
+    | (j,(_,tyIn,dr)) <- zip [0..] ins
+    ]
+
 -- hack to handle bit to vector with singleton bools.
 genInst env i (Entity (Prim "concat") outs ins@[(n,B,_)]) =
         genInst env i (Entity (Prim "concat") 
@@ -120,12 +139,30 @@ genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
 genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", GenericTy, (Generic idx)),
-		   ("i1",ty,input)]
-	   ) =
-    [ NetAssign (sigName "o0" i) (prodSlices input tys !! (fromIntegral idx))]
-  where tys = case ty of
-		MatrixTy sz eleTy -> take sz $ repeat eleTy
-		TupleTy tys -> tys
+		   ("i1",ty@MatrixTy {},dr)
+		  ]) = 
+    [ NetAssign (sigName "o0" i) 
+                (ExprIndex varname
+                  (ExprLit Nothing
+                   $ ExprNum
+                   $ idx))]
+   where                  
+           -- we assume the expression is a var name (no constants here, initiaized at startup instead).
+           (ExprVar varname) =  toStdLogicExpr ty dr
+           
+genInst env i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)]) 
+   | length outs == n =
+    [ NetAssign (sigName ("o" ++ show j) i) 
+                (ExprIndex varname
+                  (ExprLit Nothing
+                   $ ExprNum
+                   $ j))
+    | (j,out) <- zip [0..] outs
+    ]
+   where                  
+           -- we assume the expression is a var name (no constants here, initiaized at startup instead).
+           (ExprVar varname) = toStdLogicExpr ty dr           
+
 genInst env i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", ixTy, ix),
@@ -411,7 +448,7 @@ genInst env i (Entity (Prim "write") [ ("o0",ty) ]
            , If (isHigh (toStdLogicExpr B clk_en))
                 (If (isHigh (toStdLogicExpr B wEn))
                     (statements 
-                       [Assign (ExprIndex (sigName "o0" i ++ "_ram")
+                       [Assign (ExprIndex (sigName "o0" i)
                                           (to_integer 
                                            $ Utils.unsigned 
                                            $ toStdLogicExpr wAddrTy wAddr))
@@ -535,7 +572,7 @@ genInst env i (Entity (Prim "asyncRead")
    case dr1 of
      Port v n ->
         [NetAssign  (sigName "o0" i)
-                    (ExprIndex (sigName v (fromIntegral n) ++ "_ram")
+                    (ExprIndex (sigName v (fromIntegral n))
                                (to_integer 
                                  $ Utils.unsigned 
                                  $ toStdLogicExpr ty2 dr2)
@@ -558,6 +595,10 @@ genInst env i (Entity (Prim "asyncRead")
                                                         ]))
      o -> error ("found a read without a write in code generator " ++ show (i,read_id,o))
 -}
+
+
+genInst env i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) = 
+        [ CommentDecl (sigName "o0" i ++ " is a constant array") ]
 
 --------------------------------------------------------------------------------
 

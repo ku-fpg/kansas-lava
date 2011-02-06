@@ -185,47 +185,35 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 				   Just v -> optX (fn v))
 				     (D $ Port ("o0")
 					$ E
-					$ Entity (Function tab')
+					$ Entity (Prim "asyncRead")
 					         [("o0",tB)]
-						 [("i0",tA,ae)]
+						 [ ("i0",tMB,rom)
+						 , ("i1",tA,ae)
+						 ]
 				     )
 	where tA = repType (Witness :: Witness a)
 	      tB = repType (Witness :: Witness b)
+              tMB = MatrixTy (Prelude.length all_a_bitRep) tB
+
+              undefB = unknownRepValue (Witness :: Witness b)
+
 
 	      all_a_bitRep :: [RepValue]
 	      all_a_bitRep = allReps (Witness :: Witness a)
 
-	      tab' :: [(RepValue,RepValue)]
-	      tab' = [ ( w_a
-		      , w_b
-		      )
+              rom = Port "o0" $ E $ Entity (Prim "rom") [("o0",tMB)] [("defs",RomTy (Prelude.length all_a_bitRep),Lits lits)]
+
+              -- assumes in order table generation
+	      lits :: [RepValue]
+	      lits = [ case unX (fromRep w_a) of
+				 Nothing -> undefB
+				 Just a -> case fn a of
+			                    Nothing -> undefB
+			                    Just b -> toRep (pureX b)
 		    | w_a <- all_a_bitRep
-		    , a <- case unX (fromRep w_a) of
-				 Nothing -> []
-				 Just a -> [a]
-		    , b <- case fn a of
-			     Nothing -> []
-			     Just b -> [b]
-		    , let w_b = toRep (optX $ Just b)
 		    ]
 
-
-	      tab :: [(Integer,String,Integer,String)]
-	      tab = [ ( fromRepToInteger w_a
-		      , showRep (Witness :: Witness a) $ optX $ Just a
-		      , fromRepToInteger w_b
-		      , showRep (Witness :: Witness b) $ optX $ Just b
-		      )
-		    | w_a <- all_a_bitRep
-		    , a <- case unX $ fromRep w_a of
-				 Nothing -> []
-				 Just a -> [a]
-		    , b <- case fn a of
-			     Nothing -> []
-			     Just b -> [b]
-		    , let w_b = toRep (optX $ Just b)
-		    ]
-
+-- TODO: move this to somewhere else
 repValueToInteger :: RepValue -> Integer
 repValueToInteger (RepValue []) = 0
 repValueToInteger (RepValue (WireVal True:xs)) = 1 + repValueToInteger (RepValue xs) * 2

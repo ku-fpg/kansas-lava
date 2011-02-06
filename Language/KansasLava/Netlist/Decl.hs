@@ -53,6 +53,13 @@ genDecl (i,e@(Entity nm outputs _))
 	            (sigName n i)
 	            (sizedRange (V x))
 	            (sizedRange (V y))
+                    (case e of
+                        Entity (Prim "rom")
+                               [("o0",ty)]
+                               [("defs",RomTy n,Lits lits)]
+                          -> Just $ map (toTypedExpr (V y)) lits
+                        _ -> Nothing
+                    )
 	      _ -> NetDecl 
 	            (sigName n i)
 	            (sizedRange nTy) 
