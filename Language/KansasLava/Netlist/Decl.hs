@@ -57,7 +57,8 @@ genDecl (i,e@(Entity nm outputs _))
                         Entity (Prim "rom")
                                [("o0",ty)]
                                [("defs",RomTy n,Lits lits)]
-                          -> Just $ map (toTypedExpr (V y)) lits
+                          -- This is reversed because we defined from (n-1) downto 0
+                          -> Just $ reverse $ map (toTypedExpr (V y)) lits
                         _ -> Nothing
                     )
 	      _ -> NetDecl 
