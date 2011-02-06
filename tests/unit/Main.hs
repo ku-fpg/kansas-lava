@@ -37,9 +37,8 @@ import qualified FIFO
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
---                      , runSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
-                      , testOnly = return ["memory/async/rom/"]
+--                      , testOnly = return ["memory/async/rom/"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }
