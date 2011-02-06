@@ -27,7 +27,9 @@ genInst' env i e =
 
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
-genInst env i en | trace (show ("genInst",en)) False = undefined
+
+-- (Commented out) debugging hook
+-- genInst env i en | trace (show ("genInst",en)) False = undefined
 
 -- Some entities never appear in output (because they are virtual)
 --genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
