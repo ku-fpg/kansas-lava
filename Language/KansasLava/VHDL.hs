@@ -44,7 +44,7 @@ writeVhdlCircuit mods nm file cir = do
 -- because arguments that are of type MatrixTy are now supported.
 
 preprocessVhdlCircuit :: Circuit -> Circuit 
-preprocessVhdlCircuit cir = trace (show ("preprocessVhdlCircuit",res)) res
+preprocessVhdlCircuit cir = res -- trace (show ("preprocessVhdlCircuit",res)) res
     where
         Circuit nodes srcs sinks = cir
         res = Circuit nodes' srcs2 sinks2

@@ -133,10 +133,6 @@ testRomMemory (TestSeq test toList) tyName ws = do
         let m :: Matrix w1 w2
             m = matrix $ take (size (error "" :: w1)) (cycle $ List.nub vals)
 
-        print $ take 10 addr
-        print $ take 10 vals
-        print $ m
-
         let mem = funMap (\ a -> return (m M.! a)) :: Seq w1 -> Seq w2
 
         let thu = Thunk mem
@@ -146,5 +142,4 @@ testRomMemory (TestSeq test toList) tyName ws = do
             res = toSeq [ m M.! a | a <- addr ]
             
         test ("memory/async/rom/" ++ tyName) (length addr) thu res
-
-        print ()
+        return ()
