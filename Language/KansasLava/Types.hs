@@ -165,6 +165,9 @@ instance Read Type where
 -- that arguments can preserve order through transformation.
 
 data OVar = OVar Int String             -- The # is used purely for sorting order.
+                                        -- Idea: there can be several with the same #;
+                                        -- its about ordering.
+                                
         deriving (Eq, Ord)
 
 instance Show OVar where
