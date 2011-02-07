@@ -162,6 +162,20 @@ genInst env i (Entity (Prim "index")
    where                  
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
            (ExprVar varname) =  toStdLogicExpr ty dr
+
+genInst env i (Entity (Prim "index")
+		  [("o0",outTy)]
+		  [("i0",  ixTy, ix),
+		   ("i1",ty@MatrixTy {},dr)
+		  ]) = 
+    [ NetAssign (sigName "o0" i) 
+                (ExprIndex varname
+                  (toMemIndex ixTy ix))
+    ]
+   where                  
+           -- we assume the expression is a var name (no constants here, initiaized at startup instead).
+           (ExprVar varname) =  toStdLogicExpr ty dr
+
            
 genInst env i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)]) 
    | length outs == n =
@@ -322,7 +336,13 @@ genInst env i (Entity n@(Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   (MatrixTy n B,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		[ NetAssign  (sigName "o0" i) $ ExprConcat [ memToStdLogic B 
+                                                                (ExprIndex (case (toStdLogicExpr t_in w) of
+                                                                              ExprVar varname -> varname)
+                                                                             (ExprLit Nothing $ ExprNum $ fromIntegral j)
+                                                                 )
+                                                            | j <- reverse [0..(m-1)]
+                                                            ] 
 		]
 	   (B,V 1) ->
 		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
@@ -709,13 +729,25 @@ mkSpecialBinary
 mkSpecialBinary coerceR coerceF ops =
        [( Prim lavaName
 	, NetlistOp 2 $ \ fTy [(lty,l),(rty,r)] ->
-		coerceR fTy (ExprBinary netListOp
+                case (l,r) of
+                   (Lit ll,Lit rl)
+                     -> let il = fromRepToInteger ll
+                            ir = fromRepToInteger rl
+                        in case (netListOp,lty,rty) of
+                             (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
+                             other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
+                   _ -> coerceR fTy (ExprBinary netListOp
 					(coerceF lty l)
 					(coerceF rty r))
 
 	)
-         | (lavaName,netListOp) <- ops
-         ]
+       | (lavaName,netListOp) <- ops
+       ]
+  where
+          -- re-sign a number, please 
+          resign sz n = if n >= 2^(sz-1) then n - 2^sz else n
+          mkBool True  = ExprLit Nothing (ExprBit T)
+          mkBool False = ExprLit Nothing (ExprBit F)
 
 mkSpecialShifts ops =
     [(Prim lavaName
