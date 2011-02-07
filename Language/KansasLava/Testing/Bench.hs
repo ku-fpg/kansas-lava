@@ -5,6 +5,8 @@ module Language.KansasLava.Testing.Bench (mkTestbench) where
 import Language.KansasLava hiding (ports)
 import Language.KansasLava.Netlist.Utils
 import Language.KansasLava.Testing.Probes
+import Language.KansasLava.VHDL
+
 import Data.List(mapAccumL,sortBy, elemIndex,find,sort)
 import Data.Bits
 
@@ -20,9 +22,9 @@ mkTestbench name path circuit = do
     writeVhdlCircuit ["work.lava.all","work.all"] name (path </> name <.> "vhd") circuit
 
     writeFile (path </> name ++ "_tb.vhd")
-            $ entity name ++ architecture name circuit
+            $ entity name ++ architecture name (preprocessVhdlCircuit circuit)
 
-    writeFile (path </> name <.> "do") $ doscript name circuit
+    writeFile (path </> name <.> "do") $ doscript name 
 
 entity :: String -> String
 entity name = unlines
@@ -55,10 +57,10 @@ dut :: String -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
 dut name inputs outputs sequentials = unlines $ [
     "dut: entity work." ++ name,
     "port map ("] ++
-    ["\t" ++ c ++ " => " ++ case n of
-				(-1) -> "'1',"
-				(-2) -> "clk,"
-				(-3) -> "rst,"
+    ["\t" ++ c ++ " => " ++ case c of
+				"clk_en" -> "'1',"
+				"clk"    -> "clk,"
+				"rst"    -> "rst,"
 	 	| (OVar n c,_) <- sequentials] ++
     (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
     [");"]
@@ -118,9 +120,9 @@ stimulus name inputs outputs = unlines $ [
 -- Manipulating ports
 ports :: Circuit -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports reified = (sort inputs, sort outputs, sort clocks)
-    where inputs  = [(nm,ty) | (nm@(OVar n _),ty) <- theSrcs reified, n >= 0 ]
+    where inputs  = [(nm,ty) | (nm@(OVar n m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
           outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
-          clocks  = [(nm,ty) | (nm@(OVar n _),ty) <- theSrcs reified, n < 0 ]
+          clocks  = [(nm,ty) | (nm@(OVar n m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
 portType :: [(a, Type)] -> [Char]
@@ -139,8 +141,8 @@ portAssigns inputs outputs = imap ++ omap
         (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]
 
 -- Modelsim 'do' script
-doscript :: String -> Circuit -> String
-doscript name circuit = unlines $
+doscript :: String -> String
+doscript name = unlines $
         ["vlib " ++ workDir
 	,"vcom -work mywork Lava.vhd"
         ,"if [catch {vcom -work " ++ workDir ++ " " ++ name ++ ".vhd} einfo] {"

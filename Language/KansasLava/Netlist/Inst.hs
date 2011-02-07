@@ -27,7 +27,6 @@ genInst' env i e =
 
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
-
 -- (Commented out) debugging hook
 -- genInst env i en | trace (show ("genInst",en)) False = undefined
 
@@ -105,13 +104,24 @@ genInst env i (Entity (Prim "thd3") outputs inputs)
 
 -- identity
 
-genInst env i (Entity (Prim "id") [(vO,_)] [(vI,ty,d)] ) =
-	 	[ NetAssign (sigName vO i) $ toStdLogicExpr ty d ]
+genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)]) =
+        case toStdLogicTy tyO of
+           MatrixTy n (V m)
+             -- no need to coerce n[B], because both sides have the
+             -- same representation
+             -> [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum $ j)
+                        $ ExprIndex varname
+                                (ExprLit Nothing $ ExprNum $ j)
+                | j <- [0..(fromIntegral n - 1)]
+                ]
+           _ -> [  NetAssign (sigName vO i) $ toStdLogicExpr tyI d ]
+  where
+     -- we assume the expression is a var name for matrix types (no constants here)
+     (ExprVar varname) =  toStdLogicExpr tyI d
 
-genInst env i (Entity (Label label) [(vO,_)] [(vI,ty,d)] ) =
+genInst env i (Entity (Label label) [(vO,tyO)] [(vI,tyI,d)] ) =
 	 	[ CommentDecl label
-	        , NetAssign (sigName vO i) $ toStdLogicExpr ty d 
-	        ]
+	        ] ++ genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)])
 
 -- Concat and index (join, project)
 
@@ -123,7 +133,7 @@ genInst env i (Entity (Prim "concat") [("o0",ty)] ins)
         [ MemAssign 
                 (sigName ("o0") i) 
                 (ExprLit Nothing $ ExprNum $ j)
-                (toStdLogicExpr tyIn dr)
+                (stdLogicToMem tyIn $ toStdLogicExpr tyIn dr)
     | (j,(_,tyIn,dr)) <- zip [0..] ins
     ]
 
@@ -156,10 +166,9 @@ genInst env i (Entity (Prim "index")
 genInst env i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)]) 
    | length outs == n =
     [ NetAssign (sigName ("o" ++ show j) i) 
-                (ExprIndex varname
-                  (ExprLit Nothing
-                   $ ExprNum
-                   $ j))
+                (memToStdLogic inTy
+                  (ExprIndex varname
+                    (ExprLit Nothing $ ExprNum $ j)))
     | (j,out) <- zip [0..] outs
     ]
    where                  
