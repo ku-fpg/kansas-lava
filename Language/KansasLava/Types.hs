@@ -206,6 +206,13 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
     deriving (Eq, Ord)
 
 
+{-
+ - List of prims
+        id              :: 
+        index           :: M<n> -> ix -> n
+        proj            :: G<Int> -> 
+-}
+
 instance Show Id where
 --    show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
     show (Name pre nm) = pre ++ "::" ++ nm
