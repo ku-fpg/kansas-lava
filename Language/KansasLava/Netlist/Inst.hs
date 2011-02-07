@@ -466,7 +466,7 @@ genInst env i (Entity (Prim "write") [ ("o0",ty) ]
                     (statements 
                        [Assign (ExprIndex (sigName "o0" i)
                                           (toMemIndex wAddrTy wAddr))
-                               (toStdLogicExpr wDataTy wData)
+                               (stdLogicToMem wDataTy $ toStdLogicExpr wDataTy wData)
                        ])
                        Nothing)
                 Nothing
@@ -586,8 +586,9 @@ genInst env i (Entity (Prim "asyncRead")
    case dr1 of
      Port v n ->
         [NetAssign  (sigName "o0" i)
-                    (ExprIndex (sigName v (fromIntegral n))
-                               (toMemIndex ty2 dr2)
+                    (memToStdLogic ty $
+                       ExprIndex (sigName v (fromIntegral n))
+                                  (toMemIndex ty2 dr2)
                     )
       ]
      _ -> error "bad array as input to asyncRead"

@@ -178,6 +178,16 @@ zeros = ExprString "(others => '0')" -- HACK
 toMemIndex ty dr | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
 
+-- Both of these are hacks for memories, that do not use arrays of Bools.
+memToStdLogic :: Type -> Expr -> Expr
+memToStdLogic B e = ExprFunCall "lava_to_std_logic" [e]
+memToStdLogic _ e = e
+
+stdLogicToMem :: Type -> Expr -> Expr
+stdLogicToMem B e = ExprConcat [ExprLit Nothing $ ExprBitVector [],e]
+stdLogicToMem _ e = e
+
+
 ---------------------------------------------------------------------------------------------------
 -- Other utils
 

@@ -17,7 +17,7 @@ import Control.Monad(liftM)
 mkTestbench :: String -> FilePath -> Circuit -> IO ()
 mkTestbench name path circuit = do
     createDirectoryIfMissing True path
-    writeVhdlCircuit ["work.all"] name (path </> name <.> "vhd") circuit
+    writeVhdlCircuit ["work.lava.all","work.all"] name (path </> name <.> "vhd") circuit
 
     writeFile (path </> name ++ "_tb.vhd")
             $ entity name ++ architecture name circuit

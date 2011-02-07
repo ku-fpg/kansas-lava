@@ -1,6 +1,25 @@
 -- These are core Lava built-in functions Lava programs can rely on having
 -- Todo: Consider prepending lava_ to the names.
 
+-- These are core Lava built-in functions Lava programs can rely on having                                        
+-- Todo: Consider prepending lava_ to the names.                                                                  
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+package lava is
+  function lava_to_std_logic (i0 : std_logic_vector(0 downto 0)) return std_logic;
+end;
+
+package body lava is
+  -- This is because we store memories of booleans as vector(0 downto 0)
+  function lava_to_std_logic (i0 : std_logic_vector(0 downto 0)) return std_logic is
+  begin
+    return i0(0);
+  end;
+end lava;
+
 --------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
