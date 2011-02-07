@@ -68,6 +68,7 @@ fromIntegerToExpr t i =
 
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
+	-- NOTE: We use Integer here as a natural, and assume overflow
 	toTypedExpr t r = toTypedExpr t (fromRepToInteger r)
 
 
