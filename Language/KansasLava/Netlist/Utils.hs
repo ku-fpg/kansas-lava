@@ -175,6 +175,9 @@ isLow d = (ExprBinary Equals d (ExprLit Nothing (ExprBit F)))
 allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
 zeros = ExprString "(others => '0')" -- HACK
 
+toMemIndex ty dr | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
+toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
+
 ---------------------------------------------------------------------------------------------------
 -- Other utils
 
