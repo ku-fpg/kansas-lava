@@ -49,16 +49,21 @@ genDecl (i,Entity nm outputs _)
 genDecl (i,e@(Entity nm outputs _))
 	= [ case toStdLogicTy nTy of
 	      MatrixTy x (V y)
-	        -> MemDecl 
+	        -> let x' = head [ po2 | po2 <- iterate (*2) 1
+	                               , po2 >= x
+	                         ]
+	           in MemDecl 
 	            (sigName n i)
-	            (sizedRange (V x))
+	            (sizedRange (V x'))
 	            (sizedRange (V y))
                     (case e of
                         Entity (Prim "rom")
                                [("o0",ty)]
                                [("defs",RomTy n,Lits lits)]
                           -- This is reversed because we defined from (n-1) downto 0
-                          -> Just $ reverse $ map (toTypedExpr (V y)) lits
+                          -> Just $ reverse $ map (toTypedExpr (V y)) 
+                                            $ take x'
+                                            $ (lits ++ repeat (RepValue $ take y $ repeat $ WireVal False))
                         _ -> Nothing
                     )
 	      _ -> NetDecl 
