@@ -137,11 +137,8 @@ portAssigns inputs outputs = imap ++ omap
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (ty,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-                -- using reverse, because we want the left most argument to come last (when reading left-to-right, aka shallow)s
         (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- inputs]
-                -- removing reverse, because we only can have Seq <..> as a result,
-                -- and we manually create names in order that do not need reversed.
-        (_,omap) = mapAccumL (assign "output") 0 $ [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]
 
 -- Modelsim 'do' script
 doscript :: String -> String

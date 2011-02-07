@@ -65,7 +65,7 @@ preprocessVhdlCircuit cir =
                                      V n  -> [("",ty)]
                                      MatrixTy n (V m)
                                           -> let (MatrixTy _ inner) = ty
-                                             in [("_x" ++ show j,inner) | j <- [0..(n-1)]]
+                                             in reverse [("_x" ++ show j,inner) | j <- [0..(n-1)]]
                                      other -> error $ show ("srcs",other)
                          ]
 
@@ -112,7 +112,7 @@ preprocessVhdlCircuit cir =
                                      V n  -> [("",ty,dr)]
                                      MatrixTy n (V m)
                                           -> let (MatrixTy _ inner) = ty
-                                             in [ ("_x" ++ show j,inner,Port ("o" ++ show j) u) | j <- [0..(n-1)]]
+                                             in reverse [ ("_x" ++ show j,inner,Port ("o" ++ show j) u) | j <- [0..(n-1)]]
                                      other -> error $ show ("sinks",other)
                   ]
 
