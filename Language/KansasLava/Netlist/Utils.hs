@@ -176,6 +176,7 @@ allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
 zeros = ExprString "(others => '0')" -- HACK
 
 toMemIndex ty dr | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
+toMemIndex ty (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
 
 -- Both of these are hacks for memories, that do not use arrays of Bools.
