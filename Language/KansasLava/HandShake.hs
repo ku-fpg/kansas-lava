@@ -129,25 +129,24 @@ toHandShaken xs ready = toSeq (fn xs (fromSeq ready))
 		(_:rs)               -> fn (x:xs) rs -- not written yet
 
 
-fromHandShaken' :: forall a c . (Clock c, Rep a) => [Int] -> HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
-fromHandShaken' stutter (HandShaken sink) = res
-    where (back, res) = fromHandShaken  stutter (sink back)
+fromHandShaken' :: forall a c . (Clock c, Rep a) =>  HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
+fromHandShaken' (HandShaken sink) = res
+    where (back, res) = fromHandShaken  (sink back)
 
 
-fromHandShaken :: forall a c . (Clock c, Rep a) => [Int] -> CSeq c (Enabled a) -> (CSeq c Bool, [Maybe a])
-fromHandShaken stutter inp = (toSeq (map fst internal), map snd internal)
+fromHandShaken :: forall a c . (Clock c, Rep a) =>  CSeq c (Enabled a) -> (CSeq c Bool, [Maybe a])
+fromHandShaken inp = (toSeq (map fst internal), map snd internal)
    where
 	internal :: [(Bool,Maybe a)]
-	internal = fn stutter (fromSeq inp)
+	internal = fn (fromSeq inp)
 	
-	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
-	fn (0:ps) ~(x:xs) = (True,rep) : rest
+	fn :: [Maybe (Enabled a)] -> [(Bool,Maybe a)]
+	fn ~(x:xs) = (True,rep) : rest
 	   where
 		(rep,rest) = case x of
 			       Nothing       -> error "fromVariableHandshake: bad reply to ready status"
-			       Just Nothing  -> (Nothing,fn (0:ps) xs)
-			       Just (Just v) -> (Just v,fn ps xs)
-	fn (p:ps) ~(x:xs) = (False,Nothing) : fn (pred p:ps) xs
+			       Just Nothing  -> (Nothing,fn xs)
+			       Just (Just v) -> (Just v,fn xs)
 
 {-
 fromHandshake' :: forall a . (Rep a) => [Int] -> Handshake a -> [Maybe a]
@@ -184,7 +183,7 @@ shallowFifoToHandShaken fifo = do
 
 handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
 handShakeToShallowFifo fifo sink = do
-	putFIFOContents fifo (let (back,res) = fromHandShaken (repeat 0) $ sink back
+	putFIFOContents fifo (let (back,res) = fromHandShaken $ sink back
 	                      in res)
       	return ()
 
