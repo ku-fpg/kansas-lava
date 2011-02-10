@@ -66,9 +66,11 @@ remProbe :: ProbeName -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
 -- instances for Trace
--- instance Show Trace where
---    show (Trace c i o p) = unlines $ concat [[show c,"inputs"], printer i, ["outputs"], printer o, ["probes"], printer p]
---        where printer m = [show (k,TraceStream ty $ takeMaybe c val) | (k,TraceStream ty val) <- M.toList m]
+instance Show Trace where
+    show = serialize
+
+instance Read Trace where
+    readsPrec _ = deserialize
 
 -- two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
@@ -125,16 +127,16 @@ serialize (Trace c ins outs ps) = unlines
                                ++ ["PROBES"]
                                ++ showMap ps
     where showMap :: TraceMap -> [String]
-          showMap m = concat [[show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
+          showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
 
-deserialize :: String -> Trace
-deserialize str = Trace { len = c, inputs = ins, outputs = outs, probes = ps }
+deserialize :: String -> [(Trace,String)]
+deserialize str = [(Trace { len = c, inputs = ins, outputs = outs, probes = ps },unlines rest)]
     where (cstr:"INPUTS":ls) = lines str
           c = read cstr :: Maybe Int
           (ins,"OUTPUTS":r1) = readMap ls
           (outs,"PROBES":r2) = readMap r1
-          (ps,_) = readMap r2
+          (ps,rest) = readMap r2
 
 genShallow :: Trace -> [String]
 genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
@@ -168,7 +170,7 @@ writeToFile fp t = writeFile fp $ serialize t
 readFromFile :: FilePath -> IO Trace
 readFromFile fp = do
     str <- readFile fp
-    return $ deserialize str
+    return $ fst $ head $ deserialize str
 
 -- return true if running circuit with trace gives same outputs as that contained by the trace
 {-
@@ -211,15 +213,18 @@ showTraceStream c (TraceStream _ s) = [map toXBit $ reverse val | RepValue val <
 --           [(_,strm)] = M.toList (m :: TraceMap)
 
 readMap :: [String] -> (TraceMap, [String])
-readMap ls = (go $ takeWhile cond ls, rest)
+readMap ls = (go thismap, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
-          rest = dropWhile cond ls
-          go (k:ty:strm:r) = M.union (M.singleton (read k) (TraceStream (read ty) ([RepValue $ map toWireVal w | w <- words strm]))) $ go r
-          go _             = M.empty
-          toWireVal :: Char -> WireVal Bool
-          toWireVal '1' = return True
-          toWireVal '0' = return False
-          toWireVal _   = fail "unknown"
+          (thismap, rest) = span cond ls
+          tabsplit l = let (k,'\t':r1) = span (/= '\t') l
+                           (ty,'\t':r) = span (/= '\t') r1
+                       in (k,ty,r)
+          go :: [String] -> TraceMap
+          go = foldr (\l m -> let (k,ty,strm) = tabsplit l
+                              in M.union (M.singleton (read k) (TraceStream (read ty) [read v | v <- words strm]))
+                                         m
+                     )
+                     M.empty
 
 addStream :: forall w. (Rep w) => ProbeName -> TraceMap -> Stream (X w) -> TraceMap
 addStream key m stream = M.insert key (toTrace stream) m

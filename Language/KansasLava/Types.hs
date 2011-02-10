@@ -479,7 +479,7 @@ data Trace = Trace { len :: Maybe Int
                    , outputs :: TraceMap
                    , probes :: TraceMap
                    }
-    deriving (Show, Read)
+--    deriving (Show, Read)
 
 ---------------------------------------------------------------------------------------------------------
 {-

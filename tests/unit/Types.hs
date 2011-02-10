@@ -1,6 +1,7 @@
 module Types where
 
 import Language.KansasLava
+import Language.KansasLava.Testing
 
 import Data.Default
 
