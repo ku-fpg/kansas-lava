@@ -70,9 +70,8 @@ main = do
                     then do system $ simCmd opt
                             generateReport $ simPath opt
                     else do putStrLn $ unlines [""
-                                               ,"Run simulations by using the " ++ simPath opt </> "runsims script"
+                                               ,"Run simulations and generate reports using the Makefile commands"
                                                ,"or the individual Makefiles in each simulation subdirectory."
-                                               ,"Then generate the report using main in Report.hs"
                                                ,""]
             else generateReport $ simPath opt
 
