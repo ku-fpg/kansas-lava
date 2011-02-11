@@ -1,26 +1,22 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs #-}
 module Language.KansasLava.Protocols.FSL where
 
-import Language.KansasLava.Stream
-import Language.KansasLava.Shallow
-import Language.KansasLava.Types
-import Language.KansasLava.Signal
-import Language.KansasLava.Seq
-import Language.KansasLava.Comb
-import Language.KansasLava.Protocols
-import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Utils -- for fromSLV
-import Language.KansasLava.Shallow.FIFO
 
-import Data.Sized.Ix
-import Data.Sized.Unsigned
-import Debug.Trace
-import Data.Maybe as Maybe
-import System.IO.Unsafe
-import Control.Concurrent.MVar
-import Data.Char as Char 
-import System.IO
-import Control.Concurrent
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 {- TO BE REMOVED
 ---------------------------------------------------------------------------
@@ -51,7 +47,7 @@ instance Rep IsRead where
 
 
 mkIsRead :: Seq Bool -> Seq IsRead
-mkIsRead = liftS1 $ \ (Comb a (D ea)) 
+mkIsRead = liftS1 $ \ (Comb a (D ea))
 	              -> (Comb (optX $ fmap IsRead $ unX a) (D ea :: D IsRead))
 
 ---------------------------------------------------------------------------
@@ -59,9 +55,9 @@ mkIsRead = liftS1 $ \ (Comb a (D ea))
 
 newtype IsFull = IsFull Bool
 	deriving (Eq, Ord, Show)
-	
+
 mkIsFull :: Seq Bool -> Seq IsFull
-mkIsFull = liftS1 $ \ (Comb a (D ea)) 
+mkIsFull = liftS1 $ \ (Comb a (D ea))
 	              -> (Comb (optX $ fmap IsFull $ unX a) (D ea :: D IsFull))
 
 instance Rep IsFull where
@@ -87,13 +83,13 @@ toVariableSrc stutter xs isRead = toSeq (fn stutter xs (fromSeq isRead))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
-	   fn (0:ps) (Just x:xs) c 
+	   fn (0:ps) (Just x:xs) c
 		    = [Just x]
 		    ++ case c of -- read c after issuing Just x
 			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (1)"
 			(Just (IsRead True):rs)  -> fn ps xs rs	    -- has been read
 			(Just (IsRead False):rs) -> fn (0:ps) (Just x:xs) rs -- not read yet
-	   fn (0:ps) (Nothing:xs) c 
+	   fn (0:ps) (Nothing:xs) c
 		    = [Nothing]
 		    ++ case c of
 			(Nothing:rs)             -> error "toVariableSrc: bad protocol state (2a)"
@@ -118,7 +114,7 @@ toVariableSink stutter xs isFull = toSeq (fn stutter xs (fromSeq isFull))
 	where
 	   -- We rely on the semantics of pattern matching to not match (x:xs)
 	   -- if (0:ps) does not match.
-	   fn (0:ps) (x:xs) c 
+	   fn (0:ps) (x:xs) c
 		    = case c of -- read c after issuing Just x
 			(Nothing:rs)             -> error "toVariableSink: bad protocol state (1)"
 			(Just (IsFull False):rs) -> Just x : fn ps xs rs     -- has been written
@@ -162,12 +158,12 @@ fromVariableSrc stutter src = Maybe.catMaybes internal
 
 	read :: Seq IsRead
 	read = toSeq [ IsRead (Maybe.isJust v)
-		     | v <- internal 
+		     | v <- internal
 		     ]
 
 	internal :: [Maybe a]
 	internal = fn stutter (fromSeq val)
-	
+
 	fn :: [Int] -> [Maybe (Enabled a)] -> [Maybe a]
 	fn _      (Nothing:_) = error "fromVariableSrc: bad state, unknown exists line"
 	fn (0:ps) (Just (Just x):xs) = Just x : fn ps xs
@@ -191,7 +187,7 @@ fromVariableSink stutter sink = map snd internal
 
 	internal :: [(IsFull,Maybe a)]
 	internal = fn stutter (fromSeq val)
-	
+
 	fn :: [Int] -> [Maybe (Enabled a)] -> [(IsFull,Maybe a)]
 	fn (0:ps) ~(x:xs) = (IsFull False,rep) : rest
 	   where
@@ -212,7 +208,7 @@ fromVariableHandshake stutter (Handshake sink) = map snd internal
 
 	internal :: [(Bool,Maybe a)]
 	internal = fn stutter (fromSeq val)
-	
+
 	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
 	fn (0:ps) ~(x:xs) = (True,rep) : rest
 	   where
@@ -231,7 +227,7 @@ fsmSrcToSink :: (SrcToSinkState,Bool,IsFull) -> (SrcToSinkState,Bool,IsRead)
 fsmSrcToSink (0,False,_) 	= (0,False,IsRead False)
 fsmSrcToSink (0,True,_) 	= (1,False,IsRead True)	-- accept value
 fsmSrcToSink (1,_,IsFull False) = (0,True,IsRead False)	-- pass on value (rec. is not full)
-fsmSrcToSink (1,_,IsFull True)  = (1,False,IsRead False)	
+fsmSrcToSink (1,_,IsFull True)  = (1,False,IsRead False)
 
 fsmSrcToSink1 :: (SrcToSinkState,Bool,IsFull) -> SrcToSinkState
 fsmSrcToSink1 (a,b,c) = case fsmSrcToSink (a,b,c) of (x,y,z) -> x
@@ -243,37 +239,37 @@ fsmSrcToSink3 :: (SrcToSinkState,Bool) -> IsRead
 fsmSrcToSink3 (a,b) = case fsmSrcToSink (a,b,IsFull False) of (x,y,z) -> z
 
 s2 = srcToSink ::  Src U4 -> Sink U4
-	
+
 -- A passthrough; thats all
-srcToSink :: forall a. (Rep a) 
+srcToSink :: forall a. (Rep a)
 	  =>  (Src a) -> (Sink a)
 srcToSink env reader isFull = label "sink_out" $ packEnabled write value
    where
 	isFull' = label "sink_full" isFull
-		
+
 	state, state' :: Seq U1
 	state = label "state" $ register env 0 state'
 
 	inp :: Seq (Enabled a)
-	inp  = label "src_in" $ reader $ label "src_read" read 
+	inp  = label "src_in" $ reader $ label "src_read" read
 
 	read' :: Seq IsRead
 	read' = pureS (IsRead False) -- read
 
 
 	state' = label "state'"
-	       $ funMap (return . fsmSrcToSink1) 
+	       $ funMap (return . fsmSrcToSink1)
 	       $ pack (state,isEnabled inp,isFull')
 
 
 	write :: Seq Bool
 	write = label "write"
-	     $ funMap (return . fsmSrcToSink2) 
-	     $ pack (state,isFull') 
+	     $ funMap (return . fsmSrcToSink2)
+	     $ pack (state,isFull')
 
 	read :: Seq IsRead
 	read = label "read"
-	     $ funMap (return . fsmSrcToSink3) 
+	     $ funMap (return . fsmSrcToSink3)
 	     $ pack (state,isEnabled inp)
 
 

@@ -11,25 +11,15 @@ import Language.KansasLava.Types
 import Language.KansasLava.Shallow
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
-import Language.KansasLava.Comb
 import Language.KansasLava.Reify
-import Language.KansasLava.Signal
-import Language.KansasLava.StdLogicVector
 
-import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Stream (Stream)
 import Language.KansasLava.Testing.Utils
 
-import Control.Applicative
 
-import qualified Data.Sized.Matrix as Matrix
 
-import Data.Char
-import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 
-import Debug.Trace
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
@@ -37,12 +27,12 @@ import Debug.Trace
 -- TODO: support generics in both these functions?
 traceSignature :: Trace -> Signature
 traceSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
-    where convert m = [ (OVar i (show wc),ty) | (wc@(WholeCircuit s i _),TraceStream ty _) <- M.toList m ]
+    where convert m = [ (OVar i (show wc),ty) | (wc@(WholeCircuit _ i _),TraceStream ty _) <- M.toList m ]
 
 -- creates an (obviously empty) trace from a signature
 signatureTrace :: Signature -> Trace
 signatureTrace (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) M.empty
-    where convert l = M.fromList [ (read nm, TraceStream ty [])  | (OVar i nm, ty) <- l ]
+    where convert l = M.fromList [ (read nm, TraceStream ty [])  | (OVar _ nm, ty) <- l ]
 
 -- Combinators to change a trace
 setCycles :: Int -> Trace -> Trace
@@ -168,7 +158,7 @@ splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
 splitLists _  []     = [[]]
 
 genInfo :: Trace -> [String]
-genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i,l) <- zip [1..] lines ]
+genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i::Int,l) <- zip [1..] lines ]
     where alldata = (M.elems ins) ++ (M.elems outs)
           lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 

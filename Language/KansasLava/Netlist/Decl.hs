@@ -3,11 +3,6 @@ module Language.KansasLava.Netlist.Decl where
 
 import Language.KansasLava.Types
 import Language.Netlist.AST
-import Language.Netlist.Util
-import Language.Netlist.Inline
-import Language.Netlist.GenVHDL
--- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
 
 import Data.Reify.Graph (Unique)
 
@@ -19,7 +14,7 @@ import Language.KansasLava.Netlist.Utils
 
 
 -- We have a few exceptions, where we generate some extra signals,
--- but in general, we generate a single signal decl for each 
+-- but in general, we generate a single signal decl for each
 -- entity.
 
 genDecl :: (Unique, Entity Unique) -> [Decl]
@@ -33,8 +28,8 @@ genDecl (i,Entity nm outputs _)
 	    ]
 	  | (n,nTy) <- outputs  ]
 genDecl (i,e@(Entity nm outputs@[_] inputs)) | nm == Prim "BRAM"
-	= concat 
-	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy) 
+	= concat
+	  [ [ MemDecl (sigName n i) (memRange aTy) (sizedRange nTy)
 	    , NetDecl (sigName n i) (sizedRange nTy) Nothing
 	    ]
 	  | (n,nTy) <- outputs ]
@@ -44,34 +39,34 @@ genDecl (i,e@(Entity nm outputs@[_] inputs)) | nm == Prim "BRAM"
 genDecl (i,Entity nm outputs _)
         | nm `elem` isVirtualEntity
 	= []
--}	
+-}
 -- General case
-genDecl (i,e@(Entity nm outputs _))
+genDecl (i,e@(Entity _ outputs _))
 	= [ case toStdLogicTy nTy of
 	      MatrixTy x (V y)
 	        -> let x' = head [ po2 | po2 <- iterate (*2) 1
 	                               , po2 >= x
 	                         ]
-	           in MemDecl 
+	           in MemDecl
 	            (sigName n i)
 	            (sizedRange (V x'))
 	            (sizedRange (V y))
                     (case e of
                         Entity (Prim "rom")
-                               [("o0",ty)]
-                               [("defs",RomTy n,Lits lits)]
+                               [("o0",_)]
+                               [("defs",RomTy _,Lits lits)]
                           -- This is reversed because we defined from (n-1) downto 0
-                          -> Just $ reverse $ map (toTypedExpr (V y)) 
+                          -> Just $ reverse $ map (toTypedExpr (V y))
                                             $ take x'
                                             $ (lits ++ repeat (RepValue $ take y $ repeat $ WireVal False))
                         _ -> Nothing
                     )
-	      _ -> NetDecl 
+	      _ -> NetDecl
 	            (sigName n i)
-	            (sizedRange nTy) 
+	            (sizedRange nTy)
 	            (case e of
-	                Entity (Prim "register") 
-	                        [("o0",ty)] 
+	                Entity (Prim "register")
+	                        [("o0",ty)]
 	                        [ _, ("def",GenericTy,n), _, _, _] ->
 	                     Just (toTypedExpr ty n)
 	                _ -> Nothing)

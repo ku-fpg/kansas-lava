@@ -19,5 +19,5 @@ with sigName xs = poke sigName (map Just xs ++ repeat Nothing)
 
 -- A seq signal with possible unknown values, that changes over time.
 poke :: (Rep a) => String -> [Maybe a] -> Seq a
-poke sigName xs = shallowSeq (S.fromList $ map optX xs) 
+poke _ xs = shallowSeq (S.fromList $ map optX xs)
 

@@ -7,7 +7,6 @@ import Language.KansasLava.Internals
 import Data.Char
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 
 toVCD :: Trace -> String
 toVCD (Trace Nothing _ _ _)  = error "can't turn infinite trace into vcd"
@@ -16,7 +15,7 @@ toVCD (Trace (Just n) i o p) = unlines
     , "$scope top $end"
     ]
     ++ unlines [ unwords ["$var wire", show l, id, show k, "$end"]
-               | (id,(k,TraceStream ty strm)) <- signals
+               | (id,(k,TraceStream _ strm)) <- signals
                , let RepValue vs = head strm
                , let l = length vs ]
     ++ "$enddefinitions $end\n"
@@ -45,7 +44,7 @@ eventList :: [(RepValue, String)] -> [(Int,[(RepValue, String)])] -> String
 eventList last rest = case next of
                         [] -> ""
                         ((clk,n):ns) -> "#" ++ show clk ++ "\n" ++ valChange last n ++ eventList n ns
-    where next = dropWhile (\(clock, row) -> row == last) rest
+    where next = dropWhile (\(_, row) -> row == last) rest
 
 -- the assumption is that these lists are parallel by id
 valChange :: [(RepValue, String)] -> [(RepValue, String)] -> String

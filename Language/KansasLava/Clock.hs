@@ -3,7 +3,6 @@
 
 module Language.KansasLava.Clock where
 
-import Data.Maybe as Maybe
 import Data.Ratio
 
 import Data.Sized.Unsigned
@@ -13,14 +12,13 @@ import Data.Sized.Ix
 import Language.KansasLava.RTL
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
-import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
 import Language.KansasLava.Signal
-	
+
 
 rate :: forall x clk . (Clock clk, Size x) => Witness x -> Rational -> CSeq clk Bool
-rate Witness n 
+rate Witness n
   | step * 2 > 2^sz = error $ "bit-size " ++ show sz ++ " too small for punctuate Witness " ++ show n
   | n <= 0 = error "can not have rate less than or equal zero"
   | n > 1 = error $ "can not have rate greater than 1, requesting " ++ show n
@@ -41,13 +39,14 @@ rate Witness n
 		            cut := 0
 			    err   := reg err + fromIntegral perr
 			]
-		 
+
 	     ]
-	return $ 
---		pack (val err, val count) 
+	return $
+--		pack (val err, val count)
 		(reg count .==. 0)
 
-   where sz = fromIntegral (size (error "witness" :: x)) 
+   where sz :: Integer
+         sz = fromIntegral (size (error "witness" :: x))
 	 num = numerator n
 	 dom = denominator n
 	 step = floor (1 / n)
@@ -57,14 +56,14 @@ rate Witness n
 
 -- | This is the runST of Kansas Lava.
 runClocked0 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk . (Clock clk) => Clocked clk a) 
+	    => (forall clk . (Clock clk) => Clocked clk a)
 	    -> sig Bool -> sig (Enabled a)
 runClocked0 sub inp0 = runClocked1 (\ _ -> sub) (packEnabled inp0 (pureS ()))
 
 runClocked1 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk . (Clock clk) => Clocked clk a -> Clocked clk b) 
-	    -> sig (Enabled a) -> sig (Enabled b)	
-runClocked1 sub (Seq e_a e_as) = Seq e_b e_bs
+	    => (forall clk . (Clock clk) => Clocked clk a -> Clocked clk b)
+	    -> sig (Enabled a) -> sig (Enabled b)
+runClocked1 _ (Seq _ _) = Seq e_b e_bs
   where
 	e_b = undefined
 	e_bs = undefined

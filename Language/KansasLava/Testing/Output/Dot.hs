@@ -3,8 +3,6 @@ module Language.KansasLava.Testing.Output.Dot (writeDotCircuit) where
 
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Types
-import Language.KansasLava.Reify
-import Language.KansasLava.Circuit
 
 import Data.Reify.Graph
 import Text.Dot
@@ -80,11 +78,11 @@ writeDotCircuit filename circuit = do
                      Generic i -> do nd' <- node [("label",show i),("shape","none")]
                                      edge' nd' Nothing n (Just (show v ++ ":w")) []
 
-        sequence [ drawEdge dr output_bar (show v)
+        sequence_ [ drawEdge dr output_bar (show v)
                  | (v,_,dr) <- outputs
                  ]
 
-        sequence [ drawEdge dr (findNd n) v
+        sequence_ [ drawEdge dr (findNd n) v
                  | (n,Entity _ _ ins) <- nodes
                  , (v,_,dr) <- ins
                  ]

@@ -3,7 +3,6 @@ module Language.KansasLava.Circuit (toGraph,mergeProbes,mergeProbesIO,remProbes)
 import Language.KansasLava.Internals
 
 import Data.List
-import Debug.Trace
 
 import qualified Data.Graph.Inductive as G
 import qualified Data.Reify.Graph as DRG
@@ -61,7 +60,7 @@ replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
                        , id `notElem` xs ]
           newSinks = map change $ theSinks rc
 
-          change (nm,ty,p@(Port s i)) | i `elem` xs = (nm,ty,y p)
+          change (nm,ty,p@(Port _ i)) | i `elem` xs = (nm,ty,y p)
           change other = other
 
 probeList :: Circuit -> [(DRG.Unique, Entity DRG.Unique)]

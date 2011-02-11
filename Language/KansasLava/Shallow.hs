@@ -12,10 +12,8 @@ import Data.Sized.Matrix hiding (S)
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
-import qualified Data.Sized.Sampled as Sampled
 import Data.Word
 import Data.Bits
-import qualified Data.Traversable as T
 import qualified Data.Maybe as Maybe
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
@@ -43,7 +41,7 @@ class {- (Size (W w)) => -} Rep w where
     -- show the value (in its Haskell form, default is the bits)
     -- TODO: remove Witness, its not needed any longer
     showRep :: Witness w -> X w -> String
-    showRep w x = show (toRep x)
+    showRep _ x = show (toRep x)
 
 
 -- Give me all possible (non-X) representations (2^n of them).
@@ -82,7 +80,7 @@ unknownX = optX (Nothing :: Maybe w)
 -- This is not wired into the class because of the extra 'Show' requirement.
 
 showRepDefault :: forall w. (Show w, Rep w) => Witness w -> X w -> String
-showRepDefault w v = case unX v :: Maybe w of
+showRepDefault _ v = case unX v :: Maybe w of
             Nothing -> "?"
             Just v' -> show v'
 
@@ -117,7 +115,7 @@ toRepFromIntegral v = case unX v :: Maybe v of
                     $ take (repWidth (Witness :: Witness v))
                     $ map WireVal
                     $ map odd
-                    $ iterate (`div` 2)
+                    $ iterate (`div` (2::Int))
                     $ fromIntegral v'
 
 fromRepToIntegral :: forall v . (Rep v, Integral v) => RepValue -> X v
@@ -418,9 +416,9 @@ instance (Rep a) => Rep (Maybe a) where
     fromRep (RepValue vs) = XMaybe ( fromRep (RepValue (take 1 vs))
                   , fromRep (RepValue (drop 1 vs))
                   )
-    showRep w (XMaybe (XBool WireUnknown,a)) = "?"
-    showRep w (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (Witness :: Witness a) a
-    showRep w (XMaybe (XBool (WireVal False),a)) = "Nothing"
+    showRep _ (XMaybe (XBool WireUnknown,_a)) = "?"
+    showRep _ (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (Witness :: Witness a) a
+    showRep _ (XMaybe (XBool (WireVal False),_)) = "Nothing"
 
 --instance Size (ADD X1 a) => Size a where
 {-
@@ -443,7 +441,7 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     type W (Matrix ix a) = MUL ix (W a)
     data X (Matrix ix a) = XMatrix (Matrix ix (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
-    optX Nothing    = XMatrix $ forAll $ \ ix -> optX (Nothing :: Maybe a)
+    optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
 --  wireName _  = "Matrix"
     repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
@@ -451,7 +449,7 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
 		  unconcat xs = take len xs : unconcat (drop len xs)
-		
+
 		  len = Prelude.length xs `div` size (error "witness" :: ix)
 
 --  showWire _ = show
@@ -483,7 +481,7 @@ instance (Size ix) => Rep (Unsigned ix) where
     optX Nothing        = XUnsigned $ fail "Wire Int"
     unX (XUnsigned (WireVal a))     = return a
     unX (XUnsigned WireUnknown)   = fail "Wire Int"
-    repType x          = U (size (error "Wire/Unsigned" :: ix))
+    repType _          = U (size (error "Wire/Unsigned" :: ix))
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -502,7 +500,7 @@ instance (Size ix) => Rep (Signed ix) where
     unX (XSigned (WireVal a))     = return a
     unX (XSigned WireUnknown)   = fail "Wire Int"
 --  wireName _      = "Signed"
-    repType x          = S (size (error "Wire/Signed" :: ix))
+    repType _          = S (size (error "Wire/Signed" :: ix))
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -548,7 +546,7 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
     -- TODO: work out how to remove the Size ix constraint,
     -- and use Rep ix somehow instead.
     toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
-    fromRep (RepValue xs) = XFunction $ \ ix -> 
+    fromRep (RepValue xs) = XFunction $ \ ix ->
 	case fromRep (RepValue xs) of
 	   XMatrix m -> m M.! ix
 
@@ -642,7 +640,7 @@ instance (Rep a, Rep b) => Rep (a -> b) where
 
 	showRep _ _ = "<function>"
 -}
-	
+
 ---applyRep :: (Rep a, Rep b, Signal sig) => sig a -> sig (a -> b) -> sig b
 --applyRep = undefined
 
@@ -650,7 +648,7 @@ instance (Rep a, Rep b) => Rep (a -> b) where
 class (Rep a) => RepIntegral a where
         toRepInteger   :: a -> Integer
         fromRepInteger :: Integer -> a
--}        
+-}
 
 
 

@@ -3,8 +3,6 @@ module Language.KansasLava.Reify
         ( reifyCircuit
         , Ports(..)
         , Input(..)
-        , input
-        , output
         , probe
         , probeWholeCircuit
         ) where
@@ -14,7 +12,6 @@ import Data.List as L
 import qualified Data.Map as Map
 import Data.Reify
 
-import Language.KansasLava.Circuit
 import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
 -- import Language.KansasLava.Entity
@@ -30,7 +27,6 @@ import Language.KansasLava.HandShake
 
 import qualified Data.Sized.Matrix as M
 
-import Debug.Trace
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
 --
@@ -40,9 +36,9 @@ reifyCircuit circuit = do
         let opts = []
         -- GenSym for input/output pad names
         let inputNames = L.zipWith OVar [0..] $ head $
-                [[ "i" ++ show i | i <- [0..]]]
+                [[ "i" ++ show (i::Int) | i <- [0..]]]
         let outputNames =  L.zipWith OVar [0..] $ head $
-                 [[ "o" ++ show i | i <- [0..]]]
+                 [[ "o" ++ show (i::Int) | i <- [0..]]]
 
         let os = ports 0 circuit
 
@@ -50,7 +46,7 @@ reifyCircuit circuit = do
                 $ E
                 $ Entity (Name "Lava" "top") [("o0",B)] -- not really a Bit
                 [ ("i" ++ show i,tys, dr)
-                | (i,(tys,dr)) <- zip [0..] os
+                | (i::Int,(tys,dr)) <- zip [0..] os
                 ]
 
         -- Get the graph, and associate the output drivers for the graph with
@@ -85,7 +81,7 @@ reifyCircuit circuit = do
 
         let backoutputs =
               [ (OVar n ("b" ++ show n), vTy, dr)
-              | (i,Entity (Prim "hof") _ [(v,vTy,dr)]) <- gr
+              | (_,Entity (Prim "hof") _ [(_,vTy,dr)]) <- gr
               | n <- [newOut..]
               ]
 
@@ -94,7 +90,7 @@ reifyCircuit circuit = do
 
         let hofs =
               [ i
-              | (i,Entity (Prim "hof") _ [(v,vTy,dr)])  <- gr
+              | (i,Entity (Prim "hof") _ [(_,_,_)])  <- gr
               ]
 --      print hofs
 
@@ -119,7 +115,7 @@ reifyCircuit circuit = do
         let gr = gr'
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [ (v,vTy) | (_,Entity nm _ ins) <- gr
+        let inputs = [ (v,vTy) | (_,Entity _ _ ins) <- gr
                                , (_,vTy,Pad v) <- ins]
 
         let rCit = Circuit { theCircuit = gr
@@ -154,7 +150,7 @@ reifyCircuit circuit = do
                     []        -> return rCit2
 
 
-        let domains = nub $ concat $ visitEntities rCit3 $ \ u e@(Entity nm ins outs) ->
+        let domains = nub $ concat $ visitEntities rCit3 $ \ _ (Entity _ _ outs) ->
                 return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
 
         -- The clock domains
@@ -166,7 +162,7 @@ reifyCircuit circuit = do
         let extraSrcs =
                 concat [  [ nameEnv dom "clk", nameEnv dom "clk_en", nameEnv dom "rst" ]
                        | dom <- domains
-                       ] `zip` [-1,-2..]
+                       ] `zip` [-1::Int,-2..]
 
 
 
@@ -174,8 +170,8 @@ reifyCircuit circuit = do
         let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]     -- in reverse order for a reason
 
 
-	let domToPorts = 
-		[ (dom, [ (nm,ty,Pad (OVar i nm)) 
+	let domToPorts =
+		[ (dom, [ (nm,ty,Pad (OVar i nm))
 		       | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]
 		       ])
 		| (dom,i) <- zip domains [0,-1..]
@@ -198,7 +194,7 @@ reifyCircuit circuit = do
                                                 outs
 						(concat
                                                 [ case o of
-                                                   (nm,ClkDomTy,ClkDom cdnm) ->
+                                                   (_,ClkDomTy,ClkDom cdnm) ->
 							case lookup cdnm domToPorts of
 							   Nothing -> error $ "can not find port: " ++ show cdnm
 							   Just outs -> outs
@@ -206,8 +202,8 @@ reifyCircuit circuit = do
                                                 | o <- ins ])
                                     )
                                 | (u,e) <- theCircuit rCit3 ]
-                          , theSrcs = 
-                                [ (ovar,ty) | (dom,outs) <- domToPorts
+                          , theSrcs =
+                                [ (ovar,ty) | (_,outs) <- domToPorts
 					    , (_,ty,Pad ovar) <- outs
 				] ++
                                 theSrcs rCit3
@@ -232,7 +228,7 @@ wireCapture (D d) = [(repType (Witness :: Witness w), d)]
 
 
 showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
-showCircuit opt c = do
+showCircuit _ c = do
         rCir <- reifyCircuit c
         return $ show rCir
 
@@ -271,9 +267,7 @@ instance (Clock c, Rep a) => Ports (CSeq c a) where
 
     probe' (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where strm = toTrace s
-    probe' (n:_) (Seq s _) = error "probe'1"
-    probe' [] (Seq s _) = error "probe'2"
-    probe' _ _ = error "probe'3"
+    probe' [] (Seq _ _) = error "probe'2"
 
     run (Seq s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = toTrace s
@@ -281,7 +275,7 @@ instance (Clock c, Rep a) => Ports (CSeq c a) where
 instance Rep a => Ports (Comb a) where
     ports _ sig = wireCapture (combDriver sig)
 
-    probe' (n:_) c@(Comb s (D d)) = Comb s (D (insertProbe n strm d))
+    probe' (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where strm = toTrace $ Stream.fromList $ repeat s
 
     run (Comb s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
@@ -320,7 +314,7 @@ instance (Ports a, Ports b) => Ports (a,b) where
 
 instance (Clock clk, Ports a) => Ports (HandShaken clk a) where
     ports vs (HandShaken f) = ports vs f
-    probe' names (HandShaken f) = HandShaken $ \ ready -> 
+    probe' names (HandShaken f) = HandShaken $ \ ready ->
                         let ready' = probe' (addSuffixToProbeNames names "-arg") ready
                         in probe' (addSuffixToProbeNames names "-res") (f ready')
 
@@ -351,7 +345,7 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
 --    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
 
-    run fn t@(Trace c ins _ _) = run fn' $ t { inputs = ins' }
+    run fn t@(Trace _ ins _ _) = run fn' $ t { inputs = ins' }
         where (ins', fn') = apply ins fn
 
 -- TO remove when Input a, Ports b => .. works
@@ -390,7 +384,7 @@ class Input a where
 -- Royale Hack, but does work.
 instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
         inPorts v =  (fn , v)
-          where fn ~(Seq a ae) = deepSeq $ entity1 (Prim "hof") $ ae
+          where fn ~(Seq _ ae) = deepSeq $ entity1 (Prim "hof") $ ae
 
         input _ a = a
 
@@ -456,7 +450,7 @@ instance Input (Env clk) where
 
 instance Input () where
     inPorts vs0 = ((),vs0)
-    apply m fn = error "Input ()"
+    apply _ _ = error "Input ()"
     input _ _  = error "input ()"
 
 
@@ -559,7 +553,7 @@ resolveNames cir
 --                    Entity (Name "Lava" io) outs ins misc
 --                      | io `elem` ["input","output"]
 --                      -> Entity (Name "Lava" "id") outs ins misc
-                      other -> other
+--                       other -> other
                    )
                 | (u,e) <- theCircuit cir
                 ]
@@ -573,7 +567,7 @@ resolveNames cir
 
         -- Names that have been replaced.
         oldSrcs = [ nm
-                  | (nm,ty) <- theSrcs cir
+                  | (nm,_) <- theSrcs cir
                   , not (nm `elem` (map fst newSrcs))
                   ]
 

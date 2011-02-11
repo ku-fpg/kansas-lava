@@ -7,20 +7,11 @@ module Language.KansasLava.Circuit.Optimization
 
 import Language.KansasLava.Types
 import Data.Reify
-import qualified Data.Traversable as T
-import Language.KansasLava.Types
-import Language.KansasLava.Shallow
--- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
-import Language.KansasLava.Circuit
 import Control.Monad
 
 import Data.List
 import Data.Default
 
-import Debug.Trace
-
-import Data.List
 
 -- NOTES:
 -- We need to update the Lava::id operator, that can take and return *multiple* values.
@@ -29,29 +20,29 @@ import Data.List
 
 -- This returns an optimized version of the Entity, or fails to optimize.
 optimizeEntity :: (Unique -> Entity Unique) -> Entity Unique -> Maybe (Entity Unique)
-optimizeEntity env (Entity (Name "Lava" "fst") [(o0,tO)] [(i0,tI,Port o0' u)]) =
+optimizeEntity env (Entity (Name "Lava" "fst") [(o0,_)] [(_,_,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)]
+	    Entity (Name "Lava" "pair") [(o0'',_)] [(i1',t1,p1),(_,_,_)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i1',t1,p1)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "snd") [(o0,tO)] [(i0,tI,Port o0' u)]) =
+optimizeEntity env (Entity (Name "Lava" "snd") [(o0,_)] [(_,_,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',tI')] [(i1',t1,p1),(i2',t2,p2)]
+	    Entity (Name "Lava" "pair") [(o0'',_)] [(_,_,_),(i2',t2,p2)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i2',t2,p2)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(i0,tI0,Port o0' u0),(i1,tI1,Port o1' u1)]) =
+optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(_,_,Port o0' u0),(_,_,Port o1' u1)]) =
 	case (env u0,env u1) of
-	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(i0',tI0',p2)]
-	      , Entity (Name "Lava" "snd") [(o1'',_)] [(i1',tI1',p1)] 
+	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(_,_,p2)]
+	      , Entity (Name "Lava" "snd") [(o1'',_)] [(_,_,p1)]
 	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
 			return $ replaceWith o0 ("o0",tO,p1)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name _ "mux2") [(o0,_)] [(i0,cTy,c),(i1 ,tTy,t),(i2,fTy,f)])
+optimizeEntity _ (Entity (Name _ "mux2") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
-optimizeEntity env (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)]) =
+optimizeEntity _ (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)]) =
   return $ replaceWith o0 (i0,ti,pi)
-optimizeEntity env _ = Nothing
+optimizeEntity _ _ = Nothing
 
 ----------------------------------------------------------------------
 
@@ -104,7 +95,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 	      }
 
 	renamings = [ ((u,o),other)
-		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(i,tI,other)]) <- env0
+		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(_,tI,other)]) <- env0
 		    , tO == tI	-- should always be, anyway
 		    ]
 
@@ -135,8 +126,8 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 		-- We want to combine anything *except* idents's
 		-- because we would just replace them with new idents's (not a problem)
 		-- _and_ say we've found some optimization (which *is* a problem).
-	      $ groupBy (\ (a,b) (a',b') -> (b `mycompare` b') == EQ && not (isId b))
-	      $ sortBy (\ (a,b) (a',b') -> b `mycompare` b')
+	      $ groupBy (\ (_,b) (_,b') -> (b `mycompare` b') == EQ && not (isId b))
+	      $ sortBy (\ (_,b) (_,b') -> b `mycompare` b')
 	      $ theCircuit rCir
 
 
@@ -146,8 +137,8 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	-- The outputs do not form part of the comparison here,
 	-- because they *can* be different, without effecting
 	-- the CSE opertunity.
-	mycompare (Entity nm outs ins)
-	 	  (Entity nm' outs' ins') =
+	mycompare (Entity nm _ ins)
+	 	  (Entity nm' _ ins') =
 		chain
 		  [ nm `compare` nm'
 		  , ins `compare` ins'
@@ -163,7 +154,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	canonicalize ((u0,e0@(Entity _ outs _)):rest) =
 		(u0,e0) : [ ( uX
 		            , case eX of
-			     	Entity nm' outs' _ | length outs == length outs'
+			     	Entity _ outs' _ | length outs == length outs'
 				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ]
 			    )
 			  | (uX,eX) <- rest
@@ -182,8 +173,8 @@ dceCircuit rCir = if optCount == 0
 	allNames :: [Unique]
 	allNames = nub (concat
 		       [ case e of
-			  Entity nm _ outs -> concatMap outFrees outs
-		       | (u,e) <- theCircuit rCir
+			  Entity _ _ outs -> concatMap outFrees outs
+		       | (_,e) <- theCircuit rCir
 		       ] ++ concatMap outFrees (theSinks rCir)
 		       )
 
@@ -204,7 +195,7 @@ patternMatchCircuit rCir = if optCount == 0
 		   Nothing -> error $ "oops, can not find " ++ show v
 		   Just e -> e
 
-	attemptOpt = [ optimizeEntity env1 e | (u,e) <- theCircuit rCir ]
+	attemptOpt = [ optimizeEntity env1 e | (_,e) <- theCircuit rCir ]
 	optCount = length [ () | (Just _) <- attemptOpt ]
 
 	optCir = [ (uq,case mOpt of
@@ -218,7 +209,7 @@ patternMatchCircuit rCir = if optCount == 0
 optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt Circuit)]
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 	where opt@(Opt c' n) = case fn c of
-				 Opt c' 0 -> Opt c 0	-- If there was no opts, avoid churn
+				 Opt _ 0 -> Opt c 0	-- If there was no opts, avoid churn
 				 Opt c' n' -> Opt c' n'
 
 
@@ -248,8 +239,8 @@ optimizeCircuit options rCir = do
 		  when (n > 0) $ do
 			print code
 		case cs of
-		    ((nm,Opt c _):_) | and [ n == 0 | (_,Opt c n) <- take (length opts) cs ] -> return c
-		    ((nm,Opt c v):cs) -> loop cs
+		    ((_,Opt c _):_) | and [ n == 0 | (_,Opt _ n) <- take (length opts) cs ] -> return c
+		    ((_,Opt _ _):cs) -> loop cs
 
 	opts = [ ("opt",patternMatchCircuit)
 	       , ("cse",cseCircuit)

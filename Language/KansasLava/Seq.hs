@@ -5,28 +5,19 @@ module Language.KansasLava.Seq where
 
 import Control.Applicative
 
-import Data.Bits
-import Data.Int
 import Data.List
-import Data.Word
 
-import Data.Reify
-import qualified Data.Traversable as T
+
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Shallow
 
-import Data.Sized.Unsigned as UNSIGNED
-import Data.Sized.Signed as SIGNED
-import Data.Sized.Sampled as SAMPLED
-import Data.Sized.Arith as Arith
-import qualified Data.Sized.Matrix as M
-import Data.Sized.Ix as X
+
+
 
 -----------------------------------------------------------------------------------------------
 
@@ -41,10 +32,10 @@ type Clocked c a = CSeq c a	-- new name, start using
 type Seq a = CSeq () a
 
 seqValue :: CSeq c a -> Stream (X a)
-seqValue (Seq a d) = a
+seqValue (Seq a _) = a
 
 seqDriver :: CSeq c a -> D a
-seqDriver (Seq a d) = d
+seqDriver (Seq _ d) = d
 
 instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
@@ -54,7 +45,7 @@ instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 
 instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.
-	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
+	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
 
 deepSeq :: D a -> CSeq c a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
@@ -180,7 +171,7 @@ showBitfileInfo streams =
 		 [ v ++ "/" ++ b
 	         | (b,v) <- zip bits vals
 	         ]
-	      | (n,bits,vals) <- zip3 [0..] bitss valss
+	      | (n::Integer,bits,vals) <- zip3 [0..] bitss valss
 	      ]
 	where
 		joinWith _ [] = []

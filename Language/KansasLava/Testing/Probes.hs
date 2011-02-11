@@ -8,20 +8,9 @@ import qualified Data.Reify.Graph as DRG
 import Control.Monad
 import Control.Applicative
 
-import Data.Sized.Arith(X1_,X0_)
-import Data.Sized.Ix
-import Data.Sized.Signed
-import Data.Sized.Unsigned
-import qualified Data.Sized.Matrix as Matrix
-
-import Data.Char
-import Data.Bits
-import Data.List
 
 import Language.KansasLava
-import Language.KansasLava.Internals
 
-import Language.KansasLava.Testing.Utils
 
 probeCircuit :: (Ports b) => Int -> b -> IO [(ProbeName, TraceStream)]
 probeCircuit n applied = do

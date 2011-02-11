@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Language.KansasLava.Shallow.FIFO 
+module Language.KansasLava.Shallow.FIFO
 	( ShallowFIFO		-- abstract
 	, newShallowFIFO
 	, writeToFIFO
@@ -12,24 +12,11 @@ module Language.KansasLava.Shallow.FIFO
 	, putFIFOContents
 	) where
 
-import Language.KansasLava.Stream
-import Language.KansasLava.Shallow
-import Language.KansasLava.Types
-import Language.KansasLava.Signal
-import Language.KansasLava.Seq
-import Language.KansasLava.Comb
-import Language.KansasLava.Protocols
-import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Utils -- for fromSLV
 
 import qualified Data.ByteString as BS
-import Data.Sized.Ix
-import Data.Sized.Unsigned
-import Debug.Trace
-import Data.Maybe as Maybe
 import System.IO.Unsafe
 import Control.Concurrent.MVar
-import Data.Char as Char 
+import Data.Char as Char
 import System.IO
 import Control.Concurrent
 import Data.Word
@@ -43,7 +30,7 @@ data ShallowFIFO a = ShallowFIFO (MVar (Maybe a))
 
 newShallowFIFO :: IO (ShallowFIFO a)
 newShallowFIFO = do
-	var <- newEmptyMVar 
+	var <- newEmptyMVar
 	return $ ShallowFIFO var
 
 -- | blocks if the FIFO is not cycled on.
@@ -77,12 +64,12 @@ readFileToFIFO file fifo = do
 writeFileFromFIFO :: String -> ShallowFIFO Word8 -> IO ()
 writeFileFromFIFO file fifo = do
 	h <- openFile file WriteMode
-	hSetBuffering h NoBuffering	
+	hSetBuffering h NoBuffering
 	hPutFromFIFO h fifo
 
 -- | read a file into a fifo as bytes. Does not terminate.
 hGetToFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
-hGetToFIFO h fifo = do 
+hGetToFIFO h fifo = do
     b <- hIsEOF h
     if b then hClose h else do
 	str <- BS.hGetNonBlocking h 128 -- 128 is for no specific reason, just a number
@@ -91,12 +78,12 @@ hGetToFIFO h fifo = do
 	putFIFOContents fifo (map (Just . fromIntegral) (BS.unpack str))
 	putFIFOContents fifo [Nothing]
 	hGetToFIFO h fifo
-	
+
 hPutFromFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
 hPutFromFIFO h fifo = do
-   forkIO $ do
+   _ <- forkIO $ do
 	xs <- getFIFOContents fifo
-	sequence_ 
+	sequence_
 		[ do hPutChar h $ Char.chr (fromIntegral x)
 		     hFlush h
 	        | Just x <- xs

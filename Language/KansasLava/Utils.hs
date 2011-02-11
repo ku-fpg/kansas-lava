@@ -5,10 +5,6 @@ module Language.KansasLava.Utils where
 import Control.Applicative
 import Control.Monad
 import Data.Bits
-import qualified Data.Map as Map
-import Data.Ratio
-import Data.Word
-import Debug.Trace
 
 import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity as E
@@ -22,9 +18,7 @@ import Language.KansasLava.Shallow
 
 import Data.Sized.Arith
 import Data.Sized.Matrix	as M
-import qualified Data.Sized.Sampled	as Sam
 import Data.Sized.Signed	as SI
-import Data.Sized.Unsigned	as U
 import qualified Data.Sized.Sampled as Sampled
 
 -----------------------------------------------------------------------------------------------
@@ -101,9 +95,9 @@ instance (Show a, Rep a, Num a) => Num (CSeq c a) where
     fromInteger n = pureS (fromInteger n)
 
 instance (Bounded a, Rep a) => Bounded (Comb a) where
-    minBound = pureS $ minBound 
+    minBound = pureS $ minBound
     maxBound = pureS $ maxBound
-	
+
 -- Somehow, these ignore the type name
 instance (Show a, Bits a, Rep a)
 	=> Bits (Comb a) where
@@ -235,7 +229,7 @@ mux2 i (t,e)
 
 liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3' f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
+liftS3' f (Seq a _) (Seq b _) (Seq c _) = Seq (S.zipWith3 f' a b c) ed
       where
 	Comb _ ed = error "" -- f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' :: X a -> X b -> X c -> X d
@@ -286,7 +280,7 @@ choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
 --     the output for selector "value" >= (length inputlist) is
 --     not defined.
 muxList :: forall sig a . (Signal sig, Rep a) =>[sig Bool] -> [sig a] -> sig a
-muxList [s] [a0] = a0
+muxList [_] [a0] = a0
 muxList [s] [a0, a1] = mux2 s  (a1,a0)
 muxList sel@(s:rest) as = if (aLength <= halfRange)
                           then muxList sel' as
@@ -296,14 +290,14 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
     where aLength = Prelude.length as
           halfRange = 2 ^ ((Prelude.length sel) -1)
           maxRange = 2 * halfRange
-          nselbits = max 1 (ceiling (logBase 2 (fromIntegral aLength)))
+          nselbits = max 1 (ceiling (logBase (2 :: Double) (fromIntegral aLength)))
           sel' = drop ((Prelude.length sel) - nselbits) sel
           as' = take  maxRange as
           -- muxList' knows that the number of selection bits matches range input choices
           muxList' = mux2 s ((muxList topSelect top), (muxList rest bottom))
           (bottom, top) = splitAt halfRange as
           topLen = fromIntegral $ Prelude.length top
-          nbits = max 1 (ceiling (logBase 2 topLen))
+          nbits = max 1 (ceiling (logBase (2::Double) topLen))
           topSelect = drop ((Prelude.length rest) - nbits) rest
 
 -------------------------------------------------------------------------------------------------
@@ -352,7 +346,7 @@ updateMatrix :: forall sig x a
 	-> sig a
 	-> sig (Matrix x a)
 	-> sig (Matrix x a)
-updateMatrix x v m = liftS3 (\ 
+updateMatrix x v m = liftS3 (\
 	 	    (Comb x xe)
 	 	    (Comb v ve)
 		    (Comb (XMatrix m) me)
@@ -363,7 +357,7 @@ updateMatrix x v m = liftS3 (\
 			     (entity3 (Prim "update") xe ve me)
 	         ) x v m
 -}
-	
+
 -------------------------------------------------------------------------------------------------
 
 instance (Ord a, Rep a) => Ord (Comb a) where
@@ -386,7 +380,7 @@ instance (Ord a, Rep a) => Ord (CSeq c a) where
   min = liftS2 min
 
 instance (Bounded a, Rep a) => Bounded (CSeq c a) where
-    minBound = liftS0 minBound 
+    minBound = liftS0 minBound
     maxBound = liftS0 maxBound
 
 boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
@@ -500,7 +494,7 @@ delay = register' low undefinedComb
 -- a delay is a register with no defined default / initial value.
 
 delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
-delay l@ ~(Seq line eline) = res
+delay ~(Seq line eline) = res
    where
         def = optX $ Nothing
 
@@ -517,7 +511,7 @@ delay l@ ~(Seq line eline) = res
 		    ]
 
 register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
-register first l@ ~(Seq line eline) = res
+register first  ~(Seq line eline) = res
    where
         def = optX $ Just first
 
@@ -636,13 +630,13 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 -- This is pack/unpack???
 -}
-toStdLogicVector :: forall sig w w2 . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
+toStdLogicVector :: forall sig w . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
 						       RepValue v -> StdLogicVector $ M.matrix $ v
 
 -- TODO: way may have to lift these up to handle unknowns better.
 fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
-fromStdLogicVector = fun1' "fromStdLogicVector" $ \ x@(StdLogicVector v) ->
+fromStdLogicVector = fun1' "fromStdLogicVector" $ \ (StdLogicVector v) ->
 				  unX (fromRep (RepValue (M.toList v)))
 
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
@@ -671,7 +665,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 					return $ undefined)
 			     (entity2 (Name "Lava" "concat") ea eb)
 -}
-			     
+
 appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
 	=> sig (StdLogicVector a)
 	-> sig (StdLogicVector b)
@@ -692,12 +686,13 @@ instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m i
 
 -- Move this to a better place.
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
+        type W (Sampled.Sampled m ix) = ix
 	data X (Sampled.Sampled m ix) = XSampled (WireVal (Sampled.Sampled m ix))
 	optX (Just b)	    = XSampled $ return b
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (WireVal a))     = return a
 	unX (XSampled WireUnknown)   = fail "Wire Sampled"
-	repType x   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
+	repType _   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
 	toRep (XSampled WireUnknown) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
 	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
@@ -743,7 +738,7 @@ coerceX :: forall a b . (Rep a, Rep b, W a ~ W b ) => X a -> X b
 coerceX = id
        . fromRep
        . toRep
-       
+
 -- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
 -- We need to read up and figure out something better.
 
@@ -770,7 +765,7 @@ unsignedX = id
        . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))  -- not signed extended!
        . unRepValue
        . toRep
-       
+
 -- | consider the bits an unsigned number (zero extend)
 unsigned :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
 unsigned = liftS1 $ \ (Comb a ae) -> Comb (unsignedX a) $ entity1 (Prim "unsigned") ae

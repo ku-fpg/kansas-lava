@@ -7,14 +7,14 @@ import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3)
 import Data.Monoid
-import Data.Dynamic
+
 
 infixr 5 :~
 
 -- | A sequence of values, strict in the head, with no tail.
 -- ( TODO: make head strict )
 data Stream a = a :~ Stream a
---    deriving (Typeable)	
+--    deriving (Typeable)
 
 -- | show the first 20 elements of the 'Stream'.
 instance Show a => Show (Stream a) where
@@ -55,7 +55,6 @@ toList (x :~ xs) = x : toList xs
 
 instance F.Foldable Stream where
   foldMap f (a :~ as) = f a `mappend` F.foldMap f as
-  foldMap _ _ = error "Foldable.foldMap(Stream)"
 
 instance Traversable Stream where
   traverse f (a :~ as) = (:~) <$> f a <*> traverse f as

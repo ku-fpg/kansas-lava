@@ -4,21 +4,16 @@ module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThun
 import Language.KansasLava
 
 import Language.KansasLava.Testing.Bench
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Trace
 
 import Control.Monad
 
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 
-import Debug.Trace
 
-import System.Cmd
 import System.Directory
 import System.FilePath.Posix
-import System.Posix.Directory
 
 data Thunk b = forall a. (Ports a, Ports b) => Thunk a (a -> b)
 
@@ -50,7 +45,7 @@ recordThunk :: (Ports b)
             -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
             -> Thunk b
             -> IO Trace
-recordThunk path cycles circuitMod thunk@(Thunk c k) = do
+recordThunk path cycles circuitMod thunk@(Thunk _ _) = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
@@ -83,7 +78,7 @@ runDeep name cycles thunk circuitMod invoker = do
 
     let target = tmp </> name
 
-    recordThunk target cycles circuitMod thunk
+    _ <- recordThunk target cycles circuitMod thunk
     runTestBench target invoker
 
     -- there better not be any symlinks in here!
@@ -120,7 +115,7 @@ exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
                         , (onm,oty) <- outs ]
           showPNames x pname = show pname ++ "_" ++ show x
 
-          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ node))) <- zip [n..] exposed ]
+          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
 
 mkTraceCM :: (Ports a)
           => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.

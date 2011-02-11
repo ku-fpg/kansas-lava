@@ -4,52 +4,36 @@
 
 module Language.KansasLava.HandShake where
 
-import Data.Word
-import Data.Int
-import Data.Bits
-import Data.List
 
-import Data.Reify
-import qualified Data.Traversable as T
+
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
--- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
-import Language.KansasLava.Stream as S
 
 import Control.Applicative
-import Data.Sized.Unsigned as UNSIGNED
-import Data.Sized.Signed as SIGNED
-import Data.Sized.Sampled as SAMPLED
 import Data.Sized.Arith as Arith
-import qualified Data.Sized.Matrix as M
 import Data.Sized.Ix as X
 
 import Language.KansasLava.Comb
-import Data.List as List
 import Language.KansasLava.Shallow
 import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
-import Language.KansasLava.Shallow.FIFO 
-import Language.KansasLava.StdLogicVector
+import Language.KansasLava.Shallow.FIFO
+
 
 import Language.KansasLava.Utils
-import Control.Applicative
-import Control.Concurrent
 
-import Debug.Trace
 
 -----------------------------------------------------------------------------------------------
 --
--- In 
+-- In
 
 
 
 -----------------------------------------------------------------------------------------------
 -- type Handshake a = HandShaken (Seq (Enabled a))
 
-{- | 
+{- |
 
 A Handshaken value is a value that has a has been accepted backedge.
 
@@ -98,7 +82,7 @@ instance Signal Handshake where
 ----------------------------------------------------------------------------------------------------
 {-
 -- | @toHandshake'@ takes a list of stutters (counts of time to delay the output of a value) and
--- a list of values to be handshaken, including @Nothing@'s, that represent 
+-- a list of values to be handshaken, including @Nothing@'s, that represent
 toHandshake' :: (Rep a) => [Int] -> [Maybe a] -> Handshake a
 toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
 	where
@@ -117,14 +101,14 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 -}
 
 toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
-toHandShaken' stutter xs = HandShaken $ \ ready -> toHandShaken xs ready
+toHandShaken' _ xs = HandShaken $ \ ready -> toHandShaken xs ready
 
 toHandShaken :: (Rep a) => [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
 toHandShaken xs ready = toSeq (fn xs (fromSeq ready))
 	where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   fn (x:xs) cs = x : case cs of -- read c after issuing x
-		(Nothing:rs)         -> error "toVariableHandshake: bad protocol state (1)"
+		(Nothing:_)         -> error "toVariableHandshake: bad protocol state (1)"
 		(Just True:rs)       -> fn xs rs         -- has been written
 		(_:rs)               -> fn (x:xs) rs -- not written yet
 
@@ -139,7 +123,7 @@ fromHandShaken inp = (toSeq (map fst internal), map snd internal)
    where
 	internal :: [(Bool,Maybe a)]
 	internal = fn (fromSeq inp)
-	
+
 	fn :: [Maybe (Enabled a)] -> [(Bool,Maybe a)]
 	fn ~(x:xs) = (True,rep) : rest
 	   where
@@ -160,7 +144,7 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 
 	internal :: [(Bool,Maybe a)]
 	internal = fn stutter (fromSeq val)
-	
+
 	fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
 	fn (0:ps) ~(x:xs) = (True,rep) : rest
 	   where
@@ -217,7 +201,7 @@ fifoFE :: forall c a counter ix .
 	, Num counter
 	, Num ix
 	, Clock c
-	) 
+	)
       => Witness ix
       -> CSeq c Bool
          -- ^ hard reset option
@@ -248,13 +232,13 @@ fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
 
 	in_counter0 :: CSeq c counter
 	in_counter0 = resetable
-		    $ in_counter1 
+		    $ in_counter1
 			+ mux2 inp_done0 (1,0)
 		   	- dec_by
 
 	in_counter1 :: CSeq c counter
 	in_counter1 = register 0 in_counter0
-	
+
 --	out :: Seq (Enabled a)
 --	out = packEnabled (out_counter1 .>. 0) (mem rd_addr0)
 
@@ -273,7 +257,7 @@ fifoBE :: forall a c counter ix .
 	, Num counter
 	, Num ix
 	, Clock c
-	) 
+	)
       => Witness ix
       -> CSeq c Bool	-- ^ reset
 --      -> (Comb Bool -> Comb counter -> Comb counter)
@@ -286,16 +270,16 @@ fifoBE :: forall a c counter ix .
 	-- address for Memory read
 	-- dec to FE
 	-- output for HandShaken
-fifoBE Witness rst (inc_by,mem_rd) out_ready = 
+fifoBE Witness rst (inc_by,mem_rd) out_ready =
     let
         resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
 	resetable x = mux2 rst (0,x)
 
 	rd_addr0 :: CSeq c ix
-	rd_addr0 = resetable 
+	rd_addr0 = resetable
 		 $ mux2 out_done0 (liftS1 incGroup rd_addr1,rd_addr1)
 
-	rd_addr1 = register 0 
+	rd_addr1 = register 0
 		 $ rd_addr0
 
 	out_done0 :: CSeq c Bool
@@ -342,7 +326,7 @@ fifoCounter' rst inc dec = counter1
 
 
 
-fifo :: forall a c counter ix . 
+fifo :: forall a c counter ix .
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -352,12 +336,12 @@ fifo :: forall a c counter ix .
 	, Num counter
 	, Num ix
 	, Clock c
-	) 
+	)
       => Witness ix
       -> CSeq c Bool
       -> (CSeq c (Enabled a), CSeq c Bool)
       -> (CSeq c Bool, CSeq c (Enabled a))
-fifo w_ix rst (inp,out_ready) = 
+fifo w_ix rst (inp,out_ready) =
     let
 	resetable x = mux2 rst (low,x)
 
@@ -378,7 +362,7 @@ fifo w_ix rst (inp,out_ready) =
     in
 	(inp_ready, out)
 {-
-fifoToMatrix :: forall a counter counter2 ix iy iz c . 
+fifoToMatrix :: forall a counter counter2 ix iy iz c .
          (Size counter
 	, Size ix
 	, Size counter2, Rep counter2, Num counter2
@@ -397,7 +381,7 @@ fifoToMatrix :: forall a counter counter2 ix iy iz c .
 	, WIDTH counter ~ ADD (WIDTH iz) (WIDTH counter2)
 	, Num iz
 	, Clock c
-	) 
+	)
       => Witness ix
       -> Witness iy
       -> CSeq c Bool
@@ -414,7 +398,7 @@ fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShaken $ \ out_ready ->
 	inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
 
 	mem :: CSeq c (Enabled (M.Matrix iz a))
-	mem = enabledS 
+	mem = enabledS
 	 	$ pack
 	 	$ fmap (\ f -> f rd_addr0)
 	 	$ fmap pipeToMemory
@@ -429,7 +413,7 @@ fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShaken $ \ out_ready ->
     in
 	out
 
--- Move into a Commute module? 
+-- Move into a Commute module?
 -- classical find the implementation problem.
 splitWrite :: forall a a1 a2 d c . (Rep a1, Rep a2, Rep d, Size a1) => CSeq c (Pipe (a1,a2) d) -> M.Matrix a1 (CSeq c (Pipe a2 d))
 splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
@@ -439,12 +423,12 @@ splitWrite inp = M.forAll $ \ i -> let (g,v)   = unpackEnabled inp
 				   	           (pack (a2,d))
 
 -}
-mulBy :: forall x sz sig c . (Clock c, Size sz, Num sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c x
+mulBy :: forall x sz c . (Clock c, Size sz, Num sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c x
 mulBy Witness trig = mux2 trig (pureS $ fromIntegral $ size (error "witness" :: sz),pureS 0)
 
-divBy :: forall x sz sig c . (Clock c, Size sz, Num sz, Rep sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c Bool -> CSeq c x
+divBy :: forall x sz c . (Clock c, Size sz, Num sz, Rep sz, Num x, Rep x) => Witness sz -> CSeq c Bool -> CSeq c Bool -> CSeq c x
 divBy Witness rst trig = mux2 issue (1,0)
-	where 
+	where
 		issue = trig .&&. (counter1 .==. (pureS $ fromIntegral (size (error "witness" :: sz) - 1)))
 
 		counter0 :: CSeq c sz
@@ -452,14 +436,14 @@ divBy Witness rst trig = mux2 issue (1,0)
 				, (trig,counter1 + 1)
 				] counter1
 		counter1 :: CSeq c sz
-		counter1 = register 0 
+		counter1 = register 0
 			 $ mux2 issue (0,counter0)
 {-
 
 -- sub-domain for the inner clock.
-liftHandShaken :: (Clock c1) 
+liftHandShaken :: (Clock c1)
 	=> (forall c0 . (Clock c0) => Clocked c0 a -> Clocked c0 b)
-	-> HandShaken c1 (Enabled a) 
+	-> HandShaken c1 (Enabled a)
 	-> HandShaken c1 (Enabled b)
 liftHandShaken f = undefined
 

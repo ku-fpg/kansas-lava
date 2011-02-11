@@ -8,7 +8,6 @@ module Language.KansasLava (
     module Language.KansasLava.Shallow,
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
-    module Language.KansasLava.Protocols.FSL,
     module Language.KansasLava.Reify,
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
@@ -38,7 +37,6 @@ import Language.KansasLava.Clock
 import Language.KansasLava.Deep
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
-import Language.KansasLava.Protocols.FSL
 import Language.KansasLava.Reify
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
@@ -63,13 +61,8 @@ import Language.KansasLava.Dynamic
 
 -- Location of Temp Hacks
 
-import System.Cmd
-import System.Directory
 import System.IO.Unsafe
 import Control.Concurrent
-import Control.Concurrent.Chan
-import Data.Sized.Arith
-import Data.Sized.Ix
 
 {-# NOINLINE eChan #-}
 eChan :: Chan (String -> Int -> Int -> IO ())

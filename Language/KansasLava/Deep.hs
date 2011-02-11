@@ -46,10 +46,10 @@ entity3 nm (D w1) (D w2) (D w3) = D $ Port ("o0") $ E $
          cTy = repType (Witness :: Witness c)
          oTy = repType (Witness :: Witness o)
 
-entityN :: forall a b o . (Rep a, Rep o) => Id -> [D a] -> D o
+entityN :: forall a o . (Rep a, Rep o) => Id -> [D a] -> D o
 entityN nm ds = D $ Port ("o0") $ E $
  	Entity nm [("o0",oTy)]
-		  [(inp,ty,val) | inp <- ["i" ++ show n | n <- [0..]]
+		  [(inp,ty,val) | inp <- ["i" ++ show (n::Int) | n <- [0..]]
 				| ty <- repeat aTy
 				| val <- [w | D w <- ds]
 		  ]
