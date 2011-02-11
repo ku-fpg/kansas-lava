@@ -40,8 +40,8 @@ optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(_,_,Port o0' u0),(_,
 optimizeEntity _ (Entity (Name _ "mux2") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
-optimizeEntity _ (Entity (BlackBox _) [(o0,_)] [(i0, ti, pi)]) =
-  return $ replaceWith o0 (i0,ti,pi)
+optimizeEntity _ (Entity (BlackBox _) [(o0,_)] [(i0, ti, di)]) =
+  return $ replaceWith o0 (i0,ti,di)
 optimizeEntity _ _ = Nothing
 
 ----------------------------------------------------------------------
@@ -80,7 +80,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 		        Port p u -> case lookup (u,p) renamings of
 				      Just other -> other
 				      Nothing    -> Port p u
-			Pad v -> Pad v
+			Pad v' -> Pad v'
 			Lit i -> Lit i
 			Error i -> error $ "Found Error : " ++ show (i,v,t,d)
 		    )
@@ -210,7 +210,7 @@ optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 	where opt@(Opt c' _) = case fn c of
 				 Opt _ 0 -> Opt c 0	-- If there was no opts, avoid churn
-				 Opt c' n' -> Opt c' n'
+				 res@(Opt _ _) -> res
 
 
 
@@ -239,11 +239,13 @@ optimizeCircuit options rCir = do
 		  when (n > 0) $ do
 			print code
 		case cs of
-		    ((_,Opt c _):_) | and [ n == 0 | (_,Opt _ n) <- take (length opts) cs ] -> return c
-		    ((_,Opt _ _):cs) -> loop cs
+		    ((_,Opt c _):_) | and [ num == 0 | (_,Opt _ num) <- take (length opts) cs ] -> return c
+		    ((_,Opt _ _):rest) -> loop rest
 
 	opts = [ ("opt",patternMatchCircuit)
 	       , ("cse",cseCircuit)
 	       , ("copy",copyElimCircuit)
 	       , ("dce",dceCircuit)
 	       ]
+
+

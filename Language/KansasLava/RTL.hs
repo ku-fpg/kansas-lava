@@ -51,12 +51,12 @@ instance IsReg (CCSeq) where
 -}
 
 reg :: Reg s c a -> CSeq c a
-reg (Reg seq _ _ _) = seq
-reg (Arr seq _ _ _) = seq
+reg (Reg iseq _ _ _) = iseq
+reg (Arr iseq _ _ _) = iseq
 
 var :: Reg s c a -> CSeq c a
-var (Reg seq _ _ _) = seq
-var (Arr seq _ _ _) = seq
+var (Reg iseq _ _ _) = iseq
+var (Arr iseq _ _ _) = iseq
 
 -------------------------------------------------------------------------------
 
@@ -99,11 +99,11 @@ runRTL rtl = runST (do
 -- This is where our fixed (constant) names get handled.
 unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
-unRTL ((Reg _ _ var uq) := ss) = \ c _u -> do
-	modifySTRef var ((:) (\ r -> muxPred c (ss,r)))
+unRTL ((Reg _ _ varSt uq) := ss) = \ c _u -> do
+	modifySTRef varSt ((:) (\ r -> muxPred c (ss,r)))
 	return ((), [uq])
-unRTL ((Arr _ ix var uq) := ss) = \ c _u -> do
-	modifySTRef var ((:) (\ r -> muxPred c (enabledS (pack (ix,ss)),r)))
+unRTL ((Arr _ ix varSt uq) := ss) = \ c _u -> do
+	modifySTRef varSt ((:) (\ r -> muxPred c (enabledS (pack (ix,ss)),r)))
 	return ((), [uq])
 
 unRTL (CASE alts) = \ c u -> do
@@ -141,14 +141,14 @@ newReg :: forall a c s . (Clock c, Rep a) => a -> RTL s c (Reg s c a)
 newReg def = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
-	var <- newSTRef []
-	~(reg,variable) <- unsafeInterleaveST $ do
-		assigns <- readSTRef var
+	varSt <- newSTRef []
+	~(regRes,variable) <- unsafeInterleaveST $ do
+		assigns <- readSTRef varSt
 		let v_old = register def v_new
 		    v_new = foldr (.) id (reverse assigns) v_old
 --		    v_new' = debugWith debugs v_new'
 		return $ (v_old,v_new)
-	return (Reg reg variable var uq,[])
+	return (Reg regRes variable varSt uq,[])
 
 
 -- Arrays support partual updates.
@@ -157,9 +157,9 @@ newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
-	var <- newSTRef []
+	varSt <- newSTRef []
 	proj <- unsafeInterleaveST $ do
-		assigns <- readSTRef var
+		assigns <- readSTRef varSt
 {-
 		let memMux :: forall a . (Rep a) => (Maybe (CSeq c Bool), CSeq c ix, CSeq c a) -> CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))
 		    memMux (Nothing,ix,v) d  = enabledS (pack (ix,v))
@@ -173,7 +173,7 @@ newArr Witness = RTL $ \ _ u -> do
 		let look ix = writeMemory (ass :: CSeq c (Maybe (ix,a)))
 					`readMemory` ix
 		return $ look
-	return (\ ix -> Arr (proj ix) ix var uq, [])
+	return (\ ix -> Arr (proj ix) ix varSt uq, [])
 
 --assign :: Reg s c (Matrix ix a) -> CSeq c ix -> Reg s c a
 --assign (Reg seq var uq) = Arr

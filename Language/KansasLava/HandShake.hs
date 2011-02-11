@@ -104,7 +104,7 @@ toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled 
 toHandShaken' _ xs = HandShaken $ \ ready -> toHandShaken xs ready
 
 toHandShaken :: (Rep a) => [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
-toHandShaken xs ready = toSeq (fn xs (fromSeq ready))
+toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
 	where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   fn (x:xs) cs = x : case cs of -- read c after issuing x
@@ -161,14 +161,14 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
 shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
-shallowFifoToHandShaken fifo = do
-	xs <- getFIFOContents fifo
+shallowFifoToHandShaken sfifo = do
+	xs <- getFIFOContents sfifo
 	return (toHandShaken (xs ++ repeat Nothing))
 
 handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
-handShakeToShallowFifo fifo sink = do
-	putFIFOContents fifo (let (back,res) = fromHandShaken $ sink back
-	                      in res)
+handShakeToShallowFifo sfifo sink = do
+	putFIFOContents sfifo (let (back,res) = fromHandShaken $ sink back
+	                       in res)
       	return ()
 
 {- TODO: move into another location

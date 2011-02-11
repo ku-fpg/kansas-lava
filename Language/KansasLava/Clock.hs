@@ -56,12 +56,12 @@ rate Witness n
 
 -- | This is the runST of Kansas Lava.
 runClocked0 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk . (Clock clk) => Clocked clk a)
+	    => (forall clk' . (Clock clk') => Clocked clk' a)
 	    -> sig Bool -> sig (Enabled a)
 runClocked0 sub inp0 = runClocked1 (\ _ -> sub) (packEnabled inp0 (pureS ()))
 
 runClocked1 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk . (Clock clk) => Clocked clk a -> Clocked clk b)
+	    => (forall clk' . (Clock clk') => Clocked clk' a -> Clocked clk' b)
 	    -> sig (Enabled a) -> sig (Enabled b)
 runClocked1 _ (Seq _ _) = Seq e_b e_bs
   where

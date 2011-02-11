@@ -219,13 +219,13 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 -----------------------------------------------------------------------------------------------
 
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 i (t,e)
+mux2 iSig (tSig,eSig)
 	= liftS3 (\ (Comb i ei)
 	 	    (Comb t et)
 	 	    (Comb e ee)
 			-> Comb (mux2shallow i t e)
 			        (entity3 (Name "Lava" "mux2") ei et ee)
-	         ) i t e
+	         ) iSig tSig eSig
 
 liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
@@ -233,7 +233,7 @@ liftS3' f (Seq a _) (Seq b _) (Seq c _) = Seq (S.zipWith3 f' a b c) ed
       where
 	Comb _ ed = error "" -- f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' :: X a -> X b -> X c -> X d
-	f' a b c = case f (shallowComb a) (shallowComb b) (shallowComb c)  of
+	f' x y z = case f (shallowComb x) (shallowComb y) (shallowComb z)  of
 		      Comb d _ -> d
 
 
@@ -329,7 +329,7 @@ muxMatrix = (.!.)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
-(.!.) m x = liftS2 (\
+(.!.) mSig xSig = liftS2 (\
 		    (Comb (XMatrix m) me)
 	 	    (Comb x xe)
 			-> Comb (evalX (XMatrix m) `seq` case (unX x) of
@@ -337,7 +337,7 @@ muxMatrix = (.!.)
 				    Nothing -> optX Nothing
 				)
 			     (entity2 (Name "Lava" "index") xe me) -- order reversed
-	         ) m x
+	         ) mSig xSig
 
 {-
 updateMatrix :: forall sig x a
@@ -632,7 +632,7 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 -}
 toStdLogicVector :: forall sig w . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
-						       RepValue v -> StdLogicVector $ M.matrix $ v
+						       RepValue v' -> StdLogicVector $ M.matrix $ v'
 
 -- TODO: way may have to lift these up to handle unknowns better.
 fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w

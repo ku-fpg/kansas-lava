@@ -67,12 +67,12 @@ netlistCircuit name circuit = do
 
   let env = M.fromList nodes
 
-  let mod = Module name inports outports []
+  let nlMod = Module name inports outports []
 		(concatMap genDecl nodes ++
 		 concatMap (uncurry (genInst' env)) nodes ++
 --		genSync nodes ++
 		 finals)
-  return mod
+  return nlMod
 
 
 

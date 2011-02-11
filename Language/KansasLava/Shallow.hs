@@ -4,7 +4,7 @@
 module Language.KansasLava.Shallow where
 
 import Language.KansasLava.Stream as Stream
-import Language.KansasLava.Types
+import Language.KansasLava.Types hiding (Trace(..))
 import Control.Monad (liftM)
 import Data.Sized.Arith
 import Data.Sized.Ix
@@ -51,7 +51,7 @@ allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
     n = repWidth w
     counts :: Int -> [[Bool]]
     counts 0 = [[]]
-    counts n = [ x : xs |  xs <- counts (n-1), x <- [False,True] ]
+    counts num = [ x : xs |  xs <- counts (num-1), x <- [False,True] ]
 
 -- | Figure out the width in bits of a type.
 
@@ -448,7 +448,7 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
-		  unconcat xs = take len xs : unconcat (drop len xs)
+		  unconcat ys = take len ys : unconcat (drop len ys)
 
 		  len = Prelude.length xs `div` size (error "witness" :: ix)
 

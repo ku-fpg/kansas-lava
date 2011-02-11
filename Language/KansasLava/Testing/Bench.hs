@@ -2,7 +2,7 @@
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.Testing.Bench (mkTestbench) where
 
-import Language.KansasLava hiding (ports)
+import Language.KansasLava hiding (ports,Trace(..))
 
 import Data.List(mapAccumL,sort)
 

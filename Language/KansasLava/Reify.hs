@@ -21,7 +21,8 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as Stream
-import Language.KansasLava.Types
+import Language.KansasLava.Types hiding (inputs,outputs)
+import qualified Language.KansasLava.Types as Trace
 import Language.KansasLava.Utils
 import Language.KansasLava.HandShake
 
@@ -85,8 +86,10 @@ reifyCircuit circuit = do
               | n <- [newOut..]
               ]
 
-        let outputs2 = outputs ++ backoutputs
-        let outputs = outputs2
+        -- let outputs2 = outputs ++ backoutputs
+        -- let outputs = outputs2
+        -- outputs <- return $ outputs ++ backoutputs
+        let outputsWithBack = outputs ++ backoutputs
 
         let hofs =
               [ i
@@ -104,32 +107,37 @@ reifyCircuit circuit = do
                 | otherwise = (nm,ty,Port pnm i)
             remap_hofs other = other
 
-        let gr' = [ ( i
-                    , case g of
-                         Entity nm outs ins ->
-                                Entity nm outs (map remap_hofs ins)
-                    )
-                  | (i,g) <- gr
-                  , not (i `elem` hofs)
-                  ]
-        let gr = gr'
+
+        -- Remove hofs
+        let grNoHofs = [ ( i
+                         , case g of
+                             Entity nm outs ins ->
+                               Entity nm outs (map remap_hofs ins)
+                         )
+                         | (i,g) <- gr
+                       , not (i `elem` hofs)
+                       ]
+        -- let gr = gr'
 
         -- Search all of the enities, looking for input ports.
-        let inputs = [ (v,vTy) | (_,Entity _ _ ins) <- gr
+        let inputs = [ (v,vTy) | (_,Entity _ _ ins) <- grNoHofs
                                , (_,vTy,Pad v) <- ins]
 
-        let rCit = Circuit { theCircuit = gr
+        let rCit = Circuit { theCircuit = grNoHofs
                                   , theSrcs = nub inputs
-                                  , theSinks = outputs
+                                  , theSinks = outputsWithBack
                                   }
 
 
-        let rCit' = resolveNames rCit
-        let rCit = rCit'
+        let rCitNamesResolved = resolveNames rCit
+        -- let rCit = rCit'
 
 --      print rCit
         -- TODO remove, its a seperate pass
-        rCit2 <- if OptimizeReify `elem` opts then optimizeCircuit def rCit else return rCit
+        rCit2 <-
+          if OptimizeReify `elem` opts
+            then optimizeCircuit def rCitNamesResolved
+            else return rCitNamesResolved
 
         let depthss = [ mp | CommentDepth mp <- opts ]
 
@@ -171,8 +179,8 @@ reifyCircuit circuit = do
 
 
 	let domToPorts =
-		[ (dom, [ (nm,ty,Pad (OVar i nm))
-		       | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]
+		[ (dom, [ (nm,ty,Pad (OVar idx nm))
+		       | ((nm,ty),idx) <- zip envIns [i*3-1,i*3-2,i*3-3]
 		       ])
 		| (dom,i) <- zip domains [0,-1..]
                 ]
@@ -193,13 +201,13 @@ reifyCircuit circuit = do
                                                 nm
                                                 outs
 						(concat
-                                                [ case o of
+                                                [ case p of
                                                    (_,ClkDomTy,ClkDom cdnm) ->
 							case lookup cdnm domToPorts of
 							   Nothing -> error $ "can not find port: " ++ show cdnm
-							   Just outs -> outs
-                                                   _ -> [o]
-                                                | o <- ins ])
+							   Just outs' -> outs'
+                                                   _ -> [p]
+                                                | p <- ins ])
                                     )
                                 | (u,e) <- theCircuit rCit3 ]
                           , theSrcs =
@@ -345,7 +353,7 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
     probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
 --    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
 
-    run fn t@(Trace _ ins _ _) = run fn' $ t { inputs = ins' }
+    run fn t@(Trace _ ins _ _) = run fn' $ t { Trace.inputs = ins' }
         where (ins', fn') = apply ins fn
 
 -- TO remove when Input a, Ports b => .. works
@@ -472,10 +480,10 @@ instance (Input a, M.Size x) => Input (M.Matrix x a) where
         sz :: Int
         sz = M.size (error "sz" :: x)
 
-        loop vs0 0 = ([], vs0)
-        loop vs0 n = (b:bs,vs2)
-           where (b, vs1) = inPorts vs0
-                 (bs,vs2) = loop vs1 (n-1)
+        loop vs0' 0 = ([], vs0')
+        loop vs0' n = (c:cs,vs2)
+           where (c, vs1) = inPorts vs0'
+                 (cs,vs2) = loop vs1 (n-1)
 
         bs :: [a]
         (bs,vsX) = loop vs0 sz

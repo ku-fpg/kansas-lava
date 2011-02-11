@@ -1,7 +1,7 @@
 
 module Language.KansasLava.Netlist.Decl where
 
-import Language.KansasLava.Types
+import Language.KansasLava.Types hiding (Trace(..))
 import Language.Netlist.AST
 
 import Data.Reify.Graph (Unique)
@@ -67,8 +67,8 @@ genDecl (i,e@(Entity _ outputs _))
 	            (case e of
 	                Entity (Prim "register")
 	                        [("o0",ty)]
-	                        [ _, ("def",GenericTy,n), _, _, _] ->
-	                     Just (toTypedExpr ty n)
+	                        [ _, ("def",GenericTy,gn), _, _, _] ->
+	                     Just (toTypedExpr ty gn)
 	                _ -> Nothing)
 	  | (n,nTy) <- outputs
 	  , toStdLogicTy nTy /= V 0

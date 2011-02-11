@@ -39,7 +39,7 @@ setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
 addInput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
-addInput key seq t@(Trace _ ins _ _) = t { inputs = addSeq key seq ins }
+addInput key iseq t@(Trace _ ins _ _) = t { inputs = addSeq key iseq ins }
 
 getInput :: (Rep w) => ProbeName -> Trace -> Seq w
 getInput key trace = getSignal $ (inputs trace) M.! key
@@ -48,7 +48,7 @@ remInput :: ProbeName -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
 addOutput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
-addOutput key seq t@(Trace _ _ outs _) = t { outputs = addSeq key seq outs }
+addOutput key iseq t@(Trace _ _ outs _) = t { outputs = addSeq key iseq outs }
 
 getOutput :: (Rep w) => ProbeName -> Trace -> Seq w
 getOutput key trace = getSignal $ (outputs trace) M.! key
@@ -57,7 +57,7 @@ remOutput :: ProbeName -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
 
 addProbe :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
-addProbe key seq t@(Trace _ _ _ ps) = t { probes = addSeq key seq ps }
+addProbe key iseq t@(Trace _ _ _ ps) = t { probes = addSeq key iseq ps }
 
 getProbe :: (Rep w) => ProbeName -> Trace -> Seq w
 getProbe key trace = getSignal $ (probes trace) M.! key
@@ -142,12 +142,12 @@ genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- al
 
 -- inverse of genShallow
 asciiToTrace :: [String] -> Signature -> Trace
-asciiToTrace lines sig = et { inputs = ins, outputs = outs }
-    where et = setCycles (length lines) $ signatureTrace sig
+asciiToTrace ilines sig = et { inputs = ins, outputs = outs }
+    where et = setCycles (length ilines) $ signatureTrace sig
           widths = [ typeWidth ty
                    | (_,TraceStream ty _) <- M.assocs (inputs et) ++ M.assocs (outputs et)
                    ]
-          (inSigs, outSigs) = splitAt (M.size $ inputs et) $ splitLists lines widths
+          (inSigs, outSigs) = splitAt (M.size $ inputs et) $ splitLists ilines widths
           addToMap sigs m = M.fromList [ (k,TraceStream ty (map (RepValue . reverse . (map fromXBit)) strm))
                                        | (strm,(k,TraceStream ty _)) <- zip sigs $ M.assocs m
                                        ]
@@ -158,9 +158,9 @@ splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
 splitLists _  []     = [[]]
 
 genInfo :: Trace -> [String]
-genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i::Int,l) <- zip [1..] lines ]
+genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i::Int,l) <- zip [1..] lines' ]
     where alldata = (M.elems ins) ++ (M.elems outs)
-          lines = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
+          lines' = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
 writeToFile :: FilePath -> Trace -> IO ()
 writeToFile fp t = writeFile fp $ serialize t
@@ -225,4 +225,4 @@ addStream :: forall w. (Rep w) => ProbeName -> TraceMap -> Stream (X w) -> Trace
 addStream key m stream = M.insert key (toTrace stream) m
 
 addSeq :: forall w. (Rep w) => ProbeName -> Seq w -> TraceMap -> TraceMap
-addSeq key seq m = addStream key m (seqValue seq :: Stream (X w))
+addSeq key iseq m = addStream key m (seqValue iseq :: Stream (X w))

@@ -106,12 +106,12 @@ exposeProbes :: [String] -> Circuit -> Circuit
 exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
           n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
-          probes = sort [ (pname, n, outs)
-                        | (n, Entity (TraceVal pnames _) outs _) <- theCircuit rc
+          allProbes = sort [ (pname, nm, outs)
+                        | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
                         , pname <- pnames ]
-          exposed = nub [ (p, oty, Port onm n)
-                        | (p@(Probe pname _ _), n, outs) <- probes
-                        , or [ nm `isPrefixOf` pname | nm <- names ]
+          exposed = nub [ (p, oty, Port onm nm)
+                        | (p@(Probe pname _ _), nm, outs) <- allProbes
+                        , or [ name `isPrefixOf` pname | name <- names ]
                         , (onm,oty) <- outs ]
           showPNames x pname = show pname ++ "_" ++ show x
 
@@ -131,7 +131,7 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     -- TODO: figure out why we can't call mergeProbes on this
     rcWithData <- reifyCircuit $ k probed
 
-    let pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k <- ks ]
+    let pdata = [ (nid,k',v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k' <- ks ]
         outNum = maximum [ i | (_, WholeCircuit _ i _, _) <- pdata ]
         uniqueWCs = map head
                   $ groupBy (\ (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) -> s1 == s2 && i1 == i2)

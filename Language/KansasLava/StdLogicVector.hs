@@ -128,7 +128,7 @@ instance (Integral x, Size x, Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 
 -- TODO: rename as to and from.
 toSLV :: (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
 toSLV v = case toRep (optX $ return v) of
-		RepValue v -> StdLogicVector $ M.matrix $ v
+		RepValue v' -> StdLogicVector $ M.matrix $ v'
 
 fromSLV :: (Rep w, StdLogic w) => StdLogicVector (WIDTH w) -> Maybe w
 fromSLV (StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))

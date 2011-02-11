@@ -208,9 +208,9 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 	f :: Integer -> Type -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprLit Nothing (ExprNum i)))
         f i ty = let w = fromIntegral $ typeWidth ty
-                     next = i - w
-                 in (next, ExprSlice nm (ExprLit Nothing (ExprNum i))
-                                        (ExprLit Nothing (ExprNum (next + 1))))
+                     nextIdx = i - w
+                 in (nextIdx, ExprSlice nm (ExprLit Nothing (ExprNum i))
+                                        (ExprLit Nothing (ExprNum (nextIdx + 1))))
 
 -- Find some specific (named) input inside the entity.
 lookupInput :: (Show b) => String -> Entity b -> Driver b

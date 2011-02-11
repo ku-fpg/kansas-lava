@@ -2,16 +2,16 @@
 
 module Language.KansasLava.Netlist.Inst where
 
-import Language.KansasLava.Types
+import Language.KansasLava.Types hiding (Trace(..))
 import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
-import Language.KansasLava.Shallow
+import Language.KansasLava.Shallow hiding (log2)
 import qualified Data.Map as M
 
 import Data.List
 import Data.Reify.Graph (Unique)
 
-import Language.KansasLava.Netlist.Utils as Utils
+import Language.KansasLava.Netlist.Utils hiding (zeros)
 
 import Debug.Trace
 
@@ -202,16 +202,16 @@ genInst _ i (Entity (Prim "index")
 		   ("i1",eleTy,input)]) =
 	[ NetAssign (sigName "o0" i)
 		(ExprCase (toStdLogicExpr ixTy ix)
-			[ ([toStdLogicExpr ixTy (i :: Integer)],toStdLogicExpr outTy val)
-			| (i,val) <- zip [0..] $ prodSlices input tys
+			[ ([toStdLogicExpr ixTy (idx :: Integer)],toStdLogicExpr outTy val)
+			| (idx,val) <- zip [0..] $ prodSlices input tys
 			]
 			(Just $ toStdLogicExpr outTy (0 :: Integer))
 		)
 	]
   where tys = case eleTy of
                 -- Not sure about way this works over two different types.
-		MatrixTy sz eleTy -> take sz $ repeat eleTy
-		TupleTy tys -> tys
+		MatrixTy sz eleTy' -> take sz $ repeat eleTy'
+		TupleTy tys' -> tys'
 		other -> error $ show ("genInst/index",other)
 
 
@@ -244,7 +244,7 @@ genInst _ i (Entity (Name "Memory" "register") [("o0",_)] inputs) =
           [NetAssign input (toStdLogicExpr ty d) ]
   where output = sigName "o0" i
         input =  next output
-	(ty,d) = head [ (ty,d) | ("i0",ty,d) <- inputs ]
+	(ty,d) = head [ (ity,driver) | ("i0",ity,driver) <- inputs ]
 
 
 -- Muxes
@@ -275,7 +275,7 @@ genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
                 where
                         -- Use the log of the resolution + 1 bit for sign
                         log2 1 = 0
-                        log2 n | n > 1 = 1 + log2 (n `div` 2)
+                        log2 num | num > 1 = 1 + log2 (num `div` 2)
 
 -- For compares, we need to use one of the arguments.
 -- With fixed width, we can just consider the bits to be "signed".
@@ -556,7 +556,7 @@ genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
 -}
 
 -- A bit of a hack to handle Bool or zero-width arguments.
-genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType addr_ty =
+genInst env i (Entity (Prim "RAM") outputs@[("o0",data_ty)] inputs) | goodAddrType addr_ty =
    case (toStdLogicTy data_ty,toStdLogicTy addr_ty) of
 	(V n, V 0) -> genInst env i $ zeroArg $ inst n 1
 	(B  , V 0) -> genInst env i $ boolTrick ["wData","o0"] $ zeroArg $ inst 1 1
@@ -564,7 +564,7 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
 	(V n, V m) -> genInst env i $ inst n m
 	_ -> error $ "RAM typing issue (should not happen)"
  where
-        ("rAddr",addr_ty,_) = last ins
+        ("rAddr",addr_ty,_) = last inputs
 
 {-
         rAddr = case d of
@@ -577,10 +577,10 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
         inst :: Int -> Int -> Entity Int
         inst n m = Entity
                     (External "lava_bram")
-                    outs
-		    (ins ++ [("data_width",GenericTy,Generic $ fromIntegral n)
-			    ,("addr_width",GenericTy,Generic $ fromIntegral m)
-			    ])
+                    outputs
+		    (inputs ++ [("data_width",GenericTy,Generic $ fromIntegral n)
+			       ,("addr_width",GenericTy,Generic $ fromIntegral m)
+			       ])
         zeroArg (Entity nm outs ins) =
                         Entity nm outs $
                                [ (n,V 1,Lit $ RepValue [WireVal False])
@@ -643,8 +643,8 @@ genInst _ i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) =
 -- Right now, we *assume* that every external entity
 -- has in and outs of type std_logic[_vector].
 
-genInst _ i (Entity n@(External nm) outputs inputs) =
-	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+genInst _ i (Entity name@(External nm) outputs inputs) =
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl nm ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
@@ -660,13 +660,13 @@ genInst _ i (Entity n@(External nm) outputs inputs) =
 
          -- A hack to match 'boolTrick'. Should think again about this
          -- Think of this as a silent (0) at the end of the right hand size.
-         fixName B nm | "(0)" `isSuffixOf` nm = reverse (drop 3 (reverse nm))
-         fixName _ nm = nm
+         fixName B n | "(0)" `isSuffixOf` n = reverse (drop 3 (reverse n))
+         fixName _ n = n
 
 
 
-genInst _ i (Entity n@(Name mod_nm nm) outputs inputs) =
-	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+genInst _ i (Entity name@(Name mod_nm nm) outputs inputs) =
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ sanitizeName nm) ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)

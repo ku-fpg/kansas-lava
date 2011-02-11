@@ -65,8 +65,8 @@ instance Signal (CSeq c) where
   liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
     let
 	Comb _ eb = f (deepComb ea)
-	f' a = let (Comb b _) = f (shallowComb a)
-	       in b
+	f' x = let (Comb y _) = f (shallowComb x)
+	       in y
    in Seq (fmap f' a) eb
 
   -- We can not replace this with a version that uses packing,
@@ -74,8 +74,8 @@ instance Signal (CSeq c) where
   liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
-	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b)
-	         in c
+	f' x y = let (Comb z _) = f (shallowComb x) (shallowComb y)
+	         in z
 
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]

@@ -511,13 +511,13 @@ instance Show Circuit where
 
         bar = (replicate 78 '-') ++ "\n"
 
-        inputs = unlines
+        circInputs = unlines
                 [ show var ++ " : " ++ show ty
                 | (var,ty) <- sortBy (\ (OVar i _,_) (OVar j _,_) -> i `compare` j)
                             $ theSrcs rCir
                 ]
 
-        outputs = unlines
+        circOutputs = unlines
                 [ show var   ++ " <- " ++ showDriver dr ty
                 | (var,ty,dr) <- sortBy (\ (OVar i _,_,_) (OVar j _,_,_) -> i `compare` j)
                                $ theSinks rCir
@@ -539,11 +539,11 @@ instance Show Circuit where
         msg = bar
                 ++ "-- Inputs                                                                   --\n"
                 ++ bar
-                ++ inputs
+                ++ circInputs
                 ++ bar
                 ++ "-- Outputs                                                                  --\n"
                 ++ bar
-                ++ outputs
+                ++ circOutputs
                 ++ bar
                 ++ "-- Entities                                                                 --\n"
                 ++ bar

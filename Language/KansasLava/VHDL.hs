@@ -31,8 +31,8 @@ vhdlCircuit' nlOpts name mods circuit = do
 writeVhdlCircuit :: [String] -> String -> FilePath -> Circuit -> IO ()
 writeVhdlCircuit mods nm file cir = do
         let cir' = preprocessVhdlCircuit cir
-	mod <- netlistCircuit nm cir'
-	writeFile file (genVHDL mod mods)
+	nlMod <- netlistCircuit nm cir'
+	writeFile file (genVHDL nlMod mods)
 
 
 -- This gets a circuit ready for VHDL generation.
@@ -138,8 +138,8 @@ preprocessVhdlCircuit cir =
                                  Pad o2@(OVar _ nm)
                                      -> case [ u | (u,(o3,_)) <- extras1, o2 == o3 ] of
                                              [u] -> Port "o0" u
-                                             []  -> case [ i | (OVar i nm',_) <- srcs2, nm == nm' ] of
-                                                      [i] -> Pad (OVar i nm)
+                                             []  -> case [ j | (OVar j nm',_) <- srcs2, nm == nm' ] of
+                                                      [k] -> Pad (OVar k nm)
                                  other -> other
                                  ) | (o,t,d) <- outs ])
 
