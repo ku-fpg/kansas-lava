@@ -18,7 +18,14 @@ tests :: TestSeq -> IO ()
 tests test = do
         -- testing FIFOs
 
-        let t str arb = testFIFO test str (dubSeq arb)
+        let t :: forall w sz sz1 .
+                 (Eq w, Rep w, Show w,
+                  sz1 ~ ADD sz X1,
+                  Size sz, Size sz1,
+                  Rep sz, Rep sz1,
+                  Num w, Num sz, Num sz1)
+                 => String -> Gen (Bool,Maybe w) -> Witness sz -> IO ()
+            t str arb = testFIFO test str (dubSeq arb)
 
         t "U5"  (arbitrary :: Gen (Bool,Maybe U5)) (Witness :: Witness X1)
         t "U5"  (arbitrary :: Gen (Bool,Maybe U5)) (Witness :: Witness X2)
@@ -36,7 +43,7 @@ tests test = do
 
 testFIFO :: forall w sz sz1 . (Eq w, Rep w, Show w,
                                sz1 ~ ADD sz X1,
-                               Size sz, Size sz1, 
+                               Size sz, Size sz1,
                                Rep sz, Rep sz1,                 Num w,
                                Num sz, Num sz1)
         => TestSeq -> String -> Gen (Bool,Maybe w) -> Witness sz -> IO ()
@@ -71,11 +78,11 @@ testFIFO (TestSeq test toList) tyName ws wit = do
                         | otherwise
                         = fifoSpec2  (val:vals) outs (Nothing:state)
 
-            fifoSpec2 vals (ready:outs) state = 
+            fifoSpec2 vals (ready:outs) state =
                     case [ x | Just x <- reverse $ drop 3 state ] of
                         [] -> Nothing   : fifoSpec vals outs state
                         (x:_) -> Just x : fifoSpec  vals outs (nextState state ready)
-                        
+
             nextState state False = state
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
 

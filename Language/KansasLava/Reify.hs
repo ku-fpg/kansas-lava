@@ -5,6 +5,7 @@ module Language.KansasLava.Reify
         , Input(..)
         , probe
         , probeWholeCircuit
+        , output
         ) where
 
 import Data.Default
@@ -546,8 +547,8 @@ showOptCircuit opt c = do
 -------------------------------------------------------------
 
 
--- output :: (Signal seq, Rep a)  => String -> seq a -> seq a
--- output nm = label nm
+output :: (Signal seq, Rep a)  => String -> seq a -> seq a
+output nm = label nm
 
 resolveNames :: Circuit -> Circuit
 resolveNames cir

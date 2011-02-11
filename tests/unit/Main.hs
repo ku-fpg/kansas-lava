@@ -57,7 +57,7 @@ main = do
                   | t <- [ tests
                          , Matrix.tests
                          , Memory.tests
-                         , FIFO.tests 
+                         , FIFO.tests
                          ]
                   ]
 

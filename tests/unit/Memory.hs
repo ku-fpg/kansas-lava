@@ -17,7 +17,7 @@ import Data.List as List
 
 import Debug.Trace
 
-tests :: TestSeq -> IO ()
+
 tests test = do
     --  Memories
         let t :: (Eq b, Integral a, Show b,
@@ -54,11 +54,14 @@ tests test = do
 
 
         -- test ROM
-        
-        let t str arb = testRomMemory test str arb
-        
-        t "X4xU5" (dubSeq (arbitrary :: Gen (X4,U5))) 
-        t "X4xU8" (dubSeq (arbitrary :: Gen (X4,U8))) 
+        let t :: (Integral a, Size a, Eq a, Rep a,
+                 Eq b, Show b, Rep b,
+                 Size (Column a), Size (Row a)) =>
+                 String -> Gen (a,b) -> IO ()
+            t str arb = testRomMemory test str arb
+
+        t "X4xU5" (dubSeq (arbitrary :: Gen (X4,U5)))
+        t "X4xU8" (dubSeq (arbitrary :: Gen (X4,U8)))
         t "X8xB"  (dubSeq (arbitrary :: Gen (X8,Bool)))
 
 
@@ -140,6 +143,15 @@ testRomMemory (TestSeq test toList) tyName ws = do
 
         let res :: Seq w2
             res = toSeq [ m M.! a | a <- addr ]
-            
+
         test ("memory/async/rom/" ++ tyName) (length addr) thu res
         return ()
+
+
+
+
+mytest :: (Eq b, Integral a, Show b,
+              Size (Column a), Size (Row a),
+              Size a, Rep a, Rep b) =>
+          String -> Gen (Maybe (a,b)) -> IO ()
+mytest str arb = testMatrixMemory undefined str arb
