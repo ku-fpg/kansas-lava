@@ -35,8 +35,8 @@ reifyCircuit circuit = do
 
         let opts = []
         -- GenSym for input/output pad names
-        let inputNames = L.zipWith OVar [0..] $ head $
-                [[ "i" ++ show (i::Int) | i <- [0..]]]
+        -- let inputNames = L.zipWith OVar [0..] $ head $
+        --         [[ "i" ++ show (i::Int) | i <- [0..]]]
         let outputNames =  L.zipWith OVar [0..] $ head $
                  [[ "o" ++ show (i::Int) | i <- [0..]]]
 
@@ -156,17 +156,17 @@ reifyCircuit circuit = do
         -- The clock domains
 --      print domains
 
-        let nameEnv "unit" nm = nm
-            nameEnv dom    nm = dom ++ "_" ++ nm
+        -- let nameEnv "unit" nm = nm
+        --     nameEnv dom    nm = dom ++ "_" ++ nm
 
-        let extraSrcs =
-                concat [  [ nameEnv dom "clk", nameEnv dom "clk_en", nameEnv dom "rst" ]
-                       | dom <- domains
-                       ] `zip` [-1::Int,-2..]
+        -- let extraSrcs =
+        --         concat [  [ nameEnv dom "clk", nameEnv dom "clk_en", nameEnv dom "rst" ]
+        --                | dom <- domains
+        --                ] `zip` [-1::Int,-2..]
 
 
 
-        let allocs = allocEntities rCit3
+        -- let allocs = allocEntities rCit3                    -
         let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]     -- in reverse order for a reason
 
 
@@ -227,13 +227,13 @@ wireCapture :: forall w . (Rep w) => D w -> [(Type, Driver E)]
 wireCapture (D d) = [(repType (Witness :: Witness w), d)]
 
 
-showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
-showCircuit _ c = do
-        rCir <- reifyCircuit c
-        return $ show rCir
+-- showCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
+-- showCircuit _ c = do
+--         rCir <- reifyCircuit c
+--         return $ show rCir
 
-debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()
-debugCircuit opt c = showCircuit opt c >>= putStr
+-- debugCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO ()
+-- debugCircuit opt c = showCircuit opt c >>= putStr
 
 insertProbe :: ProbeName -> TraceStream -> Driver E -> Driver E
 insertProbe n s@(TraceStream ty _) = mergeNested
@@ -521,8 +521,8 @@ showOptCircuit opt c = do
 -------------------------------------------------------------
 
 
-output :: (Signal seq, Rep a)  => String -> seq a -> seq a
-output nm = label nm
+-- output :: (Signal seq, Rep a)  => String -> seq a -> seq a
+-- output nm = label nm
 
 resolveNames :: Circuit -> Circuit
 resolveNames cir
@@ -535,12 +535,12 @@ resolveNames cir
                                      }
   where
         error1 = L.length (map fst (theSrcs cir)) /= L.length (nub (map fst (theSrcs cir)))
-        error2 =  [ v
-                        | (_,e) <- newCircuit
-                        , v <- case e of
-                            Entity _ _ ins -> [ nm | (_,_,Pad nm) <- ins ]
-                        , v `elem` oldSrcs
-                        ]
+        -- error2 =  [ v
+        --                 | (_,e) <- newCircuit
+        --                 , v <- case e of
+        --                     Entity _ _ ins -> [ nm | (_,_,Pad nm) <- ins ]
+        --                 , v `elem` oldSrcs
+        --                 ]
         error3 = L.length (map fst newSrcs) /= L.length (nub (map fst newSrcs))
 
         newCircuit =
@@ -566,10 +566,10 @@ resolveNames cir
                   ]
 
         -- Names that have been replaced.
-        oldSrcs = [ nm
-                  | (nm,_) <- theSrcs cir
-                  , not (nm `elem` (map fst newSrcs))
-                  ]
+        -- oldSrcs = [ nm
+        --           | (nm,_) <- theSrcs cir
+        --           , not (nm `elem` (map fst newSrcs))
+        --           ]
 
         newSinks :: [(OVar,Type,Driver Unique)]
         newSinks = [ case dr of
@@ -581,9 +581,9 @@ resolveNames cir
                    | (nm@(OVar i _),ty,dr) <- theSinks cir
                    ]
 
-        isOutput u = case lookup u (theCircuit cir) of
-                        Just (Entity (Name "Lava" "output") _ _) -> True
-                        _ -> False
+        -- isOutput u = case lookup u (theCircuit cir) of
+        --                 Just (Entity (Name "Lava" "output") _ _) -> True
+        --                 _ -> False
 
         fnInputs :: Driver Unique -> Driver Unique
         fnInputs (Pad p) = Pad $ case lookup p mapInputs of

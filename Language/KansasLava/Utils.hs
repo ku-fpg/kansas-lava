@@ -498,7 +498,7 @@ delay ~(Seq line eline) = res
    where
         def = optX $ Nothing
 
-        rep = toRep def
+        -- rep = toRep def
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line

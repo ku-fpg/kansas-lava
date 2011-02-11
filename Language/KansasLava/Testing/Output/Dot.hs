@@ -29,9 +29,9 @@ writeDotCircuit filename circuit = do
            ++ join (map showP outs) ++ "}}"
 
        -- TODO: insert types
-       mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
-           ++ join (map showP ins) ++ "}|{"
-           ++ join (map showP outs) ++ "}}"
+       -- mkPLabel pname nm ins outs = "{" ++ (concatMap addSpecial $ show nm) ++ "|" ++ join pname ++ "}|{{"
+       --     ++ join (map showP ins) ++ "}|{"
+       --     ++ join (map showP outs) ++ "}}"
 
    writeFile filename $ showDot $ do
         attribute ("rankdir","LR")

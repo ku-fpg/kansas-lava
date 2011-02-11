@@ -61,12 +61,12 @@ import Language.KansasLava.Dynamic
 
 -- Location of Temp Hacks
 
-import System.IO.Unsafe
-import Control.Concurrent
+-- import System.IO.Unsafe
+-- import Control.Concurrent
 
-{-# NOINLINE eChan #-}
-eChan :: Chan (String -> Int -> Int -> IO ())
-eChan = unsafePerformIO $ newChan
+-- {-# NOINLINE eChan #-}
+-- eChan :: Chan (String -> Int -> Int -> IO ())
+-- eChan = unsafePerformIO $ newChan
 {-
     examine :: (RepWire a) => String -> (Seq a -> b) -> (Seq a -> b)
 

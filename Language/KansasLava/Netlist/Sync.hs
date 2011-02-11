@@ -49,7 +49,7 @@ regProc (clk,rst,clk_en) es
         nextName e i = toStdLogicExpr  (lookupInputType "o0" e) $ next (Port ("o0") i)
         defaultDriver e = toStdLogicExpr (defaultDriverType e) $ lookupInput "def" e
         defaultDriverType e = lookupInputType "def" e
-        driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
+        -- driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
         regAssigns = statements [Assign (outName e i) (nextName e i)  | (i,e) <- es]
         regNext = case clk_en of
 		    Lit (RepValue [WireVal True]) -> regAssigns

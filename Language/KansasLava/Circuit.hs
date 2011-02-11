@@ -66,8 +66,8 @@ replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
 probeList :: Circuit -> [(DRG.Unique, Entity DRG.Unique)]
 probeList rc = [ (n,e) | (n,e@(Entity (TraceVal _ _) _ _)) <- theCircuit rc ]
 
-probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[ProbeName])]
-probesOn x rc = probesOnAL x $ theCircuit rc
+-- probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[ProbeName])]
+-- probesOn x rc = probesOnAL x $ theCircuit rc
 
 probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[ProbeName])]
 probesOnAL x al = [ (id,nms) | (id, Entity (TraceVal nms _) _ ins) <- al

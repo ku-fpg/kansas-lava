@@ -45,8 +45,8 @@ netlistCircuit :: String         -- ^ The name of the generated entity.
 netlistCircuit name circuit = do
   let (Circuit nodes srcs sinks) = circuit
 
-  let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
-	         -- need size info for each input, to declare length of std_logic_vector
+  -- let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
+  --                -- need size info for each input, to declare length of std_logic_vector
   let inports = [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort srcs
                                      , case toStdLogicTy ty of
                                            MatrixTy {} -> error "can not have a matrix as an in argument"

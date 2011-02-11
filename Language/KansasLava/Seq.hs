@@ -183,11 +183,11 @@ showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
 showSeqBits ss = [ (show $ toRep (i :: X a))
 		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
-       where showX b = case unX b of
-			Nothing -> 'X'
-			Just True -> '1'
-			Just False -> '0'
-             witness = error "witness" :: a
+       -- where showX b = case unX b of
+       --  		Nothing -> 'X'
+       --  		Just True -> '1'
+       --  		Just False -> '0'
+       --       witness = error "witness" :: a
 
 showSeqVals :: forall a c . (Rep a) => CSeq c a -> [String]
 showSeqVals ss = [ showRep witness i

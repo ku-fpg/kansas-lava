@@ -205,10 +205,10 @@ fromXBit '0' = WireVal False
 showTraceStream :: Maybe Int -> TraceStream -> [String]
 showTraceStream c (TraceStream _ s) = [map toXBit $ reverse val | RepValue val <- takeMaybe c s]
 
-readStrm :: [String] -> (TraceStream, [String])
-readStrm ls = (strm,rest)
-    where (m,rest) = readMap ls
-          [(_,strm)] = M.toList (m :: TraceMap)
+-- readStrm :: [String] -> (TraceStream, [String])
+-- readStrm ls = (strm,rest)
+--     where (m,rest) = readMap ls
+--           [(_,strm)] = M.toList (m :: TraceMap)
 
 readMap :: [String] -> (TraceMap, [String])
 readMap ls = (go $ takeWhile cond ls, rest)

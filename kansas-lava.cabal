@@ -73,8 +73,7 @@ Library
 --  Hs-Source-Dirs: ., ../sized-types
   Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
                -fno-warn-missing-signatures -fno-warn-name-shadowing
-               -fno-warn-orphans -fno-warn-unused-binds
-               -fno-warn-missing-methods
+               -fno-warn-orphans -fno-warn-missing-methods
 
 
 --  Ghc-Prof-options:  -auto-all

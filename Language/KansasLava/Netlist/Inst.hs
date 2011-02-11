@@ -564,7 +564,7 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
 	(V n, V m) -> genInst env i $ inst n m
 	_ -> error $ "RAM typing issue (should not happen)"
  where
-        ("rAddr",addr_ty,d) = last ins
+        ("rAddr",addr_ty,_) = last ins
 
 {-
         rAddr = case d of
@@ -616,7 +616,7 @@ genInst _ i (Entity (Prim "asyncRead")
       ]
      _ -> error "bad array as input to asyncRead"
  where
-    MatrixTy x (V y) = toStdLogicTy ty1
+    MatrixTy _ (V _) = toStdLogicTy ty1
 
 {-
 genInst env i (Entity (Prim "asyncRead")

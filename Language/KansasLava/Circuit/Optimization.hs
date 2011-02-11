@@ -116,10 +116,10 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	cseCount = length (theCircuit rCir) - length rCirX
 
 	-- for now, just use show: this is what has changed
-	optMsg = [ (u,e)
-	         | (u,e) <- (theCircuit rCir)
-		 , not (u `elem` (map fst (map head rCirX)))
-	         ]
+	-- optMsg = [ (u,e)
+	--          | (u,e) <- (theCircuit rCir)
+	-- 	 , not (u `elem` (map fst (map head rCirX)))
+	--          ]
 
 	rCirX :: [[(Unique, Entity Unique)]]
 	rCirX = map canonicalize
@@ -208,7 +208,7 @@ patternMatchCircuit rCir = if optCount == 0
 
 optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt Circuit)]
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
-	where opt@(Opt c' n) = case fn c of
+	where opt@(Opt c' _) = case fn c of
 				 Opt _ 0 -> Opt c 0	-- If there was no opts, avoid churn
 				 Opt c' n' -> Opt c' n'
 
