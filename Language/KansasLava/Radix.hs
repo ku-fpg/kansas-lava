@@ -33,6 +33,7 @@ insert (x:a) y (Choose l r)
 	| x == False	  = Choose l (insert a y r)
 
 -- Would this be lifted?
+expanded :: Radix a
 expanded = Choose NoRes NoRes
 
 lookup :: [Bool] -> Radix a -> Maybe a

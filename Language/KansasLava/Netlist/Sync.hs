@@ -57,6 +57,9 @@ regProc (clk,rst,clk_en) es
 		    _     -> If (isHigh (toTypedExpr B clk_en)) regAssigns Nothing
 
 
+bramProc :: (Driver Unique, Driver Unique,  Driver Unique)
+         -> [(Unique, Entity Unique)]
+	 -> [Decl]
 bramProc (_,_,_) [] = []
 bramProc (clk,_,clk_en) es =
   [ProcessDecl

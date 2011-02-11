@@ -157,22 +157,43 @@ memRange ty = case toStdLogicTy ty of
                           low = ExprLit Nothing (ExprNum 0)
 
 -- VHDL "macros"
+active_high :: Expr -> Expr
 active_high d      = ExprCond d  (ExprLit Nothing (ExprBit T)) (ExprLit Nothing (ExprBit F))
+
+std_logic_vector :: Expr -> Expr
 std_logic_vector d = ExprFunCall "std_logic_vector" [d]
+
+to_unsigned :: Expr -> Expr -> Expr
 to_unsigned x w    = ExprFunCall "to_unsigned" [x, w]		-- is this used now?
+
+unsigned :: Expr -> Expr
 unsigned x         = ExprFunCall "unsigned" [x]
+
+to_signed :: Expr -> Expr -> Expr
 to_signed x w      = ExprFunCall "to_signed" [x, w]		-- is this used now?
+
+signed :: Expr -> Expr
 signed x           = ExprFunCall "signed" [x]
+
+to_integer :: Expr -> Expr
 to_integer e       = ExprFunCall "to_integer" [e]
 
 --singleton x 	   = ExprFunCall "singleton" [x]
 -- Others
 
+isHigh :: Expr -> Expr
 isHigh d = (ExprBinary Equals d (ExprLit Nothing (ExprBit T)))
+
+isLow :: Expr -> Expr
 isLow d = (ExprBinary Equals d (ExprLit Nothing (ExprBit F)))
+
+allLow :: Type -> Expr
 allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
+
+zeros :: Expr
 zeros = ExprString "(others => '0')" -- HACK
 
+toMemIndex :: Integral t => Type -> Driver t -> Expr
 toMemIndex ty _ | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
 toMemIndex _ (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
@@ -219,6 +240,7 @@ lookupInput i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
 -- Find some specific (named) input's type inside the entity.
+lookupInputType :: String -> Entity t -> Type
 lookupInputType i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
@@ -307,6 +329,7 @@ isVirtualEntity =
 
 -- We sometimes store std_logic's as singleton std_logic_vectors.
 --boolTrick :: [String] -> Entity a -> Entity a
+boolTrick :: [[Char]] -> Entity s -> Entity s
 boolTrick nms (Entity (External nm) outs ins) =
         Entity (External nm)
                [ (trick n,t) | (n,t) <- outs ]

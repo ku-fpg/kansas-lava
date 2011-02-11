@@ -62,6 +62,7 @@ var (Arr iseq _ _ _) = iseq
 
 data Pred c = Pred (Maybe (CSeq c Bool))
 
+truePred :: Pred c
 truePred = Pred Nothing
 
 andPred :: Pred c -> CSeq c Bool -> Pred c

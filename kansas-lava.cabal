@@ -22,7 +22,7 @@ Flag all
 
 Flag unit
   Description: Enable unit testing binary
-  Default:     False
+  Default:     True
 
 Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
@@ -72,8 +72,7 @@ Library
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
   Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
-               -fno-warn-missing-signatures
-               -fno-warn-orphans -fno-warn-missing-methods
+               -fno-warn-orphans
 
 
 --  Ghc-Prof-options:  -auto-all

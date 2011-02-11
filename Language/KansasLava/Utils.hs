@@ -428,6 +428,7 @@ data Rst = Rst Bool
 -- For now, till other codes get fixed
 type Env c = ()
 
+shallowEnv :: ()
 shallowEnv = ()
 
 {-

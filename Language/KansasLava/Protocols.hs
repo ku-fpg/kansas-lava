@@ -140,6 +140,8 @@ readMemory mem addr = unpack mem addr
 -}
 
 -- This is an alias
+readMemory :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
+	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
 
 

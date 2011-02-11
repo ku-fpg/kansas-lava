@@ -46,6 +46,7 @@ optimizeEntity _ _ = Nothing
 
 ----------------------------------------------------------------------
 
+replaceWith :: String -> (String, Type, Driver s) -> Entity s
 replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)]
 --replaceWith (i,t,x) = error $ "replaceWith " ++ show (i,t,x)
 

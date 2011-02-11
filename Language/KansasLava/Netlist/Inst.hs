@@ -15,7 +15,10 @@ import Language.KansasLava.Netlist.Utils hiding (zeros)
 
 import Debug.Trace
 
-
+genInst' :: M.Map Unique (Entity Unique)
+         -> Unique
+         -> Entity Unique
+         -> [Decl]
 genInst' env i e =
 	[ CommentDecl $ show (i,e)
 	] ++ genInst env i e
@@ -743,6 +746,7 @@ mkSpecialBinary coerceR coerceF ops =
           mkBool True  = ExprLit Nothing (ExprBit T)
           mkBool False = ExprLit Nothing (ExprBit F)
 
+mkSpecialShifts :: [(String, Ident)] -> [(Id, NetlistOperation)]
 mkSpecialShifts ops =
     [(Prim lavaName
       , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
@@ -754,6 +758,7 @@ mkSpecialShifts ops =
 -- testBit returns the bit-value at a specific (constant) bit position
 -- of a bit-vector.
 -- This generates:    invar(indexVal);
+mkSpecialTestBit :: [(Id, NetlistOperation)]
 mkSpecialTestBit =
     [(Prim lavaName
       , NetlistOp 2 ( \ _ [(lty,l),(rty,r)] ->

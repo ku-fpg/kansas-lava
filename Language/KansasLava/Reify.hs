@@ -295,6 +295,9 @@ instance (Clock clk, Rep a) => Input (HandShaken clk (Seq a)) where
         -- We need the ~ because the output does not need to depend on the input
         where fn = HandShaken $ \ ~(Seq _ ae) -> deepSeq $ entity1 (Prim "hof") $ ae
     input _ a = a
+    getSignal _ = error "Can't getSignal from Handshaken"
+    apply _ _ = error "Can't apply to Handshaken"
+
 
 {-
 instance Clock clk => Ports (Env clk) where
@@ -326,6 +329,8 @@ instance (Clock clk, Ports a) => Ports (HandShaken clk a) where
                         let ready' = probe' (addSuffixToProbeNames names "-arg") ready
                         in probe' (addSuffixToProbeNames names "-res") (f ready')
 
+    run _ _ = error "run not defined for HandShaken"
+
 instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
     ports _ (a,b,c) = ports bad c ++ ports bad b ++ ports bad a
         where bad = error "bad using of arguments in Reify"
@@ -342,6 +347,8 @@ instance (Ports a, Ports b, Ports c) => Ports (a,b,c) where
 
 instance (Ports a,M.Size x) => Ports (M.Matrix x a) where
     ports _ m = concatMap (ports (error "bad using of arguments in Reify")) $ M.toList m
+    probe' _ _ = error "Ports(probe') not defined for Matrix"
+    run _ _ = error "Ports(run) not defined for Matrix"
 
 -- Idealy we'd want this to only have the constraint: (Input a, Ports b)
 -- but haven't figured out a refactoring that allows that yet. As it is,
@@ -359,6 +366,9 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
 -- TO remove when Input a, Ports b => .. works
 instance Ports () where
     ports _ _ = []
+    probe' _ _ = error "Ports(probe') not defined for ()"
+    run _ _ = error "Ports(run) not defined for ()"
+
 
 --class OutPorts a where
 --    outPorts :: a ->  [(Var, Type, Driver E)]
@@ -395,6 +405,9 @@ instance (Rep a, Rep b) => Input (CSeq c a -> CSeq c b) where
           where fn ~(Seq _ ae) = deepSeq $ entity1 (Prim "hof") $ ae
 
         input _ a = a
+        getSignal _ = error "Input(getSignal) not defined for  Input (CSeq c a -> CSeq c b)"
+        apply _ _ = error "Input(apply) not defined for  Input (CSeq c a -> CSeq c b)"
+
 
 instance Rep a => Input (CSeq c a) where
     inPorts vs = (Seq (error "Input (Seq a)") d,vs')
@@ -460,6 +473,8 @@ instance Input () where
     inPorts vs0 = ((),vs0)
     apply _ _ = error "Input ()"
     input _ _  = error "input ()"
+    getSignal _ = error "Input(getSignal) not defined for  Input ()"
+
 
 
 instance (Input a, Input b) => Input (a,b) where
@@ -473,6 +488,7 @@ instance (Input a, Input b) => Input (a,b) where
               m' = Map.deleteMin $ Map.deleteMin m
 
     input nm (a,b) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b)
+    getSignal _ = error "Input(getSignal) not defined for  Input (a,b)"
 
 instance (Input a, M.Size x) => Input (M.Matrix x a) where
  inPorts vs0 = (M.matrix bs, vsX)
@@ -487,7 +503,8 @@ instance (Input a, M.Size x) => Input (M.Matrix x a) where
 
         bs :: [a]
         (bs,vsX) = loop vs0 sz
-
+ getSignal _ = error "Input(getSignal) not defined for  Input (M.Matrix x a)"
+ apply _ _ = error "Input(apply) not defined for  Input (M.Matrix x a)"
  input nm m = M.forEach m $ \ i a -> input (nm ++ "_" ++ show i) a
 
 instance (Input a, Input b, Input c) => Input (a,b,c) where
@@ -502,7 +519,7 @@ instance (Input a, Input b, Input c) => Input (a,b,c) where
               m' = Map.deleteMin $ Map.deleteMin $ Map.deleteMin m
 
     input nm (a,b,c) = (input (nm ++ "_fst") a,input (nm ++ "_snd") b,input (nm ++ "_thd") c)
-
+    getSignal _ = error "Input(getSignal) not defined for  Input (a,b,c)"
 ---------------------------------------
 {-
 showOptCircuit :: (Ports circuit) => [CircuitOptions] -> circuit -> IO String
