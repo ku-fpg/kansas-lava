@@ -1,12 +1,18 @@
 {-# LANGUAGE TypeFamilies #-}
-import Language.KansasLava
+import Language.KansasLava as KL
 import Data.Sized.Unsigned
 import Data.Sized.Matrix
 
 -- Example for Andrew, of FIFOs in use, in a shallow setting
 
-main = print (example (fifo (Witness :: Witness X1) low) [Just x | x <- [1..] :: [U8]]) 
+main = KL.interact $ liftCombIO (\ x -> x - 1)
 
+
+
+        
+--        print (example (fifo (Witness :: Witness X1) low) [Just x | x <- [1..] :: [U8]]) 
+
+{-
 -- An example wrapper, with a HO argument
 example :: (Rep a, Rep b, Clock c, sig ~ CSeq c, c ~ ())
         => ((sig (Enabled a), sig Bool) -> (sig Bool, sig (Enabled b)))
@@ -19,3 +25,4 @@ example f xs = cs
         
         
         
+-}
