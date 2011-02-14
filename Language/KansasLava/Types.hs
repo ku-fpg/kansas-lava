@@ -44,6 +44,9 @@ module Language.KansasLava.Types (
         , circuitSignature
         -- *Witness
         , Witness(..)
+        -- I and O
+        , I(..)
+        , O(..)
         ) where
 
 import Control.Applicative
@@ -603,3 +606,9 @@ data Witness w = Witness
 -- We sometimes talk about bytes, which are unsigned 8-bit values.
 
 -- type Byte = U8
+
+--------------------------------------------------------------------------------------
+
+type I forward backward = (forward,backward)
+type O forward backward = (forward,backward)
+
