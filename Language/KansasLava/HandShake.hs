@@ -37,6 +37,11 @@ import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Utils
 import Control.Applicative
 import Control.Concurrent
+import Data.Maybe as Maybe
+import Control.Monad
+import System.IO
+
+import qualified Data.ByteString.Lazy as BS
 
 import Debug.Trace
 
@@ -176,15 +181,16 @@ fromHandshake' stutter (Handshake sink) = map snd internal
 -- | This function takes a ShallowFIFO object, and gives back a Handshake.
 -- ShallowFIFO is typically connected to a data generator or source, like a file.
 
-shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => ShallowFIFO a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
+shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => MVar a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
 shallowFifoToHandShaken fifo = do
 	xs <- getFIFOContents fifo
 	return (toHandShaken (xs ++ repeat Nothing))
 
-handShakeToShallowFifo :: (Clock c, Show a, Rep a) => ShallowFIFO a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
+handShakeToShallowFifo :: (Clock c, Show a, Rep a) => MVar a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
 handShakeToShallowFifo fifo sink = do
-	putFIFOContents fifo (let (back,res) = fromHandShaken $ sink back
-	                      in res)
+	putFIFOContents fifo 
+                $ Maybe.catMaybes
+	        $ (let (back,res) = fromHandShaken $ sink back in res)
       	return ()
 
 {- TODO: move into another location
@@ -340,8 +346,6 @@ fifoCounter' rst inc dec = counter1
 
 	counter1 = register 0 counter0
 
-
-
 fifo :: forall a c counter ix . 
          (Size counter
 	, Size ix
@@ -355,8 +359,8 @@ fifo :: forall a c counter ix .
 	) 
       => Witness ix
       -> CSeq c Bool
-      -> (CSeq c (Enabled a), CSeq c Bool)
-      -> (CSeq c Bool, CSeq c (Enabled a))
+      -> I (CSeq c (Enabled a)) (CSeq c Bool)
+      -> O (CSeq c Bool) (CSeq c (Enabled a)) 
 fifo w_ix rst (inp,out_ready) = 
     let
 	resetable x = mux2 rst (low,x)
@@ -465,3 +469,66 @@ liftHandShaken f = undefined
 
 
 -}
+
+{-
+-- Runs a program from stdin to stdout;
+-- also an example of coding
+-- interact :: (Src a -> Sink b) -> IO ()
+-- interact :: (
+-}
+
+interactMVar :: forall a b clk sig
+         . (Rep a, Show a, Rep b, Show b)
+        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
+        -> MVar a
+        -> MVar b
+        -> IO ()
+interactMVar fn varA varB = do
+        inp_fifo <- shallowFifoToHandShaken varA
+        
+        handShakeToShallowFifo varB $ \ rhs_back ->
+                -- use fn at a specific (unit) clock
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Bool)
+                    lhs_inp = inp_fifo lhs_back
+                in 
+                    rhs_out
+
+hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8)))
+        -> Handle
+        -> Handle
+        -> IO ()
+hInteract fn inp out = do
+        inp_fifo_var <- newEmptyMVar
+        out_fifo_var <- newEmptyMVar
+
+        -- send the inp handle to the inp fifo
+        forkIO $ forever $ do
+                bs <- BS.hGetContents inp
+                putFIFOContents inp_fifo_var $ BS.unpack bs
+
+        -- send the out fifo to the out handle
+        forkIO $ forever $ do
+                x <- takeMVar out_fifo_var
+                BS.hPutStr out $ BS.pack [x]
+                
+        interactMVar fn inp_fifo_var out_fifo_var
+
+interact :: (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8))) -> IO ()
+interact fn = do
+        hSetBinaryMode stdin True
+	hSetBuffering stdin NoBuffering
+        hSetBinaryMode stdout True
+	hSetBuffering stdout NoBuffering
+        hInteract fn stdin stdout
+
+---------------------------------------------------------------------------------
+
+-- The simplest version, with no internal FIFO.
+liftCombIO :: forall a b c clk sig
+        . (Rep a, Show a, Rep b, Show b)
+       => (Comb a -> Comb b)
+       -> (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
+liftCombIO fn (lhs_in,rhs_back) = (lhs_back,rhs_out)
+   where
+           lhs_back = rhs_back
+           rhs_out = mapEnabled fn lhs_in

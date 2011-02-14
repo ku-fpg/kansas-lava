@@ -1,5 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-module Language.KansasLava.Shallow.FIFO 
+{-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
+module Language.KansasLava.Shallow.FIFO  where
+{-
 	( ShallowFIFO		-- abstract
 	, newShallowFIFO
 	, writeToFIFO
@@ -11,6 +12,7 @@ module Language.KansasLava.Shallow.FIFO
 	, getFIFOContents
 	, putFIFOContents
 	) where
+-}
 
 import Language.KansasLava.Stream
 import Language.KansasLava.Shallow
@@ -23,6 +25,7 @@ import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Utils -- for fromSLV
 
 import qualified Data.ByteString as BS
+import Control.Monad
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Debug.Trace
@@ -40,7 +43,7 @@ import Data.Word
 -- at a specific point from a FIFO.
 
 data ShallowFIFO a = ShallowFIFO (MVar (Maybe a))
-
+{-
 newShallowFIFO :: IO (ShallowFIFO a)
 newShallowFIFO = do
 	var <- newEmptyMVar 
@@ -82,15 +85,22 @@ writeFileFromFIFO file fifo = do
 
 -- | read a file into a fifo as bytes. Does not terminate.
 hGetToFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
-hGetToFIFO h fifo = do 
+hGetToFIFO h (ShallowFIFO fifo) = do 
     b <- hIsEOF h
-    if b then hClose h else do
+    return ()
+{-
+    if b then do
+        hClose h
+--        forever $ putMVar 
+                 
+      else do
 	str <- BS.hGetNonBlocking h 128 -- 128 is for no specific reason, just a number
 					-- because it is non-blocking, only what is there
 					-- is received.
 	putFIFOContents fifo (map (Just . fromIntegral) (BS.unpack str))
 	putFIFOContents fifo [Nothing]
 	hGetToFIFO h fifo
+-}
 	
 hPutFromFIFO :: Handle -> ShallowFIFO Word8 -> IO ()
 hPutFromFIFO h fifo = do
@@ -108,16 +118,13 @@ hPutFromFIFO h fifo = do
 -- Candidates for another package
 
 -- Very general, might be useful elsewhere
-getFIFOContents :: (Show a) => ShallowFIFO a -> IO [Maybe a]
+-}
+getFIFOContents :: (Show a) => MVar a -> IO [Maybe a]
 getFIFOContents fifo = unsafeInterleaveIO $ do
-	x <- readFromFIFO fifo
+	x <- tryTakeMVar fifo
 	xs <- getFIFOContents fifo
 	return (x:xs)
 
-putFIFOContents :: ShallowFIFO a -> [Maybe a] -> IO ()
-putFIFOContents (ShallowFIFO var) xs = sequence_ (map (putMVar var) xs)
-
--- Runs a program from stdin to stdout;
--- also an example of coding
--- interact :: (Src a -> Sink b) -> IO ()
+putFIFOContents :: MVar a -> [a] -> IO ()
+putFIFOContents fifo xs = sequence_ (map (putMVar fifo) xs)
 
