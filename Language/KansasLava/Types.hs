@@ -609,6 +609,7 @@ data Witness w = Witness
 
 --------------------------------------------------------------------------------------
 
+-- eventually, these may become datatypes.
 type I forward backward = (forward,backward)
-type O forward backward = (forward,backward)
+type O backward forward = (backward,forward)
 
