@@ -399,8 +399,20 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
 
 genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI == typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w
-	]                
+        case (toStdLogicTy tI,toStdLogicTy tO) of
+          (V n,V m) -> [ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w ]                
+          (MatrixTy n0 n1,V m) ->
+		[ NetAssign  (sigName "o0" i) 
+		$ ExprConcat [ memToStdLogic n1
+                                        (ExprIndex (case (toStdLogicExpr tI w) of
+                                                      ExprVar varname -> varname)
+                                                     (ExprLit Nothing $ ExprNum $ fromIntegral j)
+                                        )
+                             | j <- reverse [0..(n0-1)]
+                             ]
+		]
+          other -> error $ "coerce" ++ show other
+
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
 
 genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])

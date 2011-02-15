@@ -79,6 +79,15 @@ tests test = do
         t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))        
         t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))        
 
+        let t str witness arb = testCoerce test str witness arb
+
+        t "S16_M_X4_S4"   (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
+        t "U15_M_X3_S5"   (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
+        t "U3_M_X3_Bool" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen (Matrix X3 Bool)))
+        t "U3_x_U2_U5"   (Witness :: Witness (U3,U2)) (dubSeq (arbitrary :: Gen U5))
+        t "U5_U3_x_U2"   (Witness :: Witness U5) (dubSeq (arbitrary :: Gen (U3,U2)))
+        t "U4_U3_x_Bool" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen (U3,Bool)))
+
         return ()
 
 
@@ -110,6 +119,7 @@ testSigned (TestSeq test toList) tyName Witness ws = do
                         (\ cir -> cir (toSeq ms)
                         )
             -- shallow will always pass; it *is* the semantics here
+            res :: Seq w2
             res = cir $ toSeq' [ if fromIntegral m > fromIntegral (maxBound :: w2)
                                  || fromIntegral m < fromIntegral (minBound :: w2)
                                  then fail "out of bounds"
@@ -119,13 +129,18 @@ testSigned (TestSeq test toList) tyName Witness ws = do
         test ("signed/" ++ tyName) (length ms) thu res
         return ()
 
-{-        
+
+testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w2, Rep w2, W w1 ~ W w2) 
+            => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
+testCoerce (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
-        let cir = sum . M.toList . unpack :: Seq (M.Matrix w1 w2) -> Seq w2
+        let cir = (coerce) :: Seq w1 -> Seq w2
         let thu = Thunk cir
                         (\ cir -> cir (toSeq ms)
                         )
+            -- shallow will always pass; it *is* the semantics here
             res :: Seq w2
-            res = toSeq [ sum $ M.toList m | m <- ms ]
-        test ("matrix/1/" ++ tyName) (length ms) thu res
--}
+            res = cir $ toSeq ms
+        test ("coerce/" ++ tyName) (length ms) thu res
+        return ()
+
