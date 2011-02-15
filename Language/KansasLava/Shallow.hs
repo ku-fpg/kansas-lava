@@ -506,6 +506,8 @@ instance (Size ix) => Rep (Signed ix) where
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
+
+
 {-
 instance (Size ix) => RepWire (Signed ix) where
     type WIDTH (Signed ix) = ix
@@ -580,7 +582,7 @@ instance (Integral x, Size x) => Rep (X0_ x) where
 --  wireName _  = "X" ++ show (size (error "wireName" :: X0_ x))
     repType _  = U (log2 $ (size (error "repType" :: X0_ x) - 1))
     toRep = toRepFromIntegral
-    fromRep = fromRepToIntegral
+    fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
 instance (Integral x, Size x) => Rep (X1_ x) where
@@ -593,9 +595,22 @@ instance (Integral x, Size x) => Rep (X1_ x) where
 --  wireName _  = "X" ++ show (size (error "wireName" :: X1_ x))
     repType _  = U (log2 $ (size (error "repType" :: X1_ x) - 1))
     toRep = toRepFromIntegral
-    fromRep = fromRepToIntegral
+    fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
+-- This is a version of fromRepToIntegral that 
+-- check to see if the result is inside the size bounds.
+
+sizedFromRepToIntegral :: forall w . (Rep w, Integral w, Size w) => RepValue -> X w
+sizedFromRepToIntegral w 
+        | val_integer >= toInteger (size (error "witness" :: w)) = unknownX
+        | otherwise                                             = val
+  where
+        val_integer :: Integer
+        val_integer = fromRepToInteger w
+
+        val :: X w
+        val = fromRepToIntegral w
 
 -----------------------------------------------------------------------------------------
 {-
