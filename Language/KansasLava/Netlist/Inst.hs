@@ -400,10 +400,12 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (a,b) | a == b -> genInst env i (Entity (Prim "id") [("o0",tO)] [("i0",tI,w)])
           (MatrixTy 1 (V 1),B) ->
 		[ NetAssign  (sigName "o0" i)
+		             (memToStdLogic B
                                 (ExprIndex (case (toStdLogicExpr tI w) of
                                               ExprVar varname -> varname)
                                              (ExprLit Nothing $ ExprNum $ 0)
                                 )
+                             )
 		]
           (MatrixTy n0 n1,V _) ->
 		[ NetAssign  (sigName "o0" i)
@@ -417,23 +419,22 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 		]
           (B,MatrixTy 1 (V 1)) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ 0)
-                        $ ExprIndex (case toStdLogicExpr tI w of
-                                        (ExprVar varname) -> varname)
-                                (ExprLit Nothing $ ExprNum $ 0)
+                        $ stdLogicToMem B
+                        $ toStdLogicExpr tI w
                 ]
           (B,V 1) ->
                 [ NetAssign  (sigName "o0" i)
                         $ stdLogicToMem B
                         $ toStdLogicExpr tI w
                 ]
-          (V _,MatrixTy n0 _) ->
-                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ j)
+          (V _,MatrixTy n0 (V n1)) ->
+                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ fromIntegral $j)
                         -- This is 'B' because a V is split into an array of B.
-                        $ stdLogicToMem B
-                        $ ExprIndex (case toStdLogicExpr tI w of
+                        $ ExprSlice (case toStdLogicExpr tI w of
                                         (ExprVar varname) -> varname)
-                                (ExprLit Nothing $ ExprNum $ j)
-                | j <- map fromIntegral [0..(n0 - 1)]
+                                (ExprLit Nothing $ ExprNum $ fromIntegral $ ((j + 1) * n1 - 1))
+                                (ExprLit Nothing $ ExprNum $ fromIntegral $ (j * n1))
+                | j <- [0..(n0 - 1)]
                 ]
           (V 1,B) ->
                 [ NetAssign  (sigName "o0" i)
