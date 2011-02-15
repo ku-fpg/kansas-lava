@@ -412,6 +412,25 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 	    ExprVar n -> n
 	    other -> error $ " problem with coerce: " ++ show (w,tI,other)
 
+genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
+        | typeWidth tI >= typeWidth tO =
+	[ NetAssign  (sigName "o0" i) $ 
+                ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
+	]                
+        | otherwise =
+	[ NetAssign  (sigName "o0" i) $	ExprConcat 
+		[ ExprLit (Just $ zeros) $ ExprBitVector $ take zeros$ repeat F
+		, ExprVar nm
+		]
+	]
+  where
+     zeros = typeWidth tO - typeWidth tI
+     nm = case toStdLogicExpr tI w of
+	    ExprVar n -> n
+	    other -> error $ " problem with unsigned: " ++ show (w,tI,other)
+
+
+
 --------------------------------------------------------------------------------
 -- Arith
 --------------------------------------------------------------------------------
