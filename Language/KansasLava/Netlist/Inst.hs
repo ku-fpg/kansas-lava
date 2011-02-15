@@ -423,9 +423,8 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 		]
           (B,MatrixTy 1 (V 1)) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ 0)
-                        $ ExprIndex (case toStdLogicExpr tI w of
-                                        (ExprVar varname) -> varname)
-                                (ExprLit Nothing $ ExprNum $ 0)
+                        $ stdLogicToMem B
+                        $ toStdLogicExpr tI w
                 ]
           (B,V 1) ->
                 [ NetAssign  (sigName "o0" i) 
