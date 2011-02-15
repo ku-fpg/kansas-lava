@@ -426,17 +426,24 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                                 (ExprLit Nothing $ ExprNum $ 0)
                 ]
           (B,V 1) ->
-                [ ]
+                [ NetAssign  (sigName "o0" i) 
+                        $ stdLogicToMem B
+                        $ toStdLogicExpr tI w 
+                ]
           (V m,MatrixTy n0 n1) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ j)
+                        -- This is 'B' because a V is split into an array of B.
+                        $ stdLogicToMem B
                         $ ExprIndex (case toStdLogicExpr tI w of
                                         (ExprVar varname) -> varname)
                                 (ExprLit Nothing $ ExprNum $ j)
                 | j <- map fromIntegral [0..(n0 - 1)]
                 ]
           (V 1,B) ->
-                []
-          
+                [ NetAssign  (sigName "o0" i) 
+                        $ memToStdLogic B
+                        $ toStdLogicExpr tI w 
+                ]
           other -> error $ "coerce failure: " ++ show other
 
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
