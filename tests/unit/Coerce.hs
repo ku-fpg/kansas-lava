@@ -82,7 +82,7 @@ tests test = do
         return ()
 
 
-testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w2, Integral w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
+testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testUnsigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
@@ -92,11 +92,16 @@ testUnsigned (TestSeq test toList) tyName Witness ws = do
                         )
             -- shallow will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq ms
+            res = cir $ toSeq' [ if toInteger m > toInteger (maxBound :: w2)
+                                 || toInteger m < toInteger (minBound :: w2)
+                                 then fail "out of bounds"
+                                 else return m 
+                               | m <- ms
+                               ]
         test ("unsigned/" ++ tyName) (length ms) thu res
         return ()
 
-testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w2, Integral w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
+testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testSigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
@@ -105,8 +110,12 @@ testSigned (TestSeq test toList) tyName Witness ws = do
                         (\ cir -> cir (toSeq ms)
                         )
             -- shallow will always pass; it *is* the semantics here
-            res :: Seq w2
-            res = cir $ toSeq ms
+            res = cir $ toSeq' [ if fromIntegral m > fromIntegral (maxBound :: w2)
+                                 || fromIntegral m < fromIntegral (minBound :: w2)
+                                 then fail "out of bounds"
+                                 else return m 
+                               | m <- ms
+                               ]
         test ("signed/" ++ tyName) (length ms) thu res
         return ()
 
