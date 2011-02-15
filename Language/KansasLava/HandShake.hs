@@ -520,7 +520,12 @@ interact fn = do
         hSetBinaryMode stdout True
 	hSetBuffering stdout NoBuffering
         hInteract fn stdin stdout
-
+{-        
+liftToByteString :: (forall clk sig . (Clock clk, sig ~ CSeq clk) 
+          => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8)))
+          -> IO (BS.ByteString -> BS.ByteString)
+liftToByteString :
+-
 ---------------------------------------------------------------------------------
 
 -- The simplest version, with no internal FIFO.
@@ -532,3 +537,4 @@ liftCombIO fn (lhs_in,rhs_back) = (lhs_back,rhs_out)
    where
            lhs_back = rhs_back
            rhs_out = mapEnabled fn lhs_in
+ -}
