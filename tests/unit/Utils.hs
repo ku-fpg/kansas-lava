@@ -9,11 +9,9 @@ import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
 
-import Data.Default
 import Data.List
 import Data.Maybe as Maybe
 import Data.Ord ( comparing )
-import Data.Sized.Ix
 import Data.Sized.Unsigned
 
 import System.Cmd
@@ -28,14 +26,18 @@ import Types
 
 data TestData = Rand Int | Complete
 
+testMe :: String -> Maybe [String] -> Bool
 testMe _ Nothing     = True
 testMe nm (Just nms) = or [ (n `isInfixOf` nm) | n <- nms ]
 
+neverTestMe :: String -> [String] -> Bool
 neverTestMe nm nms = or [ (n `isInfixOf` nm) | n <- nms ]
 
+verbose :: Int -> String -> Int -> String -> IO ()
 verbose vlvl name n m | vlvl >= n = putStrLn (name ++ " :" ++ take n (repeat ' ') ++ m)
                       | otherwise           = return ()
 
+fileReporter :: FilePath -> FilePath -> Result -> IO ()
 fileReporter path nm res = do
     createDirectoryIfMissing True (path </> nm)
     writeFile (path </> nm </> "result") $ show res
@@ -74,14 +76,14 @@ testSeq opts name count thunk expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (recordThunk (path </> modname) count (snd mod) thunk))
-                                       | mod <- if permuteMods opts
+                            let sims = [ (modname, (recordThunk (path </> modname) count (snd cmod) thunk))
+                                       | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
                                                            $ subsequences
                                                            $ simMods opts
                                                     else simMods opts
-                                       , let modname = fst mod
+                                       , let modname = fst cmod
                                        ]
 
                             -- generate each testbench, report any failures
@@ -120,7 +122,7 @@ simCompare path report verb = do
 
     ran <- doesFileExist $ path </> "transcript"
     if ran
-        then do log <- Strict.readFile (path </> "transcript")
+        then do transcript <- Strict.readFile (path </> "transcript")
                 success <- doesFileExist $ path </> localname <.> "deep"
                 if success
                     then do shallow <- lines <$> Strict.readFile (path </> localname <.> "shallow")
@@ -131,15 +133,15 @@ simCompare path report verb = do
                                 t2 = asciiToTrace deep sig
                             if cmpTraceIO t1 t2
                                 then do verb 3 "simulation passed"
-                                        report $ Pass t1 t2 log
+                                        report $ Pass t1 t2 transcript
                                 else do verb 3 "simulation failed"
                                         verb 4 $ show ("shallow",t1)
                                         verb 4 $ show ("deep",t2)
-                                        report $ CompareFail t1 t2 log
+                                        report $ CompareFail t1 t2 transcript
 
                     else do verb 3 "VHDL compilation failed"
-                            verb 4 log
-                            report $ CompileFail log
+                            verb 4 transcript
+                            report $ CompileFail transcript
         else verb 1 "Simulation hasn't been run, transcript file missing."
 
 postSimulation :: FilePath -> IO ()
@@ -172,14 +174,14 @@ prepareSimDirectory opts = do
     -- outside the present working directory.
     ok <- doesDirectoryExist $ pwd </> path
     if ok && not (isInfixOf ".." path)
-        then do system $ "rm -rf " ++ path
+        then do _ <- system $ "rm -rf " ++ path
                 return ()
         else return ()
 
     createDirectoryIfMissing True path
 
     writeFile (path </> "runsims") $ unlines testRunner
-    system $ "chmod +x " ++ path </> "runsims"
+    _ <- system $ "chmod +x " ++ path </> "runsims"
 
     return ()
 
@@ -217,7 +219,7 @@ localMake relativePath = unlines
           l = 3 + (length $ splitPath relativePath)
           name = last $ splitPath relativePath
 
-
+preludeFile :: String
 preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: Options -> FilePath -> IO ()
@@ -246,7 +248,7 @@ data Gen a = Gen Integer (Integer -> Maybe a)
 arbitrary :: forall w . (Rep w) => Gen w
 arbitrary = Gen sz integer2rep
   where
-        sz = 2^fromIntegral (repWidth (Witness :: Witness w))
+        sz = 2 ^ (fromIntegral (repWidth (Witness :: Witness w)) :: Int)
         integer2rep :: Integer -> Maybe w
         integer2rep v = unX
                 $ fromRep
@@ -255,7 +257,7 @@ arbitrary = Gen sz integer2rep
                 $ map WireVal
                 $ map odd
                 $ iterate (`div` 2)
-                $ fromIntegral v
+                $ (fromIntegral v :: Int)
 
 loop :: Integer -> Gen w -> Gen w
 loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
@@ -290,5 +292,5 @@ genToRandom (Gen n f)
         | n <= 100 = unsort $ genToList (Gen n f)
         | otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
 
-
+largeNumber :: Integer
 largeNumber = 10000

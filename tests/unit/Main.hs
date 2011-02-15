@@ -2,26 +2,10 @@
 module Main where
 
 import Language.KansasLava
-import Language.KansasLava.Stream as S
-import Language.KansasLava.Testing.Thunk
 
-import Data.Bits
 import Data.Default
-import Data.List ( sortBy, sort )
-import Data.Ord ( comparing )
-import Data.Maybe as Maybe
-import Data.Sized.Arith
-import Data.Sized.Ix
-import qualified Data.Sized.Matrix as M
-import Data.Sized.Sampled
-import Data.Sized.Signed
-import Data.Sized.Unsigned
-import Debug.Trace
 
-import Control.Applicative
-import Control.Concurrent.MVar
 import System.Cmd
-import System.FilePath
 import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
 
@@ -35,7 +19,7 @@ import qualified FIFO
 import qualified Coerce
 import qualified Others
 
-
+main :: IO ()
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
@@ -67,7 +51,7 @@ main = do
         -- If we didn't generate simulations, make a report for the shallow results.
         if genSim opt
             then if runSim opt
-                    then do system $ simCmd opt
+                    then do _ <- system $ simCmd opt
                             generateReport $ simPath opt
                     else do putStrLn $ unlines [""
                                                ,"Run simulations and generate reports using the Makefile commands"
@@ -81,5 +65,5 @@ main = do
         let counts = concat [ xs | TixModule _ _ _ xs <- tix ]
         let len = length counts
         let txs = length $ filter (> 0) counts
-        putStrLn $ "Raw coverage: " ++ show (floor (100 * fromIntegral txs / fromIntegral len)) ++ "%"
+        putStrLn $ "Raw coverage: " ++ show (floor (100 * fromIntegral txs / fromIntegral len :: Double) :: Int) ++ "%"
 

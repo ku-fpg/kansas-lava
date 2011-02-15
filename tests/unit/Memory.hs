@@ -3,21 +3,16 @@
 module Memory where
 
 import Language.KansasLava
-import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Utils
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed
-import Data.Sized.Arith
-import Data.Sized.Ix
 
 import Data.List as List
 
-import Debug.Trace
-
-
+tests :: TestSeq -> IO ()
 tests test = do
     --  Memories
         let t :: (Eq b, Integral a, Show b,

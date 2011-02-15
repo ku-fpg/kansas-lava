@@ -16,8 +16,7 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Stream (Stream)
 import Language.KansasLava.Testing.Utils
 
-
-
+import Data.List
 import qualified Data.Map as M
 
 

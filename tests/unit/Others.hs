@@ -6,31 +6,16 @@ import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Data.Bits
-import Data.Default
-import Data.List ( sortBy, sort )
-import Data.Ord ( comparing )
-import Data.Maybe as Maybe
-import Data.Sized.Arith
 import Data.Sized.Ix
-import qualified Data.Sized.Matrix as M
 import Data.Sized.Sampled
 import Data.Sized.Signed
 import Data.Sized.Unsigned
-import Debug.Trace
 
 import Control.Applicative
-import Control.Concurrent.MVar
-import System.Cmd
-import System.FilePath
-import Trace.Hpc.Reflect
-import Trace.Hpc.Tix
 
-import Types
-import Report hiding (main)
 import Utils
 
-
-
+tests :: TestSeq -> IO ()
 tests test = do
         -- Just the Num Stuff
         let t :: (Num a, Ord a, Rep a) => String -> Gen a -> IO ()
@@ -104,7 +89,7 @@ tests test = do
         t "Int" (loop 10 (arbitrary :: Gen Int))
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
 
-
+{- unused?
 main_testLabel :: IO ()
 main_testLabel = do
         let g :: Seq U4 -> Seq U4 -> Seq U4
@@ -130,6 +115,7 @@ allValues = xs
 
 allBounded :: (Enum w, Bounded w) => [w]
 allBounded = [minBound..maxBound]
+
 -------------------------------------------------------------------------------------------------
 testMux :: forall a .
 --        (Size (ADD (WIDTH a) (WIDTH a)),
@@ -149,6 +135,7 @@ testMux (TestSeq test toList) nm gen = do
         test nm (length gate) thu res
 
 -------------------------------------------------------------------------------------------------
+-}
 -- This only tests at the *value* level, and ignores testing unknowns.
 
 testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
@@ -290,8 +277,10 @@ testOpsBits test tyName ws = do
 pair :: (Applicative f) => f a -> f (a, a)
 pair ws = pure (,) <*> ws <*> ws
 
+{- unused?
 triple :: (Applicative f) => f a -> f (a, a, a)
 triple ws = pure (,,) <*> ws <*> ws <*> ws
+-}
 
 --------------------------------------------------------------------------------------
 -- Testing register and memory

@@ -1,13 +1,9 @@
 module Types where
 
 import Language.KansasLava
-import Language.KansasLava.Testing
+import Language.KansasLava.Testing()
 
 import Data.Default
-
-import System.Cmd
-import System.Directory
-import System.FilePath.Posix as FP
 
 data Options = Options
         { genSim      :: Bool                              -- ^ Generate modelsim testbenches for each test?

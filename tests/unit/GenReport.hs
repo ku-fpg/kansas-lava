@@ -1,6 +1,7 @@
 import Report hiding (main)
 import System.Environment
 
+main :: IO ()
 main = do
     args <- getArgs
     if length args < 1

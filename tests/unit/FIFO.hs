@@ -3,16 +3,12 @@
 module FIFO where
 
 import Language.KansasLava
-import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Utils
 import Data.Sized.Unsigned
-import Data.Sized.Signed
 import Data.Sized.Arith
 import Data.Sized.Ix
-
-import Debug.Trace
 
 tests :: TestSeq -> IO ()
 tests test = do

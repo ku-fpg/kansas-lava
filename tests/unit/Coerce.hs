@@ -3,19 +3,12 @@
 module Coerce where
 
 import Language.KansasLava
-import Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Utils
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed
-import Data.Sized.Arith
-import Data.Sized.Ix
-
-import Data.List as List
-
-import Debug.Trace
 
 tests :: TestSeq -> IO ()
 tests test = do
@@ -23,23 +16,23 @@ tests test = do
 
         t "U1_U1" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U1))
         t "U2_U1" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U1))
-        t "U3_U1" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U1))        
+        t "U3_U1" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U1))
         t "U1_U2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U2))
         t "U2_U2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U2))
-        t "U3_U2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U2))        
+        t "U3_U2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U2))
         t "U1_U3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U3))
         t "U2_U3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U3))
-        t "U3_U3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U3))        
-        t "U4_U8" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen U8))        
-        t "U8_U4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen U4))        
+        t "U3_U3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U3))
+        t "U4_U8" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen U8))
+        t "U8_U4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen U4))
 
         t "U1_S2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S2))
         t "U2_S2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S2))
-        t "U3_S2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S2))        
+        t "U3_S2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S2))
         t "U1_S3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S3))
         t "U2_S3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S3))
-        t "U3_S3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S3))        
-        t "U8_S4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen S4))        
+        t "U3_S3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S3))
+        t "U8_S4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen S4))
 
         t "X2_X2" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X2))
         t "X2_X3" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X3))
@@ -64,20 +57,20 @@ tests test = do
         let t str witness arb = testSigned test str witness arb
 
         t "S2_U1" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U1))
-        t "S3_U1" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U1))        
+        t "S3_U1" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U1))
         t "S2_U2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U2))
-        t "S3_U2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U2))        
+        t "S3_U2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U2))
         t "S2_U3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U3))
-        t "S3_U3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U3))        
-        t "S4_U8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen U8))        
-        t "S8_U4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen U4))        
+        t "S3_U3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U3))
+        t "S4_U8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen U8))
+        t "S8_U4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen U4))
 
         t "S2_S2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S2))
-        t "S3_S2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S2))        
+        t "S3_S2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S2))
         t "S2_S3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S3))
-        t "S3_S3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S3))        
-        t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))        
-        t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))        
+        t "S3_S3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S3))
+        t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))
+        t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))
 
         let t str witness arb = testCoerce test str witness arb
 
@@ -99,14 +92,14 @@ tests test = do
 
         t "Bool_U1"        (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen U1))
         t "U1_Bool"        (Witness :: Witness U1) (dubSeq (arbitrary :: Gen Bool))
-        
+
         t "Bool_Bool"      (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen Bool))
         t "U8_U8"          (Witness :: Witness U8)   (dubSeq (arbitrary :: Gen U8))
 
         return ()
 
 
-testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
+testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2)
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testUnsigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
@@ -119,13 +112,13 @@ testUnsigned (TestSeq test toList) tyName Witness ws = do
             res = cir $ toSeq' [ if toInteger m > toInteger (maxBound :: w2)
                                  || toInteger m < toInteger (minBound :: w2)
                                  then fail "out of bounds"
-                                 else return m 
+                                 else return m
                                | m <- ms
                                ]
         test ("unsigned/" ++ tyName) (length ms) thu res
         return ()
 
-testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2) 
+testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2)
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testSigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
@@ -135,17 +128,17 @@ testSigned (TestSeq test toList) tyName Witness ws = do
                         )
             -- shallow will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq' [ if fromIntegral m > fromIntegral (maxBound :: w2)
-                                 || fromIntegral m < fromIntegral (minBound :: w2)
+            res = cir $ toSeq' [ if (fromIntegral m :: Int) > fromIntegral (maxBound :: w2)
+                                 || (fromIntegral m :: Int) < fromIntegral (minBound :: w2)
                                  then fail "out of bounds"
-                                 else return m 
+                                 else return m
                                | m <- ms
                                ]
         test ("signed/" ++ tyName) (length ms) thu res
         return ()
 
 
-testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w2, Rep w2, W w1 ~ W w2) 
+testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w2, Rep w2, W w1 ~ W w2)
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testCoerce (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws

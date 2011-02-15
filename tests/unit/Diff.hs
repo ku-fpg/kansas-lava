@@ -16,6 +16,7 @@ vcdDiff (Trace c1 i1 o1 p1) (Trace _ i2 o2 p2) = toVCD t
                                          ++
                                          [ (prefixKey "trace2_" k,v) | (k,v) <- M.toList m2 ]
 
+main :: IO ()
 main = do
     args <- getArgs
     if length args < 3

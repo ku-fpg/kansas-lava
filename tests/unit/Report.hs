@@ -1,12 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Report where
 
-import Language.KansasLava.Internals
-import Language.KansasLava.Testing.Trace
-
 import Control.Applicative
 import Control.Monad
-import qualified Control.Exception as E
 import System.Directory
 import System.Environment
 import System.FilePath
@@ -54,6 +50,7 @@ instance Show Summary where
               si = "Simulation failures (other): " ++ show (simfail summary)
               ps = "Simulation tests passed: " ++ show (passed summary)
 
+main :: IO ()
 main = do
     args <- getArgs
     if length args < 1
