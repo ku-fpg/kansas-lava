@@ -170,7 +170,7 @@ instance Read Type where
 data OVar = OVar Int String             -- The # is used purely for sorting order.
                                         -- Idea: there can be several with the same #;
                                         -- its about ordering.
-                                
+
         deriving (Eq, Ord)
 
 instance Show OVar where
@@ -214,9 +214,9 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
 
 {-
  - List of prims
-        id              :: 
+        id              ::
         index           :: M<n> -> ix -> n
-        proj            :: G<Int> -> 
+        proj            :: G<Int> ->
 -}
 
 instance Show Id where
@@ -229,7 +229,7 @@ instance Show Id where
     show (ClockId nm)    = "@" ++ nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
-    show (BlackBox bx) = "<bb>"
+    show (BlackBox _) = "<bb>"
     show (Comment' xs) = "{- " ++ show xs ++ " -}"
 
 -- | The type indirection to to allow the Eq/Ord to be provided without
@@ -321,7 +321,7 @@ instance F.Foldable Driver where
   foldMap _ (Lit _)       = mempty
   foldMap _ (Lits _)       = mempty
   foldMap _ (Generic _)       = mempty
-  foldMap _ (Error s)     = mempty
+  foldMap _ (Error _)     = mempty
 
 instance Functor Driver where
     fmap f (Port v s)    = Port v (f s)
@@ -363,7 +363,7 @@ instance Monad WireVal where
         WireVal a >>= f = f a
 
 instance Functor WireVal where
-        fmap f WireUnknown = WireUnknown
+        fmap _ WireUnknown = WireUnknown
         fmap f (WireVal a) = WireVal (f a)
 
 instance Applicative WireVal where
@@ -514,13 +514,13 @@ instance Show Circuit where
 
         bar = (replicate 78 '-') ++ "\n"
 
-        inputs = unlines
+        circInputs = unlines
                 [ show var ++ " : " ++ show ty
                 | (var,ty) <- sortBy (\ (OVar i _,_) (OVar j _,_) -> i `compare` j)
                             $ theSrcs rCir
                 ]
 
-        outputs = unlines
+        circOutputs = unlines
                 [ show var   ++ " <- " ++ showDriver dr ty
                 | (var,ty,dr) <- sortBy (\ (OVar i _,_,_) (OVar j _,_,_) -> i `compare` j)
                                $ theSinks rCir
@@ -542,11 +542,11 @@ instance Show Circuit where
         msg = bar
                 ++ "-- Inputs                                                                   --\n"
                 ++ bar
-                ++ inputs
+                ++ circInputs
                 ++ bar
                 ++ "-- Outputs                                                                  --\n"
                 ++ bar
-                ++ outputs
+                ++ circOutputs
                 ++ bar
                 ++ "-- Entities                                                                 --\n"
                 ++ bar

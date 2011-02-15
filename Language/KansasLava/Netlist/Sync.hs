@@ -3,16 +3,11 @@ module Language.KansasLava.Netlist.Sync where
 import Language.KansasLava.Types
 import Language.Netlist.AST
 import Language.Netlist.Util
-import Language.Netlist.Inline
-import Language.Netlist.GenVHDL
--- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
 
 import Data.Reify.Graph (Unique)
 
 import Language.KansasLava.Netlist.Utils
 
-import qualified Data.Map as Map
 
 
 -- TODO: change into uncurried.
@@ -29,7 +24,7 @@ genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
 regProc :: (Driver Unique, Driver Unique,  Driver Unique)
         -> [(Unique, Entity Unique)]
 	-> [Decl]
-regProc (clk,rst,clk_en) [] = []
+regProc (_,_,_) [] = []
 regProc (clk,rst,clk_en) es
 {-
   | asynchResets nlOpts =
@@ -54,7 +49,7 @@ regProc (clk,rst,clk_en) es
         nextName e i = toStdLogicExpr  (lookupInputType "o0" e) $ next (Port ("o0") i)
         defaultDriver e = toStdLogicExpr (defaultDriverType e) $ lookupInput "def" e
         defaultDriverType e = lookupInputType "def" e
-        driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
+        -- driver e = toStdLogicExpr (lookupInputType "o0" e) $ next $ lookupInput "i0" e
         regAssigns = statements [Assign (outName e i) (nextName e i)  | (i,e) <- es]
         regNext = case clk_en of
 		    Lit (RepValue [WireVal True]) -> regAssigns
@@ -62,7 +57,10 @@ regProc (clk,rst,clk_en) es
 		    _     -> If (isHigh (toTypedExpr B clk_en)) regAssigns Nothing
 
 
-bramProc (clk,_,clk_en) [] = []
+bramProc :: (Driver Unique, Driver Unique,  Driver Unique)
+         -> [(Unique, Entity Unique)]
+	 -> [Decl]
+bramProc (_,_,_) [] = []
 bramProc (clk,_,clk_en) es =
   [ProcessDecl
    [(Event (toStdLogicExpr ClkTy clk) PosEdge,
@@ -88,9 +86,9 @@ bramProc (clk,_,clk_en) es =
           wData e = toStdLogicExpr (lookupInputType "wData" e) $ lookupInput "wData" e
           -- FIXME: This is a hack, to get around not having dynamically
           -- indexed exprs.
-          writeIndexed i e = ExprIndex 
-                         (ramName i) 
+          writeIndexed i e = ExprIndex
+                         (ramName i)
 			 (toIntegerExpr (lookupInputType "wAddr" e) (wAddr e))
-          readIndexed i e = ExprIndex 
-			(ramName i) 
+          readIndexed i e = ExprIndex
+			(ramName i)
 			(toIntegerExpr (lookupInputType "wAddr" e) (rAddr e))

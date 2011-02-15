@@ -6,14 +6,11 @@ import Control.Applicative
 
 import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
-import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Deep
 
 import Data.Sized.Ix
-import Data.Sized.Unsigned as U
 import Data.Sized.Matrix as M
 
 class Signal f where
@@ -46,7 +43,7 @@ undefinedS = liftS0 undefinedComb
 
 -- TODO: insert Id/Comment
 comment :: (Signal sig, Rep a) => String -> sig a -> sig a
-comment msg = liftS1 $ \ (Comb s (D d)) -> Comb s (D d)
+comment _ = liftS1 $ \ (Comb s (D d)) -> Comb s (D d)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -66,7 +63,7 @@ class (Signal sig) => Pack sig a where
 
 liftS3 :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3 f a b c = liftS2 (\ ab c -> uncurry f (unpack ab) c) (pack (a,b) :: sig (a,b)) c
+liftS3 f a b c = liftS2 (\ ab c' -> uncurry f (unpack ab) c') (pack (a,b) :: sig (a,b)) c
 
 --------------------------------------------------------------------------------
 
@@ -88,7 +85,7 @@ fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) 
 
 -- TODO: Hack for now, remove
 wireName :: (Rep a) => a -> String
-wireName a = "Lava"
+wireName _ = "Lava"
 
 
 label :: (Rep a, Signal sig) => String -> sig a -> sig a
@@ -99,12 +96,12 @@ label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
 instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
 	pack (a,b) = {-# SCC "pack(Maybe)" #-}
-			liftS2 (\ (Comb a ae) (Comb b be) ->
-				    Comb (case unX a of
+			liftS2 (\ (Comb a' ae) (Comb b' be) ->
+				    Comb (case unX a' of
 					    Nothing -> optX Nothing
 					    Just False -> optX $ Just Nothing
 					    Just True ->
-						case unX b of
+						case unX b' of
 						   Just v -> optX (Just (Just v))
 							-- This last one is strange.
 						   Nothing -> optX (Just Nothing)
@@ -131,41 +128,41 @@ instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 instance (Rep a, Rep b, Signal sig) => Pack sig (a,b) where
 	type Unpacked sig (a,b) = (sig a, sig b)
 	pack (a,b) = {-# SCC "pack(,)" #-}
-			liftS2 (\ (Comb a ae) (Comb b be) -> {-# SCC "pack(,)i" #-} Comb (XTuple (a,b)) (entity2 (Name "Lava" "pair") ae be))
+			liftS2 (\ (Comb a' ae) (Comb b' be) -> {-# SCC "pack(,)i" #-} Comb (XTuple (a',b')) (entity2 (Name "Lava" "pair") ae be))
 			    a b
 	unpack ab = {-# SCC "unpack(,)" #-}
-		    ( liftS1 (\ (Comb (XTuple ~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
-		    , liftS1 (\ (Comb (XTuple ~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
+		    ( liftS1 (\ (Comb (XTuple ~(a,_)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
+		    , liftS1 (\ (Comb (XTuple ~(_,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
 		    )
 
 instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 	type Unpacked sig (a,b,c) = (sig a, sig b,sig c)
-	pack (a,b,c) = liftS3 (\ (Comb a ae) (Comb b be) (Comb c ce) ->
-				Comb (XTriple (a,b,c))
+	pack (a,b,c) = liftS3 (\ (Comb a' ae) (Comb b' be) (Comb c' ce) ->
+				Comb (XTriple (a',b',c'))
 				     (entity3 (Name "Lava" "triple") ae be ce))
 			    a b c
-	unpack abc = ( liftS1 (\ (Comb (XTriple ~(a,b,c)) abce) -> Comb a (entity1 (Name "Lava" "fst3") abce)) abc
-		    , liftS1 (\ (Comb (XTriple ~(a,b,c)) abce) -> Comb b (entity1 (Name "Lava" "snd3") abce)) abc
-		    , liftS1 (\ (Comb (XTriple ~(a,b,c)) abce) -> Comb c (entity1 (Name "Lava" "thd3") abce)) abc
+	unpack abc = ( liftS1 (\ (Comb (XTriple ~(a,_b,_)) abce) -> Comb a (entity1 (Name "Lava" "fst3") abce)) abc
+		    , liftS1 (\ (Comb (XTriple ~(_,b,_)) abce) -> Comb b (entity1 (Name "Lava" "snd3") abce)) abc
+		    , liftS1 (\ (Comb (XTriple ~(_,_,c)) abce) -> Comb c (entity1 (Name "Lava" "thd3") abce)) abc
 		    )
 
 
 
 instance (Rep a, Signal sig, Size ix) => Pack sig (Matrix ix a) where
 	type Unpacked sig (Matrix ix a) = Matrix ix (sig a)
-	pack m = liftSL (\ ms -> let sh = M.fromList [ m | Comb m _ <- ms ]
+	pack m = liftSL (\ ms -> let sh = M.fromList [ m' | Comb m' _ <- ms ]
 				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
 				 in Comb (XMatrix sh) de) (M.toList m)
         -- unpack :: sig (Matrix ix a) -> Matrix ix (sig a)
 	unpack s = forAll $ \ ix ->
-			liftS1 (\ (Comb (XMatrix s) d) -> Comb (s ! ix)
+			liftS1 (\ (Comb (XMatrix s') d) -> Comb (s' ! ix)
 					       (entity2 (Name "Lava" "index")
 							(D $ Generic $ (mx ! ix) :: D Integer)
 							d
 					       )
 			        ) s
 	   where mx :: (Size ix) => Matrix ix Integer
-		 mx = matrix (Prelude.zipWith (\ a b -> b) (M.indices mx) [0..])
+		 mx = matrix (Prelude.zipWith (\ _ b -> b) (M.indices mx) [0..])
 
 {-
 instance (Size ix, Rep ix, Rep a, Signal sig) => Pack sig (ix -> a) where
@@ -175,11 +172,11 @@ instance (Size ix, Rep ix, Rep a, Signal sig) => Pack sig (ix -> a) where
 	-- TODO: think some more about this
 	pack f = error "Can not pack a function, sorry"
 
-	unpack = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) -> 
+	unpack = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
 				Comb (case (unX x) of
 				    	Just x' -> f x'
 				    	Nothing -> optX Nothing
 			     	     )
-			$ entity2 (Prim "read") me xe 
+			$ entity2 (Prim "read") me xe
 
 -}

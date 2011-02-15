@@ -3,18 +3,13 @@ module Language.KansasLava.Netlist.Utils where
 
 import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
-import Language.Netlist.Util
-import Language.Netlist.Inline
-import Language.Netlist.GenVHDL
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Shallow
-import Language.KansasLava.Deep
 
-import qualified Data.Map as Map
 
 import Data.Reify.Graph (Unique)
 
-import Data.List(intersperse,find,mapAccumL,nub)
+import Data.List(find,mapAccumL)
 
 -- There are three type "classes" in our generated VHDL.
 --  1. std_logic_vector
@@ -61,8 +56,9 @@ fromIntegerToExpr t i =
 	     B   -> ExprLit (Just 1) (ExprBit (b (fromInteger i)))
 	     V n -> ExprLit (Just n) (ExprNum i)
 	     GenericTy   -> ExprLit Nothing  (ExprNum i)
-	     other -> error "fromIntegerToExpr: was expecting B or V from normalized number"
-  where b 0 = F
+	     _ -> error "fromIntegerToExpr: was expecting B or V from normalized number"
+  where b :: Int -> Bit
+        b 0 = F
         b 1 = T
 
 
@@ -78,13 +74,13 @@ class ToStdLogicExpr v where
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
-        toStdLogicExpr ty any              
+        toStdLogicExpr ty _
                 | typeWidth ty == 0        = ExprVar $ "\"\""
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
-	toStdLogicExpr ty (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
-	toStdLogicExpr ty (Pad (OVar _ v)) = ExprVar $ v
-	toStdLogicExpr ty other		   = error $ show other
+	toStdLogicExpr _ (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar $ v
+	toStdLogicExpr _ other		   = error $ show other
 
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
@@ -162,28 +158,50 @@ memRange :: Type -> Maybe Range
 memRange ty = case toStdLogicTy ty of
 		  B -> Nothing
 		  V n -> Just $ Range high low
-                    where high = ExprLit Nothing (ExprNum (2^(fromIntegral n) - 1))
+                    where high = ExprLit Nothing
+                                 (ExprNum (2^(fromIntegral n :: Integer) - 1))
                           low = ExprLit Nothing (ExprNum 0)
 
 -- VHDL "macros"
+active_high :: Expr -> Expr
 active_high d      = ExprCond d  (ExprLit Nothing (ExprBit T)) (ExprLit Nothing (ExprBit F))
+
+std_logic_vector :: Expr -> Expr
 std_logic_vector d = ExprFunCall "std_logic_vector" [d]
+
+to_unsigned :: Expr -> Expr -> Expr
 to_unsigned x w    = ExprFunCall "to_unsigned" [x, w]		-- is this used now?
+
+unsigned :: Expr -> Expr
 unsigned x         = ExprFunCall "unsigned" [x]
+
+to_signed :: Expr -> Expr -> Expr
 to_signed x w      = ExprFunCall "to_signed" [x, w]		-- is this used now?
+
+signed :: Expr -> Expr
 signed x           = ExprFunCall "signed" [x]
+
+to_integer :: Expr -> Expr
 to_integer e       = ExprFunCall "to_integer" [e]
 
 --singleton x 	   = ExprFunCall "singleton" [x]
 -- Others
 
+isHigh :: Expr -> Expr
 isHigh d = (ExprBinary Equals d (ExprLit Nothing (ExprBit T)))
+
+isLow :: Expr -> Expr
 isLow d = (ExprBinary Equals d (ExprLit Nothing (ExprBit F)))
+
+allLow :: Type -> Expr
 allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
+
+zeros :: Expr
 zeros = ExprString "(others => '0')" -- HACK
 
-toMemIndex ty dr | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
-toMemIndex ty (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
+toMemIndex :: Integral t => Type -> Driver t -> Expr
+toMemIndex ty _ | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
+toMemIndex _ (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
 
 -- Both of these are hacks for memories, that do not use arrays of Bools.
@@ -217,9 +235,9 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 	f :: Integer -> Type -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprLit Nothing (ExprNum i)))
         f i ty = let w = fromIntegral $ typeWidth ty
-                     next = i - w
-                 in (next, ExprSlice nm (ExprLit Nothing (ExprNum i))
-                                        (ExprLit Nothing (ExprNum (next + 1))))
+                     nextIdx = i - w
+                 in (nextIdx, ExprSlice nm (ExprLit Nothing (ExprNum i))
+                                        (ExprLit Nothing (ExprNum (nextIdx + 1))))
 
 -- Find some specific (named) input inside the entity.
 lookupInput :: (Show b) => String -> Entity b -> Driver b
@@ -228,6 +246,7 @@ lookupInput i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
 -- Find some specific (named) input's type inside the entity.
+lookupInputType :: String -> Entity t -> Type
 lookupInputType i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
@@ -288,11 +307,11 @@ sanitizeName other       = other
 getSynchs :: [String]
 	  -> [(Unique,Entity Unique)]
 	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, Entity Unique)])]
-getSynchs nms ents = 
+getSynchs nms ents =
 	[ ((clk_dr,rst_dr,en_dr),
 	    [ e | e@(_,Entity (Prim n) _ _) <- ents,  n `elem` nms ]
            )
-	| (i,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)]) <- ents 
+	| (_,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)]) <- ents
 	]
 {-
   where
@@ -307,15 +326,16 @@ getSynchs nms ents =
 
 -- Entities that never result in code generation
 isVirtualEntity :: [Id]
-isVirtualEntity = 
+isVirtualEntity =
         [ Prim "write"  -- write (to an array) requires a counterpart read.
                         -- the read generates the entire operation, cloning
                         -- the write node if needed.
         ]
-        
+
 
 -- We sometimes store std_logic's as singleton std_logic_vectors.
 --boolTrick :: [String] -> Entity a -> Entity a
+boolTrick :: [[Char]] -> Entity s -> Entity s
 boolTrick nms (Entity (External nm) outs ins) =
         Entity (External nm)
                [ (trick n,t) | (n,t) <- outs ]
@@ -323,5 +343,5 @@ boolTrick nms (Entity (External nm) outs ins) =
    where
            trick n | n `elem` nms = n ++ "(0)"
                    | otherwise    = n
-        
-boolTrick _ other = error "applying bool Trick to non-external entity"
+
+boolTrick _ _ = error "applying bool Trick to non-external entity"

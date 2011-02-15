@@ -13,7 +13,6 @@ import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 
 import Data.Word
-import Data.Char as Char
 
 -- | StdLogicVector is a bit accurate, sized general representation of bit vectors.
 
@@ -39,7 +38,7 @@ instance (Size ix) => Num (StdLogicVector ix) where
 	fromInteger n = StdLogicVector $ fmap WireVal $ matrix $ take (size (error "witness" :: ix)) $ map odd $ iterate (`div` 2) n
 
 instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
-	bitSize s = size (error "witness" :: ix)
+	bitSize _ = size (error "witness" :: ix)
 
 	complement (StdLogicVector m) = StdLogicVector (fmap (liftM not) m)
 	isSigned _ = False
@@ -129,10 +128,10 @@ instance (Integral x, Size x, Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 
 -- TODO: rename as to and from.
 toSLV :: (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
 toSLV v = case toRep (optX $ return v) of
-		RepValue v -> StdLogicVector $ M.matrix $ v
+		RepValue v' -> StdLogicVector $ M.matrix $ v'
 
 fromSLV :: (Rep w, StdLogic w) => StdLogicVector (WIDTH w) -> Maybe w
-fromSLV x@(StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))
+fromSLV (StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))
 
 instance (Size ix) => Rep (StdLogicVector ix) where
         type W (StdLogicVector ix) = ix
@@ -140,7 +139,7 @@ instance (Size ix) => Rep (StdLogicVector ix) where
 	optX (Just b)	    = XSV b
 	optX Nothing	    = XSV $ StdLogicVector $ forAll $ \ _ -> WireUnknown
 	unX (XSV a)		    = return a
-	repType x   	    = V (size (error "Wire/StdLogicVector" :: ix))
+	repType _   	    = V (size (error "Wire/StdLogicVector" :: ix))
 	toRep (XSV (StdLogicVector m)) = RepValue (M.toList m)
 	fromRep (RepValue vs) = XSV $ StdLogicVector (M.matrix vs)
 	showRep = showRepDefault

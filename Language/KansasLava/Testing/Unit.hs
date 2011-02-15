@@ -2,17 +2,12 @@
 module Language.KansasLava.Testing.Unit (debug, test) where
 
 import Language.KansasLava
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Thunk
 import Language.KansasLava.Testing.Trace
 
-import Control.Applicative
-
-import Data.Default
+import Data.Default()
 import qualified Data.Map as M
 
-import System.Directory
-import System.FilePath.Posix
 
 debug :: (Ports b) => String -> Int -> Thunk b -> IO ()
 debug name cycles thunk = do

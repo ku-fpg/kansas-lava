@@ -58,7 +58,7 @@ main = do
         sequence_ [ t test
                   | t <- [ Matrix.tests
                          , Memory.tests
-                         , FIFO.tests 
+                         , FIFO.tests
                          , Coerce.tests
                          , Others.tests
                          ]

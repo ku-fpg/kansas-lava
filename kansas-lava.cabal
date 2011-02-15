@@ -71,7 +71,10 @@ Library
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
-  Ghc-Options:  -Wall -O2
+  Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
+               -fno-warn-orphans
+
+
 --  Ghc-Prof-options:  -auto-all
 
 Executable kansas-lava-unittest

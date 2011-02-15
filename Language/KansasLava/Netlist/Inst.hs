@@ -2,25 +2,23 @@
 
 module Language.KansasLava.Netlist.Inst where
 
-import Language.KansasLava.Types
+import Language.KansasLava.Types hiding (Trace(..))
 import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
-import Language.Netlist.Inline
-import Language.Netlist.GenVHDL
--- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
-import Language.KansasLava.Shallow
+import Language.KansasLava.Shallow hiding (log2)
 import qualified Data.Map as M
 
 import Data.List
-import Data.Maybe as Maybe
 import Data.Reify.Graph (Unique)
 
-import Language.KansasLava.Netlist.Utils as Utils
+import Language.KansasLava.Netlist.Utils hiding (zeros)
 
 import Debug.Trace
 
-
+genInst' :: M.Map Unique (Entity Unique)
+         -> Unique
+         -> Entity Unique
+         -> [Decl]
 genInst' env i e =
 	[ CommentDecl $ show (i,e)
 	] ++ genInst env i e
@@ -34,24 +32,24 @@ genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 --genInst env i (Entity nm ins outs) | nm `elem` isVirtualEntity = []
 
 -- You never actually write something that is zero width.
-genInst env i (Entity nm [(_,ty)] outs) | toStdLogicTy ty == V 0 = []
+genInst _ _ (Entity _ [(_,ty)] _) | toStdLogicTy ty == V 0 = []
 
 {-
 -- We expand out all the ClkDom's, projecting into the components,
 -- for VHDL generation purposes.
-genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 = 
+genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 =
 	genInst env i (Entity (Prim nm) outs (ins' ++ ins2))
    where
 	ins' = [ p | p@(nm,ty,dr) <- ins, ty /= ClkDomTy ]
 
-	ins2 = concat 
+	ins2 = concat
 		[ case M.lookup p_id env of
-	   	    Just (Entity (Prim "Env") _ ins_e) -> 
-				[ (env_nm ++ "_" ++ nm,ty,dr) 
-				| (nm,ty,dr) <- ins_e 
+	   	    Just (Entity (Prim "Env") _ ins_e) ->
+				[ (env_nm ++ "_" ++ nm,ty,dr)
+				| (nm,ty,dr) <- ins_e
 				]
 	   	    _ -> error $ "can not find clock domain for " ++ show (p_id,e)
-		| (env_nm,ClkDomTy, Port "env" p_id) <- ins 
+		| (env_nm,ClkDomTy, Port "env" p_id) <- ins
 		]
 -}
 
@@ -61,24 +59,24 @@ genInst env i (Entity (Name "Lava" nm) ins outs) =
 	genInst env i (Entity (Prim nm) ins outs)
 genInst env i (Entity (Name "" nm) ins outs) =
 	genInst env i (Entity (Prim nm) ins outs)
-	
+
 -- Probes are turned into id nodes, add comments to indicate
 -- which probes are on which signals in the vhdl.
-genInst env i (Entity (TraceVal nms _) ins outs) =
+genInst env i (Entity (TraceVal _ _) ins outs) =
 	genInst env i (Entity (Prim "id") ins outs) -- TODO: add [Comment (intercalate ", " $ map show nms)])
 
 -- Blackbox nodes should have been removed by reification, but alas, no.
-genInst env i (Entity (BlackBox box) ins outs) =
+genInst env i (Entity (BlackBox _) ins outs) =
   genInst env i (Entity (Prim "id") ins outs)
 
-genInst env i (Entity (Comment' comments) [] []) =
+genInst _ _ (Entity (Comment' comments) [] []) =
         [ CommentDecl (unlines comments)
-        ] 
+        ]
 genInst env i (Entity (Comment' comments) ins@[_] outs@[_]) =
         [ CommentDecl (unlines comments)
-        ] ++ 
-	genInst env i (Entity (Prim "id") ins outs) 
-		
+        ] ++
+	genInst env i (Entity (Prim "id") ins outs)
+
 genInst env i (Entity (Prim "pair") outputs inputs)
 	= genInst env i (Entity (Prim "concat") outputs inputs)
 genInst env i (Entity (Prim "triple") outputs inputs)
@@ -104,9 +102,9 @@ genInst env i (Entity (Prim "thd3") outputs inputs)
 
 -- identity
 
-genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)]) =
+genInst _ i (Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
         case toStdLogicTy tyO of
-           MatrixTy n (V m)
+           MatrixTy n (V _)
              -- no need to coerce n[B], because both sides have the
              -- same representation
              -> [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum $ j)
@@ -125,72 +123,72 @@ genInst env i (Entity (Label label) [(vO,tyO)] [(vI,tyI,d)] ) =
 
 -- Concat and index (join, project)
 
-genInst env i (Entity (Prim "concat") [("o0",ty)] ins)
+genInst _ i (Entity (Prim "concat") [("o0",ty)] ins)
         | case toStdLogicTy ty of
             MatrixTy {} -> True
             _ -> False
         =
-        [ MemAssign 
-                (sigName ("o0") i) 
+        [ MemAssign
+                (sigName ("o0") i)
                 (ExprLit Nothing $ ExprNum $ j)
                 (stdLogicToMem tyIn $ toStdLogicExpr tyIn dr)
     | (j,(_,tyIn,dr)) <- zip [0..] ins
     ]
 
 -- hack to handle bit to vector with singleton bools.
-genInst env i (Entity (Prim "concat") outs ins@[(n,B,_)]) =
-        genInst env i (Entity (Prim "concat") 
+genInst env i (Entity (Prim "concat") outs ins@[(_,B,_)]) =
+        genInst env i (Entity (Prim "concat")
                               (outs)
                               (ins ++ [("_",V 0,Lit (RepValue []))]))
-        
-genInst env i (Entity (Prim "concat") [("o0",_)] inps) =
+
+genInst _ i (Entity (Prim "concat") [("o0",_)] inps) =
                   [NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
                 [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps ]
 
-genInst env i (Entity (Prim "index")
-		  [("o0",outTy)]
+genInst _ i (Entity (Prim "index")
+		  [("o0",_)]
 		  [("i0", GenericTy, (Generic idx)),
 		   ("i1",ty@MatrixTy {},dr)
-		  ]) = 
-    [ NetAssign (sigName "o0" i) 
+		  ]) =
+    [ NetAssign (sigName "o0" i)
                 (ExprIndex varname
                   (ExprLit Nothing
                    $ ExprNum
                    $ idx))]
-   where                  
+   where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
            (ExprVar varname) =  toStdLogicExpr ty dr
 
-genInst env i (Entity (Prim "index")
-		  [("o0",outTy)]
+genInst _ i (Entity (Prim "index")
+		  [("o0",_)]
 		  [("i0",  ixTy, ix),
 		   ("i1",ty@MatrixTy {},dr)
-		  ]) = 
-    [ NetAssign (sigName "o0" i) 
+		  ]) =
+    [ NetAssign (sigName "o0" i)
                 (ExprIndex varname
                   (toMemIndex ixTy ix))
     ]
-   where                  
+   where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
            (ExprVar varname) =  toStdLogicExpr ty dr
 
-           
-genInst env i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)]) 
+
+genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
    | length outs == n =
-    [ NetAssign (sigName ("o" ++ show j) i) 
+    [ NetAssign (sigName ("o" ++ show j) i)
                 (memToStdLogic inTy
                   (ExprIndex varname
                     (ExprLit Nothing $ ExprNum $ j)))
-    | (j,out) <- zip [0..] outs
+    | (j,_) <- zip [0..] outs
     ]
-   where                  
+   where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
-           (ExprVar varname) = toStdLogicExpr ty dr           
+           (ExprVar varname) = toStdLogicExpr ty dr
 
-genInst env i (Entity (Prim "index")
-		  [("o0",outTy)]
+genInst _ i (Entity (Prim "index")
+		  [("o0",_)]
 		  [("i0", GenericTy, Generic ix),
 		   ("i1",eleTy,input)]) =
 	[ NetAssign (sigName "o0" i)
@@ -201,27 +199,27 @@ genInst env i (Entity (Prim "index")
 		)
 	]
 
-genInst env i (Entity (Prim "index")
+genInst _ i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", ixTy, ix),
 		   ("i1",eleTy,input)]) =
 	[ NetAssign (sigName "o0" i)
 		(ExprCase (toStdLogicExpr ixTy ix)
-			[ ([toStdLogicExpr ixTy (i :: Integer)],toStdLogicExpr outTy val)
-			| (i,val) <- zip [0..] $ prodSlices input tys
+			[ ([toStdLogicExpr ixTy (idx :: Integer)],toStdLogicExpr outTy val)
+			| (idx,val) <- zip [0..] $ prodSlices input tys
 			]
 			(Just $ toStdLogicExpr outTy (0 :: Integer))
 		)
 	]
   where tys = case eleTy of
                 -- Not sure about way this works over two different types.
-		MatrixTy sz eleTy -> take sz $ repeat eleTy
-		TupleTy tys -> tys
+		MatrixTy sz eleTy' -> take sz $ repeat eleTy'
+		TupleTy tys' -> tys'
 		other -> error $ show ("genInst/index",other)
 
 
 {-
-genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing = 
+genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 	genInst env i (Entity nm' outs (ins' ++ ins2))
    where
 	expandEnv = [Prim "register",Prim "BRAM"]
@@ -230,9 +228,9 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 	newName _		  = Nothing
 
 	Just nm' = newName nm
-	
+
 	ins' = [ p | p@(nm,ty,dr) <- ins, ty /= ClkDomTy ]
-	p_id = shrink 
+	p_id = shrink
 	       [ p_id
  	       | (_, ClkDomTy, Port "env" p_id) <- ins
 	       ]
@@ -243,21 +241,21 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 	ins2 = case M.lookup p_id env of
 	   	   Just (Entity (Prim "Env") _ ins_e) -> [ (nm,ty,dr) | (nm,ty,dr) <- ins_e ]
 	   	   _ -> error $ "can not find clock domain for " ++ show (p_id,e)
--}	       
+-}
 
-genInst env i e@(Entity (Name "Memory" "register") [("o0",_)] inputs) =
+genInst _ i (Entity (Name "Memory" "register") [("o0",_)] inputs) =
           [NetAssign input (toStdLogicExpr ty d) ]
   where output = sigName "o0" i
         input =  next output
-	(ty,d) = head [ (ty,d) | ("i0",ty,d) <- inputs ]
+	(ty,d) = head [ (ity,driver) | ("i0",ity,driver) <- inputs ]
 
 
 -- Muxes
-genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",_,_)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,Lit (RepValue [WireVal False])),("i1",tTy,t),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [WireVal False])),("i1",_,_),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
-genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i)
                      (ExprCond cond
                       (toStdLogicExpr tTy t)
@@ -272,15 +270,15 @@ genInst env i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",
 genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 	| op `elem` ["+","-","*","negate"]
 	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
-				        (ins ++ [ ("frac_width", 
-				                        GenericTy, 
+				        (ins ++ [ ("frac_width",
+				                        GenericTy,
 				                        Generic $ fromIntegral $ n - (1 + log2 m))
 					        , ("width",GenericTy, Generic $ fromIntegral n)
 					        ]))
                 where
                         -- Use the log of the resolution + 1 bit for sign
                         log2 1 = 0
-                        log2 n | n > 1 = 1 + log2 (n `div` 2)
+                        log2 num | num > 1 = 1 + log2 (num `div` 2)
 
 -- For compares, we need to use one of the arguments.
 -- With fixed width, we can just consider the bits to be "signed".
@@ -289,27 +287,27 @@ genInst env i (Entity (Prim op) [("o0",B)] [("i0",SampledTy m n,d0),("i1",Sample
         = genInst env i $ Entity (Prim op) [("o0",B)] [("i0",S n,d0),("i1",S n',d1)]
 
 -- This is only defined over constants that are powers of two.
-genInst env i (Entity (Prim "/") [("o0",oTy@(SampledTy m n))] [ ("i0",iTy,v), ("i1",iTy',Lit lit)])
+genInst _ i (Entity (Prim "/") [("o0",(SampledTy _ _))] [ ("i0",iTy,v), ("i1",_,Lit lit)])
 --	= trace (show n)
 	|  fromRepToInteger lit == 16 * 4
 		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
     		-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
 	= [ InstDecl "Sampled_fixedDivPowOfTwo" ("inst" ++ show i)
-  		[ ("shift_by",ExprLit Nothing (ExprNum $ fromIntegral $ 2)) ] -- because / 4 is same as >> 2
+  		[ ("shift_by",ExprLit Nothing (ExprNum 2)) ] -- because / 4 is same as >> 2
                 [ ("i0",toStdLogicExpr iTy v) ]
 		[ ("o0",ExprVar $ sigName "o0" i) ]
           ]
 
 -- The following do not need any code in the inst segement
 
-genInst env i (Entity nm outputs inputs)
+genInst _ _ (Entity nm _ _)
 	| nm `elem` [ Name "Memory" "BRAM"
 		    ]
 	= []
 
 -- Logic assignments
 
-genInst env i (Entity n@(Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
+genInst _ i (Entity (Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (V n,U m) | n == m ->
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
@@ -324,7 +322,7 @@ genInst env i (Entity n@(Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w
 		[ NetAssign  (sigName "o0" i) (toStdLogicExpr t_in w)
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using fromStdLogicVector failed"
-genInst env i (Entity n@(Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
+genInst _ i (Entity (Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (U n,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
@@ -336,13 +334,13 @@ genInst env i (Entity n@(Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   (MatrixTy n B,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ ExprConcat [ memToStdLogic B 
+		[ NetAssign  (sigName "o0" i) $ ExprConcat [ memToStdLogic B
                                                                 (ExprIndex (case (toStdLogicExpr t_in w) of
                                                                               ExprVar varname -> varname)
                                                                              (ExprLit Nothing $ ExprNum $ fromIntegral j)
                                                                  )
                                                             | j <- reverse [0..(m-1)]
-                                                            ] 
+                                                            ]
 		]
 	   (B,V 1) ->
 		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
@@ -352,12 +350,12 @@ genInst env i (Entity n@(Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]
 
 -- <= x(7 downto 2)
 
-genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)])
+genInst _ i (Entity (Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Generic x),("i1",V ins,w)])
 {-
-	| outs < (ins - fromIntegral x) 
-	= 
+	| outs < (ins - fromIntegral x)
+	=
 	-- TODO: Still needs more work here to cover all cases
-	[ NetAssign  (sigName "o0" i) 
+	[ NetAssign  (sigName "o0" i)
 		$ ExprConcat
 			[ ExprSlice nm (ExprLit Nothing (ExprNum $ high)) (ExprLit Nothing (ExprNum low))
 			, ExprLit Nothing (ExprNum 1234567)
@@ -369,15 +367,15 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
 	[ NetAssign  (sigName "o0" i) $ slice
 	]
 	| otherwise =
-	[ NetAssign  (sigName "o0" i) $	ExprConcat 
+	[ NetAssign  (sigName "o0" i) $	ExprConcat
 		[ ExprLit (Just $ length zs) $ ExprBitVector [ F | _ <- zs ]
 		, slice
 		]
 	]
-		
+
   where
      xs = take outs [x..]
-     ys = take (ins - fromIntegral x) xs 
+     ys = take (ins - fromIntegral x) xs
      zs = drop (ins - fromIntegral x) xs
 
      slice = ExprSlice nm (ExprLit Nothing (ExprNum $ last ys)) (ExprLit Nothing (ExprNum $ head ys))
@@ -385,10 +383,8 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
 
      nm = case toTypedExpr (V ins) w of
   	    ExprVar n -> n
-	    other -> error $ " problem with spliceStdLogicVector " ++ show w
+	    _ -> error $ " problem with spliceStdLogicVector " ++ show w
 
-     high = fromIntegral x + fromIntegral outs - 1
-     low = fromIntegral x
 
 
 --------------------------------------------------------------------------------
@@ -410,7 +406,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                                 )
 		]
           (MatrixTy n0 n1,V m) ->
-		[ NetAssign  (sigName "o0" i) 
+		[ NetAssign  (sigName "o0" i)
 		$ ExprConcat [ memToStdLogic n1
                                 (ExprIndex (case (toStdLogicExpr tI w) of
                                               ExprVar varname -> varname)
@@ -426,9 +422,9 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                                 (ExprLit Nothing $ ExprNum $ 0)
                 ]
           (B,V 1) ->
-                [ NetAssign  (sigName "o0" i) 
+                [ NetAssign  (sigName "o0" i)
                         $ stdLogicToMem B
-                        $ toStdLogicExpr tI w 
+                        $ toStdLogicExpr tI w
                 ]
           (V m,MatrixTy n0 n1) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ j)
@@ -440,9 +436,9 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                 | j <- map fromIntegral [0..(n0 - 1)]
                 ]
           (V 1,B) ->
-                [ NetAssign  (sigName "o0" i) 
+                [ NetAssign  (sigName "o0" i)
                         $ memToStdLogic B
-                        $ toStdLogicExpr tI w 
+                        $ toStdLogicExpr tI w
                 ]
           other -> error $ "coerce failure: " ++ show other
 
@@ -452,11 +448,11 @@ genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStgLogicTy tI = error $ "input of unsigned uses matrix representation"
         | isMatrixStgLogicTy tO = error $ "output of unsigned uses matrix representation"
         | typeWidth tI >= typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ 
+	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
-	]                
+	]
         | otherwise =
-	[ NetAssign  (sigName "o0" i) $	ExprConcat 
+	[ NetAssign  (sigName "o0" i) $	ExprConcat
 		[ ExprLit (Just $ zeros) $ ExprBitVector $ take zeros$ repeat F
 		, ExprVar nm
 		]
@@ -472,14 +468,14 @@ genInst env i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStgLogicTy tI = error $ "input of signed uses matrix representation"
         | isMatrixStgLogicTy tO = error $ "output of signed uses matrix representation"
         | typeWidth tI >= typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ 
+	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
-	]                
+	]
         | otherwise =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat $
                 (take zeros $ repeat $
                   (ExprIndex nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tI - 1)))))
-                ) ++ 
+                ) ++
 		[ ExprVar nm
 		]
 	]
@@ -497,14 +493,14 @@ genInst env i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
 
 genInst env i (Entity (Prim "*") outs@[("o0",U n)] ins) =
         genInst env i $ Entity (External "lava_unsigned_mul")
-                                outs 
+                                outs
                                 (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 genInst env i (Entity (Prim "*") outs@[("o0",S n)] ins) =
         genInst env i $ Entity (External "lava_signed_mul")
-                                outs 
+                                outs
                                 (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 
--- negate of unsigned things (under Haskell) treats the bits not like logicial negate, 
+-- negate of unsigned things (under Haskell) treats the bits not like logicial negate,
 -- but 2s complement negate. So we treat it as such.
 genInst env i (Entity (Prim "negate") [("o0",U n)] [("i0",U m,dr)]) =
         genInst env i (Entity (Prim "negate") [("o0",S n)] [("i0",S m,dr)])
@@ -512,17 +508,17 @@ genInst env i (Entity (Prim "negate") [("o0",U n)] [("i0",U m,dr)]) =
 -- The specials (from a table). Only Prim's can be special.
 -- To revisit RSN.
 
-genInst env i (Entity (Prim ".==.") 
+genInst _ i (Entity (Prim ".==.")
                 [("o0",B)]
-                [ ("i0",ty0,dr0)
-                , ("i1",ty1,dr1)
+                [ ("i0",ty0,_)
+                , ("i1",_,_)
                 ]) | typeWidth ty0 == 0
         =
         [ NetAssign (sigName "o0" i) (ExprLit Nothing (ExprBit T))
         ]
 
 
-genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
+genInst _ i (Entity n@(Prim _) [("o0",oTy)] ins)
         | Just (NetlistOp arity f) <- lookup n specials, arity == length ins =
           [NetAssign  (sigName "o0" i)
                   (f oTy [(inTy, driver)  | (_,inTy,driver) <- ins])]
@@ -533,45 +529,45 @@ genInst env i (Entity n@(Prim _) [("o0",oTy)] ins)
 --------------------------------------------------------------------------------
 
 {-
-genInst env i (Entity (Prim "delay") 
-                outs@[("o0",_)] 
-                (("i0",ty2,Port "o0" read_id):ins_reg)) 
+genInst env i (Entity (Prim "delay")
+                outs@[("o0",_)]
+                (("i0",ty2,Port "o0" read_id):ins_reg))
   | Maybe.isJust async =        -- TODO: need to also check default for undefine-ness
         case async_ins of
           [("i0",ty,Port "o0" write_id),("i1",ty2,dr2)] ->
             case M.lookup write_id env of
-              Just (Entity (Prim "write") _ ins_write) -> 
-                genInst env i $ Entity (Prim "RAM") 
+              Just (Entity (Prim "write") _ ins_write) ->
+                genInst env i $ Entity (Prim "RAM")
                                  outs
-                                 (checkClock ins_write ++ 
+                                 (checkClock ins_write ++
                                         [ ("sync",GenericTy,Generic 1)
                                         , ("rAddr",ty2,dr2)
                                         ])
-             
+
               o -> error ("found a sync/read without a write in code generator " ++ show (i,write_id,o))
    where
           -- TODO: add check for same clock domain
-        checkClock ins_write = ins_write  
+        checkClock ins_write = ins_write
         async = case M.lookup read_id env of
                    Just (Entity (Prim "asyncRead") _ ins) -> Just ins
-                   _ -> Nothing 
+                   _ -> Nothing
         async_ins = Maybe.fromJust async
 -}
 
-genInst env i (Entity (Prim "write") [ ("o0",ty) ]
+genInst _ i (Entity (Prim "write") [ ("o0",_) ]
                                      [ ("clk_en",B,clk_en)
                                      , ("clk",ClkTy,clk)
-                                     , ("rst",B,rst)
+                                     , ("rst",B,_)
                                      , ("wEn",B,wEn)
                                      , ("wAddr",wAddrTy,wAddr)
                                      , ("wData",wDataTy,wData)
-                                      ,("element_count",GenericTy,n)            -- now ignored?
+                                      ,("element_count",GenericTy,_)            -- now ignored?
                                       ]) =
         [ ProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
            , If (isHigh (toStdLogicExpr B clk_en))
                 (If (isHigh (toStdLogicExpr B wEn))
-                    (statements 
+                    (statements
                        [Assign (ExprIndex (sigName "o0" i)
                                           (toMemIndex wAddrTy wAddr))
                                (stdLogicToMem wDataTy $ toStdLogicExpr wDataTy wData)
@@ -580,15 +576,15 @@ genInst env i (Entity (Prim "write") [ ("o0",ty) ]
                 Nothing
            )
          ]
-        ]                                              
+        ]
 
 
 -- assumes single clock
-genInst env i (Entity (Prim "delay") outs@[("o0",ty)]    [ ("i0",tI,d)
-                                                         , ("clk_en",B,clk_en)
-                                                         , ("clk",ClkTy,clk)
-                                                         , ("rst",B,rst)
-                                                         ]) =
+genInst _ i (Entity (Prim "delay") [("o0",_)]    [ ("i0",tI,d)
+                                                  , ("clk_en",B,clk_en)
+                                                  , ("clk",ClkTy,clk)
+                                                  , ("rst",B,_)
+                                                  ]) =
         [ ProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
            , If (isHigh (toStdLogicExpr B clk_en))
@@ -598,12 +594,12 @@ genInst env i (Entity (Prim "delay") outs@[("o0",ty)]    [ ("i0",tI,d)
          ]
         ]
 
-genInst env i (Entity (Prim "register") outs@[("o0",ty)] [ ("i0",tI,d)
-                                                         , ("def",GenericTy,n)
-                                                         , ("clk_en",B,clk_en)
-                                                         , ("clk",ClkTy,clk)
-                                                         , ("rst",B,rst)
-                                                         ]) =
+genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
+                                                  , ("def",GenericTy,n)
+                                                  , ("clk_en",B,clk_en)
+                                                  , ("clk",ClkTy,clk)
+                                                  , ("rst",B,rst)
+                                                  ]) =
         [ ProcessDecl
          [ (Event (toStdLogicExpr B rst) AsyncHigh
            , statements [Assign (ExprVar $ sigName "o0" i) (toTypedExpr ty n)]
@@ -623,10 +619,10 @@ genInst env i (Entity (Prim "delay") outs@[("o0",ty)] ins) =
 	B   -> genInst env i $ boolTrick ["i0","o0"] (inst 1)
 	V n -> genInst env i $ inst n
 	_ -> error $ "delay typing issue (should not happen)"
-  where 
-        inst n = Entity 
-                    (External "lava_delay") 
-                    outs 
+  where
+        inst n = Entity
+                    (External "lava_delay")
+                    outs
 		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 
 genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
@@ -634,15 +630,15 @@ genInst env i (Entity (Prim "register") outs@[("o0",ty)] ins) =
 	B   -> genInst env i $ boolTrick ["i0","o0"] (inst 1)
 	V n -> genInst env i $ inst n
 	_ -> error $ "register typing issue  (should not happen)"
-  where 
-        inst n = Entity 
-                    (External "lava_register") 
-                    outs 
+  where
+        inst n = Entity
+                    (External "lava_register")
+                    outs
 		    (ins ++ [("width",GenericTy,Generic $ fromIntegral n)])
 -}
 
 -- A bit of a hack to handle Bool or zero-width arguments.
-genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType addr_ty = 
+genInst env i (Entity (Prim "RAM") outputs@[("o0",data_ty)] inputs) | goodAddrType addr_ty =
    case (toStdLogicTy data_ty,toStdLogicTy addr_ty) of
 	(V n, V 0) -> genInst env i $ zeroArg $ inst n 1
 	(B  , V 0) -> genInst env i $ boolTrick ["wData","o0"] $ zeroArg $ inst 1 1
@@ -650,35 +646,36 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
 	(V n, V m) -> genInst env i $ inst n m
 	_ -> error $ "RAM typing issue (should not happen)"
  where
-        ("rAddr",addr_ty,d) = last ins
+        ("rAddr",addr_ty,_) = last inputs
 
 {-
         rAddr = case d of
                   Port "o0" register_id ->
                     case M.lookup register_id env of
-                        Just (Entity (Prim "register") _ ins) -> 
-                       _ -> 
+                        Just (Entity (Prim "register") _ ins) ->
+                       _ ->
                   _ -> error $ ("rAddr",d)
 -}
-        inst n m = Entity 
-                    (External "lava_bram") 
-                    outs 
-		    (ins ++ [("data_width",GenericTy,Generic $ fromIntegral n)
-			    ,("addr_width",GenericTy,Generic $ fromIntegral m)
-			    ])
-        zeroArg (Entity nm outs ins) = 
+        inst :: Int -> Int -> Entity Int
+        inst n m = Entity
+                    (External "lava_bram")
+                    outputs
+		    (inputs ++ [("data_width",GenericTy,Generic $ fromIntegral n)
+			       ,("addr_width",GenericTy,Generic $ fromIntegral m)
+			       ])
+        zeroArg (Entity nm outs ins) =
                         Entity nm outs $
                                [ (n,V 1,Lit $ RepValue [WireVal False])
                                | n <- ["wAddr","rAddr"]
                                ] ++
-                               [ (n,t,d) | (n,t,d) <- ins, n /= "wAddr" 
+                               [ (n,t,d) | (n,t,d) <- ins, n /= "wAddr"
                                                         && n /= "rAddr"
                                ]
-        goodAddrType ty = 
+        goodAddrType ty =
                 case ty of
-                  U n -> True
+                  U _ -> True
                   _   -> error $ "unsupported address type for BRAMs: " ++ show ty
-        
+
 
 
 -- For read, we find the pairing write, and call back for "RAM".
@@ -686,8 +683,8 @@ genInst env i (Entity (Prim "RAM") outs@[("o0",data_ty)] ins) | goodAddrType add
 
 -- This will be called index later.
 
-genInst env i (Entity (Prim "asyncRead") 
-                outs@[("o0",ty)] 
+genInst _ i (Entity (Prim "asyncRead")
+                [("o0",ty)]
                 [ ("i0",ty1@MatrixTy {},dr1)
                 , ("i1",ty2,dr2)
                 ]) =
@@ -701,16 +698,16 @@ genInst env i (Entity (Prim "asyncRead")
       ]
      _ -> error "bad array as input to asyncRead"
  where
-    MatrixTy x (V y) = toStdLogicTy ty1
+    MatrixTy _ (V _) = toStdLogicTy ty1
 
 {-
-genInst env i (Entity (Prim "asyncRead") 
-                outs@[("o0",ty)] 
+genInst env i (Entity (Prim "asyncRead")
+                outs@[("o0",ty)]
                 [ ("i0",ty1,Port "o0" read_id)
                 , ("i1",ty2,dr2)
                 ]) =
   case M.lookup read_id env of
-     Just (Entity (Prim "write") _ ins) -> 
+     Just (Entity (Prim "write") _ ins) ->
         genInst env i (Entity (Prim "RAM") outs (ins ++ [ ("sync",GenericTy,Generic 0)
                                                         , ("rAddr",ty2,dr2)
                                                         ]))
@@ -718,7 +715,7 @@ genInst env i (Entity (Prim "asyncRead")
 -}
 
 
-genInst env i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) = 
+genInst _ i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) =
         [ CommentDecl (sigName "o0" i ++ " is a constant array") ]
 
 --------------------------------------------------------------------------------
@@ -728,8 +725,8 @@ genInst env i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) =
 -- Right now, we *assume* that every external entity
 -- has in and outs of type std_logic[_vector].
 
-genInst env i (Entity n@(External nm) outputs inputs) =
-	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+genInst _ i (Entity name@(External nm) outputs inputs) =
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl nm ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
@@ -745,13 +742,13 @@ genInst env i (Entity n@(External nm) outputs inputs) =
 
          -- A hack to match 'boolTrick'. Should think again about this
          -- Think of this as a silent (0) at the end of the right hand size.
-         fixName B nm | "(0)" `isSuffixOf` nm = reverse (drop 3 (reverse nm))
-         fixName _ nm = nm
+         fixName B n | "(0)" `isSuffixOf` n = reverse (drop 3 (reverse n))
+         fixName _ n = n
 
 
 
-genInst env i (Entity n@(Name mod_nm nm) outputs inputs) =
-	trace (show ("mkInst",n,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+genInst _ i (Entity name@(Name mod_nm nm) outputs inputs) =
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
           [ InstDecl (mod_nm ++ "_" ++ sanitizeName nm) ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
@@ -760,14 +757,14 @@ genInst env i (Entity n@(Name mod_nm nm) outputs inputs) =
 		| (n,nTy,x) <- inputs, isGenericTy nTy
 		]
                 [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
-		[ (n,ExprVar $ sigName n i) | (n,nTy)   <- outputs ]
+		[ (n,ExprVar $ sigName n i) | (n,_)   <- outputs ]
           ]
    where isGenericTy GenericTy = True
          isGenericTy _         = False
 
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 
-genInst env i tab@(Entity (Function mp) [(vout,tyout)] [(vin,tyin,d)]) =
+genInst _ i (Entity (Function mp) [(vout,tyout)] [(_,tyin,d)]) =
 	[ NetAssign (sigName vout i)
 		(ExprCase (toStdLogicExpr tyin d)
 			[ ([toStdLogicExpr tyin ix],toStdLogicExpr tyout val)
@@ -777,7 +774,7 @@ genInst env i tab@(Entity (Function mp) [(vout,tyout)] [(vin,tyin,d)]) =
 		)
 	]
 
-genInst env i other = error $ show ("genInst",i,other)
+genInst _ i other = error $ show ("genInst",i,other)
 
 
 --------------------------------------------------------------
@@ -823,11 +820,12 @@ mkSpecialBinary coerceR coerceF ops =
        | (lavaName,netListOp) <- ops
        ]
   where
-          -- re-sign a number, please 
+          -- re-sign a number, please
           resign sz n = if n >= 2^(sz-1) then n - 2^sz else n
           mkBool True  = ExprLit Nothing (ExprBit T)
           mkBool False = ExprLit Nothing (ExprBit F)
 
+mkSpecialShifts :: [(String, Ident)] -> [(Id, NetlistOperation)]
 mkSpecialShifts ops =
     [(Prim lavaName
       , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
@@ -839,9 +837,10 @@ mkSpecialShifts ops =
 -- testBit returns the bit-value at a specific (constant) bit position
 -- of a bit-vector.
 -- This generates:    invar(indexVal);
+mkSpecialTestBit :: [(Id, NetlistOperation)]
 mkSpecialTestBit =
     [(Prim lavaName
-      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
+      , NetlistOp 2 ( \ _ [(lty,l),(rty,r)] ->
                           let (ExprVar varname) =  toStdLogicExpr lty l
                           in (ExprIndex varname (toIntegerExpr rty r)))
      )

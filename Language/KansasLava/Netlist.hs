@@ -3,38 +3,22 @@
 module Language.KansasLava.Netlist where
 
 
--- import Language.KansasLava hiding (Seq)
--- import qualified Language.KansasLava as KL
-import qualified Language.KansasLava.Seq as KL
-import Language.KansasLava.Comb
-import Language.KansasLava.Utils
-import Language.KansasLava.Reify(reifyCircuit,Ports)
-import Language.KansasLava.Circuit
 -- import Language.KansasLava.Entity
 import Language.KansasLava.Types
 
-import Data.Sized.Unsigned
 
-import Data.Reify.Graph
 
-import Text.PrettyPrint
-import Data.List(intersperse,find,mapAccumL,nub,sort)
-import Data.Maybe(fromJust)
+import Data.List(sort)
 import qualified Data.Map as M
 
-import Debug.Trace
 
 
 
 import Language.Netlist.AST
-import Language.Netlist.Util
-import Language.Netlist.Inline
-import Language.Netlist.GenVHDL
 
 import Language.KansasLava.Netlist.Utils
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
-import Language.KansasLava.Netlist.Sync
 
 ----------------------------------------------------------------------------------------------
 
@@ -61,34 +45,34 @@ netlistCircuit :: String         -- ^ The name of the generated entity.
 netlistCircuit name circuit = do
   let (Circuit nodes srcs sinks) = circuit
 
-  let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
-	         -- need size info for each input, to declare length of std_logic_vector
+  -- let loadEnable = [] -- if addEnabled nlOpts then [("enable",Nothing)] else []
+  --                -- need size info for each input, to declare length of std_logic_vector
   let inports = [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort srcs
                                      , case toStdLogicTy ty of
                                            MatrixTy {} -> error "can not have a matrix as an in argument"
-                                           _ -> True 
-                 ] 
+                                           _ -> True
+                 ]
                  -- need size info for each output, to declare length of std_logic_vector
-  let outports = [ (nm,sizedRange ty) | (OVar _ nm,ty,_) <- sort sinks 
+  let outports = [ (nm,sizedRange ty) | (OVar _ nm,ty,_) <- sort sinks
                                       , case toStdLogicTy ty of
                                            MatrixTy {} -> error "can not have a matrix as an out argument"
-                                           _ -> True 
+                                           _ -> True
                  ]
 
   let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sort sinks
                                                    , case toStdLogicTy ty of
                                                         MatrixTy {} -> error "can not have a matrix as an out argument"
-                                                        _ -> True 
-               ] 
-               
-  let env = M.fromList nodes 
+                                                        _ -> True
+               ]
 
-  let mod = Module name inports outports []
+  let env = M.fromList nodes
+
+  let nlMod = Module name inports outports []
 		(concatMap genDecl nodes ++
 		 concatMap (uncurry (genInst' env)) nodes ++
 --		genSync nodes ++
 		 finals)
-  return mod
+  return nlMod
 
 
 

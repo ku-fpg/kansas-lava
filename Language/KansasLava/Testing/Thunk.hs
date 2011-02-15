@@ -4,21 +4,16 @@ module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThun
 import Language.KansasLava
 
 import Language.KansasLava.Testing.Bench
-import Language.KansasLava.Testing.Probes
 import Language.KansasLava.Testing.Trace
 
 import Control.Monad
 
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 
-import Debug.Trace
 
-import System.Cmd
 import System.Directory
 import System.FilePath.Posix
-import System.Posix.Directory
 
 data Thunk b = forall a. (Ports a, Ports b) => Thunk a (a -> b)
 
@@ -50,7 +45,7 @@ recordThunk :: (Ports b)
             -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
             -> Thunk b
             -> IO Trace
-recordThunk path cycles circuitMod thunk@(Thunk c k) = do
+recordThunk path cycles circuitMod thunk@(Thunk _ _) = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
@@ -83,7 +78,7 @@ runDeep name cycles thunk circuitMod invoker = do
 
     let target = tmp </> name
 
-    recordThunk target cycles circuitMod thunk
+    _ <- recordThunk target cycles circuitMod thunk
     runTestBench target invoker
 
     -- there better not be any symlinks in here!
@@ -111,16 +106,16 @@ exposeProbes :: [String] -> Circuit -> Circuit
 exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
           n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
-          probes = sort [ (pname, n, outs)
-                        | (n, Entity (TraceVal pnames _) outs _) <- theCircuit rc
+          allProbes = sort [ (pname, nm, outs)
+                        | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
                         , pname <- pnames ]
-          exposed = nub [ (p, oty, Port onm n)
-                        | (p@(Probe pname _ _), n, outs) <- probes
-                        , or [ nm `isPrefixOf` pname | nm <- names ]
+          exposed = nub [ (p, oty, Port onm nm)
+                        | (p@(Probe pname _ _), nm, outs) <- allProbes
+                        , or [ name `isPrefixOf` pname | name <- names ]
                         , (onm,oty) <- outs ]
           showPNames x pname = show pname ++ "_" ++ show x
 
-          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ node))) <- zip [n..] exposed ]
+          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
 
 mkTraceCM :: (Ports a)
           => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
@@ -136,7 +131,7 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     -- TODO: figure out why we can't call mergeProbes on this
     rcWithData <- reifyCircuit $ k probed
 
-    let pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k <- ks ]
+    let pdata = [ (nid,k',v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k' <- ks ]
         outNum = maximum [ i | (_, WholeCircuit _ i _, _) <- pdata ]
         uniqueWCs = map head
                   $ groupBy (\ (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) -> s1 == s2 && i1 == i2)

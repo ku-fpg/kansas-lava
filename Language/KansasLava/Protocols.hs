@@ -11,11 +11,8 @@ import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Signal
 
 import Data.Sized.Matrix as M
-import Data.Map as Map
-import Data.Word
 import Control.Applicative
 import Data.Maybe  as Maybe
-import Data.Sized.Unsigned (Unsigned,U1)
 import Language.KansasLava.Deep
 import Language.KansasLava.Radix as Radix
 
@@ -66,13 +63,13 @@ writeMemory pipe = res
     	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
 
 	shallowRes :: Stream (X (a -> d))
-	shallowRes = pure (\ m -> XFunction $ \ ix -> 
+	shallowRes = pure (\ m -> XFunction $ \ ix ->
 			case getValidRepValue (toRep (optX (Just ix))) of
 			       Nothing -> optX Nothing
 			       Just a' -> case Radix.lookup a' m of
 					    Nothing -> optX Nothing
 					    Just v -> optX (Just v)
-			  ) 
+			  )
 			<*> mem -- (emptyMEM :~ mem)
 --			    <*> ({- optX Nothing :~ -} seqValue addr2)
 
@@ -143,6 +140,8 @@ readMemory mem addr = unpack mem addr
 -}
 
 -- This is an alias
+readMemory :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
+	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
 
 
@@ -150,26 +149,26 @@ syncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep 
 	=> sig (a -> d) -> sig a -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
 
-asyncRead :: forall a d sig clk . (Signal sig, Size a, Rep a, Rep d)
+asyncRead :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
-asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) -> 
+asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
 				Comb (case (unX x) of
 				    	Just x' -> f x'
 				    	Nothing -> optX Nothing
 			     	     )
-			$ entity2 (Prim "asyncRead") me xe 
+			$ entity2 (Prim "asyncRead") me xe
 
--- | memoryToMatrix should be used with caution/simulation  only, 
--- because this actually clones the memory to allow this to work, 
+-- | memoryToMatrix should be used with caution/simulation  only,
+-- because this actually clones the memory to allow this to work,
 -- generating lots of LUTs and BRAMS.
 
-memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk) 
+memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
 	=> sig (a -> d) -> sig (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 fullEnabled :: forall a b sig . (Signal sig, Show a, Rep a, Show b, Rep b)
 	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
-fullEnabled seq f = pack (funMap (return . isJust . f) seq :: sig Bool,funMap f seq :: sig b)
+fullEnabled iseq f = pack (funMap (return . isJust . f) iseq :: sig Bool,funMap f iseq :: sig b)
 
 enabledToPipe :: (Rep x, Rep y, Rep z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, (liftS1 f x))
@@ -188,7 +187,7 @@ zipEnabled f en1 en2 = packY (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
 
 
 packY :: forall a sig . (Rep a, Signal sig) => (sig Bool, sig a) -> sig (Maybe a)
-packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
+packY (aSig,bSig) = {-# SCC "pack(MaybeTT)" #-}
 			liftS2 (\ (Comb a ae) (Comb b be) ->
 				    Comb (case unX a of
 					    Nothing -> optX Nothing
@@ -200,7 +199,7 @@ packY (a,b) = {-# SCC "pack(MaybeTT)" #-}
 						   Nothing -> optX (Just Nothing)
 					 )
 					 (entity2 (Name "Lava" "pair") ae be)
-			     ) a b
+			     ) aSig bSig
 unpackY :: forall a sig . (Rep a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a)
 unpackY ma = {-# SCC "unpack(MaybeY)" #-}
 		   ((,) $!
@@ -235,7 +234,7 @@ unpackX ab = {-# SCC "unpack(,)" #-}
 -}
 
 phi :: forall a sig . (Signal sig, Rep a) => sig a -> sig a -> sig a
-phi = liftS2 $ \ (Comb a ea) (Comb b eb) ->
+phi = liftS2 $ \ (Comb a ea) (Comb b _) ->
         Comb (if toRep a == toRep b
 		then a
 		else optX $ (fail "phi problem" :: Maybe a))	-- an internal error, like an assert
@@ -318,17 +317,17 @@ shiftRegister inp = pack m
 
 
 unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d, Clock clk) =>  CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
-unShiftRegister inp = r
+unShiftRegister inpSig = r
   where
 	en :: CSeq clk Bool
 	m :: CSeq clk (Matrix x d)
-	(en,m) = unpack inp
+	(en,m) = unpack inpSig
 	r :: CSeq clk (Enabled d)
 	(_, r) = scanR fn (pack (low,undefinedSeq), unpack m)
 
 	fn (carry,inp) = ((),reg)
 	  where (en',mv) = unpack carry
-		reg = (delay 
+		reg = (delay
 		 	      (mux2 en ( pack (high,inp),
 				         pack (en',mv)
 			)))

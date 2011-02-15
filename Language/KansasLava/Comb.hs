@@ -3,10 +3,8 @@
 module Language.KansasLava.Comb where
 
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
-import Data.Sized.Unsigned as U
 
 
 ----------------------------------------------------------------------------------------------------
@@ -15,10 +13,10 @@ import Data.Sized.Unsigned as U
 data Comb a = Comb !(X a) (D a)
 
 combValue :: Comb a -> X a
-combValue (Comb a d) = a
+combValue (Comb a _) = a
 
 combDriver :: Comb a -> D a
-combDriver (Comb a d) = d
+combDriver (Comb _ d) = d
 
 instance forall a . (Rep a) => Show (Comb a) where
 	show (Comb x _) = showRep (Witness :: Witness a) x
@@ -70,3 +68,6 @@ fromComb :: (Rep a) => Comb a -> Maybe a
 fromComb comb = unX (combValue comb)
 
 ----------------------------------------------------------------------------------------------------
+
+
+

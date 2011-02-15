@@ -2,19 +2,12 @@
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.Testing.Bench (mkTestbench) where
 
-import Language.KansasLava hiding (ports)
-import Language.KansasLava.Netlist.Utils
-import Language.KansasLava.Testing.Probes
-import Language.KansasLava.VHDL
+import Language.KansasLava hiding (ports,Trace(..))
 
-import Data.List(mapAccumL,sortBy, elemIndex,find,sort)
-import Data.Bits
+import Data.List(mapAccumL,sort)
 
-import System.Random
-import System.Environment(getEnvironment)
 import System.Directory
 import System.FilePath.Posix
-import Control.Monad(liftM)
 
 mkTestbench :: String -> FilePath -> Circuit -> IO ()
 mkTestbench name path circuit = do
@@ -24,7 +17,7 @@ mkTestbench name path circuit = do
     writeFile (path </> name ++ "_tb.vhd")
             $ entity name ++ architecture name (preprocessVhdlCircuit circuit)
 
-    writeFile (path </> name <.> "do") $ doscript name 
+    writeFile (path </> name <.> "do") $ doscript name
 
 entity :: String -> String
 entity name = unlines
@@ -61,7 +54,7 @@ dut name inputs outputs sequentials = unlines $ [
 				"clk_en" -> "'1',"
 				"clk"    -> "clk,"
 				"rst"    -> "rst,"
-	 	| (OVar n c,_) <- sequentials] ++
+	 	| (OVar _ c,_) <- sequentials] ++
     (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
     [");"]
 
@@ -114,15 +107,15 @@ stimulus name inputs outputs = unlines $ [
   where inputfile = name ++ "_input"
         outputfile = name ++ "_output"
 	clockSpeed = 50 -- ns
-	pause n    = "\t\twait for " ++ (show (n * clockSpeed `div` 10)) ++ " ns;"
+	pause n    = "\t\twait for " ++ (show (n * clockSpeed `div` (10 ::Int))) ++ " ns;"
 	outputRange = show (portLen (inputs ++ outputs) - 1) ++ " downto " ++ show (portLen outputs)
 
 -- Manipulating ports
 ports :: Circuit -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports reified = (sort inputs, sort outputs, sort clocks)
-    where inputs  = [(nm,ty) | (nm@(OVar n m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
+    where inputs  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
           outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
-          clocks  = [(nm,ty) | (nm@(OVar n m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
+          clocks  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
 portType :: [(a, Type)] -> [Char]
@@ -135,7 +128,7 @@ portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
 portAssigns inputs outputs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
-        assign sig idx (ty,n,k) =
+        assign sig idx (_,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
         (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- inputs]
         (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]

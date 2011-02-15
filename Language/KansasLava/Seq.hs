@@ -5,28 +5,19 @@ module Language.KansasLava.Seq where
 
 import Control.Applicative
 
-import Data.Bits
-import Data.Int
 import Data.List
-import Data.Word
 
-import Data.Reify
-import qualified Data.Traversable as T
+
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Comb
 -- import Language.KansasLava.Entity
-import Language.KansasLava.Deep
 import Language.KansasLava.Stream as S
 import Language.KansasLava.Shallow
 
-import Data.Sized.Unsigned as UNSIGNED
-import Data.Sized.Signed as SIGNED
-import Data.Sized.Sampled as SAMPLED
-import Data.Sized.Arith as Arith
-import qualified Data.Sized.Matrix as M
-import Data.Sized.Ix as X
+
+
 
 -----------------------------------------------------------------------------------------------
 
@@ -41,10 +32,10 @@ type Clocked c a = CSeq c a	-- new name, start using
 type Seq a = CSeq () a
 
 seqValue :: CSeq c a -> Stream (X a)
-seqValue (Seq a d) = a
+seqValue (Seq a _) = a
 
 seqDriver :: CSeq c a -> D a
-seqDriver (Seq a d) = d
+seqDriver (Seq _ d) = d
 
 instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
@@ -54,7 +45,7 @@ instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 
 instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.
-	(Seq x _) == (Seq y _) = error "undefined: Eq over a Seq"
+	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
 
 deepSeq :: D a -> CSeq c a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
@@ -74,8 +65,8 @@ instance Signal (CSeq c) where
   liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
     let
 	Comb _ eb = f (deepComb ea)
-	f' a = let (Comb b _) = f (shallowComb a)
-	       in b
+	f' x = let (Comb y _) = f (shallowComb x)
+	       in y
    in Seq (fmap f' a) eb
 
   -- We can not replace this with a version that uses packing,
@@ -83,8 +74,8 @@ instance Signal (CSeq c) where
   liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
 	Comb _ ec = f (deepComb ea) (deepComb eb)
-	f' a b = let (Comb c _) = f (shallowComb a) (shallowComb b)
-	         in c
+	f' x y = let (Comb z _) = f (shallowComb x) (shallowComb y)
+	         in z
 
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
@@ -180,7 +171,7 @@ showBitfileInfo streams =
 		 [ v ++ "/" ++ b
 	         | (b,v) <- zip bits vals
 	         ]
-	      | (n,bits,vals) <- zip3 [0..] bitss valss
+	      | (n::Integer,bits,vals) <- zip3 [0..] bitss valss
 	      ]
 	where
 		joinWith _ [] = []
@@ -192,11 +183,11 @@ showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
 showSeqBits ss = [ (show $ toRep (i :: X a))
 		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
-       where showX b = case unX b of
-			Nothing -> 'X'
-			Just True -> '1'
-			Just False -> '0'
-             witness = error "witness" :: a
+       -- where showX b = case unX b of
+       --  		Nothing -> 'X'
+       --  		Just True -> '1'
+       --  		Just False -> '0'
+       --       witness = error "witness" :: a
 
 showSeqVals :: forall a c . (Rep a) => CSeq c a -> [String]
 showSeqVals ss = [ showRep witness i

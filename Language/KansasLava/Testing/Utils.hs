@@ -1,6 +1,5 @@
 module Language.KansasLava.Testing.Utils where
 
-import Data.List
 import Data.Maybe
 
 -- surely this exists in the prelude?
