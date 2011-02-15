@@ -395,7 +395,15 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
 -- Basic Coerce, with truncation and zero padding
 --------------------------------------------------------------------------------
 
+-- coerce only works betwen things of the same width.
+
 genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
+        | typeWidth tI == typeWidth tO =
+	[ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w
+	]                
+        | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
+
+genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $ 
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
@@ -410,9 +418,10 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
      zeros = typeWidth tO - typeWidth tI
      nm = case toStdLogicExpr tI w of
 	    ExprVar n -> n
-	    other -> error $ " problem with coerce: " ++ show (w,tI,other)
+	    other -> error $ " problem with unsigned: " ++ show (w,tI,other)
 
-genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
+
+genInst env i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $ 
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
