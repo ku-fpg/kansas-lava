@@ -45,8 +45,8 @@ module Language.KansasLava.Types (
         -- *Witness
         , Witness(..)
         -- I and O
-        , I(..)
-        , O(..)
+        , I
+        , O
         ) where
 
 import Control.Applicative

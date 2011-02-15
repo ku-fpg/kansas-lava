@@ -405,7 +405,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                                              (ExprLit Nothing $ ExprNum $ 0)
                                 )
 		]
-          (MatrixTy n0 n1,V m) ->
+          (MatrixTy n0 n1,V _) ->
 		[ NetAssign  (sigName "o0" i)
 		$ ExprConcat [ memToStdLogic n1
                                 (ExprIndex (case (toStdLogicExpr tI w) of
@@ -426,7 +426,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                         $ stdLogicToMem B
                         $ toStdLogicExpr tI w
                 ]
-          (V m,MatrixTy n0 n1) ->
+          (V _,MatrixTy n0 _) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ j)
                         -- This is 'B' because a V is split into an array of B.
                         $ stdLogicToMem B
@@ -444,7 +444,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
 
-genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
+genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStgLogicTy tI = error $ "input of unsigned uses matrix representation"
         | isMatrixStgLogicTy tO = error $ "output of unsigned uses matrix representation"
         | typeWidth tI >= typeWidth tO =
@@ -464,7 +464,7 @@ genInst env i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
 	    other -> error $ " problem with unsigned: " ++ show (w,tI,other)
 
 
-genInst env i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
+genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStgLogicTy tI = error $ "input of signed uses matrix representation"
         | isMatrixStgLogicTy tO = error $ "output of signed uses matrix representation"
         | typeWidth tI >= typeWidth tO =

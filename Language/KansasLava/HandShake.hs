@@ -456,7 +456,7 @@ liftHandShaken f = undefined
 -- interact :: (
 -}
 
-interactMVar :: forall a b clk sig
+interactMVar :: forall a b
          . (Rep a, Show a, Rep b, Show b)
         => (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
         -> MVar a
@@ -481,12 +481,12 @@ hInteract fn inp out = do
         out_fifo_var <- newEmptyMVar
 
         -- send the inp handle to the inp fifo
-        forkIO $ forever $ do
+        _ <- forkIO $ forever $ do
                 bs <- BS.hGetContents inp
                 putFIFOContents inp_fifo_var $ BS.unpack bs
 
         -- send the out fifo to the out handle
-        forkIO $ forever $ do
+        _ <- forkIO $ forever $ do
                 x <- takeMVar out_fifo_var
                 BS.hPutStr out $ BS.pack [x]
 

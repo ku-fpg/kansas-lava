@@ -1,14 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.KansasLava.Shallow.FIFO where
 
-import qualified Data.ByteString as BS
 import System.IO.Unsafe
 import Control.Concurrent.MVar
-import Data.Char as Char
-import System.IO
-import Control.Concurrent
-import Data.Word
-
 
 -- We include maybe, so we can simulate the concept
 -- of there being no data available to pass on

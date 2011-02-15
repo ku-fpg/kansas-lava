@@ -134,6 +134,7 @@ toStdLogicTy ty              = V $ fromIntegral size
 --
 
 -- Does this type have a *matrix* representation
+isMatrixStgLogicTy :: Type -> Bool
 isMatrixStgLogicTy ty = case toStdLogicTy ty of
                          MatrixTy {} -> True
                          _ -> False
