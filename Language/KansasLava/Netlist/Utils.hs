@@ -137,6 +137,12 @@ toStdLogicTy ty              = V $ fromIntegral size
   where size = typeWidth ty
 --
 
+-- Does this type have a *matrix* representation
+isMatrixStgLogicTy ty = case toStdLogicTy ty of
+                         MatrixTy {} -> True
+                         _ -> False
+
+
 -- Name a signal
 -- TODO: consider Var -> Unique -> String
 sigName :: String -> Unique -> String
