@@ -81,12 +81,27 @@ tests test = do
 
         let t str witness arb = testCoerce test str witness arb
 
-        t "S16_M_X4_S4"   (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
-        t "U15_M_X3_S5"   (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
-        t "U3_M_X3_Bool" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen (Matrix X3 Bool)))
-        t "U3_x_U2_U5"   (Witness :: Witness (U3,U2)) (dubSeq (arbitrary :: Gen U5))
-        t "U5_U3_x_U2"   (Witness :: Witness U5) (dubSeq (arbitrary :: Gen (U3,U2)))
-        t "U4_U3_x_Bool" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen (U3,Bool)))
+        t "S16_M_X4_S4"    (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
+        t "U15_M_X3_S5"    (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
+        t "U3_M_X3_Bool"   (Witness :: Witness U3) (dubSeq (arbitrary :: Gen (Matrix X3 Bool)))
+        t "U1_M_X1_Bool"   (Witness :: Witness U1) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
+        t "Bool_M_X1_Bool" (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
+
+        t "M_X4_S4_S16"    (Witness :: Witness (Matrix X4 S4)) (dubSeq (arbitrary :: Gen S16))
+        t "M_X3_S5_U15"    (Witness :: Witness (Matrix X3 S5)) (dubSeq (arbitrary :: Gen U15))
+        t "M_X3_Bool_U3"   (Witness :: Witness (Matrix X3 Bool)) (dubSeq (arbitrary :: Gen U3))
+        t "M_X1_Bool_U1"   (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen U1))
+        t "M_X1_Bool_Bool" (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen Bool))
+
+        t "U3_x_U2_U5"     (Witness :: Witness (U3,U2)) (dubSeq (arbitrary :: Gen U5))
+        t "U5_U3_x_U2"     (Witness :: Witness U5) (dubSeq (arbitrary :: Gen (U3,U2)))
+        t "U4_U3_x_Bool"   (Witness :: Witness U4) (dubSeq (arbitrary :: Gen (U3,Bool)))
+
+        t "Bool_U1"        (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen U1))
+        t "U1_Bool"        (Witness :: Witness U1) (dubSeq (arbitrary :: Gen Bool))
+        
+        t "Bool_Bool"      (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen Bool))
+        t "U8_U8"          (Witness :: Witness U8)   (dubSeq (arbitrary :: Gen U8))
 
         return ()
 

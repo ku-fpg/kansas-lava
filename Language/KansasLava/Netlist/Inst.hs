@@ -396,22 +396,48 @@ genInst env i (Entity n@(Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,G
 --------------------------------------------------------------------------------
 
 -- coerce only works betwen things of the same width.
+-- 9 possible coercions, because we have 3 representaitions.
 
 genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI == typeWidth tO =
         case (toStdLogicTy tI,toStdLogicTy tO) of
-          (V n,V m) -> [ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w ]                
+          (a,b) | a == b -> genInst env i (Entity (Prim "id") [("o0",tO)] [("i0",tI,w)])
+          (MatrixTy 1 (V 1),B) ->
+		[ NetAssign  (sigName "o0" i)
+                                (ExprIndex (case (toStdLogicExpr tI w) of
+                                              ExprVar varname -> varname)
+                                             (ExprLit Nothing $ ExprNum $ 0)
+                                )
+		]
           (MatrixTy n0 n1,V m) ->
 		[ NetAssign  (sigName "o0" i) 
 		$ ExprConcat [ memToStdLogic n1
-                                        (ExprIndex (case (toStdLogicExpr tI w) of
-                                                      ExprVar varname -> varname)
-                                                     (ExprLit Nothing $ ExprNum $ fromIntegral j)
-                                        )
+                                (ExprIndex (case (toStdLogicExpr tI w) of
+                                              ExprVar varname -> varname)
+                                             (ExprLit Nothing $ ExprNum $ fromIntegral j)
+                                )
                              | j <- reverse [0..(n0-1)]
                              ]
 		]
-          other -> error $ "coerce" ++ show other
+          (B,MatrixTy 1 (V 1)) ->
+                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ 0)
+                        $ ExprIndex (case toStdLogicExpr tI w of
+                                        (ExprVar varname) -> varname)
+                                (ExprLit Nothing $ ExprNum $ 0)
+                ]
+          (B,V 1) ->
+                [ ]
+          (V m,MatrixTy n0 n1) ->
+                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ j)
+                        $ ExprIndex (case toStdLogicExpr tI w of
+                                        (ExprVar varname) -> varname)
+                                (ExprLit Nothing $ ExprNum $ j)
+                | j <- map fromIntegral [0..(n0 - 1)]
+                ]
+          (V 1,B) ->
+                []
+          
+          other -> error $ "coerce failure: " ++ show other
 
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
 
