@@ -427,9 +427,11 @@ genInst env i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
 	]                
         | otherwise =
-	[ NetAssign  (sigName "o0" i) $	ExprConcat 
-		[ ExprLit (Just $ zeros) $ ExprBitVector $ take zeros$ repeat F
-		, ExprVar nm
+	[ NetAssign  (sigName "o0" i) $	ExprConcat $
+                (take zeros $ repeat $
+                  (ExprIndex nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tI - 1)))))
+                ) ++ 
+		[ ExprVar nm
 		]
 	]
   where
