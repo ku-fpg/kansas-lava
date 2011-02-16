@@ -19,7 +19,6 @@ import Language.KansasLava.Testing.Utils
 import Data.List
 import qualified Data.Map as M
 
-
 -- instance Functor TraceStream where -- can we do this with proper types?
 
 -- generate a signature from a trace
@@ -125,17 +124,17 @@ serialize (Trace c ins outs ps) = unlines
                                ++ showMap outs
                                ++ ["PROBES"]
                                ++ showMap ps
+                               ++ ["END"]
     where showMap :: TraceMap -> [String]
           showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
           showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
 
 deserialize :: String -> [(Trace,String)]
-deserialize str = [(Trace { len = c, inputs = ins, outputs = outs, probes = ps },unlines rest)]
+deserialize str = [(Trace { len = read cstr, inputs = ins, outputs = outs, probes = ps },unlines rest)]
     where (cstr:"INPUTS":ls) = lines str
-          c = read cstr :: Maybe Int
           (ins,"OUTPUTS":r1) = readMap ls
           (outs,"PROBES":r2) = readMap r1
-          (ps,rest) = readMap r2
+          (ps,"END":rest) = readMap r2
 
 genShallow :: Trace -> [String]
 genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
@@ -213,7 +212,7 @@ showTraceStream c (TraceStream _ s) = [map toXBit $ reverse val | RepValue val <
 
 readMap :: [String] -> (TraceMap, [String])
 readMap ls = (go thismap, rest)
-    where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES"])
+    where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES","END"])
           (thismap, rest) = span cond ls
           tabsplit l = let (k,'\t':r1) = span (/= '\t') l
                            (ty,'\t':r) = span (/= '\t') r1
