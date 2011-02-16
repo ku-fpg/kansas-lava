@@ -1,4 +1,4 @@
-import Report hiding (main)
+import Report
 import System.Environment
 
 main :: IO ()

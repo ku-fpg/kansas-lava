@@ -4,7 +4,6 @@ module Report where
 import Control.Applicative
 import Control.Monad
 import System.Directory
-import System.Environment
 import System.FilePath
 import qualified System.IO.Strict as Strict
 
@@ -49,16 +48,6 @@ instance Show Summary where
               cp = "Simulation failures (non-matching traces): " ++ show (compfail summary)
               si = "Simulation failures (other): " ++ show (simfail summary)
               ps = "Simulation tests passed: " ++ show (passed summary)
-
-main :: IO ()
-main = do
-    args <- getArgs
-    if length args < 1
-        then do pname <- getProgName
-                putStrLn "Need path to simulation directory."
-                putStrLn $ "USAGE: " ++ pname ++ " path"
-                putStrLn $ "Example: " ++ pname ++ " sims"
-        else generateReport $ args !! 0
 
 generateReport :: FilePath -> IO ()
 generateReport path = do

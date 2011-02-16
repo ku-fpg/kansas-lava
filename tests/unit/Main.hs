@@ -10,7 +10,7 @@ import Trace.Hpc.Reflect
 import Trace.Hpc.Tix
 
 import Types
-import Report hiding (main)
+import Report
 import Utils
 
 import qualified Matrix
