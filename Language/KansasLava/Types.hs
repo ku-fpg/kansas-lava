@@ -609,7 +609,17 @@ data Witness w = Witness
 
 --------------------------------------------------------------------------------------
 
+-- Prepare yourself for an ASCII FIFO diagram!
+--
+--                ============
+--      input---->=   FIFO   =---->output
+--  writeflag<----=          =<----readflag
+--                ============
+--
+-- where readflag  :: CSeq c Bool = read successful
+--       writeflag :: CSeq c Bool = write successful
+--
 -- eventually, these may become datatypes.
-type I forward backward = (forward,backward)
-type O backward forward = (backward,forward)
+type I input     readflag = (input    ,readflag)
+type O writeflag output   = (writeflag,output  )
 

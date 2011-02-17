@@ -103,22 +103,29 @@ toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq r
 toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
 toHandShaken' _ xs = HandShaken $ \ ready -> toHandShaken xs ready
 
-toHandShaken :: (Rep a) => [Maybe a] -> (CSeq c Bool -> CSeq c (Enabled a))
+-- | Take a list of shallow values and create a stream which can be sent into
+--   a FIFO, respecting the write-ready flag that comes out of the FIFO.
+toHandShaken :: (Rep a)
+             => [Maybe a]           -- ^ shallow values we want to send into the FIFO
+             -> (CSeq c Bool        -- ^ flag back from FIFO that indicates successful write
+             -> CSeq c (Enabled a)) -- ^ stream of values sent to FIFO
 toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
-           fn (x:xs) cs = x : case cs of -- read c after issuing x
-                (Nothing:_)         -> error "toVariableHandshake: bad protocol state (1)"
-                (Just True:rs)       -> fn xs rs         -- has been written
+           fn (x:xs) cs = x : case cs of -- read ready flag after issuing x
+                (Nothing:_)          -> error "toHandShaken: bad protocol state (1)"
+                (Just True:rs)       -> fn xs rs     -- has been written
                 (_:rs)               -> fn (x:xs) rs -- not written yet
 
-
-fromHandShaken' :: forall a c . (Clock c, Rep a) =>  HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
+fromHandShaken' :: forall a c . (Clock c, Rep a) => HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
 fromHandShaken' (HandShaken sink) = res
     where (back, res) = fromHandShaken  (sink back)
 
-
-fromHandShaken :: forall a c . (Clock c, Rep a) =>  CSeq c (Enabled a) -> (CSeq c Bool, [Maybe a])
+-- | Take stream emanating from a FIFO and return a read-ready flag, which
+--   is given back to the FIFO, and a shallow list of values.
+fromHandShaken :: forall a c . (Clock c, Rep a)
+               => CSeq c (Enabled a)       -- ^ fifo output sequence
+               -> (CSeq c Bool, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
 fromHandShaken inp = (toSeq (map fst internal), map snd internal)
    where
         internal :: [(Bool,Maybe a)]
