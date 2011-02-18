@@ -215,6 +215,7 @@ fifoFE :: forall c a counter ix .
         , Clock c
         )
       => Witness ix
+         -- ^ depth of FIFO
       -> CSeq c Bool
          -- ^ hard reset option
       -> (CSeq c (Enabled a), CSeq c counter)
@@ -518,3 +519,112 @@ liftCombIO fn (lhs_in,rhs_back) = (lhs_back,rhs_out)
            lhs_back = rhs_back
            rhs_out = mapEnabled fn lhs_in
  -}
+
+-- Idea: FIFOs are arrows.
+-- Problem: To implement Arrows, you need to make an instance of the Category
+--          and Arrow classes. While composition, first, second, &&&, ***, are
+--          fairly straightforward, id (from Category) and arr (from Arrow) are
+--          too general (I think).
+--
+--          class Category cat where id :: cat a a ...
+--          class Arrow a where arr :: (b -> c) -> a b c ...
+--
+--          We need to constrain id so a admits Rep. We also don't want to
+--          admit an arbitrary function to arr. I think this is what we really
+--          want:
+--
+--          class RepCategory cat where
+--              id :: (Rep a) => cat a a
+--              (.) :: (Rep a, Rep b, Rep c) => cat b c -> cat a b -> cat a c
+--
+--          class RepArrow a where
+--              arr :: (Rep b, Rep c) => (Comb b -> Comb c) -> a b c
+--              first :: (Rep b, Rep c, Rep d) => a b c -> a (b,d) (c,d)
+--              -- note the following can be derived from arr, first, id, and (.)
+--              -- but we might want to implement them by hand
+--              second :: (Rep b, Rep c, Rep d) => a b c -> a (d,b) (d,c)
+--              (***) :: (Rep b, Rep c, Rep b', Rep c') => a b c -> a b' c' -> a (b,b') (c,c')
+--              (&&&) :: a b c -> a b c' -> a b (c,c')
+--              -- note (>>>) = flip (.)
+--
+--          Rather than try for this class definition right way (there are a lot
+--          more constraints than the Rep ones to manage) I started implementing
+--          them outside the class as normal functions. So far, I have id, (.), and first
+--          implemented. The others are coming soon.
+--
+-- Thought: What we really have here are circuit bits with an input type and output
+--          type, and an algebra for gluing them together. With some work, combinatorial
+--          and sequential circuits (absent fifos) would both fit into this paradigm
+--          as well.
+--
+--          newtype CombCircuit a b = CC { runComb :: Comb a -> Comb b }
+--          instance RepCategory CombA where
+--              id = CC Prelude.id
+--              (.) (CC g) (CC f) = CC (g Prelude.. f)
+--
+--          instance RepArrow CombA where
+--              arr = CC
+--              first (CC fn) = CC (\(b, d) -> (fn b, d))
+--
+--          etc...
+newtype FIFO clk sz b c = FIFO { runFIFO :: I (CSeq clk (Enabled b)) (CSeq clk Bool)
+                                         -> O (CSeq clk Bool) (CSeq clk (Enabled c)) }
+
+idFifo :: forall clk sz a counter
+       . ( Clock clk
+         , Size sz
+         , Num sz
+         , Rep sz
+         , Rep a
+         , counter ~ ADD sz X1
+         , Size counter
+         , Num counter
+         , Rep counter)
+       => FIFO clk sz a a
+idFifo = FIFO (fifo (Witness :: Witness sz) low)
+-- TODO: Probably want to handle the reset signal for real.
+-- TODO: Why do we need counter? fifoFE and fifoBE add X1 to sz,
+--       but I don't understand why counter can't be equal to sz.
+
+composeFifo :: ( Size gsz
+               , Size fsz
+               , combined ~ ADD gsz fsz
+               , Size combined
+               , fc ~ gb
+               )
+            => FIFO clk gsz gb gc
+            -> FIFO clk fsz fb fc
+            -> FIFO clk combined fb gc
+composeFifo (FIFO g) (FIFO f) = FIFO (\(inp,rr) -> let (wr,o) = f (inp,wr')
+                                                       (wr',out) = g (o,rr)
+                                                   in (wr,out))
+
+firstFifo :: forall clk sz b c d counter
+          . ( Clock clk
+            , Size sz
+            , Rep b
+            , Rep c
+            , Rep d
+            , Num sz
+            , Rep sz
+            , counter ~ ADD sz X1
+            , Size counter
+            , Num counter
+            , Rep counter
+            )
+          => FIFO clk sz b c -> FIFO clk sz (b,d) (c,d)
+firstFifo (FIFO f) = FIFO (\(inp,rr) -> let -- get the enabled signal off the tuple
+                                            (en,tup) = unpack (inp :: CSeq clk (Enabled (b,d)))
+                                            -- unpack the tuple
+                                            (ifst,isnd) = unpack (tup :: CSeq clk (b,d))
+                                            -- put the enabled signal back on each part
+                                            (eif,eis) = (pack (en,ifst), pack (en,isnd))
+                                            -- pass first part of tuple into fifo f
+                                            (wrf,outf) = f (eif,rr)
+                                            -- pass second part into the identity fifo
+                                            (wrid,outid) = runFIFO (idFifo :: FIFO clk sz d d) (eis,rr)
+                                            -- get the enabled signal off each output
+                                            ((oen,osf),(oen',osid)) = (unpack outf, unpack outid)
+                                            -- make a combined enabled output
+                                            out = pack (oen .&&. oen', pack (osf,osid)) :: CSeq clk (Enabled (c,d))
+                                        in (wrf .&&. wrid, out))
