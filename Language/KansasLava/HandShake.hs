@@ -107,8 +107,9 @@ toHandShaken' _ xs = HandShaken $ \ ready -> toHandShaken xs ready
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toHandShaken :: (Rep a)
              => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> (CSeq c Bool        -- ^ flag back from FIFO that indicates successful write
-             -> CSeq c (Enabled a)) -- ^ stream of values sent to FIFO
+             -> (CSeq c Bool
+             -> CSeq c (Enabled a)) -- ^ takes a flag back from FIFO that indicates successful write
+                                    --   to a stream of values sent to FIFO
 toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
