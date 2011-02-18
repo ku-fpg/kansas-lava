@@ -199,6 +199,10 @@ handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
 incGroup x = mux2 (x .==. maxBound) (0,x + 1)
 
+-- | Make a sequence obey the given reset signal, returning given value on a reset.
+resetable :: forall a c. (Clock c, Rep a) => CSeq c Bool -> Comb a -> CSeq c a -> CSeq c a
+resetable rst val x = mux2 rst (liftS0 val,x)
+
 fifoFE :: forall c a counter ix .
          (Size counter
         , Size ix
@@ -219,10 +223,6 @@ fifoFE :: forall c a counter ix .
          -- ^ backedge for input, and write request for memory.
 fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
   where
-
-        resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
-        resetable x = mux2 rst (0,x)
-
 --      mem :: Seq ix -> Seq a
 --      mem = pipeToMemory env env wr
 
@@ -234,12 +234,12 @@ fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
                          (pack (wr_addr,enabledVal inp))
 
         wr_addr :: CSeq c ix
-        wr_addr = resetable
+        wr_addr = resetable rst 0
                 $ register 0
                 $ mux2 inp_done0 (liftS1 incGroup wr_addr,wr_addr)
 
         in_counter0 :: CSeq c counter
-        in_counter0 = resetable
+        in_counter0 = resetable rst 0
                     $ in_counter1
                         + mux2 inp_done0 (1,0)
                         - dec_by
@@ -280,11 +280,8 @@ fifoBE :: forall a c counter ix .
         -- output for HandShaken
 fifoBE Witness rst (inc_by,mem_rd) out_ready =
     let
-        resetable :: forall b. (Rep b, Num b) => CSeq c b -> CSeq c b
-        resetable x = mux2 rst (0,x)
-
         rd_addr0 :: CSeq c ix
-        rd_addr0 = resetable
+        rd_addr0 = resetable rst 0
                  $ mux2 out_done0 (liftS1 incGroup rd_addr1,rd_addr1)
 
         rd_addr1 = register 0
@@ -297,7 +294,7 @@ fifoBE Witness rst (inc_by,mem_rd) out_ready =
         out = packEnabled (out_counter1 .>. 0 `and2` bitNot rst `and2` isEnabled mem_rd) (enabledVal mem_rd)
 
         out_counter0 :: CSeq c counter
-        out_counter0 = resetable
+        out_counter0 = resetable rst 0
                      $ out_counter1
                         + inc_by
                         - mux2 out_done0 (1,0)
@@ -309,10 +306,8 @@ fifoBE Witness rst (inc_by,mem_rd) out_ready =
 fifoCounter :: forall counter . (Num counter, Rep counter) => Seq Bool -> Seq Bool -> Seq Bool -> Seq counter
 fifoCounter rst inc dec = counter1
     where
-        resetable x = mux2 rst (0,x)
-
         counter0 :: Seq counter
-        counter0 = resetable
+        counter0 = resetable rst 0
                  $ counter1
                         + mux2 inc (1,0)
                         - mux2 dec (1,0)
@@ -322,10 +317,8 @@ fifoCounter rst inc dec = counter1
 fifoCounter' :: forall counter . (Num counter, Rep counter) => Seq Bool -> Seq counter -> Seq counter -> Seq counter
 fifoCounter' rst inc dec = counter1
     where
-        resetable x = mux2 rst (0,x)
-
         counter0 :: Seq counter
-        counter0 = resetable
+        counter0 = resetable rst 0
                  $ counter1
                         + inc -- mux2 inc (1,0)
                         - dec -- mux2 dec (1,0)
@@ -349,14 +342,12 @@ fifo :: forall a c counter ix .
       -> O (CSeq c Bool) (CSeq c (Enabled a))
 fifo w_ix rst (inp,out_ready) =
     let
-        resetable x = mux2 rst (low,x)
-
         wr :: CSeq c (Maybe (ix, a))
         inp_ready :: CSeq c Bool
         (inp_ready, wr) = fifoFE w_ix rst (inp,dec_by)
 
         inp_done2 :: CSeq c Bool
-        inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
+        inp_done2 = resetable rst low $ register False $ resetable rst low $ register False $ resetable rst low $ isEnabled wr
 
         mem :: CSeq c ix -> CSeq c (Enabled a)
         mem = enabledS . pipeToMemory wr
@@ -395,13 +386,16 @@ fifoToMatrix :: forall a counter counter2 ix iy iz c .
       -> HandShaken c (CSeq c (Enabled (M.Matrix iz a)))
 fifoToMatrix w_ix@Witness w_iy@Witness rst hs = HandShaken $ \ out_ready ->
     let
-        resetable x = mux2 rst (low,x)
-
         wr :: CSeq c (Maybe (ix, a))
         wr = fifoFE w_ix rst (hs,dec_by)
 
         inp_done2 :: CSeq c Bool
-        inp_done2 = resetable $ register False $ resetable $ register False $ resetable $ isEnabled wr
+        inp_done2 = resetable rst low
+                  $ register False
+                  $ resetable rst low
+                  $ register False
+                  $ resetable rst low
+                  $ isEnabled wr
 
         mem :: CSeq c (Enabled (M.Matrix iz a))
         mem = enabledS
