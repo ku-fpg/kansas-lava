@@ -12,7 +12,11 @@ import Data.Sized.Signed
 
 tests :: TestSeq -> IO ()
 tests test = do
-        let t str witness arb = testUnsigned test str witness arb
+
+        let t :: (Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1) =>
+                  String -> Witness w2 -> Gen w1 -> IO ()
+
+            t str witness arb = testUnsigned test str witness arb
 
         t "U1_U1" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U1))
         t "U2_U1" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U1))
@@ -54,7 +58,9 @@ tests test = do
         t "X5_X4" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X4))
         t "X5_X5" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X5))
 
-        let t str witness arb = testSigned test str witness arb
+        let t :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1) =>
+                  String -> Witness w2 -> Gen w1 -> IO ()
+            t str witness arb = testSigned test str witness arb
 
         t "S2_U1" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U1))
         t "S3_U1" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U1))
@@ -72,7 +78,9 @@ tests test = do
         t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))
         t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))
 
-        let t str witness arb = testCoerce test str witness arb
+        let t :: (Eq w2, Eq w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1) =>
+                 String -> Witness w2 -> Gen w1 -> IO ()
+            t str witness arb = testCoerce test str witness arb
 
         t "S16_M_X4_S4"    (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
         t "U15_M_X3_S5"    (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
