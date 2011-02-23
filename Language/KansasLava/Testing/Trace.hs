@@ -200,6 +200,7 @@ fromXBit 'X' = WireUnknown
 fromXBit 'U' = WireUnknown -- is this really the case?
 fromXBit '1' = WireVal True
 fromXBit '0' = WireVal False
+fromXBit _ = error "fromXBit: no parse"
 
 -- note the reverse here is crucial due to way vhdl indexes stuff
 showTraceStream :: Maybe Int -> TraceStream -> [String]

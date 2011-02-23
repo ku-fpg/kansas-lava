@@ -72,8 +72,7 @@ Library
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
 -- need a module refactor to address the orphan warnings
-  Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
-               -fno-warn-orphans
+  Ghc-Options: -Wall  -Werror -O2 -fno-warn-orphans
 
 
 --  Ghc-Prof-options:  -auto-all
@@ -89,7 +88,7 @@ Executable kansas-lava-unittest
     Main-Is:        Main.hs
     Hs-Source-Dirs: ., tests/unit
 -- we intentionally use shadowing at times in the unit test module
-    Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
+    Ghc-Options: -Wall  -Werror -O2
                  -fno-warn-name-shadowing
                  -fno-warn-orphans
 

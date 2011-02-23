@@ -32,7 +32,7 @@ instance (Integral a) => ToTypedExpr (Driver a) where
 	toTypedExpr ty (Generic n)       = toTypedExpr ty n
 	toTypedExpr ty (Port (v) n)      = toTypedExpr ty (sigName v (fromIntegral n))
 	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
-
+        toTypedExpr _ other = error $ "toTypedExpr(Driver a): " ++ show other
 instance ToTypedExpr String where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr B      nm = 		       ExprVar $ nm -- ExprBinary Equals (ExprVar nm) (ExprBit 1)
@@ -60,6 +60,7 @@ fromIntegerToExpr t i =
   where b :: Int -> Bit
         b 0 = F
         b 1 = T
+        b _ = error "fromIntegerExpr: bit not of a value 0 or 1"
 
 
 instance ToTypedExpr RepValue where
@@ -153,6 +154,7 @@ sizedRange ty = case toStdLogicTy ty of
                     where high = ExprLit Nothing (ExprNum (fromIntegral n - 1))
                           low = ExprLit Nothing (ExprNum 0)
                   MatrixTy _ _ -> error "sizedRange: does not support matrix types"
+                  sty -> error $ "sizedRange: does not support type " ++ show sty
 
 -- like sizedRange, but allowing 2^n elements (for building memories)
 memRange :: Type -> Maybe Range
@@ -162,6 +164,7 @@ memRange ty = case toStdLogicTy ty of
                     where high = ExprLit Nothing
                                  (ExprNum (2^(fromIntegral n :: Integer) - 1))
                           low = ExprLit Nothing (ExprNum 0)
+                  sty -> error $ "memRange: does not support type " ++ show sty
 
 -- VHDL "macros"
 active_high :: Expr -> Expr
@@ -232,6 +235,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 		Port (v) n -> sigName v n
 		Pad (OVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
+                driver -> error "projecting into " ++ show driver ++ " not implemented"
 
 	f :: Integer -> Type -> (Integer,Expr)
         f i B = (i-1,ExprIndex nm (ExprLit Nothing (ExprNum i)))

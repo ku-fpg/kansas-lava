@@ -3,7 +3,7 @@
 -- will assume these blocks are identities, and perhaps remove them.
 
 module Language.KansasLava.Dynamic where
-	
+
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
 import Language.KansasLava.Comb
@@ -21,7 +21,8 @@ getDynamics :: (Signal sig) => sig a -> [Dynamic]
 getDynamics sig = find (unD $ deepS sig)
   where
 	find :: Driver E -> [Dynamic]
-	find (Port _ (E (Entity (BlackBox (Box bb)) _ ins))) = 
+	find (Port _ (E (Entity (BlackBox (Box bb)) _ ins))) =
 			bb : case ins of
 				[(_,_,i)] -> find i
+                                _ -> error "getDynamics: no inputs"
 	find _ = []

@@ -54,6 +54,7 @@ dut name inputs outputs sequentials = unlines $ [
 				"clk_en" -> "'1',"
 				"clk"    -> "clk,"
 				"rst"    -> "rst,"
+                                n -> n
 	 	| (OVar _ c,_) <- sequentials] ++
     (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
     [");"]

@@ -116,6 +116,7 @@ writeMemory pipe = res
 		    Just (Just (a,d)) ->
 			case getValidRepValue (toRep (optX (Just a))) of
 			  Just bs -> ((Radix.insert $! bs) $! d) $! m
+                          Nothing -> error "mem: can't get a valid rep value"
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
 		]

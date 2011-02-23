@@ -67,6 +67,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 --                        | -- length [ () | Just _ <- state ] == fifoSize &&
 --                             trace (show ("fifoLen",length [ () | Just _ <- state ])) False = undefined
 
+            fifoSpec [] _ _ = error "fifoSpec: no value to enqueue"
             fifoSpec (val:vals) outs state
                         | length [ () | Just _ <- state ] < fifoSize
                         = fifoSpec2 vals  outs (val:state)
@@ -74,6 +75,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
                         | otherwise
                         = fifoSpec2  (val:vals) outs (Nothing:state)
 
+            fifoSpec2 _ [] _ = error "fifoSpec2: no ready/output signal"
             fifoSpec2 vals (ready:outs) state =
                     case [ x | Just x <- reverse $ drop 3 state ] of
                         [] -> Nothing   : fifoSpec vals outs state

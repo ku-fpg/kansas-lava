@@ -75,6 +75,7 @@ preprocessVhdlCircuit cir =
                               [ ( "i" ++ show j
                                 , case ty of
                                    MatrixTy _ inner -> inner
+                                   _ -> error $ "preprocessVhdlCircuit: not a matrix type " ++ show ty
                                 , case [ OVar i' nm'
                                          | (OVar i' nm',_) <- srcs2
                                          , nm' == (nm ++ "_x" ++ show j)
@@ -83,14 +84,20 @@ preprocessVhdlCircuit cir =
                                       [x] -> Pad x
                                       _ -> error ("too many of " ++ show nm)
                                 )
-                              | j <- [0..(n-1)]]
+                              | j <- [0..(getMatrixNumColumns ty - 1)]]
                      )
                   | (OVar i nm, ty) <- sort srcs
-                  , (n,_) <- case toStdLogicTy ty of
-                              B -> []
-                              V {} -> []
-                              MatrixTy n (V m) -> [(n,m)]
+                  , isMatrixType (toStdLogicTy ty)
+                  -- , (n,_) <- case toStdLogicTy ty of
+                  --             B -> []
+                  --             V {} -> []
+                  --             MatrixTy n (V m) -> [(n,m)]
                   ]
+        isMatrixType (MatrixTy _ _) = True
+        isMatrixType _ = False
+
+        getMatrixNumColumns (MatrixTy c _) = c
+        getMatrixNumColumns _ = error "Can't get number of columns for non-matrix type"
 
         extras1 :: [(Unique, (OVar, Entity Unique))]
         extras1 = zip srcVars extras0
@@ -140,6 +147,8 @@ preprocessVhdlCircuit cir =
                                              [u] -> Port "o0" u
                                              []  -> case [ j | (OVar j nm',_) <- srcs2, nm == nm' ] of
                                                       [k] -> Pad (OVar k nm)
+                                                      _ -> error "fixUp find"
+                                             _ -> error "fixUp"
                                  other -> other
                                  ) | (o,t,d) <- outs ])
 

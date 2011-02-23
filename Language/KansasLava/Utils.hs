@@ -280,6 +280,7 @@ choose i t e = unpack (mux2 i (pack t :: sig a,pack e :: sig a))
 --     the output for selector "value" >= (length inputlist) is
 --     not defined.
 muxList :: forall sig a . (Signal sig, Rep a) =>[sig Bool] -> [sig a] -> sig a
+muxList [] _ = error "muxList: must have at least one selection bit"
 muxList [_] [a0] = a0
 muxList [s] [a0, a1] = mux2 s  (a1,a0)
 muxList sel@(s:rest) as = if (aLength <= halfRange)
@@ -299,6 +300,7 @@ muxList sel@(s:rest) as = if (aLength <= halfRange)
           topLen = fromIntegral $ Prelude.length top
           nbits = max 1 (ceiling (logBase (2::Double) topLen))
           topSelect = drop ((Prelude.length rest) - nbits) rest
+
 
 -------------------------------------------------------------------------------------------------
 eval :: forall a . (Rep a) => a -> ()

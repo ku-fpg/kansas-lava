@@ -113,10 +113,12 @@ toHandShaken :: (Rep a)
 toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
-           fn (x:xs) cs = x : case cs of -- read ready flag after issuing x
-                (Nothing:_)          -> error "toHandShaken: bad protocol state (1)"
-                (Just True:rs)       -> fn xs rs     -- has been written
-                (_:rs)               -> fn (x:xs) rs -- not written yet
+           fn (x:_) (Nothing:_) = x:(error "toHandShaken: bad protocol state (1)")
+           fn (x:xs) (Just True:rs) = x:(fn xs rs)     -- has been written
+           fn (x:xs) (_:rs) = x : fn (x:xs) rs -- not written yet
+           fn [] _ = error "toHandShaken: can't handle empy list of values to issue"
+           fn _ [] = error "toHandShaken: can't handle empty list of values to receive"
+
 
 fromHandShaken' :: forall a c . (Clock c, Rep a) => HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
 fromHandShaken' (HandShaken sink) = res

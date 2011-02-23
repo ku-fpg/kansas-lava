@@ -33,9 +33,11 @@ mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
                              otherIds = [ k | (k,_) <- others, k /= pid ]
                              newNames = nub $ pnames ++ (concatMap snd others)
                              updatedNames = updateAL pid (Entity (TraceVal newNames strm) outs ins) $ theCircuit rc
-                         in go pl $ replaceWith (\(Port s _) -> Port s pid) otherIds $ rc { theCircuit = updatedNames }
+                         in go pl $ replaceWith (f pid)  otherIds $ rc { theCircuit = updatedNames }
           go [] rc = rc
           go other _ = error $ "mergeProbes: " ++ show other
+          f pid (Port s _) = Port s pid
+          f _ p = p
 
 -- | Removes all probe nodes from the circuit.
 remProbes :: Circuit -> Circuit

@@ -134,7 +134,7 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     let pdata = [ (nid,k',v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k' <- ks ]
         outNum = maximum [ i | (_, WholeCircuit _ i _, _) <- pdata ]
         uniqueWCs = map head
-                  $ groupBy (\ (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) -> s1 == s2 && i1 == i2)
+                  $ groupBy grouping
                   $ sortBy (\ (_, l, _) (_, r, _) -> compare l r)
                     [ wc | wc@(_, WholeCircuit _ _ _, _) <- pdata ]
         ins = M.fromList [ (WholeCircuit s i nid, strm) | (nid, WholeCircuit s i _, strm) <- uniqueWCs, i /= outNum ]
@@ -142,3 +142,5 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
         ps = M.fromList [ (Probe nm i nid, strm) | (nid, Probe nm i _, strm) <- pdata ]
 
     return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
+  where grouping (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) = s1 == s2 && i1 == i2
+        grouping _ _ = False

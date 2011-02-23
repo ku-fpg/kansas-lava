@@ -140,9 +140,11 @@ reifyCircuit circuit = do
             then optimizeCircuit def rCitNamesResolved
             else return rCitNamesResolved
 
+{- REMOVED DEAD CODE DEFINING rCit3
         let depthss = [ mp | CommentDepth mp <- opts ]
 
         -- TODO likewisse, remove, its a seperate pass
+
         rCit3 <- case depthss of
 {-
                     [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
@@ -158,6 +160,8 @@ reifyCircuit circuit = do
 -}
                     []        -> return rCit2
 
+-}
+        let rCit3 = rCit2
 
         let domains = nub $ concat $ visitEntities rCit3 $ \ _ (Entity _ _ outs) ->
                 return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
@@ -286,6 +290,7 @@ instance Rep a => Ports (Comb a) where
 
     probe' (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where strm = toTrace $ Stream.fromList $ repeat s
+    probe' [] _ = error "Can't add probe: no name supply available"
 
     run (Comb s _) (Trace c _ _ _) = TraceStream ty $ takeMaybe c strm
         where TraceStream ty strm = toTrace $ Stream.fromList $ repeat s
@@ -359,6 +364,8 @@ instance (Input a, Ports a, Ports b) => Ports (a -> b) where
         where (a,vs') = inPorts vs
 
     probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
+    probe' [] _ _ = error "Can't add probe: no name supply available."
+
 --    probe' names f x = probe' (addSuffixToProbeNames names "-fn") $ f (probe' (addSuffixToProbeNames names "-arg") x)
 
     run fn t@(Trace _ ins _ _) = run fn' $ t { Trace.inputs = ins' }

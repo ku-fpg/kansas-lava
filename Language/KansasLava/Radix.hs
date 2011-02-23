@@ -31,6 +31,7 @@ insert (_:_) _ (Res _) = error "inserting with too long a key"
 insert (x:a) y (Choose l r)
 	| x == True 	  = Choose (insert a y l) r
 	| x == False	  = Choose l (insert a y r)
+        | otherwise       = error "Unmatched pattern"
 
 -- Would this be lifted?
 expanded :: Radix a

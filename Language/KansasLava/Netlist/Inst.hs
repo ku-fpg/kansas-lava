@@ -277,8 +277,11 @@ genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 					        ]))
                 where
                         -- Use the log of the resolution + 1 bit for sign
-                        log2 1 = 0
-                        log2 num | num > 1 = 1 + log2 (num `div` 2)
+                  log2 1 = 0
+                  log2 num
+                    | num > 1 = 1 + log2 (num `div` 2)
+                    | otherwise = error $ "Can't take the log of negative number " ++ show num
+
 
 -- For compares, we need to use one of the arguments.
 -- With fixed width, we can just consider the bits to be "signed".
@@ -334,13 +337,13 @@ genInst _ i (Entity (Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
 		]
 	   (MatrixTy n B,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ ExprConcat [ memToStdLogic B
-                                                                (ExprIndex (case (toStdLogicExpr t_in w) of
-                                                                              ExprVar varname -> varname)
-                                                                             (ExprLit Nothing $ ExprNum $ fromIntegral j)
-                                                                 )
-                                                            | j <- reverse [0..(m-1)]
-                                                            ]
+		[ NetAssign  (sigName "o0" i) $
+                    ExprConcat [ memToStdLogic B
+                                 (ExprIndex (slvVarName t_in w)
+                                  (ExprLit Nothing $ ExprNum $ fromIntegral j)
+                                 )
+                                 | j <- reverse [0..(m-1)]
+                               ]
 		]
 	   (B,V 1) ->
 		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
@@ -400,18 +403,20 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (a,b) | a == b -> genInst env i (Entity (Prim "id") [("o0",tO)] [("i0",tI,w)])
           (MatrixTy 1 (V 1),B) ->
 		[ NetAssign  (sigName "o0" i)
-		             (memToStdLogic B
-                                (ExprIndex (case (toStdLogicExpr tI w) of
-                                              ExprVar varname -> varname)
-                                             (ExprLit Nothing $ ExprNum $ 0)
-                                )
-                             )
+		   (memToStdLogic B
+                    (ExprIndex (case (toStdLogicExpr tI w) of
+                                  ExprVar varname -> varname
+                                  _ -> error $ "Can't index non-named, non-literal signal"
+                               )
+                     (ExprLit Nothing $ ExprNum $ 0)
+
+                    )
+                   )
 		]
           (MatrixTy n0 n1,V _) ->
 		[ NetAssign  (sigName "o0" i)
 		$ ExprConcat [ memToStdLogic n1
-                                (ExprIndex (case (toStdLogicExpr tI w) of
-                                              ExprVar varname -> varname)
+                                (ExprIndex (slvVarName tI w)
                                              (ExprLit Nothing $ ExprNum $ fromIntegral j)
                                 )
                              | j <- reverse [0..(n0-1)]
@@ -430,8 +435,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (V _,MatrixTy n0 (V n1)) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ fromIntegral $j)
                         -- This is 'B' because a V is split into an array of B.
-                        $ ExprSlice (case toStdLogicExpr tI w of
-                                        (ExprVar varname) -> varname)
+                        $ ExprSlice (slvVarName tI w)
                                 (ExprLit Nothing $ ExprNum $ fromIntegral $ ((j + 1) * n1 - 1))
                                 (ExprLit Nothing $ ExprNum $ fromIntegral $ (j * n1))
                 | j <- [0..(n0 - 1)]
@@ -789,13 +793,13 @@ mkSpecialUnary
 	-> [(Id, NetlistOperation)]
 mkSpecialUnary coerceR coerceF ops =
        [( Prim lavaName
-	, NetlistOp 1 $ \ fTy [(ity,i)] ->
-		coerceR fTy (ExprUnary netListOp
-					(coerceF ity i))
-
+	, NetlistOp 1 (uop netListOp)
 	)
          | (lavaName,netListOp) <- ops
          ]
+  where uop op fTy [(ity,i)] = coerceR fTy (ExprUnary op (coerceF ity i))
+        uop op _ _ = error $ "unary op " ++ show op ++ " can have only one argument"
+
 
 mkSpecialBinary
 	:: (Type -> Expr -> Expr)
@@ -805,35 +809,39 @@ mkSpecialBinary
 	-> [(Id, NetlistOperation)]
 mkSpecialBinary coerceR coerceF ops =
        [( Prim lavaName
-	, NetlistOp 2 $ \ fTy [(lty,l),(rty,r)] ->
-                case (l,r) of
-                   (Lit ll,Lit rl)
-                     -> let il = fromRepToInteger ll
-                            ir = fromRepToInteger rl
-                        in case (netListOp,lty,rty) of
-                             (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
-                             other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
-                   _ -> coerceR fTy (ExprBinary netListOp
-					(coerceF lty l)
-					(coerceF rty r))
-
+	, NetlistOp 2 (binop netListOp)
 	)
        | (lavaName,netListOp) <- ops
        ]
   where
-          -- re-sign a number, please
-          resign sz n = if n >= 2^(sz-1) then n - 2^sz else n
-          mkBool True  = ExprLit Nothing (ExprBit T)
-          mkBool False = ExprLit Nothing (ExprBit F)
+    -- re-sign a number, please
+    resign sz n = if n >= 2^(sz-1) then n - 2^sz else n
+    mkBool True  = ExprLit Nothing (ExprBit T)
+    mkBool False = ExprLit Nothing (ExprBit F)
+    binop op fTy [(lty,l),(rty,r)] =
+      case (l,r) of
+        (Lit ll,Lit rl)
+          -> let il = fromRepToInteger ll
+                 ir = fromRepToInteger rl
+             in case (op,lty,rty) of
+                  (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
+                  other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
+        _ -> coerceR fTy (ExprBinary op (coerceF lty l)(coerceF rty r))
+    binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
+
 
 mkSpecialShifts :: [(String, Ident)] -> [(Id, NetlistOperation)]
 mkSpecialShifts ops =
     [(Prim lavaName
-      , NetlistOp 2 ( \ fTy [(lty,l),(rty,r)] ->
-                          toStdLogicExpr fTy $ ExprFunCall funName [toTypedExpr lty l, toIntegerExpr rty r])
+      , NetlistOp 2 (binop funName)
      )
     | (lavaName, funName) <- ops
     ]
+  where
+    binop op fTy [(lty,l),(rty,r)] =
+      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
+    binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
+
 
 -- testBit returns the bit-value at a specific (constant) bit position
 -- of a bit-vector.
@@ -841,12 +849,14 @@ mkSpecialShifts ops =
 mkSpecialTestBit :: [(Id, NetlistOperation)]
 mkSpecialTestBit =
     [(Prim lavaName
-      , NetlistOp 2 ( \ _ [(lty,l),(rty,r)] ->
-                          let (ExprVar varname) =  toStdLogicExpr lty l
-                          in (ExprIndex varname (toIntegerExpr rty r)))
+      , NetlistOp 2 binop
      )
     | lavaName <- ["testBit"]
     ]
+  where binop _ [(lty,l),(rty,r)] =
+          let (ExprVar varname) =  toStdLogicExpr lty l
+          in (ExprIndex varname (toIntegerExpr rty r))
+        binop _ _ = error "Binary op testBit must have exactly 2 arguments"
 
 
 specials :: [(Id, NetlistOperation)]
@@ -881,3 +891,9 @@ specials =
         , ("rotateL", "rotate_left")
         , ("rotateR", "rotate_right")
         ]
+
+
+slvVarName :: (Show v, ToStdLogicExpr v) => Type -> v -> Ident
+slvVarName tI w = case (toStdLogicExpr tI w) of
+                    ExprVar varname -> varname
+                    _ -> error $ "Can't get the name of variable " ++ show w

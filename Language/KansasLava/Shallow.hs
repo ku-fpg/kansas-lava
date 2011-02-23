@@ -15,6 +15,7 @@ import Data.Sized.Signed as S
 import Data.Word
 import Data.Bits
 import qualified Data.Maybe as Maybe
+import Data.Traversable(sequenceA)
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
 class {- (Size (W w)) => -} Rep w where
@@ -64,11 +65,9 @@ unknownRepValue :: (Rep w) => Witness w -> RepValue
 unknownRepValue w = RepValue [ WireUnknown | _ <- [1..repWidth w]]
 
 allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
-allOkayRep m | okay      = return (fmap (\ (XBool (WireVal a)) -> a) m)
-         | otherwise = Nothing
-    where okay = and (map (\ (XBool x) -> case x of
-                       WireUnknown -> False
-                       _ -> True) (M.toList m))
+allOkayRep m = sequenceA $ fmap prj m
+  where prj (XBool WireUnknown) = Nothing
+        prj (XBool (WireVal v)) = Just v
 
 -- | return a 'w' inside X.
 pureX :: (Rep w) => w -> X w
@@ -596,11 +595,11 @@ instance (Integral x, Size x) => Rep (X1_ x) where
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
--- This is a version of fromRepToIntegral that 
+-- This is a version of fromRepToIntegral that
 -- check to see if the result is inside the size bounds.
 
 sizedFromRepToIntegral :: forall w . (Rep w, Integral w, Size w) => RepValue -> X w
-sizedFromRepToIntegral w 
+sizedFromRepToIntegral w
         | val_integer >= toInteger (size (error "witness" :: w)) = unknownX
         | otherwise                                             = val
   where

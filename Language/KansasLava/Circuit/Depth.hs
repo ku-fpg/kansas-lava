@@ -8,12 +8,11 @@ module Language.KansasLava.Circuit.Depth
 import Data.Reify
 import Data.List as L
 import qualified Data.Map as Map
--- import Language.KansasLava.Entity
 
 import Language.KansasLava.Types
 
--- assumes no bad loops.
 
+-- assumes no bad loops.
 
 addDepthOp :: DepthOp -> Float -> Float
 addDepthOp (AddDepth n) m = n + m
@@ -42,6 +41,10 @@ findChains fn cir = reverse
 		findDriverChain (Pad _) = 0
 		findDriverChain (Lit _) = 0
 		findDriverChain (Error err) = error $ "Error: " ++ show err
+                findDriverChain (ClkDom nm) = error $ "ClkDom: " ++ show nm
+		findDriverChain (Generic g) = error $ "Generic: " ++ show g
+                findDriverChain (Lits ls) = error $ "Lits: " ++ show ls
+
 
 depthTable :: [(Id,DepthOp)]
 depthTable =

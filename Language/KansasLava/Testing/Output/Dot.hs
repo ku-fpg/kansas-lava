@@ -6,6 +6,7 @@ import Language.KansasLava.Types
 
 import Data.Reify.Graph
 import Text.Dot
+import Data.List(intercalate)
 
 -- | The 'writeDotCircuit' function converts a Lava circuit into a graphviz output.
 writeDotCircuit :: FilePath  -- ^ Name of output dot file, can be relative or absolute path.
@@ -77,6 +78,14 @@ writeDotCircuit filename circuit = do
                                  edge' nd' Nothing n (Just (show v ++ ":w")) []
                      Generic i -> do nd' <- node [("label",show i),("shape","none")]
                                      edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     Error e -> do nd' <- node [("label",show e),("shape","none")]
+                                   edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     ClkDom nm -> do nd' <- node [("label",show nm),("shape","none")]
+                                     edge' nd' Nothing n (Just (show v ++ ":w")) []
+                     Lits ls -> do let label = intercalate "," $ map  show ls
+                                   nd' <- node [("label",label),("shape","none")]
+                                   edge' nd' Nothing n (Just (show v ++ ":w")) []
+
 
         sequence_ [ drawEdge dr output_bar (show v)
                  | (v,_,dr) <- circOutputs

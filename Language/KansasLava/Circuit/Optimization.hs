@@ -84,6 +84,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 			Pad v' -> Pad v'
 			Lit i -> Lit i
 			Error i -> error $ "Found Error : " ++ show (i,v,t,d)
+                        c -> error $ "copyElimCircuit: " ++ show c
 		    )
 		  | (v,t,d) <- theSinks rCir
 		  ]
@@ -151,14 +152,13 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	chain []      = EQ
 
 	-- Build the identites
-
+        canonicalize [] = []
 	canonicalize ((u0,e0@(Entity _ outs _)):rest) =
-		(u0,e0) : [ ( uX
-		            , case eX of
-			     	Entity _ outs' _ | length outs == length outs'
-				  -> Entity (Name "Lava" "id") outs' [ (n,t, Port n u0) | (n,t) <- outs ]
+		(u0,e0) : [ ( uX,
+                              Entity (Name "Lava" "id") outs'
+                                [ (n,t, Port n u0) | (n,t) <- outs ]
 			    )
-			  | (uX,eX) <- rest
+			  | (uX,Entity _ outs' _) <- rest, length outs == length outs'
 			  ]
 
 dceCircuit :: Circuit -> Opt Circuit
@@ -208,6 +208,7 @@ patternMatchCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt Circuit)]
+optimizeCircuits [] _ = []
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 	where opt@(Opt c' _) = case fn c of
 				 Opt _ 0 -> Opt c 0	-- If there was no opts, avoid churn
@@ -234,6 +235,7 @@ optimizeCircuit options rCir = do
 	loop (optimizeCircuits (cycle opts) rCir)
    where
 	debug = optDebugLevel options > 0
+        loop [] = error "optimizeCircuit: loop []"
 	loop cs@((nm,Opt code n):_) = do
 		when debug $ do
 		  putStrLn $ "##[" ++ nm ++ "](" ++ show n ++ ")###################################"
@@ -242,6 +244,7 @@ optimizeCircuit options rCir = do
 		case cs of
 		    ((_,Opt c _):_) | and [ num == 0 | (_,Opt _ num) <- take (length opts) cs ] -> return c
 		    ((_,Opt _ _):rest) -> loop rest
+                    [] -> error "optimizeCircuit: no optimizations"
 
 	opts = [ ("opt",patternMatchCircuit)
 	       , ("cse",cseCircuit)

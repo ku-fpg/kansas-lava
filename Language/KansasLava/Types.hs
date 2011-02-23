@@ -114,6 +114,11 @@ isTypeSigned (S _) = True
 isTypeSigned (U _) = False
 isTypeSigned (V _) = False
 isTypeSigned (SampledTy {}) = True
+isTypeSigned ClkDomTy = False
+isTypeSigned GenericTy = False
+isTypeSigned (RomTy _) = False
+isTypeSigned (TupleTy _) = False
+isTypeSigned (MatrixTy _ _) = False
 
 instance Show Type where
         show B          = "B"
@@ -149,6 +154,7 @@ instance Read Type where
                         'S' -> S
                         'V' -> V
                         'R' -> RomTy
+                        ty   -> error $ "Can't read type" ++ show ty
     readsPrec _ xs | "Sampled" `isPrefixOf` xs = [(SampledTy (read m :: Int) (read n :: Int),rest)]
         where ("Sampled ",r1) = span (not . isDigit) xs
               (m,' ':r2) = span isDigit r1
@@ -395,6 +401,7 @@ instance Read RepValue where
                                         'X' -> WireUnknown
                                         '0' -> WireVal False
                                         '1' -> WireVal True
+                                        v -> error $ "Can't read repvalue " ++ show v
                                     | c <- cs
                                     ]
                           ,rest)]
@@ -416,8 +423,10 @@ isValidRepValue (RepValue m) = and $ fmap isGood $ m
 -- | 'getValidRepValue' Rreturns a binary rep, or Nothing is *any* bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
 getValidRepValue r@(RepValue m)
-        | isValidRepValue r = Just $ fmap (\ (WireVal v) -> v) m
+        | isValidRepValue r = Just $ fmap f m
         | otherwise         = Nothing
+  where f (WireVal v) = v
+        f WireUnknown = error "Can't get the value of an unknown wire."
 
 -- | 'cmpRepValue' compares a golden value with another value, returning the bits that are different.
 -- The first value may contain 'X', in which case *any* value in that bit location will
