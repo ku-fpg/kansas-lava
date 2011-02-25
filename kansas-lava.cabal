@@ -56,7 +56,6 @@ Library
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
        Language.KansasLava.Shallow.FIFO
-       Language.KansasLava.Protocols.FSL
        Language.KansasLava.Testing
        Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD
