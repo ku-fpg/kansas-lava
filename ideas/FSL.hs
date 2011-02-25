@@ -5,7 +5,7 @@ module Main where
 -- To load
 
 import Language.KansasLava
-import Language.KansasLava.Stream
+
 import Data.Sized.Unsigned
 import Debug.Trace
 import Data.Maybe as Maybe
@@ -49,7 +49,7 @@ main1 = do
 	v2 <- newShallowFIFO
 	forkIO $ readFileToFIFO "FSL.hs" v1
 	forkIO $ writeFileFromFIFO "LAVA_OUT" v2
-	
+
 	src <- shallowFifoToHandShake v1
 	handShakeToShallowFifo v2 (big_circuit src)
 
@@ -60,14 +60,14 @@ main2 = do
 	t' <- optimizeCircuit def t
 	writeDotCircuit "x.dot" t'
 	writeVhdlCircuit [] "x" "x.vhd" t'
-	
+
 
 
 --pairFIFO ::  HandShake U8 -> HandShake U4
 --pairFIFO env hs (
 
 
-	
+
 main3 :: IO ()
 main3 = do
 	let rd_ready = toSeq $ cycle [True,False,False]
@@ -88,9 +88,9 @@ main3 = do
 			(\ f -> {-let (wr_ready, rd_data, _) = f shallowEnv (rd_ready,inp wr_ready)
 				in-} 0 --  pack (wr_ready,rd_data :: Seq (Enabled Byte))
 			)
-n-}			
-	
-	
+n-}
+
+
 --	print $ fromHandshake' (cycle [1..5]) (Handshake out)
 	let xs = take 100 [ x | x <- fromHandShake' (repeat 0) (hs2) ] :: [Maybe U8]
 	print $ xs
@@ -99,8 +99,8 @@ n-}
 --	putStrLn debug
 
 --	runDeep "fifo" 1000 (Thunk (
-	
-{-	
+
+{-
 	        -> Int                 -- ^ Number of cycles to simulate.
         -> Thunk b
         -> (Circuit -> IO Circuit) -- ^ any operations on the circuit before VHDL generation
@@ -116,9 +116,9 @@ main4 = do
 
 	let cir ::  Seq Bool -> (Seq X33, Seq (Enabled Byte)) -> HandShake ((Seq X32, Seq Bool), Seq (Enabled Byte))
 	    cir = fifoBE (witness :: X32)
-	
+
 	c0 <- reifyCircuit cir
-	cOpt <- optimizeCircuit def c0 
+	cOpt <- optimizeCircuit def c0
 	writeVhdlCircuit [] "myfifo" "myfifo.vhdl" cOpt
 	writeDotCircuit "x.dot" cOpt
 
@@ -130,7 +130,7 @@ main4 = do
 --type C = X2
 {-
 -- First be specific
-fifo4 :: forall a counter ix . 
+fifo4 :: forall a counter ix .
          (Size counter
 	, Size ix
 	, counter ~ ADD ix X1
@@ -139,10 +139,10 @@ fifo4 :: forall a counter ix .
 	, Rep ix
 	, Num counter
 	, Num ix
-	) 
+	)
       => ix
-      -> Env () 
-      -> (Seq Bool,Seq (Enabled a)) 
+      -> Env ()
+      -> (Seq Bool,Seq (Enabled a))
       -> (Seq Bool,Seq (Enabled a),Seq counter,String)
 fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
   where
@@ -162,11 +162,11 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 	inp_done0 = inp_ready `and2` isEnabled inp
 
 	inp_done1 :: Seq Bool
-	inp_done1 = register env false 
+	inp_done1 = register env false
 		  $ inp_done0
-		
+
 	inp_done2 :: Seq Bool
-	inp_done2 = register env false 
+	inp_done2 = register env false
 		  $ inp_done1
 
 	wr :: Seq (Enabled (ix,a))
@@ -186,12 +186,12 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 	out_done0 = out_ready `and2` (isEnabled out)
 
 	out_done1 :: Seq Bool
-	out_done1 = register env false 
---		  $ register env false 
+	out_done1 = register env false
+--		  $ register env false
 		  $ out_done0
 
 	in_counter :: Seq counter
-	in_counter = register env 0 
+	in_counter = register env 0
 		$ in_counter + mux2 inp_done0 (1,0)
 			     - mux2 out_done0 (1,0)
 
@@ -201,7 +201,7 @@ fifo4 _ env (out_ready,inp) = (inp_ready,out,in_counter,debug)
 		 	      - mux2 out_done0 (1,0)
 
 	out_counter1 = register env 0 out_counter0
-	
+
 	out_counter2 = register env 0 out_counter1
 
 	out :: Seq (Enabled a)
@@ -216,7 +216,7 @@ main = handShakeLambdaBridge $ \ hs -> HandShake $ \ _ -> (toSeq [Just (fromInte
 
 {-
 
-foo1 :: forall a d a1 a2 . (StdLogic a, StdLogic a1, StdLogic a2, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Rep d, Rep a, Rep a1, Rep a2) 
+foo1 :: forall a d a1 a2 . (StdLogic a, StdLogic a1, StdLogic a2, WIDTH a ~ ADD (WIDTH a1) (WIDTH a2), Rep d, Rep a, Rep a1, Rep a2)
 	=> Seq (Pipe a d) -> Seq (Pipe (a1,a2) d)
 foo1 = mapEnabled (mapPacked f)
    where f :: (Comb a,Comb d) -> (Comb (a1,a2),Comb d)
@@ -269,7 +269,7 @@ type DX = U1
 
 main11 = do
 	let hs :: HandShake (Seq (Enabled DX))
-	    hs = toHandShake' (cycle [0,1,2]) 
+	    hs = toHandShake' (cycle [0,1,2])
 			      (cycle  [Just (if testBit x i then 1 else 0)
 				      | x <- [0..] :: [Word8]
 			      , i <- [0..7]
@@ -280,7 +280,7 @@ main11 = do
 
    	let hs2 :: HandShake (Seq (Enabled Byte))
 	    hs2 = fmap (mapEnabled (liftS1 (f . mapPacked (fmap (\ x -> x .==. 1))))) hs1
-	
+
 	    f :: Comb (Matrix X8 Bool) -> Comb Byte
 	    f = toStdLogicVector
 

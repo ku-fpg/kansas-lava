@@ -7,12 +7,11 @@ import Control.Monad
 import Data.Bits
 
 import Language.KansasLava.Comb
--- import Language.KansasLava.Entity as E
 import Language.KansasLava.Deep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector as SLV
-import Language.KansasLava.Stream  as S
+import qualified Data.Stream as S
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
 
@@ -229,12 +228,13 @@ mux2 iSig (tSig,eSig)
 
 liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
        => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3' f (Seq a _) (Seq b _) (Seq c _) = Seq (S.zipWith3 f' a b c) ed
+liftS3' f (Seq a _) (Seq b _) (Seq c _) = Seq (streamZipWith3 f' a b c) ed
       where
 	Comb _ ed = error "" -- f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' :: X a -> X b -> X c -> X d
 	f' x y z = case f (shallowComb x) (shallowComb y) (shallowComb z)  of
 		      Comb d _ -> d
+        streamZipWith3 fun (S.Cons x xs) (S.Cons y ys) (S.Cons z zs) = S.Cons (fun x y z) (streamZipWith3 fun xs ys zs)
 
 
 mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
@@ -505,7 +505,7 @@ delay ~(Seq line eline) = res
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
-	sres1 = def :~ sres0
+	sres1 = S.Cons def sres0
 
         entity = Entity (Prim "delay")
                     [("o0", bitTypeOf res)]
@@ -522,7 +522,7 @@ register first  ~(Seq line eline) = res
 	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
-	sres1 = def :~ sres0
+	sres1 = S.Cons def sres0
 
         entity = Entity (Prim "register")
                     [("o0", bitTypeOf res)]
@@ -777,4 +777,6 @@ unsigned = liftS1 $ \ (Comb a ae) -> Comb (unsignedX a) $ entity1 (Prim "unsigne
 
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = coerce (pack (x,y) :: sig (a,b))
+
+
 

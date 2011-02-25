@@ -7,7 +7,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
-import Language.KansasLava.Stream as Stream
+import Data.Stream as Stream
 import Language.KansasLava.Signal
 
 import Data.Sized.Matrix as M
@@ -109,7 +109,7 @@ writeMemory pipe = res
 -}
 	mem :: Stream (Radix d)
 	mem = stepifyStream (\ a -> a `seq` ())
-	    $ Radix.empty :~ Stream.fromList
+	    $ Cons Radix.empty $ Stream.fromList
 		[ case u of
 		    Nothing           -> Radix.empty	-- unknown again
 		    Just Nothing      -> m
@@ -401,7 +401,7 @@ class Stepify a where
 --  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
 
 stepifyStream :: (a -> ()) -> Stream a -> Stream a
-stepifyStream f (a :~ r) = a :~ (f a `seq` stepifyStream f r)
+stepifyStream f (Cons a r) = Cons a (f a `seq` stepifyStream f r)
 
 --instance Wire (Map [Bool] d) where {}
 

@@ -2,8 +2,7 @@ module Language.KansasLava.Simulate where
 
 
 import Language.KansasLava.Seq
--- import Language.KansasLava.Entity
-import Language.KansasLava.Stream as S
+import qualified  Data.Stream as S
 import Language.KansasLava.Shallow
 
 -- These are the functions for simulating circuits.

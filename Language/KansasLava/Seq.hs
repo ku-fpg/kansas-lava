@@ -12,8 +12,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Comb
--- import Language.KansasLava.Entity
-import Language.KansasLava.Stream as S
+import qualified Data.Stream as S
 import Language.KansasLava.Shallow
 
 
@@ -26,12 +25,12 @@ import Language.KansasLava.Shallow
 -- This clock is assumed known, based on who is consuming the list.
 -- Right now, it is global, but we think we can support multiple clocks with a bit of work.
 
-data CSeq c a = Seq (Stream (X a)) (D a)
+data CSeq c a = Seq (S.Stream (X a)) (D a)
 
 type Clocked c a = CSeq c a	-- new name, start using
 type Seq a = CSeq () a
 
-seqValue :: CSeq c a -> Stream (X a)
+seqValue :: CSeq c a -> S.Stream (X a)
 seqValue (Seq a _) = a
 
 seqDriver :: CSeq c a -> D a
@@ -40,7 +39,7 @@ seqDriver (Seq _ d) = d
 instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
          	= concat [ showRep (Witness :: Witness a) x ++ " "
-                         | x <- take 20 $ toList vs
+                         | x <- take 20 $ S.toList vs
                          ] ++ "..."
 
 instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
@@ -50,7 +49,7 @@ instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
 deepSeq :: D a -> CSeq c a
 deepSeq d = Seq (error "incorrect use of shallow Seq") d
 
-shallowSeq :: Stream (X a) -> CSeq c a
+shallowSeq :: S.Stream (X a) -> CSeq c a
 shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 
 undefinedSeq ::  forall a c . (Rep a) => CSeq c a
@@ -113,14 +112,14 @@ encSeqBool = encSeq enc
 showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
 showStreamList ss =
 	[ showRep (Witness :: Witness a) x
-	| x <- toList (seqValue ss)
+	| x <- S.toList (seqValue ss)
 	]
 
 fromSeq :: (Rep a) => CSeq c a -> [Maybe a]
-fromSeq = fmap unX . toList . seqValue
+fromSeq = fmap unX . S.toList . seqValue
 
 fromSeqX :: (Rep a) => CSeq c a -> [X a]
-fromSeqX = toList . seqValue
+fromSeqX = S.toList . seqValue
 
 cmpSeqRep :: forall a c . (Rep a) => Int -> CSeq c a -> CSeq c a -> Bool
 cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith (cmpRep w)

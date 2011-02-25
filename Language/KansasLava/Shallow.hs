@@ -3,7 +3,7 @@
 
 module Language.KansasLava.Shallow where
 
-import Language.KansasLava.Stream as Stream
+import qualified Data.Stream as Stream
 import Language.KansasLava.Types hiding (Trace(..))
 import Control.Monad (liftM)
 import Data.Sized.Arith
@@ -145,10 +145,10 @@ cmpRep :: (Rep a) => Witness a -> X a -> X a -> Bool
 cmpRep Witness g v = toRep g `cmpRepValue` toRep v
 
 -- basic conversion to trace representation
-toTrace :: forall w . (Rep w) => Stream (X w) -> TraceStream
+toTrace :: forall w . (Rep w) => Stream.Stream (X w) -> TraceStream
 toTrace stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- Stream.toList stream ]
 
-fromTrace :: (Rep w) => TraceStream -> Stream (X w)
+fromTrace :: (Rep w) => TraceStream -> Stream.Stream (X w)
 fromTrace (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
 
 ------------------------------------------------------------------------------------

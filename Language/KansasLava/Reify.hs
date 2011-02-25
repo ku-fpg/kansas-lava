@@ -15,13 +15,12 @@ import Data.Reify
 
 import Language.KansasLava.Circuit.Depth
 import Language.KansasLava.Circuit.Optimization
--- import Language.KansasLava.Entity
 import Language.KansasLava.Deep
 import Language.KansasLava.Shallow
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import qualified Language.KansasLava.Stream as Stream
+import qualified Data.Stream as Stream
 import Language.KansasLava.Types hiding (inputs,outputs)
 import qualified Language.KansasLava.Types as Trace
 import Language.KansasLava.Utils

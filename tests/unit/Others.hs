@@ -2,7 +2,7 @@
 module Others (tests) where
 
 import Language.KansasLava
-import Language.KansasLava.Stream as S
+import qualified Data.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Data.Bits
@@ -302,7 +302,7 @@ testDelay  (TestSeq test toList) tyName ws = do
         let thu = Thunk reg
                         (\ f -> f (toSeq us0)
                         )
-            res = shallowSeq (unknownX :~ S.fromList (map pureX us0))
+            res = shallowSeq (S.Cons unknownX  (S.fromList (map pureX us0)))
         test ("delay/" ++ tyName) (length us0) thu res
         return ()
 
