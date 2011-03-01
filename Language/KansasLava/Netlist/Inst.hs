@@ -11,7 +11,7 @@ import qualified Data.Map as M
 import Data.List
 import Data.Reify.Graph (Unique)
 
-import Language.KansasLava.Netlist.Utils hiding (zeros)
+import Language.KansasLava.Netlist.Utils
 
 import Debug.Trace
 
@@ -680,6 +680,21 @@ genInst env i (Entity (Prim "RAM") outputs@[("o0",data_ty)] inputs) | goodAddrTy
                 case ty of
                   U _ -> True
                   _   -> error $ "unsupported address type for BRAMs: " ++ show ty
+
+
+        -- | External entitites will sometimes have inputs and outputs that are
+        -- std_logic_vectors (rather than std_logic) for 1-bit signals. This function
+        -- adds the appropriate indexing.
+        boolTrick :: [String] -> Entity s -> Entity s
+        boolTrick nms (Entity (External nm) outs ins) =
+          Entity (External nm)
+                   [ (trick n,t) | (n,t) <- outs ]
+                   [ (trick n,t,d) | (n,t,d) <- ins ]
+            where
+              trick n | n `elem` nms = n ++ "(0)"
+                      | otherwise    = n
+
+        boolTrick _ _ = error "applying bool Trick to non-external entity"
 
 
 
