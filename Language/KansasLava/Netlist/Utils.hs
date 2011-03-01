@@ -11,7 +11,7 @@ module Language.KansasLava.Netlist.Utils
    isHigh,
    lookupInput, lookupInputType,
    -- Needed for Inst
-   isMatrixStgLogicTy,
+   isMatrixStdLogicTy,
    sanitizeName,
    active_high, stdLogicToMem, memToStdLogic,
    addNum, prodSlices, toMemIndex
@@ -142,8 +142,8 @@ toStdLogicTy ty              = V $ fromIntegral size
 
 
 -- | Does this type have a *matrix* representation?
-isMatrixStgLogicTy :: Type -> Bool
-isMatrixStgLogicTy ty = case toStdLogicTy ty of
+isMatrixStdLogicTy :: Type -> Bool
+isMatrixStdLogicTy ty = case toStdLogicTy ty of
                          MatrixTy {} -> True
                          _ -> False
 

@@ -450,8 +450,8 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
 
 genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
-        | isMatrixStgLogicTy tI = error $ "input of unsigned uses matrix representation"
-        | isMatrixStgLogicTy tO = error $ "output of unsigned uses matrix representation"
+        | isMatrixStdLogicTy tI = error $ "input of unsigned uses matrix representation"
+        | isMatrixStdLogicTy tO = error $ "output of unsigned uses matrix representation"
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
@@ -470,8 +470,8 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
 
 
 genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
-        | isMatrixStgLogicTy tI = error $ "input of signed uses matrix representation"
-        | isMatrixStgLogicTy tO = error $ "output of signed uses matrix representation"
+        | isMatrixStdLogicTy tI = error $ "input of signed uses matrix representation"
+        | isMatrixStdLogicTy tO = error $ "output of signed uses matrix representation"
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))

@@ -3,6 +3,7 @@
 module Language.KansasLava.Testing.Bench (mkTestbench) where
 
 import Language.KansasLava hiding (ports,Trace(..))
+import Language.KansasLava.Netlist(preprocessNetlistCircuit)
 
 import Data.List(mapAccumL,sort)
 
@@ -15,7 +16,7 @@ mkTestbench name path circuit = do
     writeVhdlCircuit ["work.lava.all","work.all"] name (path </> name <.> "vhd") circuit
 
     writeFile (path </> name ++ "_tb.vhd")
-            $ entity name ++ architecture name (preprocessVhdlCircuit circuit)
+            $ entity name ++ architecture name (preprocessNetlistCircuit circuit)
 
     writeFile (path </> name <.> "do") $ doscript name
 
