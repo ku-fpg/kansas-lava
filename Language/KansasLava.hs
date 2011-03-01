@@ -12,7 +12,6 @@ module Language.KansasLava (
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
-    module Language.KansasLava.Simulate,
     module Language.KansasLava.Types,
     module Language.KansasLava.Testing.Observe,
     module Language.KansasLava.Utils,
@@ -40,7 +39,6 @@ import Language.KansasLava.Reify
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.Simulate
 import Language.KansasLava.Types
 import Language.KansasLava.Testing.Observe
 import Language.KansasLava.Utils
