@@ -7,7 +7,6 @@ import Language.KansasLava.Types
 
 import Language.KansasLava.Netlist
 import Data.Reify
-import Language.KansasLava.Netlist.Utils
 import Language.Netlist.GenVHDL
 import Data.List
 
