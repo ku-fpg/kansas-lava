@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances,TypeFamilies, UndecidableInstances, PatternGuards,ParallelListComp #-}
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.Netlist where
+module Language.KansasLava.Netlist
+  (netlistCircuit, toStdLogicTy) where
 
 
--- import Language.KansasLava.Entity
 import Language.KansasLava.Types
 
 

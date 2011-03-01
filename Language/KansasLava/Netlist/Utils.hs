@@ -1,14 +1,27 @@
 {-# LANGUAGE TypeSynonymInstances #-}
-module Language.KansasLava.Netlist.Utils where
+-- | This module contains a number of utility functions useful for converting
+-- Lava circuits to the Netlist AST.
+module Language.KansasLava.Netlist.Utils
+  (
+   ToTypedExpr(..),
+   ToStdLogicExpr(..), toStdLogicTy,
+   AddNext(..),
+   toIntegerExpr,
+   sizedRange, sigName,
+   isHigh,
+   lookupInput, lookupInputType,
+   -- Needed for Inst
+   isMatrixStgLogicTy,
+   sanitizeName,
+   active_high, stdLogicToMem, memToStdLogic,
+   addNum, prodSlices, toMemIndex
+  ) where
 
 import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
--- import Language.KansasLava.Entity
 import Language.KansasLava.Shallow
 
-
 import Data.Reify.Graph (Unique)
-
 import Data.List(find,mapAccumL)
 
 -- There are three type "classes" in our generated VHDL.
@@ -21,35 +34,36 @@ import Data.List(find,mapAccumL)
 -- turn it into a Typed logic Expr. (signed, unsigned, or as is)
 -- based on the given type.
 
+-- | Convert a Lava value of a given type into a Netlist expression.
 class ToTypedExpr v where
-	-- Turning a 'v' of (typically a std_logic_[vector] signal var) to a *typed* Expr,
-	-- that is we use signed and unsigned for our S and U.
-	toTypedExpr :: Type -> v -> Expr
+  -- | Given a type and a value, convert it to a netlist Expr.
+  toTypedExpr :: Type -> v -> Expr
 
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr ty (Lit n)           = toTypedExpr ty n
 	toTypedExpr ty (Generic n)       = toTypedExpr ty n
-	toTypedExpr ty (Port (v) n)      = toTypedExpr ty (sigName v (fromIntegral n))
+	toTypedExpr ty (Port v n)      = toTypedExpr ty (sigName v (fromIntegral n))
 	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
         toTypedExpr _ other = error $ "toTypedExpr(Driver a): " ++ show other
+
 instance ToTypedExpr String where
 	-- From a std_logic* into a typed Expr
-	toTypedExpr B      nm = 		       ExprVar $ nm -- ExprBinary Equals (ExprVar nm) (ExprBit 1)
-	toTypedExpr ClkTy  nm = 		       ExprVar $ nm
-	toTypedExpr (V _)  nm = 	   	       ExprVar $ nm
-	toTypedExpr (S _)  nm = 	signed $       ExprVar $ nm
-	toTypedExpr (U _)  nm = 	unsigned $     ExprVar $ nm
-	toTypedExpr (TupleTy _) nm =		       ExprVar $ nm
-	toTypedExpr (MatrixTy _ _) nm =		       ExprVar $ nm
-	toTypedExpr (SampledTy {}) nm =		       ExprVar $ nm
-	toTypedExpr _other nm = error $ (show ("toTypedExpr",_other,nm))
+	toTypedExpr B      nm = 		       ExprVar nm
+	toTypedExpr ClkTy  nm = 		       ExprVar nm
+	toTypedExpr (V _)  nm = 	   	       ExprVar nm
+	toTypedExpr (S _)  nm = 	signed $       ExprVar nm
+	toTypedExpr (U _)  nm = 	unsigned $     ExprVar nm
+	toTypedExpr (TupleTy _) nm =		       ExprVar nm
+	toTypedExpr (MatrixTy _ _) nm =		       ExprVar nm
+	toTypedExpr (SampledTy {}) nm =		       ExprVar nm
+	toTypedExpr _other nm = error $ show ("toTypedExpr",_other,nm)
 
 instance ToTypedExpr Integer where
 	-- From a literal into a typed Expr
 	toTypedExpr = fromIntegerToExpr
 
--- Integer is untyped.
+-- | Convert an integer represented by a given Lava type into a netlist Expr.
 fromIntegerToExpr :: Type -> Integer -> Expr
 fromIntegerToExpr t i =
 	case toStdLogicTy t of
@@ -62,25 +76,24 @@ fromIntegerToExpr t i =
         b 1 = T
         b _ = error "fromIntegerExpr: bit not of a value 0 or 1"
 
-
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
 	-- NOTE: We use Integer here as a natural, and assume overflow
 	toTypedExpr t r = toTypedExpr t (fromRepToInteger r)
 
-
+-- | Type-directed converstion between Lava values and Netlist expressions.
 class ToStdLogicExpr v where
-	-- Turn a 'v' into a std_logic[_vector] Expr.
+	-- | Turn a value into a std_logic[_vector] Expr, given the appropriate type.
 	toStdLogicExpr :: Type -> v -> Expr
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
         toStdLogicExpr ty _
-                | typeWidth ty == 0        = ExprVar $ "\"\""
+          | typeWidth ty == 0        = ExprVar "\"\""
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
-	toStdLogicExpr _ (Port (v) n)     = ExprVar $ sigName v (fromIntegral n)
-	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar $ v
+	toStdLogicExpr _ (Port v n)     = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar v
 	toStdLogicExpr _ other		   = error $ show other
 
 instance ToStdLogicExpr Integer where
@@ -98,31 +111,25 @@ instance ToStdLogicExpr Expr where
 	toStdLogicExpr (V _)  e = 	   	     e
 	toStdLogicExpr (TupleTy _) e = 		     e
 	toStdLogicExpr (MatrixTy _ _) e =	     e
-	toStdLogicExpr (S _)  e = std_logic_vector $ e
-	toStdLogicExpr (U _)  e = std_logic_vector $ e
+	toStdLogicExpr (S _)  e = std_logic_vector  e
+	toStdLogicExpr (U _)  e = std_logic_vector  e
 	toStdLogicExpr(SampledTy {}) e =	     e
 	toStdLogicExpr _other e = error $ show ("toStdLogicExpr", _other,e)
 
+-- | Convert an integer to a netlist expression, not represented as a Netlist
+-- std_logic_vector, though.
 class ToIntegerExpr v where
-	toIntegerExpr :: Type -> v -> Expr
+  -- | Given  a type and a signal, generate the appropriate Netlist Expr.
+  toIntegerExpr :: Type -> v -> Expr
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
-	toIntegerExpr ty (Lit v) = toStdLogicExpr ty v
-	toIntegerExpr GenericTy other = (toTypedExpr GenericTy other) -- HACK
-	toIntegerExpr ty other        = to_integer (toTypedExpr ty other)
+  toIntegerExpr ty (Lit v) = toStdLogicExpr ty v
+  toIntegerExpr GenericTy other = toTypedExpr GenericTy other -- HACK
+  toIntegerExpr ty other        = to_integer (toTypedExpr ty other)
 
--- NEVER USED
-{-
-toStdLogicVectorExpr :: (Integral a) => Type -> Driver a -> Expr
-toStdLogicVectorExpr ty dr =
-	case toStdLogicTy ty of
-	   B   -> singleton $ toStdLogicExpr B dr
-	   V n -> toStdLogicExpr (V n) dr
--}
-
--- Turn a Kansas Lava type into its std_logic[_vector] type (in KL format)
+-- | Turn a Kansas Lava type into its std_logic[_vector] type (in KL format)
 -- There are three possible results (V n, B, MatrixTy n (V m))
--- Note this function does not have an inverse.
+-- This function does not have an inverse.
 toStdLogicTy :: Type -> Type
 toStdLogicTy B               = B
 toStdLogicTy ClkTy           = B
@@ -132,21 +139,20 @@ toStdLogicTy (MatrixTy i ty) = MatrixTy i (V $ fromIntegral size)
   where size = typeWidth ty
 toStdLogicTy ty              = V $ fromIntegral size
   where size = typeWidth ty
---
 
--- Does this type have a *matrix* representation
+
+-- | Does this type have a *matrix* representation?
 isMatrixStgLogicTy :: Type -> Bool
 isMatrixStgLogicTy ty = case toStdLogicTy ty of
                          MatrixTy {} -> True
                          _ -> False
 
 
--- Name a signal
--- TODO: consider Var -> Unique -> String
+-- | Create a name for a signal.
 sigName :: String -> Unique -> String
 sigName v d = "sig_" ++  show d ++ "_" ++ v
 
--- figure out the size of a type.
+-- | Given a Lava type, calculate the Netlist Range corresponding to the size.
 sizedRange :: Type -> Maybe Range
 sizedRange ty = case toStdLogicTy ty of
 		  B -> Nothing
@@ -156,63 +162,45 @@ sizedRange ty = case toStdLogicTy ty of
                   MatrixTy _ _ -> error "sizedRange: does not support matrix types"
                   sty -> error $ "sizedRange: does not support type " ++ show sty
 
--- like sizedRange, but allowing 2^n elements (for building memories)
-memRange :: Type -> Maybe Range
-memRange ty = case toStdLogicTy ty of
-		  B -> Nothing
-		  V n -> Just $ Range high low
-                    where high = ExprLit Nothing
-                                 (ExprNum (2^(fromIntegral n :: Integer) - 1))
-                          low = ExprLit Nothing (ExprNum 0)
-                  sty -> error $ "memRange: does not support type " ++ show sty
+-- * VHDL macros
 
--- VHDL "macros"
+-- | The netlist representation of the active_high function.
 active_high :: Expr -> Expr
 active_high d      = ExprCond d  (ExprLit Nothing (ExprBit T)) (ExprLit Nothing (ExprBit F))
 
+-- | The netlist representation of the VHDL std_logic_vector coercion.
 std_logic_vector :: Expr -> Expr
 std_logic_vector d = ExprFunCall "std_logic_vector" [d]
 
-to_unsigned :: Expr -> Expr -> Expr
-to_unsigned x w    = ExprFunCall "to_unsigned" [x, w]		-- is this used now?
-
+-- | The netlist representation of the VHDL unsigned coercion.
 unsigned :: Expr -> Expr
 unsigned x         = ExprFunCall "unsigned" [x]
 
-to_signed :: Expr -> Expr -> Expr
-to_signed x w      = ExprFunCall "to_signed" [x, w]		-- is this used now?
-
+-- | The netlist representation of the VHDL signed coercion.
 signed :: Expr -> Expr
 signed x           = ExprFunCall "signed" [x]
 
+-- | The netlist representation of the VHDL to_integer coercion.
 to_integer :: Expr -> Expr
 to_integer e       = ExprFunCall "to_integer" [e]
 
---singleton x 	   = ExprFunCall "singleton" [x]
--- Others
-
+-- | The netlist representation of the isHigh predicate.
 isHigh :: Expr -> Expr
-isHigh d = (ExprBinary Equals d (ExprLit Nothing (ExprBit T)))
+isHigh d = ExprBinary Equals d (ExprLit Nothing (ExprBit T))
 
-isLow :: Expr -> Expr
-isLow d = (ExprBinary Equals d (ExprLit Nothing (ExprBit F)))
-
-allLow :: Type -> Expr
-allLow ty = ExprLit (Just (typeWidth ty)) (ExprNum 0)
-
-zeros :: Expr
-zeros = ExprString "(others => '0')" -- HACK
-
+-- | Convert a driver to an Expr to be used as a memory address.
 toMemIndex :: Integral t => Type -> Driver t -> Expr
 toMemIndex ty _ | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
 toMemIndex _ (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
 
 -- Both of these are hacks for memories, that do not use arrays of Bools.
+-- | Convert a 'memory' to a std_logic_vector.
 memToStdLogic :: Type -> Expr -> Expr
 memToStdLogic B e = ExprFunCall "lava_to_std_logic" [e]
 memToStdLogic _ e = e
 
+-- | Convert a std_logic_vector to a memory.
 stdLogicToMem :: Type -> Expr -> Expr
 stdLogicToMem B e = ExprConcat [ExprLit Nothing $ ExprBitVector [],e]
 stdLogicToMem _ e = e
@@ -227,12 +215,15 @@ stdLogicToMem _ e = e
 -- The result is written out as a std_logic[_vector].
 -- We assume that the input is *not* a constant (would cause lava-compile-time crash)
 
+-- | Given a value and a list of types, corresponding to tuple element types,
+-- generate a list of expressions corresponding to the indexing operations for
+-- each tuple element.
 prodSlices :: Driver Unique -> [Type] -> [Expr]
 prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
   where size = fromIntegral $ sum (map typeWidth tys) - 1
 
 	nm = case d of
-		Port (v) n -> sigName v n
+		Port v n -> sigName v n
 		Pad (OVar _ v) -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
                 driver -> error "projecting into " ++ show driver ++ " not implemented"
@@ -244,42 +235,31 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
                  in (nextIdx, ExprSlice nm (ExprLit Nothing (ExprNum i))
                                         (ExprLit Nothing (ExprNum (nextIdx + 1))))
 
--- Find some specific (named) input inside the entity.
+-- | Find some specific (named) input inside the entity.
 lookupInput :: (Show b) => String -> Entity b -> Driver b
 lookupInput i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                       Just (_,_,d) -> d
                                       Nothing -> error $ "lookupInput: Can't find input" ++ show (i,inps)
 
--- Find some specific (named) input's type inside the entity.
+-- | Find some specific (named) input's type inside the entity.
 lookupInputType :: String -> Entity t -> Type
 lookupInputType i (Entity _ _ inps) = case find (\(v,_,_) -> v == i) inps of
                                           Just (_,ty,_) -> ty
                                           Nothing -> error "lookupInputType: Can't find input"
 
--- TODO: should ty be GenericTy only here?
+
+-- | Add an integer generic (always named "i0" to an input list.
 addNum :: Integer -> [(String,Type,Driver Unique)] -> [(String,Type,Driver Unique)]
 addNum i [("i0",ty,d)] = [("i0",GenericTy,Generic i),("i1",ty,d)]
 addNum _ _ = error "addNum"
+-- TODO: should ty be GenericTy only here?
 
 ------------------------------------------------------------------------
 
-{-
--- GONE
-data NetlistOption
-		= LoadEnable 			-- add an enable signal to the entity, and each gate.
-		| AsynchResets
---		| ReifyOptions [ReifyOption]
-		deriving (Eq, Show, Ord)
-type NetlistOptions = [NetlistOption]
-
-addEnabled opts = LoadEnable `elem` opts
-asynchResets opts = AsynchResets `elem` opts
--}
-
-------------------------------------------------------------------------------
-
+-- | The 'AddNext' class is used to uniformly generate the names of 'next' signals.
 class AddNext s where
-   next :: s -> s
+  -- | Given a signal, return the name of the "next" signal.
+  next :: s -> s
 
 instance AddNext String where
    next nm = nm ++ "_next"
@@ -289,8 +269,8 @@ instance AddNext (Driver i) where
    next other = other
 
 ------------------------------------------------------------------------------
--- Turn a name into something VHDL could use
 
+-- | Convert a string representing a Lava operation to a VHDL-friendly name.
 sanitizeName :: String -> String
 sanitizeName "+"         = "add"
 sanitizeName "-"         = "sub"
@@ -302,51 +282,4 @@ sanitizeName ".>=."      = "le"
 -- TODO: Add check for symbols
 sanitizeName other       = other
 
-------------------------------------------------------------------------------------
 
--- Grab all of the synchronous elements (listed in 'nms') and return a map keyed
--- on clk input, with the value including a list of associated entities.
--- TODO: What is going on here!!
-
--- only works for a single clock domain, for now.
-getSynchs :: [String]
-	  -> [(Unique,Entity Unique)]
-	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, Entity Unique)])]
-getSynchs nms ents =
-	[ ((clk_dr,rst_dr,en_dr),
-	    [ e | e@(_,Entity (Prim n) _ _) <- ents,  n `elem` nms ]
-           )
-	| (_,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)]) <- ents
-	]
-{-
-  where
-        synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])
-		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents,
-		    n `elem` nms]
-        getInput nm is = case find (\(c,_,_) -> c == nm) is of
-                      Just (_,_,d) -> d
-                      Nothing -> error $ "getSynchs: Can't find a signal " ++ show (nm,is,ents)
--}
----------------------------------------------------------------------------------
-
--- Entities that never result in code generation
-isVirtualEntity :: [Id]
-isVirtualEntity =
-        [ Prim "write"  -- write (to an array) requires a counterpart read.
-                        -- the read generates the entire operation, cloning
-                        -- the write node if needed.
-        ]
-
-
--- We sometimes store std_logic's as singleton std_logic_vectors.
---boolTrick :: [String] -> Entity a -> Entity a
-boolTrick :: [[Char]] -> Entity s -> Entity s
-boolTrick nms (Entity (External nm) outs ins) =
-        Entity (External nm)
-               [ (trick n,t) | (n,t) <- outs ]
-               [ (trick n,t,d) | (n,t,d) <- ins ]
-   where
-           trick n | n `elem` nms = n ++ "(0)"
-                   | otherwise    = n
-
-boolTrick _ _ = error "applying bool Trick to non-external entity"

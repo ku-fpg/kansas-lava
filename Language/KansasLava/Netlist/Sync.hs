@@ -92,3 +92,32 @@ bramProc (clk,_,clk_en) es =
           readIndexed i e = ExprIndex
 			(ramName i)
 			(toIntegerExpr (lookupInputType "wAddr" e) (rAddr e))
+
+
+
+------------------------------------------------------------------------------------
+
+-- Grab all of the synchronous elements (listed in 'nms') and return a map keyed
+-- on clk input, with the value including a list of associated entities.
+-- TODO: What is going on here!!
+
+-- only works for a single clock domain, for now.
+getSynchs :: [String]
+	  -> [(Unique,Entity Unique)]
+	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, Entity Unique)])]
+getSynchs nms ents =
+	[ ((clk_dr,rst_dr,en_dr),
+	    [ e | e@(_,Entity (Prim n) _ _) <- ents,  n `elem` nms ]
+           )
+	| (_,Entity (Prim "Env") _ [("clk_en",B,en_dr),("clk",ClkTy,clk_dr),("rst",B,rst_dr)]) <- ents
+	]
+{-
+  where
+        synchs = [((getInput "clk" is,getInput "rst" is,getInput "en" is),[e])
+		 | e@(i,Entity (Name "Memory" n) _ is _) <- ents,
+		    n `elem` nms]
+        getInput nm is = case find (\(c,_,_) -> c == nm) is of
+                      Just (_,_,d) -> d
+                      Nothing -> error $ "getSynchs: Can't find a signal " ++ show (nm,is,ents)
+-}
+---------------------------------------------------------------------------------
