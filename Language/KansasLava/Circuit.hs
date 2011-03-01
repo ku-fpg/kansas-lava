@@ -1,6 +1,6 @@
 module Language.KansasLava.Circuit (toGraph,mergeProbes,mergeProbesIO,remProbes) where
 
-import Language.KansasLava.Internals hiding (probes)
+import Language.KansasLava.Types hiding (probes)
 
 import Data.List
 

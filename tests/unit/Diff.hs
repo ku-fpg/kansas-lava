@@ -1,4 +1,4 @@
-import Language.KansasLava.Internals
+import Language.KansasLava.Types
 import Language.KansasLava.Testing.Trace
 import Language.KansasLava.Testing.Output.VCD
 

@@ -2,7 +2,7 @@
 -- format for viewing in a waveform viewer.
 module Language.KansasLava.Testing.Output.VCD(toVCD) where
 
-import Language.KansasLava.Internals
+import Language.KansasLava.Types
 
 import Data.Char
 import Data.List
