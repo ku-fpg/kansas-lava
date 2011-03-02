@@ -1,73 +1,56 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ScopedTypeVariables #-}
+-- | Data types and functions for representing and manipulating with
+-- combinational logic.
+module Language.KansasLava.Comb(
+ Comb(..),toComb,
+ undefinedComb,deepComb,shallowComb,
+ combValue, combDriver
+ ) where
 
-module Language.KansasLava.Comb where
-
--- import Language.KansasLava.Entity
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
 
 
 ----------------------------------------------------------------------------------------------------
--- | An obserable Combinatoral value. Not a functor, applicative functor, or monad.
-
+-- | An observable Combinatoral value. Not a functor, applicative functor, or monad.
 data Comb a = Comb !(X a) (D a)
 
+-- | Extract the shallow value from a combinational circuit.
 combValue :: Comb a -> X a
 combValue (Comb a _) = a
 
+-- | Extract the deep value driver from a combinational circuit.
 combDriver :: Comb a -> D a
 combDriver (Comb _ d) = d
 
-instance forall a . (Rep a) => Show (Comb a) where
+instance (Rep a) => Show (Comb a) where
 	show (Comb x _) = showRep (Witness :: Witness a) x
 
 
 -- This is required for Arithmetic to be overloaded.
-instance forall a . (Rep a, Eq a) => Eq (Comb a) where
-	(Comb x _) == (Comb y _) = (unX x) == (unX y)
+instance (Rep a, Eq a) => Eq (Comb a) where
+	(Comb x _) == (Comb y _) = unX x == unX y
 
--- ACF: Since the shallow part of Comb is strict, we can't use error here.
---      This only seems to come up in debugging. We could create a special
---      wrapper to encode the error status like we did in the deep, but
---      adding the class constraint is less invasive for now.
--- deepComb e = Comb (error "shallow argument being used incorrectly") e
+-- | Generate a circuit with a the given deep embedding. The shallow value is a stream of 'Nothing's, representing unknown values.
 deepComb :: forall a. (Rep a) => D a -> Comb a
-deepComb e = Comb (optX Nothing) e
+deepComb = Comb (optX Nothing)
 
+-- | Generate a circuit with the given shallow value. The deep value is
+-- undefined, and will result in an error if it is evaluated.
 shallowComb :: X a -> Comb a
 shallowComb a = Comb a (D $ Error "deep argument being used incorrectly")
 
--- ACF: We should probably redefine this with dual:
---      undefinedComb = dual (deepComb $ error "undefinedComb") (shallowComb $ error "undefinedComb")
---      (the calls to error get thrown away by dual)
---      but this would require some major module rearrangement to avoid circular imports
+-- | A undefined combinational circuit, where both the shallow and the deep values are undefined.
 undefinedComb ::  forall a . (Rep a) => Comb a
 undefinedComb = Comb (optX Nothing)
 		     (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
-applyComb0 :: (Rep a) => Comb a -> Maybe a
-applyComb0 (Comb a _) = unX a
-
-applyComb1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> a -> Maybe b
-applyComb1 f a = unX b
-   where Comb b _ = f (Comb (pureX a) (D $ Error "deep embedding problem in apply1"))
-
-applyComb2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> a -> b -> Maybe c
-applyComb2 f a b = unX c
-   where Comb c _ = f (Comb (pureX a) (D $ Error "deep embedding problem in apply2"))
-	              (Comb (pureX b) (D $ Error "deep embedding problem in apply2"))
 
 -- Hmm, not the same deep side as toSeq; why?
+-- | Convert a value to a combinational circuit.
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
 
-toComb' :: forall a . (Rep a) => Maybe a -> Comb a
-toComb' a = shallowComb (optX a)
-
-fromComb :: (Rep a) => Comb a -> Maybe a
-fromComb comb = unX (combValue comb)
-
-----------------------------------------------------------------------------------------------------
 
 
 

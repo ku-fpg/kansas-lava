@@ -1,5 +1,7 @@
-{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp  #-}
+{-# LANGUAGE TypeFamilies, ExistentialQuantification,
+    FlexibleInstances, UndecidableInstances, FlexibleContexts,
+    ScopedTypeVariables, MultiParamTypeClasses #-}
+
 
 module Language.KansasLava.Seq where
 
@@ -36,18 +38,18 @@ seqValue (Seq a _) = a
 seqDriver :: CSeq c a -> D a
 seqDriver (Seq _ d) = d
 
-instance forall a c . (Rep a, Show a) => Show (CSeq c a) where
+instance (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
          	= concat [ showRep (Witness :: Witness a) x ++ " "
                          | x <- take 20 $ S.toList vs
                          ] ++ "..."
 
-instance forall a c . (Rep a, Eq a) => Eq (CSeq c a) where
+instance (Rep a, Eq a) => Eq (CSeq c a) where
 	-- Silly question; never True; can be False.
 	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
 
 deepSeq :: D a -> CSeq c a
-deepSeq d = Seq (error "incorrect use of shallow Seq") d
+deepSeq = Seq (error "incorrect use of shallow Seq")
 
 shallowSeq :: S.Stream (X a) -> CSeq c a
 shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
@@ -59,22 +61,19 @@ seqAll :: forall w. (Rep w) => Seq w
 seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (Witness :: Witness w) ]
 
 instance Signal (CSeq c) where
-  liftS0 ~(Comb a e) = Seq (pure a) e
+  liftS0 c = Seq (pure (combValue c)) (combDriver c)
 
   liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
-    let
-	Comb _ eb = f (deepComb ea)
-	f' x = let (Comb y _) = f (shallowComb x)
-	       in y
-   in Seq (fmap f' a) eb
+    let deep = combDriver (f (deepComb ea))
+	f' = combValue . f . shallowComb
+   in Seq (fmap f' a) deep
 
   -- We can not replace this with a version that uses packing,
   -- because *this* function is used by the pack/unpack stuff.
   liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
       where
-	Comb _ ec = f (deepComb ea) (deepComb eb)
-	f' x y = let (Comb z _) = f (shallowComb x) (shallowComb y)
-	         in z
+	ec = combDriver $ f (deepComb ea) (deepComb eb)
+	f' x y = combValue (f (shallowComb x) (shallowComb y))
 
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
@@ -98,7 +97,8 @@ toSeqX :: forall a c . (Rep a) => [X a] -> CSeq c a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
 takeThenSeq :: Int -> CSeq c a -> CSeq c a -> CSeq c a
-takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++  (S.toList (seqValue sq2))))
+takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++
+                                                S.toList (seqValue sq2)))
 
 encSeq :: (Rep a) =>  (Char -> Maybe a) -> String -> CSeq c a
 encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
@@ -138,7 +138,8 @@ instance Dual (CSeq c a) where
   dual ~(Seq a _) ~(Seq _ eb) = Seq a eb
 
 instance Dual (Comb a) where
-  dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
+  -- dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
+  dual c d = Comb (combValue c) (combDriver d)
 
 instance (Dual a, Dual b) => Dual (a,b) where
 	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
@@ -147,7 +148,7 @@ instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
 	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
 
 instance (Dual b) => Dual (a -> b) where
-	dual f1 f2 = \ x -> dual (f1 x) (f2 x)
+	dual f1 f2 x = dual (f1 x) (f2 x)
 
 -----------------------------------------------------------------------------------
 
@@ -179,7 +180,7 @@ showBitfileInfo streams =
 		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
 
 showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
-showSeqBits ss = [ (show $ toRep (i :: X a))
+showSeqBits ss = [ show $ toRep (i :: X a)
 		 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
        -- where showX b = case unX b of
