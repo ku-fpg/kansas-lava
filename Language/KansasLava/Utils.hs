@@ -63,6 +63,10 @@ isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
 
+infixr 3 .&&.
+infixr 2 .||.
+infixr 2 .^.
+
 (.&&.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 (.&&.) = and2
 
@@ -393,6 +397,7 @@ boolOp nm fn =
 			            return $ a' `fn` b')
 		      (entity2 (Name (wireName (error "boolOp" :: a)) nm) ea eb)
 
+infix 4 .==., .>=., .<=., .<., .>.
 (.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
 

@@ -295,7 +295,7 @@ fifoBE Witness rst (inc_by,mem_rd) out_ready =
         out_done0 = out_ready `and2` (isEnabled out)
 
         out :: CSeq c (Enabled a)
-        out = packEnabled (out_counter1 .>. 0 `and2` bitNot rst `and2` isEnabled mem_rd) (enabledVal mem_rd)
+        out = packEnabled ((out_counter1 .>. 0) `and2` bitNot rst `and2` isEnabled mem_rd) (enabledVal mem_rd)
 
         out_counter0 :: CSeq c counter
         out_counter0 = resetable rst 0
