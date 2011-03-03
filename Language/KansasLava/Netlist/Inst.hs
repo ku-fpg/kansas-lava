@@ -165,13 +165,14 @@ genInst _ i (Entity (Prim "index")
            (ExprVar varname) =  toStdLogicExpr ty dr
 
 genInst _ i (Entity (Prim "index")
-		  [("o0",_)]
+		  [("o0",t)]
 		  [("i0",  ixTy, ix),
 		   ("i1",ty@MatrixTy {},dr)
 		  ]) =
     [ NetAssign (sigName "o0" i)
-                (ExprIndex varname
-                  (toMemIndex ixTy ix))
+                (memToStdLogic t
+                   (ExprIndex varname
+                      (toMemIndex ixTy ix)))
     ]
    where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
