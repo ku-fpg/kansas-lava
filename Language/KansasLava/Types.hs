@@ -8,6 +8,7 @@ module Language.KansasLava.Types (
           Type(..)
         , typeWidth
         , isTypeSigned
+        , StdLogicType(..)
         -- * OVar
         , OVar(..)
         -- * Id
@@ -167,6 +168,20 @@ instance Read Type where
     readsPrec _ xs@('[':_) = [ (TupleTy tys,rest)| (tys,rest) <- readList xs ]
     readsPrec _ what = error $ "read Type - can't parse: " ++ what
 
+-------------------------------------------------------------------------
+-- | 'StdLogicType' is the type for std_logic things,
+-- typically input/output arguments to VHDL entities.
+
+data StdLogicType
+        = SL            -- ^ std_logic
+        | SLV Int       -- ^ std_logic_vector (n-1 downto 0)
+        | SLVA Int Int  -- ^ std_logic_vector (n-1 downto 0) (m-1 downto 0)
+       deriving (Eq, Ord)
+
+instance Show StdLogicType where
+        show (SL)       = "std_logic"
+        show (SLV n)    = "std_logic_vector(" ++ show (n-1) ++ " downto 0)"
+        show (SLVA n m) = "std_logic_array_" ++ show n ++ "_" ++ show m
 
 -------------------------------------------------------------------------
 -- | 'OVar' is an order Var, with a number that is used for sorting purposes.
