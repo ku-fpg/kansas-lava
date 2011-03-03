@@ -186,19 +186,33 @@ prepareSimDirectory opts = do
     return ()
 
 testRunner :: [String]
-testRunner = ["#!/bin/bash"
-             ,"curdir=`pwd`"
-             ,"find . -iname \"*.do\" | while read f"
-             ,"do"
-             ,"    echo \"Simulating: $f\""
-             ,"    p=`dirname \"$f\"`"
-             ,"    b=`basename \"$f\"`"
-             ,"    cd $p"
-             ,"    res=`vsim -c -do $b`"
-             ,"    echo $res >> sim.log"
-             ,"    cd $curdir"
-             ,"done"
-             ]
+testRunner = [
+ "#!/bin/bash",
+ "",
+ "if type -P parallel; then",
+ "echo \"Using parallel simulation\"",
+ "",
+ "[ -n \"$LAVA_MODELSIM_HOSTS\" ] ||  export LAVA_MODELSIM_HOSTS=\":\"",
+ "echo \"Using $LAVA_MODELSIM_HOSTS for simulation\"",
+ "",
+ "find . -iname \"*.do\" | parallel dirname | \\",
+ "\tparallel --eta -W /tmp --sshlogin $LAVA_MODELSIM_HOSTS \\",
+ "\t--transfer --return {} \"cd {} && vsim -c -do unmodified.do > /dev/null\"",
+ "else",
+ "\t\tcurdir=`pwd`",
+ "\t\techo \"Using sequential simulation\"",
+ "\t\tfind . -iname \"*.do\" | while read f",
+ "\t\tdo",
+ "\t\t\t\techo \"Simulating: $f\"",
+ "\t\t\t\tp=`dirname \"$f\"`",
+ "\t\t\t\tb=`basename \"$f\"`",
+ "\t\t\t\tcd $p",
+ "\t\t\t\tres=`vsim -c -do $b`",
+ "\t\t\t\techo $res >> sim.log",
+ "\t\t\t\tcd $curdir",
+ "\t\tdone;",
+ "fi"
+ ]
 
 localMake :: String -> String
 localMake relativePath = unlines
@@ -214,6 +228,25 @@ localMake relativePath = unlines
     ,""
     ,"view: vcd"
     ,"\tgtkwave " ++ name ++ ".vcd"
+    ,""
+    ,"isim: unmodified_sim " ++ name ++ ".tcl"
+    ,"\t./" ++ name ++ "_sim -tclbatch " ++ name ++ ".tcl"
+    ,""
+    ,name ++ "_sim: " ++ name ++ ".vhd Lava.vhd " ++ name ++ ".prj"
+    ,"\tfuse -prj " ++ name ++ ".prj work." ++ name ++ "_tb -o " ++ name ++ "_sim"
+    ,""
+    ,name ++ ".prj:"
+    ,"\techo \"vhdl work Lava.vhd\" > " ++ name ++ ".prj"
+    ,"\techo \"vhdl work " ++ name ++ ".vhd\" >> " ++ name ++ ".prj"
+    ,"\techo \"vhdl work " ++ name ++ "_tb.vhd\" >> " ++ name ++ ".prj"
+    ,""
+    ,name ++ ".tcl:"
+    ,"\techo \"vcd dumpfile " ++ name ++ ".vcd\" > " ++ name ++ ".tcl"
+    ,"\techo \"vcd dumpvars -m / \" >> " ++ name ++ ".tcl"
+    ,"\techo \"vcd dumpon\" >> " ++ name ++ ".tcl"
+    ,"\techo \"run all\" >> " ++ name ++ ".tcl"
+    ,"\techo \"vcd dumpoff\" >> " ++ name ++ ".tcl"
+    ,"\techo \"quit\" >> " ++ name ++ ".tcl"
     ]
     where dots = joinPath $ replicate l ".."
           l = 3 + (length $ splitPath relativePath)
