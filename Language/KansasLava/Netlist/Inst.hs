@@ -77,6 +77,9 @@ genInst env i (Entity (Comment' comments) ins@[_] outs@[_]) =
         ] ++
 	genInst env i (Entity (Prim "id") ins outs)
 
+genInst env i (Entity (Prim "const") outputs [in0,_])
+	= genInst env i (Entity (Prim "id") outputs [in0])
+
 genInst env i (Entity (Prim "pair") outputs inputs)
 	= genInst env i (Entity (Prim "concat") outputs inputs)
 genInst env i (Entity (Prim "triple") outputs inputs)

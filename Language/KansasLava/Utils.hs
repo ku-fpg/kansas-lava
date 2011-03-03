@@ -729,6 +729,13 @@ lavaId = fun1 "id" id
 
 -------------------------------------------------------------------------------------
 
+-- | 'ignoring' is used to make sure a value is reified.
+
+ignoring :: (Signal sig, Rep a, Rep b) => sig a -> sig b -> sig a
+ignoring = fun2 "const" const
+
+-------------------------------------------------------------------------------------
+
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
