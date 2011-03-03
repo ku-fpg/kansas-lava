@@ -9,6 +9,8 @@ module Language.KansasLava.Types (
         , typeWidth
         , isTypeSigned
         , StdLogicType(..)
+        , toStdLogicType
+        , fromStdLogicType
         -- * OVar
         , OVar(..)
         -- * Id
@@ -176,12 +178,31 @@ data StdLogicType
         = SL            -- ^ std_logic
         | SLV Int       -- ^ std_logic_vector (n-1 downto 0)
         | SLVA Int Int  -- ^ std_logic_vector (n-1 downto 0) (m-1 downto 0)
+        | G             -- ^ generic (inward) argument
        deriving (Eq, Ord)
 
 instance Show StdLogicType where
         show (SL)       = "std_logic"
         show (SLV n)    = "std_logic_vector(" ++ show (n-1) ++ " downto 0)"
         show (SLVA n m) = "std_logic_array_" ++ show n ++ "_" ++ show m
+        show (G)        = "generic"
+
+-- These encode how we translate from std_logic to regular Lava types
+toStdLogicType :: Type -> StdLogicType
+toStdLogicType B               = SL
+toStdLogicType ClkTy           = SL
+toStdLogicType (V n)           = SLV n
+toStdLogicType GenericTy       = G
+toStdLogicType (MatrixTy i ty) = SLVA i (fromIntegral size)
+  where size = typeWidth ty
+toStdLogicType ty              = SLV $ fromIntegral size
+  where size = typeWidth ty
+
+fromStdLogicType :: StdLogicType -> Type
+fromStdLogicType SL         = B
+fromStdLogicType (SLV n)    = V n
+fromStdLogicType (SLVA n m) = MatrixTy n (V m)
+fromStdLogicType G          = GenericTy
 
 -------------------------------------------------------------------------
 -- | 'OVar' is an order Var, with a number that is used for sorting purposes.

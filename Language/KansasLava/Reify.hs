@@ -19,6 +19,7 @@ import Language.KansasLava.Deep
 import Language.KansasLava.Shallow
 import Language.KansasLava.Comb
 import Language.KansasLava.Seq
+import qualified Language.KansasLava.Fabric as F
 import Language.KansasLava.Signal
 import qualified Data.Stream as Stream
 import Language.KansasLava.Types hiding (inputs,outputs)
@@ -27,6 +28,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.HandShake
 
 import qualified Data.Sized.Matrix as M
+import qualified Data.Sized.Unsigned as U
 
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
@@ -637,3 +639,32 @@ data CircuitOptions
         | CommentDepth
               [(Id,DepthOp)]    -- ^ add comments that denote depth
         deriving (Eq, Show)
+
+
+------------------------------------------
+
+instance Ports (F.Fabric ()) where
+    ports _ (F.Fabric f) = [ (B,unD $ seqDriver (label nm s)) | (nm,F.StdLogic_ s) <- outs ] ++
+                           [ (mkU s,unD $ seqDriver (label nm s)) | (nm,F.StdLogicVector_ s) <- outs ]
+        where (_,ins,outs) = f ins_env
+              ins_env      = [ (nm,case ty of
+                                     SL -> F.StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm)
+                                     _ -> error "not implemented yet"
+                               )
+                             | (nm,ty) <- ins
+                             ]
+              mkU :: forall x . (M.Size x) => Seq (U.Unsigned x) -> Type
+              mkU _ = U (M.size (error "witness" :: x))
+
+
+    probe' = undefined
+    run = undefined
+                
+{-
+                
+    rater' (CraterOut vs,())) =
+                                [ (B,unD $ seqDriver (label nm s)) | (nm,StdLogic_ s) <- vs ] ++
+                                [ (mkU s,unD $ seqDriver (label nm s)) | (nm,StdLogicVector_ s) <- vs ]
+
+
+-}

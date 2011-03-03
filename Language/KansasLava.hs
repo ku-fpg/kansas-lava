@@ -5,6 +5,8 @@ module Language.KansasLava (
     module Language.KansasLava.Circuit,
     module Language.KansasLava.Clock,
     module Language.KansasLava.Deep,
+    module Language.KansasLava.Fabric,
+
     module Language.KansasLava.Shallow,
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Protocols,
@@ -33,6 +35,8 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Circuit
 import Language.KansasLava.Clock
 import Language.KansasLava.Deep
+import Language.KansasLava.Fabric
+
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
