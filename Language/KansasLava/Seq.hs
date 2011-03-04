@@ -127,28 +127,6 @@ cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith (cmpRep w)
 								(seqValue s2)
 	where w = Witness :: Witness a
 
------------------------------------------------------------------------------------
--- TODO: move into its own module
--- Take the shallow from the first, and the deep from the second
-
-class Dual a where
-  dual :: a -> a -> a
-
-instance Dual (CSeq c a) where
-  dual ~(Seq a _) ~(Seq _ eb) = Seq a eb
-
-instance Dual (Comb a) where
-  -- dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
-  dual c d = Comb (combValue c) (combDriver d)
-
-instance (Dual a, Dual b) => Dual (a,b) where
-	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
-
-instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
-	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
-
-instance (Dual b) => Dual (a -> b) where
-	dual f1 f2 x = dual (f1 x) (f2 x)
 
 -----------------------------------------------------------------------------------
 
