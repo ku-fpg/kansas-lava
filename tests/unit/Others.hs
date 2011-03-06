@@ -19,9 +19,8 @@ import Utils
 tests :: TestSeq -> IO ()
 tests test = do
         -- Just the Num Stuff
-        let t :: (Fractional a, Ord a, Rep a) => String -> Gen a -> IO ()
+        let t :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t str arb = testOpsFractional test str arb
-            
         -- With Sampled, use
         --  * powers of two scale, larger than 1
         --  * make sure there are enough bits to represent
@@ -39,7 +38,7 @@ tests test = do
         t "Sampled/X128xX16"(arbitrary :: Gen (Sampled X128 X16))
 
         -- Just the Bits Stuff
-        let t :: (Ord a, Bits a, Rep a) => String -> Gen a -> IO ()
+        let t :: (Ord a, Bits a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t str arb = testOpsBits test str arb
 
         t "U1" (arbitrary :: Gen U1)
@@ -139,6 +138,7 @@ testMux (TestSeq test toList) nm gen = do
 -}
 -- This only tests at the *value* level, and ignores testing unknowns.
 
+{-
 testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
 testUniOp (TestSeq test toList) nm op lavaOp gen = do
         let us0 = toList gen
@@ -149,9 +149,25 @@ testUniOp (TestSeq test toList) nm op lavaOp gen = do
                               us0
                         )
         test nm (length us0) thu res
+-}
+
+testUniOp :: forall a b . (Rep a, Show a, Eq a, Rep b, Show b, Eq b, Size (W a), Size (W b)) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
+testUniOp (TestSeq _ test toList) nm op lavaOp gen = do
+        let us0 = toList gen
+        let driver = do
+                outStdLogicVector "i0" ((coerce) (toSeq us0) :: Seq (Unsigned (W a)))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = liftS1 lavaOp ((coerce) i0)
+                outStdLogicVector "o0" ((coerce) o0)
+            res = do
+                outStdLogicVector "o0" ((coerce) $ toSeq (fmap op us0))
+
+        test nm (length us0) driver dut res
+
 
 testBinOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c) => TestSeq -> String -> (a -> b -> c) -> (Comb a -> Comb b -> Comb c) -> Gen (a,b) -> IO ()
-testBinOp (TestSeq test toList) nm op lavaOp gen = do
+testBinOp (TestSeq test _ toList) nm op lavaOp gen = do
         let (us0,us1) = unzip $ toList gen
         let thu = Thunk (liftS2 lavaOp)
                         (\ f -> f (toSeq us0) (toSeq us1)
@@ -163,7 +179,7 @@ testBinOp (TestSeq test toList) nm op lavaOp gen = do
         test nm (length (zip us0 us1)) thu res
 
 testTriOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c, Rep d, Show d, Eq d) => TestSeq -> String -> (a -> b -> c -> d) -> (Comb a -> Comb b -> Comb c -> Comb d) -> Gen (a,b,c) -> IO ()
-testTriOp (TestSeq test toList) nm op lavaOp gen = do
+testTriOp (TestSeq test _ toList) nm op lavaOp gen = do
         let (us0,us1,us2) = unzip3 $ toList gen
         let thu = Thunk (liftS3 lavaOp)
                         (\ f -> f (toSeq us0) (toSeq us1) (toSeq us2)
@@ -224,7 +240,7 @@ testOpsOrd test tyName ws = do
 
 
 testOpsNum :: forall w .
-        (Ord w, Rep w, Num w) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Num w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
 testOpsNum test tyName ws = do
         testOpsOrd test tyName ws
 
@@ -251,7 +267,7 @@ testOpsNum test tyName ws = do
           ]
 
 testOpsFractional :: forall w .
-        (Ord w, Rep w, Fractional w) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Fractional w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
 testOpsFractional test tyName ws = do
         testOpsNum test tyName ws
 
@@ -270,7 +286,7 @@ testOpsFractional test tyName ws = do
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
-        (Ord w, Rep w, Bits w) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
 testOpsBits test tyName ws = do
         testOpsNum test tyName ws
 
@@ -303,7 +319,7 @@ triple ws = pure (,,) <*> ws <*> ws <*> ws
 --------------------------------------------------------------------------------------
 -- Testing register and memory
 testRegister :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
-testRegister  (TestSeq test toList) tyName ws = do
+testRegister  (TestSeq test _ toList) tyName ws = do
         let (u0:us0) = toList ws
         let reg = register :: w -> Seq w -> Seq w
         let thu = Thunk (reg u0)
@@ -314,7 +330,7 @@ testRegister  (TestSeq test toList) tyName ws = do
         return ()
 
 testDelay :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
-testDelay  (TestSeq test toList) tyName ws = do
+testDelay  (TestSeq test _ toList) tyName ws = do
         let us0 = toList ws
         let reg = delay :: Seq w -> Seq w
         let thu = Thunk reg

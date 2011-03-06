@@ -13,10 +13,12 @@ import Types
 import Report
 import Utils
 
+{-
 import qualified Matrix
 import qualified Memory
 import qualified FIFO
 import qualified Coerce
+-}
 import qualified Others
 
 main :: IO ()
@@ -24,7 +26,7 @@ main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
---                      , testOnly = return ["memory/async/rom/"]
+                      , testOnly = return ["negate"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }
@@ -36,15 +38,16 @@ main = do
 
         let test :: TestSeq
             test = TestSeq (testSeq opt)
+                           (testFabrics opt)
                            (take (testData opt) . genToRandom)
 
         -- The different tests to run (from different modules)
         sequence_ [ t test
-                  | t <- [ Matrix.tests
+                  | t <- [ {- Matrix.tests
                          , Memory.tests
                          , FIFO.tests
-                         , Coerce.tests
-                         , Others.tests
+                         , Coerce.tests 
+                         , -} Others.tests
                          ]
                   ]
 

@@ -49,6 +49,7 @@ fileReporter path nm res = do
 
 data TestSeq = TestSeq
         (forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
+        (String -> Int  -> Fabric () -> Fabric () -> Fabric () -> IO ())
         (forall a. Gen a -> [a])
 
 testSeq :: (Rep a, Show a, Eq a)
@@ -114,7 +115,85 @@ testSeq opts name count thunk expected
                   trace <- mkTrace (return count) thunk
                   report name $ ShallowFail trace (toTrace $ seqValue expected)
 
-                                         | otherwise = return ()
+  | otherwise = return ()
+
+testFabrics
+        :: Options                  -- Options
+        -> String                   -- Test Name
+        -> Int                      -- Number of Cycles
+        -> Fabric ()                -- Reference input
+        -> Fabric ()                -- DUT
+        -> Fabric ()                -- Reference output
+        -> IO ()
+testFabrics opts name count fab_ref_in fab_dut fab_ref_out
+   | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
+        let verb = verbose (verboseOpt opts) name
+            _path = (simPath opts) </> name
+            _report = fileReporter $ simPath opts
+
+        verb 2 $ "testing(" ++ show count ++ ")"
+
+        let ref_in = runFabric fab_ref_in []
+
+        let dut_out = runFabric fab_dut ref_in
+
+        let shallow = runFabric (fab_ref_out) []
+
+        print dut_out
+        print shallow
+        
+{-
+
+--        verb 9 $ show ("expected",expected)
+        -- First run the shallow
+        let shallow = runShallow thunk
+        verb 9 $ show ("shallow",shallow)
+        if cmpSeqRep count expected shallow
+          then do verb 3 $ "shallow passed"
+                  if genSim opts
+                    then do createDirectoryIfMissing True path
+
+                            -- get permuted/unpermuted list of sims for which we generate testbenches
+                            let sims = [ (modname, (recordThunk (path </> modname) count (snd cmod) thunk))
+                                       | cmod <- if permuteMods opts
+                                                    then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
+                                                           $ concatMap permutations
+                                                           $ subsequences
+                                                           $ simMods opts
+                                                    else simMods opts
+                                       , let modname = fst cmod
+                                       ]
+
+                            -- generate each testbench, report any failures
+                            ts <- sequence [ do vrb 2 $ "generating simulation"
+                                                E.catch (Just <$> action)
+                                                        (\e -> do vrb 3 "vhdl generation failed"
+                                                                  vrb 4 $ show (e :: E.SomeException)
+                                                                  rep $ CodeGenFail (show (e :: E.SomeException))
+                                                                  return Nothing)
+                                           | (modname, action) <- sims
+                                           , let rep = report (name </> modname)
+                                           , let vrb = verbose (verboseOpt opts) (name </> modname)
+                                           ]
+
+                            -- for successfully generated testbenches, add some files
+                            sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
+                                           copyLavaPrelude opts (path </> modname)
+                                           writeFile (path </> modname </> "options") $ show opts
+                                           vrb 9 $ show ("trace",fromJust t)
+                                      | (modname, t) <- zip (map fst sims) ts
+                                      , isJust t
+                                      , let vrb = verbose (verboseOpt opts) (name </> modname)
+                                      ]
+
+                            return ()
+                    else report name ShallowPass
+          else do verb 1 $ "shallow FAILED"
+                  trace <- mkTrace (return count) thunk
+                  report name $ ShallowFail trace (toTrace $ seqValue expected)
+
+-}
+  | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
 simCompare path report verb = do
