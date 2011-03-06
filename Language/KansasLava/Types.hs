@@ -516,6 +516,7 @@ instance Read ProbeName where
                                             _         -> [] -- no parse
                           _         -> [] -- no parse
 
+-- TODO: change this back to a list, to encode the order
 type TraceMap = M.Map ProbeName TraceStream
 
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
