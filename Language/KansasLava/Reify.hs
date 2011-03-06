@@ -34,156 +34,57 @@ import qualified Data.Sized.Unsigned as U
 -- | 'reifyCircuit' does reification of a 'Fabric ()' into a 'Circuit'.
 
 reifyFabric :: F.Fabric () -> IO Circuit
-reifyFabric circuit = do
-        -- We intentually clone the code; this is the live version now
+reifyFabric (F.Fabric circuit) = do
+
+        let (_,ins0,outs0) = circuit ins_env
         
-        let opts = []
-        -- GenSym for input/output pad names
-        -- let inputNames = L.zipWith OVar [0..] $ head $
-        --         [[ "i" ++ show (i::Int) | i <- [0..]]]
-        let outputNames =  L.zipWith OVar [0..] $ head $
-                 [[ "o" ++ show (i::Int) | i <- [0..]]]
+             -- This is knot-tied with the output from the circuit execution
+            ins_env   = [ (nm,case ty of
+                                SL -> F.StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm)
+                                _ -> error "not implemented yet"
+                          )
+                        | (nm,ty) <- ins0
+                        ]
 
-        let os = ports 0 circuit
+        let mkU :: forall x . (M.Size x) => Seq (U.Unsigned x) -> Type
+            mkU _ = U (M.size (error "witness" :: x))
 
-        let o = Port ("o0")
+        let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,F.StdLogic_ s) <- outs0 ] ++
+                       [ (nm, mkU s, unD $ seqDriver s) | (nm,F.StdLogicVector_ s) <- outs0 ]
+
+        
+        let o = Port ("top")
                 $ E
-                $ Entity (Name "Lava" "top") [("o0",B)] -- not really a Bit
-                [ ("i" ++ show i,tys, dr)
-                | (i::Int,(tys,dr)) <- zip [0..] os
-                ]
+                $ Entity (Prim "top") []
+                $ top_outs
 
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
         (gr, outputs) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
+                   print gr
                    let gr' = [ (nid,nd) | (nid,nd) <- gr
                                         , nid /= out
                              ]
                    case lookup out gr of
-                     Just (Entity (Name "Lava" "top")  _ ins) ->
-                       return $ (gr',[(sink,ity, driver)
-                                       | (_,ity,driver) <- ins
-                                       | sink <- outputNames
+                     Just (Entity (Prim "top")  _ ins) ->
+                       return $ (gr',[(OVar 0 nm,ity, driver)
+                                       | (nm,ity,driver) <- ins
                                        ])
-                     -- if the circuit is trivial??
-                     Just (Entity (Name _ _) outs _) ->
-                       return $ (gr', [(sink,oty, Port ovar out)
-                                      | (ovar,oty) <- outs
-                                      | sink <- outputNames
-                                      ])
-                     _ -> error $ "reifyCircuit: " ++ show o
-                -- TODO: restore this
---                (Lit x) -> return ([],[((head outputNames),ty,Lit x)])
-                v -> fail $ "reifyGraph failed in reifyCircuit" ++ show v
+                     _ -> error $ "reifyFabric: " ++ show o
+                v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
---      print outputs
-
-        let newOut = 1 + maximum ((-1) : [ i | (OVar i _,_,_) <- outputs ])
---      print newOut
-
-        let backoutputs =
-              [ (OVar n ("b" ++ show n), vTy, dr)
-              | (_,Entity (Prim "hof") _ [(_,vTy,dr)]) <- gr
-              | n <- [newOut..]
-              ]
-
-        -- let outputs2 = outputs ++ backoutputs
-        -- let outputs = outputs2
-        -- outputs <- return $ outputs ++ backoutputs
-        let outputsWithBack = outputs ++ backoutputs
-
-        let hofs =
-              [ i
-              | (i,Entity (Prim "hof") _ [(_,_,_)])  <- gr
-              ]
---      print hofs
-
-        let findHof i = case Prelude.lookup i (zip hofs [newOut..]) of
-                           Nothing -> error $ "can not find hof : " ++ show i
-                           Just v -> OVar v ("o" ++ show v)
+        let rCit = Circuit { theCircuit = gr
+                            , theSrcs = [ (OVar 0 nm,fromStdLogicType lTy) | (nm,lTy) <- ins0 ]
+                            , theSinks = outputs
+                            }
 
 
-        let remap_hofs (nm,ty,Port pnm i)
-                | i `elem` hofs = (nm,ty,Pad $ findHof i)
-                | otherwise = (nm,ty,Port pnm i)
-            remap_hofs other = other
-
-
-        -- Remove hofs
-        let grNoHofs = [ ( i
-                         , case g of
-                             Entity nm outs ins ->
-                               Entity nm outs (map remap_hofs ins)
-                         )
-                         | (i,g) <- gr
-                       , not (i `elem` hofs)
-                       ]
-        -- let gr = gr'
-
-        -- Search all of the enities, looking for input ports.
-        let inputs = [ (v,vTy) | (_,Entity _ _ ins) <- grNoHofs
-                               , (_,vTy,Pad v) <- ins]
-
-        let rCit = Circuit { theCircuit = grNoHofs
-                                  , theSrcs = nub inputs
-                                  , theSinks = outputsWithBack
-                                  }
-
-
-        let rCitNamesResolved = resolveNames rCit
-        -- let rCit = rCit'
-
---      print rCit
-        -- TODO remove, its a seperate pass
-        rCit2 <-
-          if OptimizeReify `elem` opts
-            then optimizeCircuit def rCitNamesResolved
-            else return rCitNamesResolved
-
-{- REMOVED DEAD CODE DEFINING rCit3
-        let depthss = [ mp | CommentDepth mp <- opts ]
-
-        -- TODO likewisse, remove, its a seperate pass
-
-        rCit3 <- case depthss of
-{-
-                    [depths]  -> do let chains = findChains (depths ++ depthTable) rCit2
-                                        env = Map.fromList [ (u,d) | (d,u) <- concat chains ]
-                                    return $ rCit2 { theCircuit = [ (u,case e of
-                                                          Entity nm ins outs ann ->
-                                                                case Map.lookup u env of
-                                                                  Nothing -> e
-                                                                  Just d -> Entity nm ins outs (ann ++ [Comment $ "depth: " ++ show d])
-                                                          _ -> e)
-                                                     | (u,e) <- theCircuit rCit2
-                                                     ]}
--}
-                    []        -> return rCit2
-
--}
-        let rCit3 = rCit2
-
-        let domains = nub $ concat $ visitEntities rCit3 $ \ _ (Entity _ _ outs) ->
+        let domains = nub $ concat $ visitEntities rCit $ \ _ (Entity _ _ outs) ->
                 return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
 
-        -- The clock domains
---      print domains
-
-        -- let nameEnv "unit" nm = nm
-        --     nameEnv dom    nm = dom ++ "_" ++ nm
-
-        -- let extraSrcs =
-        --         concat [  [ nameEnv dom "clk", nameEnv dom "clk_en", nameEnv dom "rst" ]
-        --                | dom <- domains
-        --                ] `zip` [-1::Int,-2..]
-
-
-
-        -- let allocs = allocEntities rCit3                    -
         let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]     -- in reverse order for a reason
-
 
 	let domToPorts =
 		[ (dom, [ (nm,ty,Pad (OVar idx nm))
@@ -191,18 +92,7 @@ reifyFabric circuit = do
 		       ])
 		| (dom,i) <- zip domains [0,-1..]
                 ]
-{-
-        let envSrcs = [ ( dom
-                        , u
-                        , Entity (Prim "Env")
-                               [ ("env",ClkDomTy) ]
-                               [ (nm,ty,Pad (OVar i nm)) | ((nm,ty),i) <- zip envIns [i*3-1,i*3-2,i*3-3]]
-                        )
-                      | (u,dom,i) <- zip3 allocs domains [0,-1..]
-                     ] :: [(String,Unique,Entity Unique)]
--}
-        let rCit4 = rCit3 { theCircuit =
---                                [ (u,e) | (_,u,e) <- envSrcs ] ++
+        return $ rCit { theCircuit =
                                 [  (u,case e of
                                         Entity nm outs ins -> Entity
                                                 nm
@@ -216,23 +106,13 @@ reifyFabric circuit = do
                                                    _ -> [p]
                                                 | p <- ins ])
                                     )
-                                | (u,e) <- theCircuit rCit3 ]
+                                | (u,e) <- theCircuit rCit ]
                           , theSrcs =
                                 [ (ovar,ty) | (_,outs) <- domToPorts
 					    , (_,ty,Pad ovar) <- outs
 				] ++
-                                theSrcs rCit3
+                                theSrcs rCit
                           }
-
-
---      print $ theSrcs rCit3
-
---      let rCit4 = rCir3 {
-
-
-
-
-        return $ rCit4
 
 -- | 'reifyCircuit' does reification on a function into a 'Circuit'.
 --
