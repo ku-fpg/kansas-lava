@@ -2,7 +2,8 @@
 module Others (tests) where
 
 import Language.KansasLava
-import qualified Data.Stream as S
+--import qualified Data.Stream as S
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Thunk
 
 import Data.Bits
