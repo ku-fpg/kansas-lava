@@ -8,7 +8,8 @@ import Language.KansasLava.Shallow
 import Language.KansasLava.Seq
 import Language.KansasLava.Comb
 
-import Data.Stream hiding (zip)
+--import Data.Stream hiding (zip)
+import Language.KansasLava.Stream
 import Debug.Trace
 
 -- | Trace the values of the shallow stream.

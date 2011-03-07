@@ -23,7 +23,9 @@ module Language.KansasLava (
 
     module Language.KansasLava.Dynamic,
     module Language.KansasLava.Testing.Output.Dot,
-    module Language.KansasLava.HandShake
+    module Language.KansasLava.HandShake,
+    
+    module Language.KansasLava.Stream
 --    module Language.KansasLava.Applicative,
 --    module Language.KansasLava.Memory
     -- hacks
@@ -57,6 +59,8 @@ import Language.KansasLava.HandShake
 
 import Language.KansasLava.Dynamic
 
+-- Till we track down the space leak
+import Language.KansasLava.Stream
 -- TODO Add StdLogicVector
 
 -- Location of Temp Hacks

@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Language.KansasLava.Testing.Unit (debug, test) where
 
-import Language.KansasLava
+import Language.KansasLava hiding (head)
 import Language.KansasLava.Testing.Thunk
 import Language.KansasLava.Testing.Trace
 

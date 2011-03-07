@@ -14,7 +14,8 @@ import Language.KansasLava.Types
 import Language.KansasLava.Signal
 
 import Language.KansasLava.Comb
-import qualified Data.Stream as S
+--import qualified Data.Stream as S
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Shallow
 
 

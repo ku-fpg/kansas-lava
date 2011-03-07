@@ -13,7 +13,8 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Reify
 
-import Data.Stream(Stream)
+--import Data.Stream(Stream)
+import  Language.KansasLava.Stream(Stream)
 import Language.KansasLava.Testing.Utils
 
 import Data.List

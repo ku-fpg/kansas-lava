@@ -11,7 +11,8 @@ import Language.KansasLava.Deep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector as SLV
-import qualified Data.Stream as S
+--import qualified Data.Stream as S
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
 

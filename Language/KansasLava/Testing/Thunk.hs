@@ -1,7 +1,7 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
 module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench, exposeProbes, exposeProbesIO) where
 
-import Language.KansasLava
+import Language.KansasLava hiding (head)
 
 import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Trace

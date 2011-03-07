@@ -22,7 +22,8 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Seq
 import qualified Language.KansasLava.Fabric as F
 import Language.KansasLava.Signal
-import qualified Data.Stream as Stream
+--import qualified Data.Stream as Stream
+import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types hiding (inputs,outputs)
 import qualified Language.KansasLava.Types as Trace
 import Language.KansasLava.Utils

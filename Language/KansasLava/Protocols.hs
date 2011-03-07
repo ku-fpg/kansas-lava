@@ -7,7 +7,8 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
-import Data.Stream as Stream
+--import Data.Stream as Stream
+import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Signal
 
 import Data.Sized.Matrix as M
