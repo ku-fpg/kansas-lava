@@ -28,10 +28,8 @@ rate Witness n
 	count <- newReg (0 :: (Unsigned x))
 	cut   <- newReg (0 :: (Unsigned x))
 	err   <- newReg (0  :: (Signed x))
-	CASE [ IF (reg count .<. (fromIntegral step + reg cut - 1)) $ do
+	CASE [ IF (reg count .<. (fromIntegral step + reg cut - 1)) $
 		  count := reg count + 1
---		  cut := val cut
---		  err := val err
 	     , OTHERWISE $ do
 		  count := 0
 		  CASE [ IF (reg err .>=. 0) $ do
@@ -43,9 +41,7 @@ rate Witness n
 			]
 
 	     ]
-	return $
---		pack (val err, val count)
-		(reg count .==. 0)
+	return  (reg count .==. 0)
 
    where sz :: Integer
          sz = fromIntegral (size (error "witness" :: x))
