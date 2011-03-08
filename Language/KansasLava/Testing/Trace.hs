@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
+-- | This module contains functions for manipulating (extending, querying, modifying) debugging Traces. It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,addInput, getInput, remInput
                                          ,addOutput, getOutput, remOutput
@@ -22,45 +23,55 @@ import qualified Data.Map as M
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
--- generate a signature from a trace
+-- | Generate a signature from a trace.
 -- TODO: support generics in both these functions?
 traceSignature :: Trace -> Signature
 traceSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
     where convert m = [ (OVar i (show wc),ty) | (wc@(WholeCircuit _ i _),TraceStream ty _) <- M.toList m ]
 
--- creates an (obviously empty) trace from a signature
+-- | Creates an (empty) trace from a signature
 signatureTrace :: Signature -> Trace
 signatureTrace (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) M.empty
     where convert l = M.fromList [ (read nm, TraceStream ty [])  | (OVar _ nm, ty) <- l ]
 
 -- Combinators to change a trace
+-- | Set the length of the trace, in cycles.
 setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
+-- | Add a named input to a Trace.
 addInput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addInput key iseq t@(Trace _ ins _ _) = t { inputs = addSeq key iseq ins }
 
+-- | Get a named input from a Trace.
 getInput :: (Rep w) => ProbeName -> Trace -> Seq w
 getInput key trace = getSignal $ (inputs trace) M.! key
 
+-- | Remove a named input from a Trace.
 remInput :: ProbeName -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = M.delete key ins }
 
+-- | Add a named output to a Trace.
 addOutput :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addOutput key iseq t@(Trace _ _ outs _) = t { outputs = addSeq key iseq outs }
 
+-- | Get a named output from a Trace
 getOutput :: (Rep w) => ProbeName -> Trace -> Seq w
 getOutput key trace = getSignal $ (outputs trace) M.! key
 
+-- | Remove a named output from a Trace.
 remOutput :: ProbeName -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = M.delete key outs }
 
+-- | Add a named internal probe to a Trace.
 addProbe :: forall a. (Rep a) => ProbeName -> Seq a -> Trace -> Trace
 addProbe key iseq t@(Trace _ _ _ ps) = t { probes = addSeq key iseq ps }
 
+-- | Get a named internal probe from a Trace.
 getProbe :: (Rep w) => ProbeName -> Trace -> Seq w
 getProbe key trace = getSignal $ (probes trace) M.! key
 
+-- | Remove a named internal probe from a Trace.
 remProbe :: ProbeName -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = M.delete key ps }
 
@@ -71,13 +82,13 @@ instance Show Trace where
 instance Read Trace where
     readsPrec _ = deserialize
 
--- two traces are equal if they have the same length and all the streams are equal over that length
+-- | Two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq Trace where
     (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 /= Nothing || c2 /= Nothing) && (c1 == c2) && insEqual && outEqual && probesEqual
         where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- M.assocs m]
-              insEqual = (sorted i1) == (sorted i2)
-              outEqual = (sorted o1) == (sorted o2)
-              probesEqual = (sorted p1) == (sorted p2)
+              insEqual = sorted i1 == sorted i2
+              outEqual = sorted o1 == sorted o2
+              probesEqual = sorted p1 == sorted p2
 
 -- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
 cmpTrace :: Trace -> Trace -> Bool
@@ -94,18 +105,22 @@ cmpTraceIO :: Trace -> Trace -> Bool
 cmpTraceIO (Trace c1 i1 o1 _) (Trace c2 i2 o2 _) = cmpTrace (Trace c1 i1 o1 M.empty) (Trace c2 i2 o2 M.empty)
 
 -- something more intelligent someday?
+-- | Determine if two traces are equal.
 diff :: Trace -> Trace -> Bool
 diff t1 t2 = t1 == t2
 
+-- | A default, empty Trace.
 emptyTrace :: Trace
 emptyTrace = Trace { len = Nothing, inputs = M.empty, outputs = M.empty, probes = M.empty }
 
+-- | Get the first i elements of a Trace.
 takeTrace :: Int -> Trace -> Trace
 takeTrace i t = t { len = Just newLen }
     where newLen = case len t of
                     Just x -> min i x
                     Nothing -> i
 
+-- | Drop the first i elements of a Trace.
 dropTrace :: Int -> Trace -> Trace
 dropTrace i t@(Trace c ins outs ps)
     | newLen > 0 = t { len = Just newLen
@@ -116,7 +131,7 @@ dropTrace i t@(Trace c ins outs ps)
     where dropStream m = M.fromList [ (k,TraceStream ty (drop i s)) | (k,TraceStream ty s) <- M.toList m ]
           newLen = maybe i (\x -> x - i) c
 
--- need to change format to be vertical
+-- | Convert a trace to a textual form.
 serialize :: Trace -> String
 serialize (Trace c ins outs ps) = unlines
                                 $ [show c, "INPUTS"]
@@ -128,8 +143,9 @@ serialize (Trace c ins outs ps) = unlines
                                ++ ["END"]
     where showMap :: TraceMap -> [String]
           showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- M.toList m]
-          showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
+          showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) val | RepValue val <- takeMaybe c s]
 
+-- | Parse a textual representation of a Trace. Return the Trace and the remainder of the unparsed output.
 deserialize :: String -> [(Trace,String)]
 deserialize str = [(Trace { len = read cstr, inputs = ins, outputs = outs, probes = ps },unlines rest)]
     where (cstr:"INPUTS":ls) = lines str
@@ -137,11 +153,12 @@ deserialize str = [(Trace { len = read cstr, inputs = ins, outputs = outs, probe
           (outs,"PROBES":r2) = readMap r1
           (ps,"END":rest) = readMap r2
 
+-- | Convert the inputs and outputs of a Trace to a textual format.
 genShallow :: Trace -> [String]
 genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
-    where alldata = (M.elems ins) ++ (M.elems outs)
+    where alldata = M.elems ins ++ M.elems outs
 
--- inverse of genShallow
+-- | Inverse of genShallow
 asciiToTrace :: [String] -> Signature -> Trace
 asciiToTrace ilines sig = et { inputs = ins, outputs = outs }
     where et = setCycles (length ilines) $ signatureTrace sig
@@ -158,14 +175,17 @@ splitLists :: [[a]] -> [Int] -> [[[a]]]
 splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
 splitLists _  []     = [[]]
 
+-- | Generate a human readable format for a trace.
 genInfo :: Trace -> [String]
 genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i::Int,l) <- zip [1..] lines' ]
-    where alldata = (M.elems ins) ++ (M.elems outs)
+    where alldata = M.elems ins ++ M.elems outs
           lines' = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
 
+-- | Serialize a Trace to a file.
 writeToFile :: FilePath -> Trace -> IO ()
 writeToFile fp t = writeFile fp $ serialize t
 
+-- | Deserialize a Trace from a file.
 readFromFile :: FilePath -> IO Trace
 readFromFile fp = do
     str <- readFile fp
