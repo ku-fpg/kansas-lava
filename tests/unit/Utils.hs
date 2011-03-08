@@ -9,7 +9,7 @@ import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
 
-import Data.List
+import Data.List as List
 import Data.Maybe as Maybe
 import Data.Ord ( comparing )
 import Data.Sized.Unsigned
@@ -125,7 +125,7 @@ testFabrics
         -> Fabric ()                -- DUT
         -> Fabric ()                -- Reference output
         -> IO ()
-testFabrics opts name count fab_ref_in fab_dut fab_ref_out
+testFabrics opts name count f_driver f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
             _path = (simPath opts) </> name
@@ -133,17 +133,36 @@ testFabrics opts name count fab_ref_in fab_dut fab_ref_out
 
         verb 2 $ "testing(" ++ show count ++ ")"
 
-        let ref_in = runFabric fab_ref_in []
+        let inp :: [(String,Pad)]
+            inp = runFabric f_driver []
 
-        let dut_out = runFabric fab_dut ref_in
+            shallow :: [(String,Pad)]
+            shallow = runFabric f_dut inp
 
-        let shallow = runFabric (fab_ref_out) []
+            expected :: [(String,Pad)]
+            expected = runFabric f_expected []
 
-        print dut_out
-        print shallow
-        
+        verb 9 $ show ("expected",expected)
+        verb 9 $ show ("shallow",shallow)
+
+        let getTyRep :: Pad -> (StdLogicType, [RepValue])
+            getTyRep pad = case pad of
+                             StdLogic_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                             StdLogicVector_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                             Generic_ _ -> error "testFabrics: Generic output pad?"
+
+        if and [    n1 == n2
+                 && ty1 == ty2
+                 && (and $ List.zipWith cmpRepValue (take count ereps) sreps)
+               | ((n1,pad1),(n2,pad2)) <- zip expected shallow
+               , let (ty1,ereps) = getTyRep pad1
+               , let (ty2,sreps) = getTyRep pad2
+               ]
+          then do verb 3 $ "shallow passed"
+          else do verb 1 $ "shallow FAILED"
+          --        trace <- mkTrace (return count) thunk
+--                  report name $ ShallowFail trace (toTrace $ seqValue expected)
 {-
-
 --        verb 9 $ show ("expected",expected)
         -- First run the shallow
         let shallow = runShallow thunk

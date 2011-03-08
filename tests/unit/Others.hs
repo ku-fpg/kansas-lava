@@ -155,13 +155,13 @@ testUniOp :: forall a b . (Rep a, Show a, Eq a, Rep b, Show b, Eq b, Size (W a),
 testUniOp (TestSeq _ test toList) nm op lavaOp gen = do
         let us0 = toList gen
         let driver = do
-                outStdLogicVector "i0" ((coerce) (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = liftS1 lavaOp ((coerce) i0)
-                outStdLogicVector "o0" ((coerce) o0)
+                let o0 = liftS1 lavaOp (coerce i0)
+                outStdLogicVector "o0" (coerce o0)
             res = do
-                outStdLogicVector "o0" ((coerce) $ toSeq (fmap op us0))
+                outStdLogicVector "o0" (coerce $ toSeq (fmap op us0))
 
         test nm (length us0) driver dut res
 

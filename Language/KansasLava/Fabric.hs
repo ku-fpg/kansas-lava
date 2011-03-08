@@ -9,6 +9,7 @@ module Language.KansasLava.Fabric
         , inGeneric
         , outStdLogic
         , outStdLogicVector
+        , padStdLogicType
         , driving
 --        , fabric_example
         , backedges
@@ -17,6 +18,7 @@ module Language.KansasLava.Fabric
 
 import Language.KansasLava.Types
 import Language.KansasLava.Seq
+import Language.KansasLava.Shallow
 import Data.Sized.Unsigned
 import Data.Sized.Ix
 import Control.Monad.Fix
@@ -30,6 +32,12 @@ import Language.KansasLava.Utils
 data Pad = StdLogic_ (Seq Bool)
          | forall x . (Size x) => StdLogicVector_ (Seq (Unsigned x))
          | Generic_ Integer
+
+padStdLogicType :: Pad -> StdLogicType
+padStdLogicType (StdLogic_ _)       = SL
+-- ACF: surely there is a better way to do this?
+padStdLogicType (StdLogicVector_ s) = SLV . length . unRepValue . toRep . head . fromSeqX $ s
+padStdLogicType (Generic_ _)        = G
 
 instance Show Pad where
         show (StdLogic_ sq)       = "StdLogic_ " ++ show sq
