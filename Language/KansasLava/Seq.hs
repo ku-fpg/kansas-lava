@@ -123,11 +123,9 @@ fromSeqX :: (Rep a) => CSeq c a -> [X a]
 fromSeqX = S.toList . seqValue
 
 cmpSeqRep :: forall a c . (Rep a) => Int -> CSeq c a -> CSeq c a -> Bool
-cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith (cmpRep w)
+cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 								(seqValue s1)
 								(seqValue s2)
-	where w = Witness :: Witness a
-
 
 -----------------------------------------------------------------------------------
 

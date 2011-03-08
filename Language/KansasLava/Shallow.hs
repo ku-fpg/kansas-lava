@@ -140,9 +140,8 @@ fromRepToInteger (RepValue xs) =
 
 
 -- | compare a golden value with a generated value.
---
-cmpRep :: (Rep a) => Witness a -> X a -> X a -> Bool
-cmpRep Witness g v = toRep g `cmpRepValue` toRep v
+cmpRep :: (Rep a) => X a -> X a -> Bool
+cmpRep g v = toRep g `cmpRepValue` toRep v
 
 -- basic conversion to trace representation
 toTrace :: forall w . (Rep w) => Stream.Stream (X w) -> TraceStream
