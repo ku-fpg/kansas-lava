@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, TypeFamilies, ScopedTypeVariables #-}
-
-
-module Language.KansasLava.Clock where
+-- | The 'Clock' module provides a utility function for simulating clock rate
+-- downsampling.
+module Language.KansasLava.Clock(rate) where
 
 import Data.Ratio
 
@@ -13,10 +13,12 @@ import Language.KansasLava.RTL
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
 import Language.KansasLava.Seq
-import Language.KansasLava.Protocols
-import Language.KansasLava.Signal
 
-
+-- | 'rate' constructs a stream of enable bits used for clock-rate
+-- downsampling. For example, with a rate of n=1/2, every other value in the
+-- output stream will be True. If 1/n is not a integer, then the function uses
+-- http://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm to approximate the
+-- given rate.
 rate :: forall x clk . (Clock clk, Size x) => Witness x -> Rational -> CSeq clk Bool
 rate Witness n
   | step * 2 > 2^sz = error $ "bit-size " ++ show sz ++ " too small for punctuate Witness " ++ show n
@@ -54,25 +56,3 @@ rate Witness n
 	 nerr = dom - (step + 1) * num
 
 
--- | This is the runST of Kansas Lava.
-runClocked0 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk' . (Clock clk') => Clocked clk' a)
-	    -> sig Bool -> sig (Enabled a)
-runClocked0 sub inp0 = runClocked1 (\ _ -> sub) (packEnabled inp0 (pureS ()))
-
-runClocked1 :: (Clock clk, CSeq clk ~ sig)
-	    => (forall clk' . (Clock clk') => Clocked clk' a -> Clocked clk' b)
-	    -> sig (Enabled a) -> sig (Enabled b)
-runClocked1 _ (Seq _ _) = Seq e_b e_bs
-  where
-	e_b = undefined
-	e_bs = undefined
-{-
-withClock :: (Clock clk) => (clk -> b) -> b
-withClock = undefined
-
-data X = X
-
-default X (X)
-
--}
