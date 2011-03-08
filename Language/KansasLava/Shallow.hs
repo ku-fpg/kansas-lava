@@ -14,7 +14,6 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
-import Data.Bits
 import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
 
@@ -554,10 +553,10 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
 
 -----------------------------------------------------------------------------
 
-log2 :: Int -> Int
+log2 :: (Integral a) => a -> a
 log2 0 = 0
 log2 1 = 1
-log2 n = log2 (n `shiftR` 1) + 1
+log2 n = log2 (n `div` 2) + 1
 
 -- Perhaps not, because what does X0 really mean over a wire, vs X1.
 instance Rep X0 where
