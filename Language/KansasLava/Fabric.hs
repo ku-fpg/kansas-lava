@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables
  #-}
-module Language.KansasLava.Fabric 
+module Language.KansasLava.Fabric
         ( Fabric(..)
         , Pad(..)
         , runFabric
@@ -51,18 +51,18 @@ data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,StdLogicType)
 
 instance Functor Fabric where
         fmap f fab = fab >>= \ a -> return (f a)
-                
+
 instance Monad Fabric where
         return a = Fabric $ \ _ -> (a,[],[])
         (Fabric f) >>= k = Fabric $ \ ins -> let
-                          (a,in_names,outs) = f ins 
+                          (a,in_names,outs) = f ins
                           (r,in_names',outs') = unFabric (k a) ins
                        in (r,in_names ++ in_names',outs ++ outs')
 
 instance MonadFix Fabric where
         mfix f = Fabric $ \ env -> let (a,in_names,outs) = unFabric (f a) env
                                    in (a,in_names,outs)
-        
+
 
 
 input :: String -> StdLogicType -> Fabric Pad
@@ -78,7 +78,7 @@ inStdLogic nm = do
         case pad of
           StdLogic_ sq -> return sq
           _            -> fail "internal type error in inStdLogic"
-          
+
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
         pad <- input nm SL
@@ -120,10 +120,10 @@ driving (Fabric f) (Fabric g) = Fabric $ \ ins ->
     let (_,f_in_names,f_outs) = f ins
         (b,g_in_names,g_outs) = g (f_outs ++ ins)
     in ( b
-       , f_in_names ++ [ (nm,ty) 
+       , f_in_names ++ [ (nm,ty)
                        | (nm,ty) <- g_in_names
                        , nm `notElem` map fst f_outs ]
-       , [ (nm,ty) 
+       , [ (nm,ty)
          | (nm,ty) <- f_outs
          , nm `notElem` map fst g_in_names
          ] ++ g_outs
@@ -132,7 +132,7 @@ driving (Fabric f) (Fabric g) = Fabric $ \ ins ->
 
 -- 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
 runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
-runFabric (Fabric f) args = result 
+runFabric (Fabric f) args = result
         where ((),_arg_types,result) = f args
 
 -------------------------------------------------------------------------------
