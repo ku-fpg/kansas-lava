@@ -283,3 +283,10 @@ sanitizeName ".>=."      = "le"
 sanitizeName other       = other
 
 
+{-
+-- Use the log of the resolution + 1 bit for sign
+log2 1 = 0
+log2 num
+   | num > 1 = 1 + log2 (num `div` 2)
+   | otherwise = error $ "Can't take the log of negative number " ++ show num
+-}

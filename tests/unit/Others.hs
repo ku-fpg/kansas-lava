@@ -19,9 +19,9 @@ import Utils
 tests :: TestSeq -> IO ()
 tests test = do
         -- Just the Num Stuff
-        let t :: (Num a, Ord a, Rep a) => String -> Gen a -> IO ()
-            t str arb = testOpsNum test str arb
-
+        let t :: (Fractional a, Ord a, Rep a) => String -> Gen a -> IO ()
+            t str arb = testOpsFractional test str arb
+            
         -- With Sampled, use
         --  * powers of two scale, larger than 1
         --  * make sure there are enough bits to represent
@@ -247,6 +247,23 @@ testOpsNum test tyName ws = do
                 , ("mul",(*),(*))
                 , ("max",max,max)
                 , ("min",min,min)
+                ]
+          ]
+
+testOpsFractional :: forall w .
+        (Ord w, Rep w, Fractional w) => TestSeq -> String -> Gen w -> IO ()
+testOpsFractional test tyName ws = do
+        testOpsNum test tyName ws
+
+        -- TODO: add in recip
+        sequence_
+          [ testUniOp test (name ++ "/" ++ tyName) op lavaOp ws
+          | (name,op,lavaOp) <-
+                -- for now, we *only* divide by powers of two, that we *can* divide by (in range)
+                [ ("divide_by_" ++ show n,(/ (fromIntegral n)),(/ (fromIntegral n)))
+                | n <- [2,4,8,16,32,64,128,256::Integer]
+                , let w = fromInteger n :: w
+                , (show n ++ ".0") == show w
                 ]
           ]
 

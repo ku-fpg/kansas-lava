@@ -322,30 +322,21 @@ use IEEE.NUMERIC_STD.ALL;
 entity sampled_fixedDivPowOfTwo is
   generic (
     width : natural := 8;     -- signal width
-    frac_width : natural := 8;      -- value for max * min 	
+    frac_width : natural := 8;      -- value for max * min
     shift_by : natural);
   port(i0 : in std_logic_vector(width-1 downto 0);
        o0 : out std_logic_vector(width-1 downto 0));
 end entity sampled_fixedDivPowOfTwo;
 
 architecture Behavioral of sampled_fixedDivPowOfTwo  is
-  signal t1 : std_logic_vector(width-1 downto 0);
-  signal t2 : std_logic;
-  signal t3 : std_logic_vector(width-1 downto 0);
-  signal t4 : std_logic_vector(width-1 downto 0);
- constant zeros : std_logic_vector(width - 2 downto 0) := (others => '0');
- constant ones  : std_logic_vector(width - 2 downto 0) := (others => '1');
+  signal r0 : std_logic_vector(width-1 downto 0);
 begin
   -- sign extend
-  t1 <= (width-1 downto width-(shift_by +1) => i0(width-1)) & i0(width- shift_by downto shift_by);
-  -- add on rounding
-  t4 <= (width-1 downto 1 => '0') & (0 downto 0 => t2);
+  r0 <= (width-1 downto width-(shift_by +1) => i0(width-1)) & i0(width-2 downto shift_by);
+
   -- This is Round half to even (http://en.wikipedia.org/wiki/Rounding#Round_half_to_even)
-  t2 <= '0'    when i0(1 downto 0) = "00" else -- 0
-        '0'    when i0(1 downto 0) = "01" else -- 0.25
-         i0(2) when i0(1 downto 0) = "10" else -- 0.5  round up if odd, to even
-        '1';                                   -- 0.75
-  -- solution
-  o0 <= std_logic_vector(signed(t1) + signed(t4));
+  o0 <= r0 when i0(shift_by-1) = '0' else
+        r0 when i0(shift_by) = '0' and i0(shift_by-1) = '1' and i0(shift_by - 2 downto 0) = 0 else
+        r0 + 1;
 end Behavioral;
 

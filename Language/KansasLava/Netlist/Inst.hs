@@ -5,7 +5,7 @@ module Language.KansasLava.Netlist.Inst where
 import Language.KansasLava.Types hiding (Trace(..))
 import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
-import Language.KansasLava.Shallow hiding (log2)
+import Language.KansasLava.Shallow
 import qualified Data.Map as M
 
 import Data.List
@@ -276,15 +276,9 @@ genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
 				        (ins ++ [ ("frac_width",
 				                        GenericTy,
-				                        Generic $ fromIntegral $ n - (1 + log2 m))
+				                        Generic $ fromIntegral $ n - (log2 m))
 					        , ("width",GenericTy, Generic $ fromIntegral n)
 					        ]))
-                where
-                        -- Use the log of the resolution + 1 bit for sign
-                  log2 1 = 0
-                  log2 num
-                    | num > 1 = 1 + log2 (num `div` 2)
-                    | otherwise = error $ "Can't take the log of negative number " ++ show num
 
 
 -- For compares, we need to use one of the arguments.
@@ -294,16 +288,21 @@ genInst env i (Entity (Prim op) [("o0",B)] [("i0",SampledTy m n,d0),("i1",Sample
         = genInst env i $ Entity (Prim op) [("o0",B)] [("i0",S n,d0),("i1",S n',d1)]
 
 -- This is only defined over constants that are powers of two.
-genInst _ i (Entity (Prim "/") [("o0",(SampledTy _ _))] [ ("i0",iTy,v), ("i1",_,Lit lit)])
+genInst _ i (Entity (Prim "/") [("o0",(SampledTy m n))] [ ("i0",iTy,v), ("i1",_,Lit lit)])
 --	= trace (show n)
-	|  fromRepToInteger lit == 16 * 4
-		-- BAD use of fromRepToInteger, because of the mapping to *ANY* value if undefined.
-    		-- HACKHACKHACKHACK, 64 : V8 ==> 4 :: Int, in Sampled world
+        | (val' `mod` (2^frac_width) == 0) && (2^(log2 val - 1) == val)
 	= [ InstDecl "Sampled_fixedDivPowOfTwo" ("inst" ++ show i)
-  		[ ("shift_by",ExprLit Nothing (ExprNum 2)) ] -- because / 4 is same as >> 2
-                [ ("i0",toStdLogicExpr iTy v) ]
+  		[ ("shift_by",ExprLit Nothing (ExprNum $ log2 val - 1))
+                , ("frac_width", ExprLit Nothing  $ ExprNum $ fromIntegral $ frac_width)
+		, ("width", ExprLit Nothing  $ ExprNum $ fromIntegral n)
+                ]
+                [ ("i0",toStdLogicExpr iTy v)
+                ]
 		[ ("o0",ExprVar $ sigName "o0" i) ]
           ]
+  where val' = fromRepToInteger lit 
+        val  = val' `div` (2 ^ frac_width)
+        frac_width = n - (log2 m)
 
 -- The following do not need any code in the inst segement
 
