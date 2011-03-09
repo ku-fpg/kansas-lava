@@ -28,7 +28,7 @@ Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
-                 fgl, filepath, data-default, unix, bytestring, Stream
+                 fgl, filepath, data-default, unix, bytestring
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
@@ -42,6 +42,7 @@ Library
        Language.KansasLava.Netlist.Inst
        Language.KansasLava.Netlist.Sync
        Language.KansasLava.Netlist.Utils
+       Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
        Language.KansasLava.Seq
@@ -58,10 +59,8 @@ Library
        Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
-       Language.KansasLava.Testing.Probes
        Language.KansasLava.Testing.Thunk
        Language.KansasLava.Testing.Trace
-       Language.KansasLava.Testing.Unit
        Language.KansasLava.Testing.Utils
   Other-modules:
        Language.KansasLava.Radix

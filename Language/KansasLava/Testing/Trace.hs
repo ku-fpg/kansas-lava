@@ -8,18 +8,27 @@ module Language.KansasLava.Testing.Trace (Trace(..), traceSignature, setCycles
                                          ,serialize, deserialize, genShallow, genInfo, asciiToTrace
                                          ,writeToFile, readFromFile{-, checkExpected, execute-}) where
 
-import Language.KansasLava.Types
-import Language.KansasLava.Shallow
-import Language.KansasLava.Utils
+import Language.KansasLava.Comb
 import Language.KansasLava.Seq
-import Language.KansasLava.Reify
+import Language.KansasLava.Shallow
+import Language.KansasLava.Types
+import Language.KansasLava.Utils
 
 --import Data.Stream(Stream)
-import  Language.KansasLava.Stream(Stream)
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Testing.Utils
 
 import Data.List
 import qualified Data.Map as M
+
+class Traceable a where
+    getSignal :: TraceStream -> a
+
+instance Rep a => Traceable (CSeq c a) where
+    getSignal ts = shallowSeq $ fromTrace ts
+
+instance Rep a => Traceable (Comb a) where
+    getSignal ts = shallowComb $ S.head $ fromTrace ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
@@ -246,8 +255,8 @@ readMap ls = (go thismap, rest)
                      )
                      M.empty
 
-addStream :: forall w. (Rep w) => ProbeName -> TraceMap -> Stream (X w) -> TraceMap
+addStream :: forall w. (Rep w) => ProbeName -> TraceMap -> S.Stream (X w) -> TraceMap
 addStream key m stream = M.insert key (toTrace stream) m
 
 addSeq :: forall w. (Rep w) => ProbeName -> Seq w -> TraceMap -> TraceMap
-addSeq key iseq m = addStream key m (seqValue iseq :: Stream (X w))
+addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))

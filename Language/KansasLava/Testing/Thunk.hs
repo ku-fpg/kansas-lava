@@ -1,27 +1,43 @@
 {-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
-module Language.KansasLava.Testing.Thunk (Thunk(..), runShallow, runDeep, mkThunk, mkTrace, recordThunk, runTestBench, exposeProbes, exposeProbesIO) where
+module Language.KansasLava.Testing.Thunk
+    ( mkTrace
+    , Thunk(..)
+    , runShallow
+    , runDeep
+    , mkTestBench
+    , runTestBench
+    , exposeProbes
+    , exposeProbesIO) where
 
 import Language.KansasLava hiding (head)
 
-import Language.KansasLava.Testing.Bench
-import Language.KansasLava.Testing.Trace
+-- import Language.KansasLava.Testing.Bench
+-- import Language.KansasLava.Testing.Trace
 
-import Control.Monad
+-- import Control.Monad
 
 import Data.List
-import qualified Data.Map as M
+-- import qualified Data.Map as M
 
 
 import System.Directory
 import System.FilePath.Posix
 
-data Thunk b = forall a. (Ports a, Ports b) => Thunk a (a -> b)
+data Thunk b = forall a. (Probe a, Probe b) => Thunk a (a -> b)
 
 instance (Show b) => Show (Thunk b) where
    show thunk = show $ runShallow thunk
 
+runShallow :: Thunk a -> a
+runShallow (Thunk c k) = k c
+
+mkTrace :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+        -> Fabric () -- ^ The fabric we are tracing
+        -> IO Trace
+mkTrace _ _ = undefined
+{-
 -- | Make a Trace from a Thunk
-mkTrace :: (Ports a)
+mkTrace :: (Probe a)
         => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
         -> Thunk a   -- ^ The thunk we are executing.
         -> IO Trace
@@ -30,7 +46,7 @@ mkTrace c thunk = do
     return trace
 
 -- | Make a Thunk from a Trace and a (non-reified) lava circuit.
-mkThunk :: forall a b. (Ports a, Rep b)
+mkThunk :: forall a b. (Probe a, Rep b)
         => Trace -- ^ A (possibly partial) trace to supply inputs.
         -> a     -- ^ The lava circuit.
         -> Thunk (Seq b)
@@ -39,7 +55,7 @@ mkThunk trace circuit = Thunk circuit (\c -> shallowSeq $ fromTrace $ run c trac
 -- | Like mkTrace, but also generates a VHDL testbench and input files.
 -- | Since we must shallowly run the thunk to generate the input, this returns a
 -- | trace as a convenience.
-recordThunk :: (Ports b)
+recordThunk :: (Probe b)
             => FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
             -> Int      -- ^ Generate inputs for this many cycles.
             -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
@@ -59,26 +75,29 @@ recordThunk path cycles circuitMod thunk@(Thunk _ _) = do
     mkTestbench name path rc
 
     return trace
-
--- | Execute a Thunk
-runShallow :: Thunk b -> b
-runShallow (Thunk circuit fn) = fn circuit
+-}
+mkTestBench :: FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
+            -> Int      -- ^ Generate inputs for this many cycles.
+            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
+            -> Fabric ()
+            -> IO Trace
+mkTestBench _ _ _ _ = undefined
 
 -- | Combination of recordThunk and runTestBench, working in the temp directory.
--- eventually runDeep :: (Ports b) => String -> Int -> Thunk b -> (FilePath -> IO ()) -> IO Trace
-runDeep :: (Ports b)
-        => String              -- ^ User significant name for the Thunk
+-- eventually runDeep :: (Probe b) => String -> Int -> Thunk b -> (FilePath -> IO ()) -> IO Trace
+runDeep :: String              -- ^ User significant name for the Thunk
         -> Int                 -- ^ Number of cycles to simulate.
-        -> Thunk b
+--        -> Thunk b
+        -> Fabric ()
         -> (Circuit -> IO Circuit) -- ^ any operations on the circuit before VHDL generation
         -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and charged with actually executing the test. Can assume path exists.
         -> IO ()
-runDeep name cycles thunk circuitMod invoker = do
+runDeep name cycles fabric circuitMod invoker = do
     tmp <- getTemporaryDirectory
 
     let target = tmp </> name
 
-    _ <- recordThunk target cycles circuitMod thunk
+    _ <- mkTestBench target cycles circuitMod fabric
     runTestBench target invoker
 
     -- there better not be any symlinks in here!
@@ -117,19 +136,21 @@ exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
 
           newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
 
-mkTraceCM :: (Ports a)
-          => Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
-          -> Thunk a   -- ^ The thunk we are executing.
+{-
+mkTraceCM :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+--          -> Thunk a   -- ^ The thunk we are executing.
+          -> Fabric ()
           -> (Circuit -> IO Circuit) -- Circuit Mod
           -> IO (Trace, Circuit)
-mkTraceCM c (Thunk circuit k) circuitMod = do
-    let probed = probeWholeCircuit circuit
+mkTraceCM c fabric circuitMod = do -- (Thunk circuit k) circuitMod = do
+--     let probed = probeWholeCircuit circuit
 
-    rc <- (reifyCircuit >=> mergeProbesIO >=> circuitMod) probed
+    rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric -- probed
 
     -- we can't apply circuitMods to applied circuit, because our pads disappear!
     -- TODO: figure out why we can't call mergeProbes on this
-    rcWithData <- reifyCircuit $ k probed
+--     rcWithData <- reifyCircuit $ k probed
+    let rcWithData = rc
 
     let pdata = [ (nid,k',v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rcWithData , k' <- ks ]
         outNum = maximum [ i | (_, WholeCircuit _ i _, _) <- pdata ]
@@ -144,3 +165,4 @@ mkTraceCM c (Thunk circuit k) circuitMod = do
     return (Trace { len = c, inputs = ins, outputs = outs, probes = ps }, rc)
   where grouping (_, WholeCircuit s1 i1 _, _) (_, WholeCircuit s2 i2 _, _) = s1 == s2 && i1 == i2
         grouping _ _ = False
+-}

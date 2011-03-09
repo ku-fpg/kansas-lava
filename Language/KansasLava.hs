@@ -1,63 +1,55 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GADTs, FlexibleContexts #-}
 
 module Language.KansasLava (
-    module Language.KansasLava.Comb,
     module Language.KansasLava.Circuit,
-    module Language.KansasLava.Clock,
-    module Language.KansasLava.Deep,
-    module Language.KansasLava.Fabric,
-
-    module Language.KansasLava.Shallow,
     module Language.KansasLava.Circuit.Optimization,
+    module Language.KansasLava.Clock,
+    module Language.KansasLava.Comb,
+    module Language.KansasLava.Deep,
+    module Language.KansasLava.Dynamic,
+    module Language.KansasLava.Fabric,
+    module Language.KansasLava.HandShake,
+    module Language.KansasLava.Probes,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
+    module Language.KansasLava.Shallow,
+    module Language.KansasLava.Shallow.FIFO,
     module Language.KansasLava.Signal,
-    module Language.KansasLava.Types,
+    module Language.KansasLava.StdLogicVector,
     module Language.KansasLava.Testing.Observe,
+    module Language.KansasLava.Testing.Output.Dot,
+    module Language.KansasLava.Types,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
-    module Language.KansasLava.StdLogicVector,
-    module Language.KansasLava.Shallow.FIFO,
 
-    module Language.KansasLava.Dynamic,
-    module Language.KansasLava.Testing.Output.Dot,
-    module Language.KansasLava.HandShake,
-    
+    -- until we track down the space leak
     module Language.KansasLava.Stream
---    module Language.KansasLava.Applicative,
---    module Language.KansasLava.Memory
-    -- hacks
---    examine, dumpBitTrace, Examine(..),
-
      ) where
 
-import Language.KansasLava.Comb
 import Language.KansasLava.Circuit
-import Language.KansasLava.Clock
-import Language.KansasLava.Deep
-import Language.KansasLava.Fabric
-
 import Language.KansasLava.Circuit.Optimization
+import Language.KansasLava.Clock
+import Language.KansasLava.Comb
+import Language.KansasLava.Deep
+import Language.KansasLava.Dynamic
+import Language.KansasLava.Fabric
+import Language.KansasLava.HandShake
+import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
+import Language.KansasLava.Shallow
+import Language.KansasLava.Shallow.FIFO
 import Language.KansasLava.Signal
-import Language.KansasLava.Types
+import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Testing.Observe
+import Language.KansasLava.Testing.Output.Dot
+import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
-import Language.KansasLava.Shallow
-import Language.KansasLava.Testing.Output.Dot
-
-import Language.KansasLava.StdLogicVector
-import Language.KansasLava.Shallow.FIFO
-import Language.KansasLava.HandShake
-
-
-import Language.KansasLava.Dynamic
 
 -- Till we track down the space leak
 import Language.KansasLava.Stream

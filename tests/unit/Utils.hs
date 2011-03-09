@@ -6,7 +6,7 @@ import Language.KansasLava.Testing.Thunk
 import Language.KansasLava.Testing.Trace
 
 import Control.Applicative
-import qualified Control.Exception as E
+-- import qualified Control.Exception as E
 import Control.Monad
 
 import Data.List as List
@@ -62,7 +62,6 @@ testSeq :: (Rep a, Show a, Eq a)
 testSeq opts name count thunk expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
-            path = (simPath opts) </> name
             report = fileReporter $ simPath opts
 
         verb 2 $ "testing(" ++ show count ++ ")"
@@ -73,47 +72,8 @@ testSeq opts name count thunk expected
         verb 9 $ show ("shallow",shallow)
         if cmpSeqRep count expected shallow
           then do verb 3 $ "shallow passed"
-                  if genSim opts
-                    then do createDirectoryIfMissing True path
-
-                            -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (recordThunk (path </> modname) count (snd cmod) thunk))
-                                       | cmod <- if permuteMods opts
-                                                    then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
-                                                           $ concatMap permutations
-                                                           $ subsequences
-                                                           $ simMods opts
-                                                    else simMods opts
-                                       , let modname = fst cmod
-                                       ]
-
-                            -- generate each testbench, report any failures
-                            ts <- sequence [ do vrb 2 $ "generating simulation"
-                                                E.catch (Just <$> action)
-                                                        (\e -> do vrb 3 "vhdl generation failed"
-                                                                  vrb 4 $ show (e :: E.SomeException)
-                                                                  rep $ CodeGenFail (show (e :: E.SomeException))
-                                                                  return Nothing)
-                                           | (modname, action) <- sims
-                                           , let rep = report (name </> modname)
-                                           , let vrb = verbose (verboseOpt opts) (name </> modname)
-                                           ]
-
-                            -- for successfully generated testbenches, add some files
-                            sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
-                                           copyLavaPrelude opts (path </> modname)
-                                           writeFile (path </> modname </> "options") $ show opts
-                                           vrb 9 $ show ("trace",fromJust t)
-                                      | (modname, t) <- zip (map fst sims) ts
-                                      , isJust t
-                                      , let vrb = verbose (verboseOpt opts) (name </> modname)
-                                      ]
-
-                            return ()
-                    else report name ShallowPass
           else do verb 1 $ "shallow FAILED"
-                  trace <- mkTrace (return count) thunk
-                  report name $ ShallowFail trace (toTrace $ seqValue expected)
+                  report name $ ShallowFail emptyTrace (toTrace $ seqValue expected)
 
   | otherwise = return ()
 

@@ -2,7 +2,7 @@
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
 module Language.KansasLava.Testing.Bench (mkTestbench) where
 
-import Language.KansasLava hiding (ports,Trace(..))
+import Language.KansasLava
 import Language.KansasLava.Netlist(preprocessNetlistCircuit)
 
 import Data.List(mapAccumL,sort)
@@ -39,16 +39,16 @@ architecture name circuit = unlines $
         ,"signal clk, rst : std_logic;"
         ,"constant input_size : integer := 16;"
         ,"constant output_size : integer := 16;"
-        ,"signal input : " ++ portType (inputs ++ outputs) ++ ":= (others => '0');"
-        ,"signal output : " ++ portType (inputs ++ outputs) ++ ";"
+        ,"signal input : " ++ portType (ins ++ outs) ++ ":= (others => '0');"
+        ,"signal output : " ++ portType (ins ++ outs) ++ ";"
         ,"begin"
-        ,stimulus name inputs outputs
-        ,dut name inputs outputs sequentials
+        ,stimulus name ins outs
+        ,dut name ins outs sequentials
         ,"end architecture sim;"]
-    where (inputs, outputs, sequentials) = ports circuit
+    where (ins, outs, sequentials) = ports circuit
 
 dut :: String -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
-dut name inputs outputs sequentials = unlines $ [
+dut name ins outs sequentials = unlines $ [
     "dut: entity work." ++ name,
     "port map ("] ++
     ["\t" ++ c ++ " => " ++ case c of
@@ -57,18 +57,18 @@ dut name inputs outputs sequentials = unlines $ [
 				"rst"    -> "rst,"
                                 n -> n
 	 	| (OVar _ c,_) <- sequentials] ++
-    (let xs = portAssigns inputs outputs in (init xs) ++ [init (last xs)]) ++
+    (let xs = portAssigns ins outs in (init xs) ++ [init (last xs)]) ++
     [");"]
 
 -- TODO: add clock speed argument
 stimulus :: String -> [(a, Type)] -> [(a, Type)] -> String
-stimulus name inputs outputs = unlines $ [
+stimulus name ins outs = unlines $ [
   "runtest: process  is",
   "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".shallow\";",
   "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".deep\";",
   "\tVARIABLE line_in,line_out  : LINE;",
-  "\tvariable input_var : " ++ portType (inputs ++ outputs) ++ ";",
-  "\tvariable output_var : " ++ portType (inputs ++ outputs) ++ ";",
+  "\tvariable input_var : " ++ portType (ins ++ outs) ++ ";",
+  "\tvariable output_var : " ++ portType (ins ++ outs) ++ ";",
   "\tvariable needs_rst : boolean := true;",
 
   "begin",
@@ -110,13 +110,13 @@ stimulus name inputs outputs = unlines $ [
         outputfile = name ++ "_output"
 	clockSpeed = 50 -- ns
 	pause n    = "\t\twait for " ++ (show (n * clockSpeed `div` (10 ::Int))) ++ " ns;"
-	outputRange = show (portLen (inputs ++ outputs) - 1) ++ " downto " ++ show (portLen outputs)
+	outputRange = show (portLen (ins ++ outs) - 1) ++ " downto " ++ show (portLen outs)
 
 -- Manipulating ports
 ports :: Circuit -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
-ports reified = (sort inputs, sort outputs, sort clocks)
-    where inputs  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
-          outputs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
+ports reified = (sort ins, sort outs, sort clocks)
+    where ins  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
+          outs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
           clocks  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
@@ -127,13 +127,13 @@ portLen :: [(a, Type)] -> Int
 portLen pts = sum (map (typeWidth .snd) pts)
 
 portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
-portAssigns inputs outputs = imap ++ omap
+portAssigns ins outs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (_,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") (portLen outputs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- inputs]
-        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outputs]
+        (_,imap) = mapAccumL (assign "input") (portLen outs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- ins]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outs]
 
 -- Modelsim 'do' script
 doscript :: String -> String
