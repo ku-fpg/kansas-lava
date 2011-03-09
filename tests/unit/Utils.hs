@@ -117,6 +117,26 @@ testSeq opts name count thunk expected
 
   | otherwise = return ()
 
+-- | Fabric outputs are equal if for each output from the left fabric,
+--   there exists an output in the right fabric with the same name, type,
+--   and sequence of values. Sequences are compared with cmpRepValue,
+--   so the left fabric is the 'golden' fabric, and may be more general
+--   in respect to unknowns than the right fabric.
+cmpFabricOutputs :: Int -> [(String,Pad)] -> [(String,Pad)] -> Bool
+cmpFabricOutputs count expected shallow =
+    and [    n1 == n2
+         && ty1 == ty2
+         && (and $ List.zipWith cmpRepValue (take count ereps) sreps)
+        | ((n1,pad1),(n2,pad2)) <- zip expected shallow
+        , let (ty1,ereps) = getTyRep pad1
+        , let (ty2,sreps) = getTyRep pad2
+        ]
+    where getTyRep :: Pad -> (StdLogicType, [RepValue])
+          getTyRep pad = case pad of
+                           StdLogic_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                           StdLogicVector_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                           Generic_ _ -> error "testFabrics: Generic output pad?"
+
 testFabrics
         :: Options                  -- Options
         -> String                   -- Test Name
@@ -128,8 +148,8 @@ testFabrics
 testFabrics opts name count f_driver f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
-            _path = (simPath opts) </> name
-            _report = fileReporter $ simPath opts
+            path = (simPath opts) </> name
+            report = fileReporter $ simPath opts
 
         verb 2 $ "testing(" ++ show count ++ ")"
 
@@ -145,33 +165,12 @@ testFabrics opts name count f_driver f_dut f_expected
         verb 9 $ show ("expected",expected)
         verb 9 $ show ("shallow",shallow)
 
-        let getTyRep :: Pad -> (StdLogicType, [RepValue])
-            getTyRep pad = case pad of
-                             StdLogic_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
-                             StdLogicVector_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
-                             Generic_ _ -> error "testFabrics: Generic output pad?"
-
-        if and [    n1 == n2
-                 && ty1 == ty2
-                 && (and $ List.zipWith cmpRepValue (take count ereps) sreps)
-               | ((n1,pad1),(n2,pad2)) <- zip expected shallow
-               , let (ty1,ereps) = getTyRep pad1
-               , let (ty2,sreps) = getTyRep pad2
-               ]
-          then do verb 3 $ "shallow passed"
-          else do verb 1 $ "shallow FAILED"
-          --        trace <- mkTrace (return count) thunk
---                  report name $ ShallowFail trace (toTrace $ seqValue expected)
-{-
---        verb 9 $ show ("expected",expected)
-        -- First run the shallow
-        let shallow = runShallow thunk
-        verb 9 $ show ("shallow",shallow)
-        if cmpSeqRep count expected shallow
+        if cmpFabricOutputs count expected shallow
           then do verb 3 $ "shallow passed"
                   if genSim opts
                     then do createDirectoryIfMissing True path
 
+{- need recordThunk and mkTrace replacement
                             -- get permuted/unpermuted list of sims for which we generate testbenches
                             let sims = [ (modname, (recordThunk (path </> modname) count (snd cmod) thunk))
                                        | cmod <- if permuteMods opts
@@ -205,13 +204,12 @@ testFabrics opts name count f_driver f_dut f_expected
                                       , let vrb = verbose (verboseOpt opts) (name </> modname)
                                       ]
 
+-}
                             return ()
                     else report name ShallowPass
           else do verb 1 $ "shallow FAILED"
-                  trace <- mkTrace (return count) thunk
-                  report name $ ShallowFail trace (toTrace $ seqValue expected)
-
--}
+--                trace <- mkTrace (return count) thunk
+--                report name $ ShallowFail trace (toTrace $ seqValue expected)
   | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
