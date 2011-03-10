@@ -18,7 +18,6 @@ module Language.KansasLava.Fabric
 
 import Language.KansasLava.Types
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
 import Data.Sized.Unsigned
 import Data.Sized.Ix
 import Control.Monad.Fix
@@ -35,10 +34,9 @@ data Pad = StdLogic_ (Seq Bool)
 
 padStdLogicType :: Pad -> StdLogicType
 padStdLogicType (StdLogic_ _)       = SL
--- ACF: surely there is a better way to do this?
-padStdLogicType (StdLogicVector_ s) = SLV (let untype :: Seq (Unsigned a) -> a
-                                               untype = error "untype"
-                                           in size (untype s))
+padStdLogicType (StdLogicVector_ s) = SLV $ size (untype s)
+    where untype :: Seq (Unsigned a) -> a
+          untype = error "untype"
 padStdLogicType (Generic_ _)        = G
 
 instance Show Pad where
@@ -49,7 +47,7 @@ instance Show Pad where
          -- TODO: the 2D Array
 
 -- The 'Fabric' structure, which is also a monad.
-data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,StdLogicType,Pad)],[(String,Pad)]) }
+data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
 
 instance Functor Fabric where
         fmap f fab = fab >>= \ a -> return (f a)
@@ -67,30 +65,30 @@ instance MonadFix Fabric where
 
 
 
-input :: String -> StdLogicType -> Pad -> Fabric Pad
-input nm ty deepPad = Fabric $ \ ins ->
+input :: String -> Pad -> Fabric Pad
+input nm deepPad = Fabric $ \ ins ->
         let p = case lookup nm ins of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
-        in (p,[(nm,ty,deepPad)],[])
+        in (p,[(nm,deepPad)],[])
 
 inStdLogic :: String -> Fabric (Seq Bool)
 inStdLogic nm = do
-        pad <- input nm SL (StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm))
+        pad <- input nm (StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm))
         case pad of
           StdLogic_ sq -> return sq
           _            -> fail "internal type error in inStdLogic"
 
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
-        pad <- input nm G (error "FIx inGeneric")
+        pad <- input nm (Generic_ $ error "Fix Generic")
         case pad of
           Generic_ g -> return g
           _          -> fail "internal type error in inGeneric"
 
 inStdLogicVector :: forall x . (Size x) => String -> Fabric (Seq (Unsigned x))
 inStdLogicVector nm = do
-        pad <- input nm (SLV $ size (error "witness" :: x)) (StdLogicVector_ $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq (Unsigned x)))
+        pad <- input nm (StdLogicVector_ $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq (Unsigned x)))
         case pad of
           StdLogicVector_ sq -> return $ (unsigned) sq
           _                  -> fail "internal type error in inStdLogic"

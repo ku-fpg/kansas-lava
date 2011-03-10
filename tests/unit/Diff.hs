@@ -3,18 +3,15 @@ import Language.KansasLava.Testing.Trace
 import Language.KansasLava.Testing.Output.VCD
 
 import Control.Applicative
-import qualified Data.Map as M
 import System.Environment
 
 vcdDiff :: Trace -> Trace -> String
 vcdDiff (Trace c1 i1 o1 p1) (Trace _ i2 o2 p2) = toVCD t
     where t = Trace c1 (mergeMaps i1 i2) (mergeMaps o1 o2) (mergeMaps p1 p2)
-          prefixKey p k = case k of
-                            Probe nm i n -> Probe (p ++ nm) i n
-                            WholeCircuit s i n -> Probe (p ++ "WholeCircuit" ++ s) i n
-          mergeMaps m1 m2 = M.fromList $ [ (prefixKey "trace1_" k,v) | (k,v) <- M.toList m1 ]
-                                         ++
-                                         [ (prefixKey "trace2_" k,v) | (k,v) <- M.toList m2 ]
+          prefixKey p (OVar i nm) = OVar i $ p ++ nm
+          mergeMaps m1 m2 = [ (prefixKey "trace1_" k,v) | (k,v) <- m1 ]
+                            ++
+                            [ (prefixKey "trace2_" k,v) | (k,v) <- m2 ]
 
 main :: IO ()
 main = do

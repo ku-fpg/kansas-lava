@@ -15,17 +15,13 @@ import qualified Data.Sized.Unsigned as U
 reifyFabric :: F.Fabric () -> IO Circuit
 reifyFabric (F.Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
-        let (_,ins0,outs0) =
-                circuit [ (nm,pad)
-                        | (nm,ty,pad) <- ins0
-                        ]
+        let (_,ins0,outs0) = circuit ins0
 
         let mkU :: forall x . (M.Size x) => Seq (U.Unsigned x) -> Type
             mkU _ = U (M.size (error "witness" :: x))
 
         let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,F.StdLogic_ s) <- outs0 ] ++
                        [ (nm, mkU s, unD $ seqDriver s) | (nm,F.StdLogicVector_ s) <- outs0 ]
-
 
         let o = Port ("top")
                 $ E
@@ -37,7 +33,6 @@ reifyFabric (F.Fabric circuit) = do
         (gr, outpads) <- case o of
                 Port _ o' -> do
                    (Graph gr out) <- reifyGraph o'
-                   print gr
                    let gr' = [ (nid,nd) | (nid,nd) <- gr
                                         , nid /= out
                              ]
@@ -50,7 +45,7 @@ reifyFabric (F.Fabric circuit) = do
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
         let rCit = Circuit { theCircuit = gr
-                            , theSrcs = [ (OVar 0 nm,fromStdLogicType lTy) | (nm,lTy,_) <- ins0 ]
+                            , theSrcs = [ (OVar 0 nm,fromStdLogicType $ F.padStdLogicType pad) | (nm,pad) <- ins0 ]
                             , theSinks = outpads
                             }
 

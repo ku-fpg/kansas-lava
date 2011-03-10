@@ -33,10 +33,8 @@ module Language.KansasLava.Types (
         , getValidRepValue
         , cmpRepValue
         -- * Tracing
-        , ProbeName(..)
         , TraceStream(..)
         , cmpTraceStream
-        , TraceMap
         , Trace(..)
         -- * Circuit
         , Circuit(..)
@@ -58,7 +56,6 @@ import Data.Char
 import Data.Dynamic
 import qualified Data.Foldable as F
 import Data.List as L
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import Data.Reify
@@ -235,7 +232,7 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
 
 
                                                 --
-        | TraceVal [ProbeName] TraceStream      -- ^ trace (probes, etc)
+        | TraceVal [OVar] TraceStream           -- ^ trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
@@ -498,51 +495,15 @@ cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && count
           s1LTs2 = (length $ take count s1) <= (length $ take count s2)
           eql = and $ take count $ zipWith cmpRepValue s1 s2
 
-data ProbeName = Probe String Int Int -- name, arg-order (if any), node id
-               | WholeCircuit String Int Int -- special probe used by mkTrace
-    deriving (Eq, Ord)
-
-instance Show ProbeName where
-    show (Probe nm argnum nodeid) = nm ++ "_" ++ show argnum ++ "_" ++ show nodeid
-    show (WholeCircuit suf argnum nodeid) = "WholeCircuit" ++ suf ++ "_" ++ show argnum ++ "_" ++ show nodeid
-
-instance Read ProbeName where
-        readsPrec _ xs = case span (/= '_') xs of
-                          (n,'_':r1) -> case span (/= '_') r1 of
-                                            (argnum,'_':r2) -> [ if "WholeCircuit" `isPrefixOf` n
-                                                                    then (WholeCircuit (maybe "" id (stripPrefix "WholeCircuit" n)) (read argnum) i,r3)
-                                                                    else (Probe n (read argnum) i,r3)
-                                                               | (i,r3) <- reads r2 ]
-                                            _         -> [] -- no parse
-                          _         -> [] -- no parse
-
--- TODO: change this back to a list, to encode the order
-type TraceMap = M.Map ProbeName TraceStream
-
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
 data Trace = Trace { len :: Maybe Int
-                   , inputs :: TraceMap
-                   , outputs :: TraceMap
-                   , probes :: TraceMap
+                   , inputs :: [(OVar,TraceStream)]
+                   , outputs :: [(OVar,TraceStream)]
+                   , probes :: [(OVar,TraceStream)]
                    }
 --    deriving (Show, Read)
 
----------------------------------------------------------------------------------------------------------
-{-
--- TODO: Remove
-data Annotation = Comment String                -- intended to arrive in the VHDL
-                | Ann String Int
---                | Ann String Dynamic
-
-instance Eq Annotation where {}
-instance Ord Annotation where {}
-instance Show Annotation where
-    show (Comment str) = "Comment: " ++ str
-    show _             = error "Show: Unknown Annotation"
--}
----------------------------------------------------------------------------------------------------------
 -- | 'Circuit' isd our primary way of representing a graph of entities.
-
 data Circuit = Circuit
         { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.

@@ -6,7 +6,7 @@ import Language.KansasLava.Testing.Thunk
 import Language.KansasLava.Testing.Trace
 
 import Control.Applicative
--- import qualified Control.Exception as E
+import qualified Control.Exception as E
 import Control.Monad
 
 import Data.List as List
@@ -73,7 +73,7 @@ testSeq opts name count thunk expected
         if cmpSeqRep count expected shallow
           then do verb 3 $ "shallow passed"
           else do verb 1 $ "shallow FAILED"
-                  report name $ ShallowFail emptyTrace (toTrace $ seqValue expected)
+                  report name $ ShallowFail emptyTrace emptyTrace -- (toTrace $ seqValue expected)
 
   | otherwise = return ()
 
@@ -130,9 +130,8 @@ testFabrics opts name count f_driver f_dut f_expected
                   if genSim opts
                     then do createDirectoryIfMissing True path
 
-{- need recordThunk and mkTrace replacement
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (recordThunk (path </> modname) count (snd cmod) thunk))
+                            let sims = [ (modname, (mkTestBench (path </> modname) count (snd cmod) f_dut inp))
                                        | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
@@ -164,12 +163,12 @@ testFabrics opts name count f_driver f_dut f_expected
                                       , let vrb = verbose (verboseOpt opts) (name </> modname)
                                       ]
 
--}
                             return ()
                     else report name ShallowPass
           else do verb 1 $ "shallow FAILED"
---                trace <- mkTrace (return count) thunk
---                report name $ ShallowFail trace (toTrace $ seqValue expected)
+                  t_dut <- mkTrace (return count) f_dut inp
+                  t_expected <- mkTrace (return count) f_expected []
+                  report name $ ShallowFail t_dut t_expected
   | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()

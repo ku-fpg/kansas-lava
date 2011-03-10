@@ -19,8 +19,7 @@ addProbeIds circuit = circuit { theCircuit = newCircuit }
     where newCircuit = [ addId entity | entity <- theCircuit circuit ]
           addId (nid, Entity (TraceVal nms strm) outs ins) = (nid, Entity (TraceVal (map (addToName nid) nms) strm) outs ins)
           addId other = other
-          addToName nid (Probe nm arg _) = Probe nm arg nid
-          addToName nid (WholeCircuit suf arg _) = WholeCircuit suf arg nid
+          addToName nid (OVar _ nm) = OVar nid nm
 
 mergeProbesIO :: Circuit -> IO Circuit
 mergeProbesIO = return . mergeProbes
@@ -71,7 +70,7 @@ probeList rc = [ (n,e) | (n,e@(Entity (TraceVal _ _) _ _)) <- theCircuit rc ]
 -- probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[ProbeName])]
 -- probesOn x rc = probesOnAL x $ theCircuit rc
 
-probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[ProbeName])]
+probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[OVar])]
 probesOnAL x al = [ (ident,nms) | (ident, Entity (TraceVal nms _) _ ins) <- al
                              , (_,_,d) <- ins
                              , d == x ]

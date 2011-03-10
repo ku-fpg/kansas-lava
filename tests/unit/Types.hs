@@ -67,7 +67,7 @@ instance Default Options where
 
 type TestCase = (String, Result)
 
-data Result = ShallowFail Trace TraceStream  -- Shallow result doesn't match expected
+data Result = ShallowFail Trace Trace        -- Shallow result doesn't match expected
             | ShallowPass                    -- Shallow result matches, we aren't simulating
             | SimGenerated                   -- Shallow passed, testbench generated, not running sim
             | CodeGenFail String             -- Shallow passed, testbench generation failed
