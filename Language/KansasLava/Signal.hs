@@ -40,10 +40,14 @@ undefinedS = liftS0 undefinedComb
 -- | k is a constant
 
 ----------------------------------------------------------------------------------------------------
+-- Should these be merged?
 
 -- TODO: insert Id/Comment
 comment :: (Signal sig, Rep a) => String -> sig a -> sig a
-comment _ = liftS1 $ \ (Comb s (D d)) -> Comb s (D d)
+comment msg = liftS1 $ \ (Comb s ae) -> Comb s $ entity1 (Comment' [msg]) ae
+
+label :: (Rep a, Signal sig) => String -> sig a -> sig a
+label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
 
 ----------------------------------------------------------------------------------------------------
 
@@ -88,8 +92,6 @@ wireName :: (Rep a) => a -> String
 wireName _ = "Lava"
 
 
-label :: (Rep a, Signal sig) => String -> sig a -> sig a
-label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
 
 -----------------------------------------------------------------------------------------------
 
