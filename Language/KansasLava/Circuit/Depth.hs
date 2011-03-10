@@ -45,10 +45,9 @@ findChains fn cir = reverse
 		findDriverChain (Pad _)     = 0
 		findDriverChain (Lit _)     = 0
                 findDriverChain (Lits _)    = 0
-		findDriverChain (Generic g) = 0
+		findDriverChain (Generic _) = 0
                 findDriverChain (Error err) = error $ "Error: " ++ show err
                 findDriverChain (ClkDom nm) = error $ "ClkDom: " ++ show nm
-                findDriverChain (Lits ls) = error $ "Lits: " ++ show ls
 
 
 depthTable :: [(Id,DepthOp)]
