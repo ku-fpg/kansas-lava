@@ -16,11 +16,8 @@ reifyFabric :: F.Fabric () -> IO Circuit
 reifyFabric (F.Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
         let (_,ins0,outs0) =
-                circuit [ (nm, case ty of
-                                SL -> F.StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm)
-                                _ -> error "not implemented yet"
-                          )
-                        | (nm,ty) <- ins0
+                circuit [ (nm,pad)
+                        | (nm,ty,pad) <- ins0
                         ]
 
         let mkU :: forall x . (M.Size x) => Seq (U.Unsigned x) -> Type
@@ -53,7 +50,7 @@ reifyFabric (F.Fabric circuit) = do
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
         let rCit = Circuit { theCircuit = gr
-                            , theSrcs = [ (OVar 0 nm,fromStdLogicType lTy) | (nm,lTy) <- ins0 ]
+                            , theSrcs = [ (OVar 0 nm,fromStdLogicType lTy) | (nm,lTy,_) <- ins0 ]
                             , theSinks = outpads
                             }
 

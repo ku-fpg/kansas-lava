@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 import Language.KansasLava as KL
 import Data.Sized.Unsigned
+import Data.Sized.Signed
 import Data.Sized.Matrix
 
 -- Example for Andrew, of FIFOs in use, in a shallow setting
@@ -10,8 +11,8 @@ main = do
         print c
         c <- reifyFabric fabric_example2
         print c
-        print $ circuitSignature c
-        c <- reifyFabric (example1 `driving` example2)
+--        print $ circuitSignature c
+--        c <- reifyFabric (example1 `driving` example2)
         print c
         
 
@@ -49,6 +50,11 @@ example2 = do
         outStdLogic "x" (i0 `and2` i1)
         outStdLogic "s" (i0 `and2` i2)
 
+example3 :: Fabric ()
+example3 = do
+        ins0 <- inStdLogicVector "ins0" :: Fabric (Seq (Unsigned X4))
+        let outs0 = liftS1 negate ((coerce) ins0) :: Seq (Signed X4)
+        outStdLogicVector "outs0" ((coerce) outs0)
         
 halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool,Seq Bool)
 halfAdder a b = (carry,sum_)
