@@ -4,7 +4,6 @@ module Others (tests) where
 import Language.KansasLava
 --import qualified Data.Stream as S
 import qualified Language.KansasLava.Stream as S
-import Language.KansasLava.Testing.Thunk
 
 import Data.Bits
 import Data.Sized.Ix
@@ -71,7 +70,7 @@ tests test = do
         -- None
 
         --  Now registers
-        let t :: (Eq a, Show a, Rep a) => String -> Gen a -> IO ()
+        let t :: (Eq a, Show a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t str arb = testRegister test str arb
 
         t "U1" (loop 10 (arbitrary :: Gen U1))
@@ -80,7 +79,7 @@ tests test = do
         t "Int" (loop 10 (arbitrary :: Gen Int))
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
 
-        let t :: (Eq a, Show a, Rep a) => String -> Gen a -> IO ()
+        let t :: (Eq a, Show a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t str arb = testDelay test str arb
 
         t "U1" (loop 10 (arbitrary :: Gen U1))
@@ -89,70 +88,19 @@ tests test = do
         t "Int" (loop 10 (arbitrary :: Gen Int))
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
 
-{- unused?
-main_testLabel :: IO ()
-main_testLabel = do
-        let g :: Seq U4 -> Seq U4 -> Seq U4
-            g a b = output "out" ((+) (input "a" a) (input "b" b))
-
-        c <- reifyCircuit g
-        print c
-        let sig = circuitSignature c
-        if "[(a$0,4U),(b$1,4U)]" == show (sort (sigInputs sig))
-          then print "label inputs passed"
-          else do print ("labels failed: ",show sig,show (sort (sigInputs sig)))
-                  print c
-        print ()
-
-allValues :: forall w . (Rep w) => [w]
-allValues = xs
-    where
-        xs :: [w]
-        xs = Maybe.catMaybes
-           $ fmap (unX :: X w -> Maybe w)
-           $ fmap (fromRep :: RepValue -> X w)
-           $ (allReps (Witness :: Witness w))
-
-allBounded :: (Enum w, Bounded w) => [w]
-allBounded = [minBound..maxBound]
-
--------------------------------------------------------------------------------------------------
-testMux :: forall a .
---        (Size (ADD (WIDTH a) (WIDTH a)),
---         Enum (ADD (WIDTH a) (WIDTH a)),
-        (Eq a, Show a, Rep a) => TestSeq -> String -> Gen (Bool,a,a) -> IO ()
-testMux (TestSeq test toList) nm gen = do
-        let (gate,us0,us1) = unzip3 $ toList gen
-        let thu = Thunk (mux2 :: Seq Bool -> (Seq a, Seq a) -> Seq a)
-                        (\ f -> f (toSeq gate)
-                                  (toSeq us0, toSeq us1)
-                        )
-            res = toSeq (Prelude.zipWith3 (\ c x y -> if c then x else y)
-                                  gate
-                                  us0
-                                  us1
-                        )
-        test nm (length gate) thu res
-
--------------------------------------------------------------------------------------------------
--}
 -- This only tests at the *value* level, and ignores testing unknowns.
 
-{-
-testUniOp :: (Rep a, Show a, Eq a, Rep b, Show b, Eq b) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
+testUniOp :: forall a b .
+             (Rep a, Show a, Size (W a)
+             ,Rep b, Show b, Size (W b))
+          => TestSeq
+          -> String
+          -> (a -> b)
+          -> (Comb a
+          -> Comb b)
+          -> Gen a
+          -> IO ()
 testUniOp (TestSeq test toList) nm op lavaOp gen = do
-        let us0 = toList gen
-        let thu = Thunk (liftS1 lavaOp)
-                        (\ f -> f (toSeq us0)
-                        )
-            res = toSeq (fmap op
-                              us0
-                        )
-        test nm (length us0) thu res
--}
-
-testUniOp :: forall a b . (Rep a, Show a, Eq a, Rep b, Show b, Eq b, Size (W a), Size (W b)) => TestSeq -> String -> (a -> b) -> (Comb a -> Comb b) -> Gen a -> IO ()
-testUniOp (TestSeq _ test toList) nm op lavaOp gen = do
         let us0 = toList gen
         let driver = do
                 outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
@@ -166,34 +114,61 @@ testUniOp (TestSeq _ test toList) nm op lavaOp gen = do
         test nm (length us0) driver dut res
 
 
-testBinOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c) => TestSeq -> String -> (a -> b -> c) -> (Comb a -> Comb b -> Comb c) -> Gen (a,b) -> IO ()
-testBinOp (TestSeq test _ toList) nm op lavaOp gen = do
+testBinOp :: forall a b c .
+             (Rep a, Show a, Size (W a)
+             ,Rep b, Show b, Size (W b)
+             ,Rep c, Show c, Size (W c))
+          => TestSeq
+          -> String
+          -> (a -> b -> c)
+          -> (Comb a -> Comb b -> Comb c)
+          -> Gen (a,b)
+          -> IO ()
+testBinOp (TestSeq test toList) nm op lavaOp gen = do
         let (us0,us1) = unzip $ toList gen
-        let thu = Thunk (liftS2 lavaOp)
-                        (\ f -> f (toSeq us0) (toSeq us1)
-                        )
-            res = toSeq (Prelude.zipWith op
-                                  us0
-                                  us1
-                        )
-        test nm (length (zip us0 us1)) thu res
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i1" (coerce (toSeq us1) :: Seq (Unsigned (W b)))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                i1 <- inStdLogicVector "i1"
+                let o0 = liftS2 lavaOp (coerce i0) (coerce i1)
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce $ toSeq (Prelude.zipWith op us0 us1))
 
-testTriOp :: (Rep a, Show a, Eq c, Rep b, Show b, Eq b, Rep c, Show c, Rep d, Show d, Eq d) => TestSeq -> String -> (a -> b -> c -> d) -> (Comb a -> Comb b -> Comb c -> Comb d) -> Gen (a,b,c) -> IO ()
-testTriOp (TestSeq test _ toList) nm op lavaOp gen = do
+        test nm (length (zip us0 us1)) driver dut res
+
+testTriOp :: forall a b c d .
+             (Rep a, Show a, Size (W a)
+             ,Rep b, Show b, Size (W b)
+             ,Rep c, Show c, Size (W c)
+             ,Rep d, Show d, Size (W d))
+          => TestSeq
+          -> String
+          -> (a -> b -> c -> d)
+          -> (Comb a -> Comb b -> Comb c -> Comb d)
+          -> Gen (a,b,c)
+          -> IO ()
+testTriOp (TestSeq test toList) nm op lavaOp gen = do
         let (us0,us1,us2) = unzip3 $ toList gen
-        let thu = Thunk (liftS3 lavaOp)
-                        (\ f -> f (toSeq us0) (toSeq us1) (toSeq us2)
-                        )
-            res = toSeq (Prelude.zipWith3 op
-                                  us0
-                                  us1
-                                  us2
-                        )
-        test nm (length (zip us0 us1)) thu res
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i1" (coerce (toSeq us1) :: Seq (Unsigned (W b)))
+                outStdLogicVector "i2" (coerce (toSeq us2) :: Seq (Unsigned (W c)))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                i1 <- inStdLogicVector "i1"
+                i2 <- inStdLogicVector "i2"
+                let o0 = liftS3 lavaOp (coerce i0) (coerce i1) (coerce i2)
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce $ toSeq (Prelude.zipWith3 op us0 us1 us2))
+        test nm (length (zip3 us0 us1 us2)) driver dut res
 
 ------------------------------------------------------------------------------------------------
 
-testOpsEq :: (Rep w, Eq w, Show w) => TestSeq -> String -> Gen w -> IO ()
+testOpsEq :: (Rep w, Eq w, Show w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
 testOpsEq test tyName ws = do
         let ws2 = pair ws
 
@@ -219,7 +194,7 @@ testOpsEq test tyName ws = do
 ------------------------------------------------------------------------------------------------
 
 
-testOpsOrd :: (Rep w, Ord w, Show w) => TestSeq -> String -> Gen w -> IO ()
+testOpsOrd :: (Rep w, Ord w, Show w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
 testOpsOrd test tyName ws = do
         let ws2 = pair ws
 
@@ -318,26 +293,33 @@ triple ws = pure (,,) <*> ws <*> ws <*> ws
 
 --------------------------------------------------------------------------------------
 -- Testing register and memory
-testRegister :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
-testRegister  (TestSeq test _ toList) tyName ws = do
+testRegister :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
+testRegister  (TestSeq test toList) tyName ws = do
         let (u0:us0) = toList ws
-        let reg = register :: w -> Seq w -> Seq w
-        let thu = Thunk (reg u0)
-                        (\ f -> f (toSeq us0)
-                        )
-            res = toSeq (u0 : us0)
-        test ("register/" ++ tyName) (length us0) thu res
+            reg = register :: a -> Seq a -> Seq a
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = reg u0 $ coerce i0
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce $ toSeq (u0 : us0))
+        test ("register/" ++ tyName) (length us0) driver dut res
         return ()
 
-testDelay :: forall w . (Show w, Eq w, Rep w) => TestSeq -> String -> Gen w -> IO ()
-testDelay  (TestSeq test _ toList) tyName ws = do
+testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
+testDelay  (TestSeq test toList) tyName ws = do
         let us0 = toList ws
-        let reg = delay :: Seq w -> Seq w
-        let thu = Thunk reg
-                        (\ f -> f (toSeq us0)
-                        )
-            res = shallowSeq (S.Cons unknownX  (S.fromList (map pureX us0)))
-        test ("delay/" ++ tyName) (length us0) thu res
+            dlay = delay :: Seq a -> Seq a
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = dlay $ coerce i0
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce $ shallowSeq (S.Cons unknownX (S.fromList (map pureX us0))))
+
+        test ("delay/" ++ tyName) (length us0) driver dut res
         return ()
-
-

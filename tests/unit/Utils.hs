@@ -48,34 +48,8 @@ fileReporter path nm res = do
 -- do some tests for sanity.
 
 data TestSeq = TestSeq
-        (forall a . (Rep a, Show a, Eq a) => String -> Int -> Thunk (Seq a) -> Seq a -> IO ())
         (String -> Int  -> Fabric () -> Fabric () -> Fabric () -> IO ())
         (forall a. Gen a -> [a])
-
-testSeq :: (Rep a, Show a, Eq a)
-        => Options                  -- Options
-        -> String                   -- Test Name
-        -> Int                      -- Number of Cycles
-        -> Thunk (Seq a)            -- Circuit and Input
-        -> Seq a                    -- Expected Result
-        -> IO ()
-testSeq opts name count thunk expected
-   | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
-        let verb = verbose (verboseOpt opts) name
-            report = fileReporter $ simPath opts
-
-        verb 2 $ "testing(" ++ show count ++ ")"
-        verb 9 $ show ("expected",expected)
-
-        -- First run the shallow
-        let shallow = runShallow thunk
-        verb 9 $ show ("shallow",shallow)
-        if cmpSeqRep count expected shallow
-          then do verb 3 $ "shallow passed"
-          else do verb 1 $ "shallow FAILED"
-                  report name $ ShallowFail emptyTrace emptyTrace -- (toTrace $ seqValue expected)
-
-  | otherwise = return ()
 
 -- | Fabric outputs are equal if for each output from the left fabric,
 --   there exists an output in the right fabric with the same name, type,

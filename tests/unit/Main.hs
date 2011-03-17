@@ -26,7 +26,7 @@ main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , genSim = True
                       , simMods = [("default_opts", (optimizeCircuit def))]
-                      , testOnly = return ["negate"]
+--                      , testOnly = return ["negate"]
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }
@@ -37,8 +37,7 @@ main = do
         prepareSimDirectory opt
 
         let test :: TestSeq
-            test = TestSeq (testSeq opt)
-                           (testFabrics opt)
+            test = TestSeq (testFabrics opt)
                            (take (testData opt) . genToRandom)
 
         -- The different tests to run (from different modules)
@@ -46,7 +45,7 @@ main = do
                   | t <- [ {- Matrix.tests
                          , Memory.tests
                          , FIFO.tests
-                         , Coerce.tests 
+                         , Coerce.tests
                          , -} Others.tests
                          ]
                   ]
