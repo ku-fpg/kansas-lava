@@ -142,6 +142,8 @@ testFabrics opts name count f_driver f_dut f_expected
           else do verb 1 $ "shallow FAILED"
                   t_dut <- mkTrace (return count) f_dut inp
                   t_expected <- mkTrace (return count) f_expected []
+                  verb 4 $ show t_dut
+                  verb 4 $ show t_expected
                   report name $ ShallowFail t_dut t_expected
   | otherwise = return ()
 
