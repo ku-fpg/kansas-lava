@@ -3,9 +3,9 @@
 module Matrix where
 
 import Language.KansasLava
-import Language.KansasLava.Testing.Thunk
 
 import Utils
+import Data.Sized.Arith
 import Data.Sized.Unsigned
 import qualified Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Ix
@@ -23,26 +23,48 @@ tests test = do
         return ()
 
 
-testMatrix1 :: forall w1 w2 . (Num w2, Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (M.Matrix w1 w2) -> IO ()
+testMatrix1 :: forall w1 w2 .
+               ( Integral w1, Size w1, Eq w1, Rep w1
+               , Num w2, Eq w2, Show w2, Rep w2
+               , Size (Column w1), Size (Row w1), Size (W w2), Size (MUL w1 (W w2)))
+            => TestSeq
+            -> String
+            -> Gen (M.Matrix w1 w2)
+            -> IO ()
 testMatrix1 (TestSeq test toList') tyName ws = do
         let ms = toList' ws
-        let cir = sum . M.toList . unpack :: Seq (M.Matrix w1 w2) -> Seq w2
-        let thu = Thunk cir
-                        (\ cir -> cir (toSeq ms)
-                        )
-            res :: Seq w2
-            res = toSeq [ sum $ M.toList m | m <- ms ]
-        test ("matrix/1/" ++ tyName) (length ms) thu res
+            cir = sum . M.toList . unpack :: Seq (M.Matrix w1 w2) -> Seq w2
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq ms) :: Seq (Unsigned (MUL w1 (W w2))))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = cir (coerce i0)
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce (toSeq [ sum $ M.toList m | m <- ms ] :: Seq w2))
 
-testMatrix2 :: forall w1 w2 . (Num w2, Integral w1, Size w1, Eq w1, Rep w1, Eq w2, Show w2, Size (Column w1), Size (Row w1), Rep w2) => TestSeq -> String -> Gen (M.Matrix w1 w2) -> IO ()
+        test ("matrix/1/" ++ tyName) (length ms) driver dut res
+
+testMatrix2 :: forall w1 w2 .
+               ( Integral w1, Size w1, Eq w1, Rep w1
+               , Eq w2, Show w2, Rep w2, Num w2
+               , Size (Column w1), Size (Row w1), Size (MUL w1 (W w2)))
+            => TestSeq
+            -> String
+            -> Gen (M.Matrix w1 w2)
+            -> IO ()
 testMatrix2 (TestSeq test toList') tyName ws = do
         let ms = toList' ws
-        let cir = pack . (\ m -> M.forAll $ \ i -> m M.! i) . unpack :: Seq (M.Matrix w1 w2) -> Seq (M.Matrix w1 w2)
-        let thu = Thunk cir
-                        (\ cir -> cir (toSeq ms)
-                        )
-            res :: Seq (M.Matrix w1 w2)
-            res = toSeq [ m | m <- ms ]
-        test ("matrix/2/" ++ tyName) (length ms) thu res
+            cir = pack . (\ m -> M.forAll $ \ i -> m M.! i) . unpack :: Seq (M.Matrix w1 w2) -> Seq (M.Matrix w1 w2)
+            driver = do
+                outStdLogicVector "i0" (coerce (toSeq ms) :: Seq (Unsigned (MUL w1 (W w2))))
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = cir (coerce i0)
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce (toSeq [ m | m <- ms ] :: Seq (M.Matrix w1 w2)))
+
+        test ("matrix/2/" ++ tyName) (length ms) driver dut res
 
 

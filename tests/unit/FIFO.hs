@@ -48,19 +48,26 @@ testFIFO (TestSeq test toList) tyName ws wit = do
             vals    :: [Maybe w]
             (outBools,vals) = unzip $ toList ws
 
-        let cir = pack . fifo wit low . unpack :: Seq (Enabled w, Bool) -> Seq (Bool, Enabled w)
+            cir = pack . fifo wit low . unpack :: Seq (Enabled w, Bool) -> Seq (Bool, Enabled w)
 
-        let thu :: Thunk (CSeq () (Bool,Enabled w))
-            thu = Thunk cir
-                        (\ f -> let inp = toHandShaken vals back
-                                    (back,res) = unpack $ f $ pack (inp,toSeq outBools)
-                                 in pack (back,res)
-                        )
+            driver = do
+                outStdLogic "flag" $ toSeq outBools
+                outStdLogicVector "vals" (coerce (toSeq vals) :: Seq (Unsigned (W (Maybe w))))
+            dut = do
+                i0 <- inStdLogic "flag"
+                i1 <- inStdLogicVector "vals"
+                let inp = toHandShaken (coerce i1) back
+                    (back,res) = unpack $ cir $ pack (inp,i0)
+                    o0 = pack (back,res)
+                outStdLogicVector "o0" (coerce o0)
+            res = do
+                outStdLogicVector "o0" (coerce (pack (undefinedS,toSeq $ fifoSpec vals (cycle outBools) []) :: Seq (Bool,Enabled w)))
 
-        let fifoSize :: Int
+
+            fifoSize :: Int
             fifoSize = size (error "witness" :: sz)
 
-        let -- fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
+--            fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
             fifoSpec :: [Maybe w] -> [Bool] -> [Maybe w] -> [Maybe w]
 
 --            fifoSpec _ _ state
@@ -84,10 +91,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
             nextState state False = state
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
 
-        let res :: Seq (Bool,Enabled w)
-            res = pack (undefinedS,toSeq $ fifoSpec vals (cycle outBools) [])
-
-        test ("fifo/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) thu res
+        test ("fifo/sz_" ++ show fifoSize ++ "/" ++ tyName) (length vals) driver dut res
 
         --------------------------------------------------------------------------------------------
 
