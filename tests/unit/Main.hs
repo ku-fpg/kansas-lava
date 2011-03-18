@@ -14,7 +14,7 @@ import Report
 import Utils
 
 import qualified Matrix
---import qualified Memory
+import qualified Memory
 --import qualified FIFO
 import qualified Coerce
 import qualified Others
@@ -41,7 +41,7 @@ main = do
         -- The different tests to run (from different modules)
         sequence_ [ t test
                   | t <- [ Matrix.tests
---                         , Memory.tests
+                         , Memory.tests
 --                         , FIFO.tests
                          , Coerce.tests
                          , Others.tests
