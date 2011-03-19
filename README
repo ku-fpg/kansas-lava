@@ -13,5 +13,6 @@ The test script places the output in ./run, and compares it with files of the sa
 If you want to remaster a test, copy the output from the ./run directory, into the ./ref directory,
 and the add-and-commit the ./ref copy.
 
+Pushing testing branch.
 
 
