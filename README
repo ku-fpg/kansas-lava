@@ -14,5 +14,6 @@ If you want to remaster a test, copy the output from the ./run directory, into t
 and the add-and-commit the ./ref copy.
 
 Pushing testing branch.
+  * create a remote branch to recieve incomming deltas
 
 
