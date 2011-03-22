@@ -224,11 +224,13 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig)
-	= liftS3 (\ (Comb i ei)
-	 	    (Comb t et)
-	 	    (Comb e ee)
+	= liftS3 (\ (Comb i _)
+	 	    (Comb t _)
+	 	    (Comb e _)
 			-> Comb (mux2shallow i t e)
-			        (entity3 (Name "Lava" "mux2") ei et ee)
+                            (entity3 (Name "Lava" "mux2") (deepS iSig) (deepS tSig) (deepS eSig))
+--			        (entity3 (Name "Lava" "mux2") (ei et ee)
+
 	         ) iSig tSig eSig
 
 liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
