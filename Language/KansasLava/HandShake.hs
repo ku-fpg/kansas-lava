@@ -223,9 +223,9 @@ fifoFE :: forall c a counter ix .
          -- ^ hard reset option
       -> (CSeq c (Enabled a), CSeq c counter)
          -- ^ input, and Seq trigger of how much to decrement the counter
-      -> (CSeq c Bool, CSeq c (Enabled (ix,a)))
-         -- ^ backedge for input, and write request for memory.
-fifoFE Witness rst (inp,dec_by) = (inp_ready,wr)
+      -> (CSeq c Bool, CSeq c (Enabled (ix,a)), CSeq c counter)
+         -- ^ backedge for input, and write request for memory, and internal counter.
+fifoFE Witness rst (inp,dec_by) = (inp_ready,wr,in_counter1)
   where
 --      mem :: Seq ix -> Seq a
 --      mem = pipeToMemory env env wr
@@ -278,9 +278,10 @@ fifoBE :: forall a c counter ix .
         -- inc from FE
         -- input from Memory read
       -> CSeq c Bool
-      -> ((CSeq c ix, CSeq c Bool), CSeq c (Enabled a))
+      -> ((CSeq c ix, CSeq c Bool, CSeq c counter), CSeq c (Enabled a))
         -- address for Memory read
         -- dec to FE
+        -- internal counter, and
         -- output for HandShaken
 fifoBE Witness rst (inc_by,mem_rd) out_ready =
     let
@@ -305,7 +306,7 @@ fifoBE Witness rst (inc_by,mem_rd) out_ready =
 
         out_counter1 = register 0 out_counter0
     in
-        ((rd_addr0, out_done0) , out)
+        ((rd_addr0, out_done0,out_counter1) , out)
 
 fifoCounter :: forall counter . (Num counter, Rep counter) => Seq Bool -> Seq Bool -> Seq Bool -> Seq counter
 fifoCounter rst inc dec = counter1
@@ -348,7 +349,7 @@ fifo w_ix rst (inp,out_ready) =
     let
         wr :: CSeq c (Maybe (ix, a))
         inp_ready :: CSeq c Bool
-        (inp_ready, wr) = fifoFE w_ix rst (inp,dec_by)
+        (inp_ready, wr, _) = fifoFE w_ix rst (inp,dec_by)
 
         inp_done2 :: CSeq c Bool
         inp_done2 = resetable rst low $ register False $ resetable rst low $ register False $ resetable rst low $ isEnabled wr
@@ -356,12 +357,47 @@ fifo w_ix rst (inp,out_ready) =
         mem :: CSeq c ix -> CSeq c (Enabled a)
         mem = enabledS . pipeToMemory wr
 
-        ((rd_addr0,out_done0),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) out_ready
+        ((rd_addr0,out_done0,_),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) out_ready
 
         dec_by = liftS1 (\ b -> mux2 b (1,0)) out_done0
         inc_by = liftS1 (\ b -> mux2 b (1,0)) inp_done2
     in
         (inp_ready, out)
+
+fifoZ :: forall a c counter ix .
+         (Size counter
+        , Size ix
+        , counter ~ ADD ix X1
+        , Rep a
+        , Rep counter
+        , Rep ix
+        , Num counter
+        , Num ix
+        , Clock c
+        )
+      => Witness ix
+      -> CSeq c Bool
+      -> I (CSeq c (Enabled a)) (CSeq c Bool)
+      -> O (CSeq c Bool) (CSeq c (Enabled a),CSeq c counter)
+fifoZ w_ix rst (inp,out_ready) =
+    let
+        wr :: CSeq c (Maybe (ix, a))
+        inp_ready :: CSeq c Bool
+        (inp_ready, wr, counter) = fifoFE w_ix rst (inp,dec_by)
+
+        inp_done2 :: CSeq c Bool
+        inp_done2 = resetable rst low $ register False $ resetable rst low $ register False $ resetable rst low $ isEnabled wr
+
+        mem :: CSeq c ix -> CSeq c (Enabled a)
+        mem = enabledS . pipeToMemory wr
+
+        ((rd_addr0,out_done0,_),out) = fifoBE w_ix rst (inc_by,mem rd_addr0) out_ready
+
+        dec_by = liftS1 (\ b -> mux2 b (1,0)) out_done0
+        inc_by = liftS1 (\ b -> mux2 b (1,0)) inp_done2
+    in
+        (inp_ready, (out,counter))
+
 {-
 fifoToMatrix :: forall a counter counter2 ix iy iz c .
          (Size counter
