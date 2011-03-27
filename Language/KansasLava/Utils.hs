@@ -709,8 +709,8 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 
 -------------------------------------------------------------------------------------
 
-factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> sig (a1,a2)
-factor = coerce
+factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+factor a = unpack (coerce a :: sig (a1,a2))
 
 {-
 	   , Signal sig, Rep a2, Rep a1
