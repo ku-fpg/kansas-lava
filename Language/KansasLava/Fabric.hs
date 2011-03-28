@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables
+{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, UndecidableInstances
  #-}
 module Language.KansasLava.Fabric
         ( Fabric(..)
@@ -13,6 +13,7 @@ module Language.KansasLava.Fabric
 --        , driving
 --        , fabric_example
         , backedges
+        , genFabric, MakeFabric
         ) where
 
 
@@ -22,9 +23,11 @@ import Data.Sized.Unsigned
 import Data.Sized.Ix
 import Control.Monad.Fix
 import Control.Monad
+import Control.Monad.State
 
 -- For testing
 import Language.KansasLava.Utils
+
 
 -- The '_' will disappear soon from these names.
 
@@ -64,42 +67,45 @@ instance MonadFix Fabric where
                                    in (a,in_names,outs)
 
 
+class Monad m =>  FabricPorts m where
+  input :: String -> Pad -> m Pad
+  output :: String -> Pad -> m ()
 
-input :: String -> Pad -> Fabric Pad
-input nm deepPad = Fabric $ \ ins ->
+instance FabricPorts Fabric where
+  input nm deepPad = Fabric $ \ ins ->
         let p = case lookup nm ins of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
         in (p,[(nm,deepPad)],[])
 
-inStdLogic :: String -> Fabric (Seq Bool)
+  output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
+
+inStdLogic :: FabricPorts m => String -> m (Seq Bool)
 inStdLogic nm = do
         pad <- input nm (StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm))
         case pad of
           StdLogic_ sq -> return sq
           _            -> fail "internal type error in inStdLogic"
 
-inGeneric :: String -> Fabric Integer
+inGeneric :: FabricPorts m => String -> m Integer
 inGeneric nm = do
         pad <- input nm (Generic_ $ error "Fix Generic")
         case pad of
           Generic_ g -> return g
           _          -> fail "internal type error in inGeneric"
 
-inStdLogicVector :: forall x . (Size x) => String -> Fabric (Seq (Unsigned x))
+inStdLogicVector :: forall x m . (Size x, FabricPorts m) => String -> m (Seq (Unsigned x))
 inStdLogicVector nm = do
         pad <- input nm (StdLogicVector_ $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq (Unsigned x)))
         case pad of
           StdLogicVector_ sq -> return $ (unsigned) sq
           _                  -> fail "internal type error in inStdLogic"
 
-output :: String -> Pad -> Fabric ()
-output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
-outStdLogic :: String -> Seq Bool -> Fabric ()
+outStdLogic :: FabricPorts m => String -> Seq Bool -> m ()
 outStdLogic nm seq_bool = output nm (StdLogic_ seq_bool)
 
-outStdLogicVector :: (Size x) => String -> Seq (Unsigned x) -> Fabric ()
+outStdLogicVector :: (FabricPorts m, Size x) => String -> Seq (Unsigned x) -> m ()
 outStdLogicVector nm sq = output nm (StdLogicVector_ sq)
 
 -------------------------------------------------------------------------------
@@ -156,3 +162,65 @@ fabric_example = do
 
 backedges :: (MonadFix m) => (b -> m (a,b)) -> m a
 backedges f = liftM fst $ mfix $ \ ~(_,b) -> f b
+
+
+-- | Given a circuit (where the inputs/outputs support MakeFabric),
+-- automatically generate a Fabric.
+genFabric :: MakeFabric a => a -> Fabric ()
+genFabric c = evalStateT (mkFabric c) (0,0)
+
+
+-- | The FabricGen just wraps Fabric with some state for tracking the number of
+-- inputs/outputs.
+type FabricGen = StateT (Int,Int) Fabric
+
+
+instance FabricPorts FabricGen where
+  input nm pad = lift $ input nm pad
+  output nm pad = lift $ output nm pad
+
+-- | Generate the next output name in the sequence.
+newOutputName :: FabricGen String
+newOutputName = do
+  (i,o) <- get
+  put (i,o+1)
+  return $  "out" ++ show o
+
+-- | Generate the next input name in the sequence.
+newInputName :: FabricGen String
+newInputName = do
+  (i,o) <- get
+  put (i,o+1)
+  return $  "in" ++ show o
+
+-- | Automatically generate the input/output declarations for a Lava function.
+class MakeFabric a where
+  -- | Construct the Fabric
+  mkFabric :: a -> FabricGen ()
+
+instance MakeFabric (Seq Bool) where
+   mkFabric b = do
+     nm <- newOutputName
+     outStdLogic nm b
+
+instance MakeFabric a =>  MakeFabric (Seq Bool -> a) where
+   mkFabric f = do
+     nm <- newInputName
+     i <- inStdLogic nm
+     mkFabric (f i)
+
+instance Size x =>  MakeFabric (Seq (Unsigned x)) where
+  mkFabric v = do
+    nm <- newOutputName
+    outStdLogicVector nm v
+
+instance (Size x, MakeFabric a) =>  MakeFabric (Seq (Unsigned x) -> a) where
+   mkFabric f = do
+     nm <- newInputName
+     i <- inStdLogicVector nm
+     mkFabric (f i)
+
+instance (MakeFabric a, MakeFabric b) => MakeFabric (a,b) where
+  mkFabric (a,b) = do
+    mkFabric a
+    mkFabric b

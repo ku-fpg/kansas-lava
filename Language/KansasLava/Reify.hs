@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ParallelListComp, ScopedTypeVariables #-}
-module Language.KansasLava.Reify (reifyFabric) where
+module Language.KansasLava.Reify (reifyFabric, reifyCircuit) where
 
 import Data.List as L
 import Data.Reify
@@ -82,3 +82,8 @@ reifyFabric (F.Fabric circuit) = do
                                 ] ++
                                 theSrcs rCit
                           }
+
+
+
+reifyCircuit :: F.MakeFabric a => a -> IO Circuit
+reifyCircuit c = reifyFabric $ F.genFabric c

@@ -28,13 +28,14 @@ Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
-                 fgl, filepath, data-default, unix, bytestring
+                 fgl, filepath, data-default, unix, bytestring, mtl
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
        Language.KansasLava.Circuit
        Language.KansasLava.Circuit.Depth
        Language.KansasLava.Circuit.Optimization
+       Language.KansasLava.Clock
        Language.KansasLava.Deep
        Language.KansasLava.Fabric
        Language.KansasLava.Netlist
@@ -52,11 +53,14 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Shallow
+       Language.KansasLava.Stream
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
+       Language.KansasLava.RTL
        Language.KansasLava.Shallow.FIFO
        Language.KansasLava.Testing
        Language.KansasLava.Testing.Bench
+       Language.KansasLava.Testing.Observe
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
        Language.KansasLava.Testing.Thunk
@@ -86,7 +90,7 @@ Executable kansas-lava-unittest
 -- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2
                  -fno-warn-name-shadowing
-                 -fno-warn-orphans
+                 -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-tracediff
     if flag(unit)
@@ -101,7 +105,7 @@ Executable kansas-lava-tracediff
 -- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
                  -fno-warn-name-shadowing
-                 -fno-warn-orphans
+                 -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-testreport
     if flag(unit)
@@ -116,7 +120,7 @@ Executable kansas-lava-testreport
 -- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
                  -fno-warn-name-shadowing
-                 -fno-warn-orphans
+                 -fno-warn-orphans -fcontext-stack=256
 
 --Executable kansas-lava-test2
 --    if flag(all)
