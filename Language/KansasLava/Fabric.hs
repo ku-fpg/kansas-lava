@@ -79,7 +79,7 @@ input nm deepPad = Fabric $ \ ins ->
 output :: String -> Pad -> Fabric ()
 output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
---inStdLogic :: FabricPorts m => String -> m (Seq Bool)
+inStdLogic :: String -> Fabric (Seq Bool)
 inStdLogic nm = do
         pad <- input nm (StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm))
         case pad of
