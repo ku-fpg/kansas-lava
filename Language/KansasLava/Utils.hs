@@ -222,6 +222,8 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 -----------------------------------------------------------------------------------------------
 
+-- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
+-- the use of liftS3. This is safe, because we know the kind of node that we're building.
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig)
 	= liftS3 (\ (Comb i _)
