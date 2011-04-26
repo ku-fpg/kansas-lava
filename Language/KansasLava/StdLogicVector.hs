@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, UndecidableInstances, FlexibleInstances #-}
-
+-- | The 'StdLogicVector' provides a low-level sized representation of bitvectors for synthesis.
 module Language.KansasLava.StdLogicVector where
 
 import Data.Bits
@@ -11,15 +11,13 @@ import Language.KansasLava.Shallow
 import Data.Sized.Arith
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
-
 import Data.Word
 
 -- | StdLogicVector is a bit accurate, sized general representation of bit vectors.
-
 data StdLogicVector a = StdLogicVector (Matrix a (WireVal Bool))
 	deriving (Eq,Ord)
 
-
+-- | A standard logic vector with all bits set to unknown.
 undefinedStdLogicVector :: (Size x) => StdLogicVector x
 undefinedStdLogicVector = StdLogicVector $ forAll $ \ _ -> WireUnknown
 
@@ -47,21 +45,21 @@ instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
 	(StdLogicVector a) .|. (StdLogicVector b) = StdLogicVector $ M.zipWith (liftM2 (||)) a b
 	(StdLogicVector a) .&. (StdLogicVector b) = StdLogicVector $ M.zipWith (liftM2 (&&)) a b
 
-	shiftL (StdLogicVector m) i = StdLogicVector $ forAll $ off
+	shiftL (StdLogicVector m) i = StdLogicVector $ forAll off
 	  where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
 		       | otherwise            = m ! fromIntegral ix'
 	            where
 			ix' = fromIntegral ix - i
-	shiftR (StdLogicVector m) i = StdLogicVector $ forAll $ off
+	shiftR (StdLogicVector m) i = StdLogicVector $ forAll off
 	  where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
 		       | otherwise            = m ! fromIntegral ix'
 	            where
 			ix' = fromIntegral ix + i
- 	rotate (StdLogicVector m) i = StdLogicVector $ forAll $ off
+ 	rotate (StdLogicVector m) i = StdLogicVector $ forAll off
 	  where
 		mx = size (error "witness" :: ix)
 		off ix | ix' >= mx || ix' < 0 = WireVal False
@@ -73,9 +71,9 @@ instance (Integral ix, Size ix) => Bits (StdLogicVector ix) where
 					     _ -> error "testBit unknown bit"
 
 -- AJG: this was reverseed m2 ++ m1, for some reason. Restored to m1 ++ m2
-
+-- | Concatenate two standard logic vectors.
 appendSLV :: (Size x, Size y, Size (ADD x y)) => StdLogicVector x -> StdLogicVector y -> StdLogicVector (ADD x y)
-appendSLV (StdLogicVector m1) (StdLogicVector m2) = (StdLogicVector $ M.matrix (M.toList m1 ++ M.toList m2))
+appendSLV (StdLogicVector m1) (StdLogicVector m2) = StdLogicVector $ M.matrix (M.toList m1 ++ M.toList m2)
 
 {-
 splice :: (Integral inp, Integral res, Size high, Size low, Size res, Size inp, res ~ ADD (SUB high low) X1)
@@ -84,12 +82,13 @@ splice high low inp = StdLogicVector $ forAll $ \ ix -> inp' ! (fromIntegral ix)
   where
 	StdLogicVector inp' = shiftR inp (size low)
 -}
-
+-- | Take the high 'size' - 'low' bits from a standard logic vector 'inp', and
+-- then resize the result. GK: This seems to be misnamed, and should be 'slice'.
 spliceSLV :: forall inp res . (Integral inp, Integral res, Size res, Size inp)
        => Int -> StdLogicVector inp -> StdLogicVector res
 spliceSLV low v = coerceSLV $ shiftR v low
 
--- either take lower bits, or append zeros to upper bits.
+-- | Resize a standard logic vector. Either take lower bits, or append zeros to upper bits.
 coerceSLV :: forall a b . (Size a, Size b) => StdLogicVector a -> StdLogicVector b
 coerceSLV (StdLogicVector m) = StdLogicVector
 			  $ M.matrix
@@ -100,6 +99,7 @@ coerceSLV (StdLogicVector m) = StdLogicVector
 -- Call something other than StdLogic,
 -- HasWidth? for example.
 
+-- | Associate a WIDTH type function with a standard logic vector.
 class (Rep w, Integral (WIDTH w),Size (WIDTH w)) => StdLogic w where
   type WIDTH w
 
@@ -126,10 +126,13 @@ instance (Integral x, Size x, Integral (LOG (APP1 (ADD x N1))), Size (LOG (APP1 
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
 -- TODO: rename as to and from.
+-- | Convert a representable value to a standard logic vector.
 toSLV :: (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
 toSLV v = case toRep (optX $ return v) of
-		RepValue v' -> StdLogicVector $ M.matrix $ v'
+		RepValue v' -> StdLogicVector $ M.matrix v'
 
+-- | Convert a standard logic vector to a representable value. If any of the
+-- slv bits are unknown, then return Nothing.
 fromSLV :: (Rep w, StdLogic w) => StdLogicVector (WIDTH w) -> Maybe w
 fromSLV (StdLogicVector v) = unX (fromRep (RepValue (M.toList v)))
 
@@ -146,13 +149,14 @@ instance (Size ix) => Rep (StdLogicVector ix) where
 
 
 ---------------------------------------------------------------------------
--- We use Bytes quite a bit for comms, which are a type of Word8.
-
+-- | We use Bytes quite a bit for comms, which are a type of Word8.
 type Byte = StdLogicVector X8
 
+-- | Convert a Haskell 'Word8' to a standard logic vector.
 toByte :: Word8 -> Byte
 toByte = fromIntegral
 
+-- | Convert a standard logic vector to a Haskell Word8.
 fromByte :: Byte -> Word8
 fromByte b = case fromSLV b :: Maybe U8 of
 	       Nothing -> error $ "fromByte: SLV was undefined: " ++ show b
