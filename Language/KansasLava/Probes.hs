@@ -13,7 +13,6 @@ import qualified Data.Sized.Matrix as M
 import Language.KansasLava.Circuit
 import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
-import Language.KansasLava.HandShake
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
@@ -51,10 +50,6 @@ instance (Probe a, Probe b) => Probe (a,b) where
     probe' names (x,y) = (probe' (addSuffixToOVars names "-fst") x,
                           probe' (addSuffixToOVars names "-snd") y)
 
-instance (Clock clk, Probe a) => Probe (HandShaken clk a) where
-    probe' names (HandShaken f) = HandShaken $ \ ready ->
-                        let ready' = probe' (addSuffixToOVars names "-arg") ready
-                        in probe' (addSuffixToOVars names "-res") (f ready')
 
 instance (Probe a, Probe b, Probe c) => Probe (a,b,c) where
     probe' names (x,y,z) = (probe' (addSuffixToOVars names "-fst") x,

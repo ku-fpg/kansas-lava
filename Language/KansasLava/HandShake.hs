@@ -4,9 +4,9 @@
 
 module Language.KansasLava.HandShake where
 
-import Control.Applicative
 import Control.Concurrent
 import Control.Monad
+import System.IO.Unsafe (unsafeInterleaveIO)
 import qualified Data.ByteString.Lazy as BS
 import Data.Maybe as Maybe
 import Data.Sized.Arith as Arith
@@ -39,25 +39,20 @@ toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
            fn (x:_) (Nothing:_) = x:(error "toHandShaken: bad protocol state (1)")
            fn (x:xs) (Just True:rs) = x:(fn xs rs)     -- has been written
            fn (x:xs) (_:rs) = x : fn (x:xs) rs -- not written yet
-           fn [] _ = error "toHandShaken: can't handle empy list of values to issue"
+           fn [] _ = error "toHandShaken: can't handle empty list of values to issue"
            fn _ [] = error "toHandShaken: can't handle empty list of values to receive"
 
 
-fromHandShaken' :: forall a c . (Clock c, Rep a) => HandShaken c (CSeq c (Enabled a)) -> [Maybe a]
-fromHandShaken' (HandShaken sink) = res
-    where (back, res) = fromHandShaken  (sink back)
-
--- | Take stream emanating from a FIFO and return a read-ready flag, which
+-- | Take stream from a FIFO and return an asynchronous read-ready flag, which
 --   is given back to the FIFO, and a shallow list of values.
-fromHandShaken :: forall a c . (Clock c, Rep a)
-               => CSeq c (Enabled a)       -- ^ fifo output sequence
-               -> (CSeq c Bool, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
+-- I suspect this space-leaks.
+fromHandShaken :: (Rep a, Clock c, sig ~ CSeq c)
+               => sig (Enabled a)       -- ^ fifo output sequence
+               -> (sig Bool, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
 fromHandShaken inp = (toSeq (map fst internal), map snd internal)
    where
-        internal :: [(Bool,Maybe a)]
         internal = fn (fromSeq inp)
 
-        fn :: [Maybe (Enabled a)] -> [(Bool,Maybe a)]
         fn ~(x:xs) = (True,rep) : rest
            where
                 (rep,rest) = case x of
@@ -65,62 +60,82 @@ fromHandShaken inp = (toSeq (map fst internal), map snd internal)
                                Just Nothing  -> (Nothing,fn xs)
                                Just (Just v) -> (Just v,fn xs)
 
-{-
-fromHandshake' :: forall a . (Rep a) => [Int] -> Handshake a -> [Maybe a]
-fromHandshake' stutter (Handshake sink) = map snd internal
-   where
-        val :: Seq (Enabled a)
-        val = sink full
-
-        full :: Seq Bool
-        full = toSeq (map fst internal)
-
-        internal :: [(Bool,Maybe a)]
-        internal = fn stutter (fromSeq val)
-
-        fn :: [Int] -> [Maybe (Enabled a)] -> [(Bool,Maybe a)]
-        fn (0:ps) ~(x:xs) = (True,rep) : rest
-           where
-                (rep,rest) = case x of
-                               Nothing       -> error "fromVariableHandshake: bad reply to ready status"
-                               Just Nothing  -> (Nothing,fn (0:ps) xs)
-                               Just (Just v) -> (Just v,fn ps xs)
-        fn (p:ps) ~(x:xs) = (False,Nothing) : fn (pred p:ps) xs
--}
 
 ----------------------------------------------------------------------------------------------------
+-- These are functions that are used to thread together Hand shaking and FIFO.
 
--- | This function takes a ShallowFIFO object, and gives back a Handshake.
--- ShallowFIFO is typically connected to a data generator or source, like a file.
+-- | This function takes a MVar, and gives back a Handshaken signal that represents
+-- the continuous sequence of contents of the MVar.
 
-shallowFifoToHandShaken :: (Clock c, Show a, Rep a) => MVar a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
-shallowFifoToHandShaken sfifo = do
+mVarToHandShaken :: (Clock c, Rep a) => MVar a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
+mVarToHandShaken sfifo = do
         xs <- getFIFOContents sfifo
-        return (toHandShaken (xs ++ repeat Nothing))
+        return (toHandShaken xs)
+ where
+        getFIFOContents :: MVar a -> IO [Maybe a]
+        getFIFOContents var = unsafeInterleaveIO $ do
+ 	        x <- tryTakeMVar var
+ 	        xs <- getFIFOContents var
+ 	        return (x:xs)
 
-handShakeToShallowFifo :: (Clock c, Show a, Rep a) => MVar a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
-handShakeToShallowFifo sfifo sink = do
-        putFIFOContents sfifo
+handShakeToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
+handShakeToMVar sfifo sink = do
+        sequence_ 
+                $ map (putMVar sfifo) 
                 $ Maybe.catMaybes
                 $ (let (back,res) = fromHandShaken $ sink back in res)
         return ()
 
-{- TODO: move into another location
--- create a lambda bridge from a FIFO to a FIFO.
--- (Could be generalize to Matrix of FIFO  to Matrix of FIFO)
-handShakeLambdaBridge :: (Clock c) => (HandShaken c (CSeq c (Enabled Byte)) -> HandShaken c (CSeq c (Enabled Byte))) -> IO ()
-handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
-        sFIFO <- newShallowFIFO
-        rFIFO <- newShallowFIFO
 
-        forkIO $ hGetToFIFO send sFIFO
-        hPutFromFIFO recv rFIFO
+-- interactMVar 
+interactMVar :: forall src sink
+         . (Rep src, Rep sink)
+        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled src)) (sig Bool) -> O (sig Bool) (sig (Enabled sink)))
+        -> MVar src
+        -> MVar sink
+        -> IO ()
+interactMVar fn varA varB = do
+        inp_fifo <- mVarToHandShaken varA
 
-        sHS <- shallowFifoToHandShaken sFIFO
-        let rHS = fn sHS
-        handShakeToShallowFifo rFIFO rHS
-        return ()
--}
+        handShakeToMVar varB $ \ rhs_back ->
+                -- use fn at a specific (unit) clock
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Bool)
+                    lhs_inp = inp_fifo lhs_back
+                in
+                    rhs_out
+
+hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk) 
+                => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8))
+             )
+          -> Handle
+          -> Handle
+          -> IO ()
+hInteract fn inp out = do
+        inp_fifo_var <- newEmptyMVar
+        out_fifo_var <- newEmptyMVar
+
+        -- send the inp handle to the inp fifo
+        _ <- forkIO $ forever $ do
+                bs <- BS.hGetContents inp
+                sequence_ $ map (putMVar inp_fifo_var) $ BS.unpack bs
+
+        -- send the out fifo to the out handle
+        _ <- forkIO $ forever $ do
+                x <- takeMVar out_fifo_var
+                BS.hPutStr out $ BS.pack [x]
+
+        interactMVar fn inp_fifo_var out_fifo_var
+
+interact :: (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8))) -> IO ()
+interact fn = do
+        hSetBinaryMode stdin True
+        hSetBuffering stdin NoBuffering
+        hSetBinaryMode stdout True
+        hSetBuffering stdout NoBuffering
+        hInteract fn stdin stdout
+
+----------------------------------------------------------------------------------------------------
+-- ********* FIFO stuff below this ********************
 
 incGroup :: (Rep x, Num x, Bounded x) => Comb x -> Comb x
 incGroup x = mux2 (x .==. maxBound) (0,x + 1)
@@ -412,181 +427,3 @@ liftHandShaken f = undefined
 
 
 -}
-
-{-
--- Runs a program from stdin to stdout;
--- also an example of coding
--- interact :: (Src a -> Sink b) -> IO ()
--- interact :: (
--}
-
-interactMVar :: forall a b
-         . (Rep a, Show a, Rep b, Show b)
-        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
-        -> MVar a
-        -> MVar b
-        -> IO ()
-interactMVar fn varA varB = do
-        inp_fifo <- shallowFifoToHandShaken varA
-
-        handShakeToShallowFifo varB $ \ rhs_back ->
-                -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Bool)
-                    lhs_inp = inp_fifo lhs_back
-                in
-                    rhs_out
-
-hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8)))
-        -> Handle
-        -> Handle
-        -> IO ()
-hInteract fn inp out = do
-        inp_fifo_var <- newEmptyMVar
-        out_fifo_var <- newEmptyMVar
-
-        -- send the inp handle to the inp fifo
-        _ <- forkIO $ forever $ do
-                bs <- BS.hGetContents inp
-                putFIFOContents inp_fifo_var $ BS.unpack bs
-
-        -- send the out fifo to the out handle
-        _ <- forkIO $ forever $ do
-                x <- takeMVar out_fifo_var
-                BS.hPutStr out $ BS.pack [x]
-
-        interactMVar fn inp_fifo_var out_fifo_var
-
-interact :: (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8))) -> IO ()
-interact fn = do
-        hSetBinaryMode stdin True
-        hSetBuffering stdin NoBuffering
-        hSetBinaryMode stdout True
-        hSetBuffering stdout NoBuffering
-        hInteract fn stdin stdout
-{-
-liftToByteString :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
-          => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8)))
-          -> IO (BS.ByteString -> BS.ByteString)
-liftToByteString :
--
----------------------------------------------------------------------------------
-
--- The simplest version, with no internal FIFO.
-liftCombIO :: forall a b c clk sig
-        . (Rep a, Show a, Rep b, Show b)
-       => (Comb a -> Comb b)
-       -> (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
-liftCombIO fn (lhs_in,rhs_back) = (lhs_back,rhs_out)
-   where
-           lhs_back = rhs_back
-           rhs_out = mapEnabled fn lhs_in
- -}
-
--- Idea: FIFOs are arrows.
--- Problem: To implement Arrows, you need to make an instance of the Category
---          and Arrow classes. While composition, first, second, &&&, ***, are
---          fairly straightforward, id (from Category) and arr (from Arrow) are
---          too general (I think).
---
---          class Category cat where id :: cat a a ...
---          class Arrow a where arr :: (b -> c) -> a b c ...
---
---          We need to constrain id so a admits Rep. We also don't want to
---          admit an arbitrary function to arr. I think this is what we really
---          want:
---
---          class RepCategory cat where
---              id :: (Rep a) => cat a a
---              (.) :: (Rep a, Rep b, Rep c) => cat b c -> cat a b -> cat a c
---
---          class RepArrow a where
---              arr :: (Rep b, Rep c) => (Comb b -> Comb c) -> a b c
---              first :: (Rep b, Rep c, Rep d) => a b c -> a (b,d) (c,d)
---              -- note the following can be derived from arr, first, id, and (.)
---              -- but we might want to implement them by hand
---              second :: (Rep b, Rep c, Rep d) => a b c -> a (d,b) (d,c)
---              (***) :: (Rep b, Rep c, Rep b', Rep c') => a b c -> a b' c' -> a (b,b') (c,c')
---              (&&&) :: a b c -> a b c' -> a b (c,c')
---              -- note (>>>) = flip (.)
---
---          Rather than try for this class definition right way (there are a lot
---          more constraints than the Rep ones to manage) I started implementing
---          them outside the class as normal functions. So far, I have id, (.), and first
---          implemented. The others are coming soon.
---
--- Thought: What we really have here are circuit bits with an input type and output
---          type, and an algebra for gluing them together. With some work, combinatorial
---          and sequential circuits (absent fifos) would both fit into this paradigm
---          as well.
---
---          newtype CombCircuit a b = CC { runComb :: Comb a -> Comb b }
---          instance RepCategory CombA where
---              id = CC Prelude.id
---              (.) (CC g) (CC f) = CC (g Prelude.. f)
---
---          instance RepArrow CombA where
---              arr = CC
---              first (CC fn) = CC (\(b, d) -> (fn b, d))
---
---          etc...
-newtype FIFO clk sz b c = FIFO { runFIFO :: I (CSeq clk (Enabled b)) (CSeq clk Bool)
-                                         -> O (CSeq clk Bool) (CSeq clk (Enabled c)) }
-
-idFifo :: forall clk sz a counter
-       . ( Clock clk
-         , Size sz
-         , Num sz
-         , Rep sz
-         , Rep a
-         , counter ~ ADD sz X1
-         , Size counter
-         , Num counter
-         , Rep counter)
-       => FIFO clk sz a a
-idFifo = FIFO (fifo (Witness :: Witness sz) low)
--- TODO: Probably want to handle the reset signal for real.
--- TODO: Why do we need counter? fifoFE and fifoBE add X1 to sz,
---       but I don't understand why counter can't be equal to sz.
-
-composeFifo :: ( Size gsz
-               , Size fsz
-               , combined ~ ADD gsz fsz
-               , Size combined
-               , fc ~ gb
-               )
-            => FIFO clk gsz gb gc
-            -> FIFO clk fsz fb fc
-            -> FIFO clk combined fb gc
-composeFifo (FIFO g) (FIFO f) = FIFO (\(inp,rr) -> let (wr,o) = f (inp,wr')
-                                                       (wr',out) = g (o,rr)
-                                                   in (wr,out))
-
-firstFifo :: forall clk sz b c d counter
-          . ( Clock clk
-            , Size sz
-            , Rep b
-            , Rep c
-            , Rep d
-            , Num sz
-            , Rep sz
-            , counter ~ ADD sz X1
-            , Size counter
-            , Num counter
-            , Rep counter
-            )
-          => FIFO clk sz b c -> FIFO clk sz (b,d) (c,d)
-firstFifo (FIFO f) = FIFO (\(inp,rr) -> let -- get the enabled signal off the tuple
-                                            (en,tup) = unpack (inp :: CSeq clk (Enabled (b,d)))
-                                            -- unpack the tuple
-                                            (ifst,isnd) = unpack (tup :: CSeq clk (b,d))
-                                            -- put the enabled signal back on each part
-                                            (eif,eis) = (pack (en,ifst), pack (en,isnd))
-                                            -- pass first part of tuple into fifo f
-                                            (wrf,outf) = f (eif,rr)
-                                            -- pass second part into the identity fifo
-                                            (wrid,outid) = runFIFO (idFifo :: FIFO clk sz d d) (eis,rr)
-                                            -- get the enabled signal off each output
-                                            ((oen,osf),(oen',osid)) = (unpack outf, unpack outid)
-                                            -- make a combined enabled output
-                                            out = pack (oen .&&. oen', pack (osf,osid)) :: CSeq clk (Enabled (c,d))
-                                        in (wrf .&&. wrid, out))
