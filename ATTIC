@@ -1,0 +1,243 @@
+-- From Fabric.
+
+
+-- | 'driving' chains two fabrics together, leting
+-- the first one drive the second one. Note this
+-- is not the same as '(>>)', which makes no
+-- connections.
+
+-- NOTES: I'm unsure about the shadowing of names here.
+-- It will work, as long as inputs and output never
+-- interset.
+{-
+infixr 5 `driving`
+
+driving :: Fabric a -> Fabric b -> Fabric b
+driving (Fabric f) (Fabric g) = Fabric $ \ ins ->
+    let (_,f_in_names,f_outs) = f ins
+        (b,g_in_names,g_outs) = g (f_outs ++ ins)
+    in ( b
+       , f_in_names ++ [ (nm,ty)
+                       | (nm,ty) <- g_in_names
+                       , nm `notElem` map fst f_outs ]
+       , [ (nm,ty)
+         | (nm,ty) <- f_outs
+         , nm `notElem` map fst g_in_names
+         ] ++ g_outs
+       )
+
+-}
+
+backedges :: (MonadFix m) => (b -> m (a,b)) -> m a
+backedges f = liftM fst $ mfix $ \ ~(_,b) -> f b
+
+{-
+ -- This should go into a separate library
+-- | Given a circuit (where the inputs/outputs support MakeFabric),
+-- automatically generate a Fabric.
+genFabric :: MakeFabric a => a -> Fabric ()
+genFabric c = evalStateT (mkFabric c) (0,0)
+
+-- | The FabricGen just wraps Fabric with some state for tracking the number of
+-- inputs/outputs.
+type FabricGen = StateT (Int,Int) Fabric
+
+
+-- | Generate the next output name in the sequence.
+newOutputName :: FabricGen String
+newOutputName = do
+  (i,o) <- get
+  put (i,o+1)
+  return $  "out" ++ show o
+
+-- | Generate the next input name in the sequence.
+newInputName :: FabricGen String
+newInputName = do
+  (i,o) <- get
+  put (i,o+1)
+  return $  "in" ++ show o
+
+-- | Automatically generate the input/output declarations for a Lava function.
+class MakeFabric a where
+  -- | Construct the Fabric
+  mkFabric :: a -> FabricGen ()
+
+instance MakeFabric (Seq Bool) where
+   mkFabric b = do
+     nm <- newOutputName
+     lift $ outStdLogic nm b
+
+instance MakeFabric a =>  MakeFabric (Seq Bool -> a) where
+   mkFabric f = do
+     nm <- newInputName
+     i <- lift $ inStdLogic nm
+     mkFabric (f i)
+
+instance Size x =>  MakeFabric (Seq (Unsigned x)) where
+  mkFabric v = do
+    nm <- newOutputName
+    lift $ outStdLogicVector nm v
+
+instance (Size x, MakeFabric a) =>  MakeFabric (Seq (Unsigned x) -> a) where
+   mkFabric f = do
+     nm <- newInputName
+     i <- lift $ inStdLogicVector nm
+     mkFabric (f i)
+
+instance (MakeFabric a, MakeFabric b) => MakeFabric (a,b) where
+  mkFabric (a,b) = do
+    mkFabric a
+    mkFabric b
+
+-- From Reify
+
+    reifyCircuit :: F.MakeFabric a => a -> IO Circuit
+    reifyCircuit c = reifyFabric $ F.genFabric c
+
+-- From HandShake
+
+{- TODO: move into another location
+-- create a lambda bridge from a FIFO to a FIFO.
+-- (Could be generalize to Matrix of FIFO  to Matrix of FIFO)
+handShakeLambdaBridge :: (Clock c) => (HandShaken c (CSeq c (Enabled Byte)) -> HandShaken c (CSeq c (Enabled Byte))) -> IO ()
+handShakeLambdaBridge fn = bridge_service $ \ cmds [send] [recv] -> do
+        sFIFO <- newShallowFIFO
+        rFIFO <- newShallowFIFO
+
+        forkIO $ hGetToFIFO send sFIFO
+        hPutFromFIFO recv rFIFO
+
+        sHS <- shallowFifoToHandShaken sFIFO
+        let rHS = fn sHS
+        handShakeToShallowFifo rFIFO rHS
+        return ()
+-}
+
+
+{-
+liftToByteString :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
+          => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8)))
+          -> IO (BS.ByteString -> BS.ByteString)
+liftToByteString :
+-
+---------------------------------------------------------------------------------
+
+-- The simplest version, with no internal FIFO.
+liftCombIO :: forall a b c clk sig
+        . (Rep a, Show a, Rep b, Show b)
+       => (Comb a -> Comb b)
+       -> (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled a)) (sig Bool) -> O (sig Bool) (sig (Enabled b)))
+liftCombIO fn (lhs_in,rhs_back) = (lhs_back,rhs_out)
+   where
+           lhs_back = rhs_back
+           rhs_out = mapEnabled fn lhs_in
+ -}
+
+-- Idea: FIFOs are arrows.
+-- Problem: To implement Arrows, you need to make an instance of the Category
+--          and Arrow classes. While composition, first, second, &&&, ***, are
+--          fairly straightforward, id (from Category) and arr (from Arrow) are
+--          too general (I think).
+--
+--          class Category cat where id :: cat a a ...
+--          class Arrow a where arr :: (b -> c) -> a b c ...
+--
+--          We need to constrain id so a admits Rep. We also don't want to
+--          admit an arbitrary function to arr. I think this is what we really
+--          want:
+--
+--          class RepCategory cat where
+--              id :: (Rep a) => cat a a
+--              (.) :: (Rep a, Rep b, Rep c) => cat b c -> cat a b -> cat a c
+--
+--          class RepArrow a where
+--              arr :: (Rep b, Rep c) => (Comb b -> Comb c) -> a b c
+--              first :: (Rep b, Rep c, Rep d) => a b c -> a (b,d) (c,d)
+--              -- note the following can be derived from arr, first, id, and (.)
+--              -- but we might want to implement them by hand
+--              second :: (Rep b, Rep c, Rep d) => a b c -> a (d,b) (d,c)
+--              (***) :: (Rep b, Rep c, Rep b', Rep c') => a b c -> a b' c' -> a (b,b') (c,c')
+--              (&&&) :: a b c -> a b c' -> a b (c,c')
+--              -- note (>>>) = flip (.)
+--
+--          Rather than try for this class definition right way (there are a lot
+--          more constraints than the Rep ones to manage) I started implementing
+--          them outside the class as normal functions. So far, I have id, (.), and first
+--          implemented. The others are coming soon.
+--
+-- Thought: What we really have here are circuit bits with an input type and output
+--          type, and an algebra for gluing them together. With some work, combinatorial
+--          and sequential circuits (absent fifos) would both fit into this paradigm
+--          as well.
+--
+--          newtype CombCircuit a b = CC { runComb :: Comb a -> Comb b }
+--          instance RepCategory CombA where
+--              id = CC Prelude.id
+--              (.) (CC g) (CC f) = CC (g Prelude.. f)
+--
+--          instance RepArrow CombA where
+--              arr = CC
+--              first (CC fn) = CC (\(b, d) -> (fn b, d))
+--
+--          etc...
+newtype FIFO clk sz b c = FIFO { runFIFO :: I (CSeq clk (Enabled b)) (CSeq clk Bool)
+                                         -> O (CSeq clk Bool) (CSeq clk (Enabled c)) }
+
+idFifo :: forall clk sz a counter
+       . ( Clock clk
+         , Size sz
+         , Num sz
+         , Rep sz
+         , Rep a
+         , counter ~ ADD sz X1
+         , Size counter
+         , Num counter
+         , Rep counter)
+       => FIFO clk sz a a
+idFifo = FIFO (fifo (Witness :: Witness sz) low)
+-- TODO: Probably want to handle the reset signal for real.
+-- TODO: Why do we need counter? fifoFE and fifoBE add X1 to sz,
+--       but I don't understand why counter can't be equal to sz.
+
+composeFifo :: ( Size gsz
+               , Size fsz
+               , combined ~ ADD gsz fsz
+               , Size combined
+               , fc ~ gb
+               )
+            => FIFO clk gsz gb gc
+            -> FIFO clk fsz fb fc
+            -> FIFO clk combined fb gc
+composeFifo (FIFO g) (FIFO f) = FIFO (\(inp,rr) -> let (wr,o) = f (inp,wr')
+                                                       (wr',out) = g (o,rr)
+                                                   in (wr,out))
+
+firstFifo :: forall clk sz b c d counter
+          . ( Clock clk
+            , Size sz
+            , Rep b
+            , Rep c
+            , Rep d
+            , Num sz
+            , Rep sz
+            , counter ~ ADD sz X1
+            , Size counter
+            , Num counter
+            , Rep counter
+            )
+          => FIFO clk sz b c -> FIFO clk sz (b,d) (c,d)
+firstFifo (FIFO f) = FIFO (\(inp,rr) -> let -- get the enabled signal off the tuple
+                                            (en,tup) = unpack (inp :: CSeq clk (Enabled (b,d)))
+                                            -- unpack the tuple
+                                            (ifst,isnd) = unpack (tup :: CSeq clk (b,d))
+                                            -- put the enabled signal back on each part
+                                            (eif,eis) = (pack (en,ifst), pack (en,isnd))
+                                            -- pass first part of tuple into fifo f
+                                            (wrf,outf) = f (eif,rr)
+                                            -- pass second part into the identity fifo
+                                            (wrid,outid) = runFIFO (idFifo :: FIFO clk sz d d) (eis,rr)
+                                            -- get the enabled signal off each output
+                                            ((oen,osf),(oen',osid)) = (unpack outf, unpack outid)
+                                            -- make a combined enabled output
+                                            out = pack (oen .&&. oen', pack (osf,osid)) :: CSeq clk (Enabled (c,d))
+                                        in (wrf .&&. wrid, out))
