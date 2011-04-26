@@ -1,7 +1,10 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ParallelListComp, ScopedTypeVariables #-}
+-- | The 'Reify' module converts a the deep embedding of a Lava circuit, wrapped
+-- in a 'Fabric', into a 'Circuit' graph.
+{-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ScopedTypeVariables #-}
 module Language.KansasLava.Reify (reifyFabric, reifyCircuit) where
 
 import Data.List as L
+import Data.Maybe(fromMaybe)
 import Data.Reify
 
 import Language.KansasLava.Seq
@@ -10,6 +13,7 @@ import Language.KansasLava.Types
 
 import qualified Data.Sized.Matrix as M
 import qualified Data.Sized.Unsigned as U
+
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'Circuit'.
 reifyFabric :: F.Fabric () -> IO Circuit
@@ -23,10 +27,10 @@ reifyFabric (F.Fabric circuit) = do
         let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,F.StdLogic_ s) <- outs0 ] ++
                        [ (nm, mkU s, unD $ seqDriver s) | (nm,F.StdLogicVector_ s) <- outs0 ]
 
-        let o = Port ("top")
+        let o = Port "top"
                 $ E
                 $ Entity (Prim "top") []
-                $ top_outs
+                top_outs
 
         -- Get the graph, and associate the output drivers for the graph with
         -- output pad names.
@@ -38,7 +42,7 @@ reifyFabric (F.Fabric circuit) = do
                              ]
                    case lookup out gr of
                      Just (Entity (Prim "top")  _ ins) ->
-                       return $ (gr',[(OVar 0 nm,ity, driver)
+                       return (gr',[(OVar 0 nm,ity, driver)
                                        | (nm,ity,driver) <- ins
                                        ])
                      _ -> error $ "reifyFabric: " ++ show o
@@ -69,9 +73,8 @@ reifyFabric (F.Fabric circuit) = do
                                                 (concat
                                                 [ case p of
                                                    (_,ClkDomTy,ClkDom cdnm) ->
-                                                        case lookup cdnm domToPorts of
-                                                           Nothing -> error $ "can not find port: " ++ show cdnm
-                                                           Just outs' -> outs'
+                                                     fromMaybe (error $ "can not find port: " ++ show cdnm)
+                                                               (lookup cdnm domToPorts)
                                                    _ -> [p]
                                                 | p <- ins ])
                                     )
@@ -84,6 +87,7 @@ reifyFabric (F.Fabric circuit) = do
                           }
 
 
-
+-- | 'reifyCircuit' creates a 'Fabric' for a Lava circuit based on the circuit
+-- arguments and return type and then calls 'reifyFabric' on the resulting 'Fabric'.
 reifyCircuit :: F.MakeFabric a => a -> IO Circuit
 reifyCircuit c = reifyFabric $ F.genFabric c
