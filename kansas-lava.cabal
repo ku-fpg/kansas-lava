@@ -32,7 +32,6 @@ Library
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
-       Language.KansasLava.Circuit
        Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Clock
        Language.KansasLava.Deep
