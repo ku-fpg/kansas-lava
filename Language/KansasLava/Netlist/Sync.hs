@@ -1,4 +1,6 @@
-module Language.KansasLava.Netlist.Sync where
+-- | The Sync module generates synchronous 'Netlist' processes for Lava
+-- entities.
+module Language.KansasLava.Netlist.Sync(genSync) where
 
 import Language.KansasLava.Types
 import Language.Netlist.AST
@@ -11,7 +13,7 @@ import Language.KansasLava.Netlist.Utils
 
 
 -- TODO: change into uncurried.
-
+-- | Generate Netlist processes for registers and BRAMs.
 genSync :: [(Unique,Entity Unique)] -> [Decl]
 genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
                           (concatMap (uncurry bramProc ) $  brams)
@@ -20,7 +22,7 @@ genSync  nodes  = (concatMap (uncurry $ regProc ) $ regs) ++
         brams = getSynchs ["BRAM"] nodes
 
 -- genSync nlOpts _ _ = []
-
+-- | Construct a register process.
 regProc :: (Driver Unique, Driver Unique,  Driver Unique)
         -> [(Unique, Entity Unique)]
 	-> [Decl]
@@ -56,7 +58,7 @@ regProc (clk,rst,clk_en) es
 		    Lit _ -> error "opps, en_clk is never enabled (boring?)"
 		    _     -> If (isHigh (toTypedExpr B clk_en)) regAssigns Nothing
 
-
+-- | Construct a BRAM process.
 bramProc :: (Driver Unique, Driver Unique,  Driver Unique)
          -> [(Unique, Entity Unique)]
 	 -> [Decl]
@@ -97,11 +99,9 @@ bramProc (clk,_,clk_en) es =
 
 ------------------------------------------------------------------------------------
 
--- Grab all of the synchronous elements (listed in 'nms') and return a map keyed
--- on clk input, with the value including a list of associated entities.
--- TODO: What is going on here!!
-
--- only works for a single clock domain, for now.
+-- | Grab all of the synchronous elements (listed in 'nms') and return a map
+-- keyed on clk input, with the value including a list of associated entities.
+-- only works for a single clock domain, for now.  TODO: What is going on here!!
 getSynchs :: [String]
 	  -> [(Unique,Entity Unique)]
 	  -> [((Driver Unique, Driver Unique, Driver Unique),[(Unique, Entity Unique)])]

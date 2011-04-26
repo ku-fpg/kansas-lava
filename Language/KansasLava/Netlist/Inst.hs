@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternGuards #-}
-
-module Language.KansasLava.Netlist.Inst where
+-- | The 'Inst' module generates Netlist instances for each 'Entity' in a Lava
+-- circuit.
+module Language.KansasLava.Netlist.Inst(genInst') where
 
 import Language.KansasLava.Types hiding (Trace(..))
 import Language.Netlist.AST hiding (U)
@@ -15,14 +16,13 @@ import Language.KansasLava.Netlist.Utils
 
 import Debug.Trace
 
+-- | Generate Netlist Insts for Lava entities.
 genInst' :: M.Map Unique (Entity Unique)
          -> Unique
          -> Entity Unique
          -> [Decl]
 genInst' env i e =
-	[ CommentDecl $ show (i,e)
-	] ++ genInst env i e
-
+	(CommentDecl $ show (i,e)): genInst env i e
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
 -- (Commented out) debugging hook
@@ -73,8 +73,7 @@ genInst _ _ (Entity (Comment' comments) [] []) =
         [ CommentDecl (unlines comments)
         ]
 genInst env i (Entity (Comment' comments) ins@[_] outs@[_]) =
-        [ CommentDecl (unlines comments)
-        ] ++
+        CommentDecl (unlines comments) :
 	genInst env i (Entity (Prim "id") ins outs)
 
 genInst env i (Entity (Prim "const") outputs [in0,_])
@@ -110,9 +109,9 @@ genInst _ i (Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
            MatrixTy n (V _)
              -- no need to coerce n[B], because both sides have the
              -- same representation
-             -> [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum $ j)
+             -> [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j)
                         $ ExprIndex varname
-                                (ExprLit Nothing $ ExprNum $ j)
+                                (ExprLit Nothing $ ExprNum j)
                 | j <- [0..(fromIntegral n - 1)]
                 ]
            _ -> [  NetAssign (sigName vO i) $ toStdLogicExpr tyI d ]
@@ -121,8 +120,7 @@ genInst _ i (Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
      (ExprVar varname) =  toStdLogicExpr tyI d
 
 genInst env i (Entity (Label label) [(vO,tyO)] [(vI,tyI,d)] ) =
-	 	[ CommentDecl label
-	        ] ++ genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)])
+	 	CommentDecl label:genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)])
 
 -- Concat and index (join, project)
 
@@ -132,8 +130,8 @@ genInst _ i (Entity (Prim "concat") [("o0",ty)] ins)
             _ -> False
         =
         [ MemAssign
-                (sigName ("o0") i)
-                (ExprLit Nothing $ ExprNum $ j)
+                (sigName "o0" i)
+                (ExprLit Nothing $ ExprNum j)
                 (stdLogicToMem tyIn $ toStdLogicExpr tyIn dr)
     | (j,(_,tyIn,dr)) <- zip [0..] ins
     ]
@@ -141,7 +139,7 @@ genInst _ i (Entity (Prim "concat") [("o0",ty)] ins)
 -- hack to handle bit to vector with singleton bools.
 genInst env i (Entity (Prim "concat") outs ins@[(_,B,_)]) =
         genInst env i (Entity (Prim "concat")
-                              (outs)
+                              outs
                               (ins ++ [("_",V 0,Lit (RepValue []))]))
 
 genInst _ i (Entity (Prim "concat") [("o0",_)] inps) =
@@ -152,14 +150,13 @@ genInst _ i (Entity (Prim "concat") [("o0",_)] inps) =
 
 genInst _ i (Entity (Prim "index")
 		  [("o0",_)]
-		  [("i0", GenericTy, (Generic idx)),
+		  [("i0", GenericTy, Generic idx),
 		   ("i1",ty@MatrixTy {},dr)
 		  ]) =
     [ NetAssign (sigName "o0" i)
                 (ExprIndex varname
                   (ExprLit Nothing
-                   $ ExprNum
-                   $ idx))]
+                   $ ExprNum idx))]
    where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
            (ExprVar varname) =  toStdLogicExpr ty dr
@@ -181,10 +178,10 @@ genInst _ i (Entity (Prim "index")
 
 genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
    | length outs == n =
-    [ NetAssign (sigName ("o" ++ show j) i)
+    [ NetAssign (sigName ('o':show j) i)
                 (memToStdLogic inTy
                   (ExprIndex varname
-                    (ExprLit Nothing $ ExprNum $ j)))
+                    (ExprLit Nothing $ ExprNum j)))
     | (j,_) <- zip [0..] outs
     ]
    where
@@ -198,7 +195,7 @@ genInst _ i (Entity (Prim "index")
 	[ NetAssign (sigName "o0" i)
                 (case eleTy of
                     -- Not sure about way this works over two different types.
-		    TupleTy tys -> prodSlices input tys !! (fromIntegral ix)
+		    TupleTy tys -> prodSlices input tys !! fromIntegral ix
 		    other -> error $ show ("genInst/index",other)
 		)
 	]
@@ -217,7 +214,7 @@ genInst _ i (Entity (Prim "index")
 	]
   where tys = case eleTy of
                 -- Not sure about way this works over two different types.
-		MatrixTy sz eleTy' -> take sz $ repeat eleTy'
+		MatrixTy sz eleTy' -> replicate sz eleTy'
 		TupleTy tys' -> tys'
 		other -> error $ show ("genInst/index",other)
 
@@ -276,7 +273,7 @@ genInst env i (Entity (Prim op) [("o0",ty@(SampledTy m n))] ins)
 	= genInst env i (Entity (External $ "lava_sampled_" ++ sanitizeName op) [("o0",ty)]
 				        (ins ++ [ ("frac_width",
 				                        GenericTy,
-				                        Generic $ fromIntegral $ n - (log2 m))
+				                        Generic $ fromIntegral $ n - log2 m)
 					        , ("width",GenericTy, Generic $ fromIntegral n)
 					        ]))
 
@@ -288,21 +285,21 @@ genInst env i (Entity (Prim op) [("o0",B)] [("i0",SampledTy m n,d0),("i1",Sample
         = genInst env i $ Entity (Prim op) [("o0",B)] [("i0",S n,d0),("i1",S n',d1)]
 
 -- This is only defined over constants that are powers of two.
-genInst _ i (Entity (Prim "/") [("o0",(SampledTy m n))] [ ("i0",iTy,v), ("i1",_,Lit lit)])
+genInst _ i (Entity (Prim "/") [("o0",SampledTy m n)] [ ("i0",iTy,v), ("i1",_,Lit lit)])
 --	= trace (show n)
         | (val' `mod` (2^frac_width) == 0) && (2^(log2 val - 1) == val)
 	= [ InstDecl "Sampled_fixedDivPowOfTwo" ("inst" ++ show i)
   		[ ("shift_by",ExprLit Nothing (ExprNum $ log2 val - 1))
-                , ("frac_width", ExprLit Nothing  $ ExprNum $ fromIntegral $ frac_width)
+                , ("frac_width", ExprLit Nothing  $ ExprNum $ fromIntegral frac_width)
 		, ("width", ExprLit Nothing  $ ExprNum $ fromIntegral n)
                 ]
                 [ ("i0",toStdLogicExpr iTy v)
                 ]
 		[ ("o0",ExprVar $ sigName "o0" i) ]
           ]
-  where val' = fromRepToInteger lit 
+  where val' = fromRepToInteger lit
         val  = val' `div` (2 ^ frac_width)
-        frac_width = n - (log2 m)
+        frac_width = n - log2 m
 
 -- The following do not need any code in the inst segement
 
@@ -331,13 +328,13 @@ genInst _ i (Entity (Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) 
 genInst _ i (Entity (Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (U n,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		[ NetAssign  (sigName "o0" i) $ toStdLogicExpr t_in w
 		]
 	   (V n,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		[ NetAssign  (sigName "o0" i) $ toStdLogicExpr t_in w
 		]
 	   (SampledTy _ n,V m) | n == m ->
-		[ NetAssign  (sigName "o0" i) $ (toStdLogicExpr t_in w)
+		[ NetAssign  (sigName "o0" i) $ toStdLogicExpr t_in w
 		]
 	   (MatrixTy n B,V m) | n == m ->
 		[ NetAssign  (sigName "o0" i) $
@@ -349,7 +346,7 @@ genInst _ i (Entity (Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
                                ]
 		]
 	   (B,V 1) ->
-		[ NetAssign  (sigName "o0" i ++ "(0)") $ (toStdLogicExpr t_in w) -- complete hack
+		[ NetAssign  (sigName "o0" i ++ "(0)") $ toStdLogicExpr t_in w -- complete hack
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
 
@@ -370,7 +367,7 @@ genInst _ i (Entity (Prim "spliceStdLogicVector") [("o0",V outs)] [("i0",_,Gener
 -}
 
 	| null zs =
-	[ NetAssign  (sigName "o0" i) $ slice
+	[ NetAssign  (sigName "o0" i) slice
 	]
 	| otherwise =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat
@@ -407,11 +404,11 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (MatrixTy 1 (V 1),B) ->
 		[ NetAssign  (sigName "o0" i)
 		   (memToStdLogic B
-                    (ExprIndex (case (toStdLogicExpr tI w) of
+                    (ExprIndex (case toStdLogicExpr tI w of
                                   ExprVar varname -> varname
-                                  _ -> error $ "Can't index non-named, non-literal signal"
+                                  _ -> error "Can't index non-named, non-literal signal"
                                )
-                     (ExprLit Nothing $ ExprNum $ 0)
+                     (ExprLit Nothing $ ExprNum 0)
 
                     )
                    )
@@ -426,7 +423,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                              ]
 		]
           (B,MatrixTy 1 (V 1)) ->
-                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ 0)
+                [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum 0)
                         $ stdLogicToMem B
                         $ toStdLogicExpr tI w
                 ]
@@ -439,8 +436,8 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ fromIntegral $j)
                         -- This is 'B' because a V is split into an array of B.
                         $ ExprSlice (slvVarName tI w)
-                                (ExprLit Nothing $ ExprNum $ fromIntegral $ ((j + 1) * n1 - 1))
-                                (ExprLit Nothing $ ExprNum $ fromIntegral $ (j * n1))
+                                (ExprLit Nothing $ ExprNum $ fromIntegral $ (j + 1) * n1 - 1)
+                                (ExprLit Nothing $ ExprNum $ fromIntegral $ j * n1)
                 | j <- [0..(n0 - 1)]
                 ]
           (V 1,B) ->
@@ -453,15 +450,15 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
         | otherwise = error $ "coerce attempting to resize : " ++ show (tO,tI)
 
 genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
-        | isMatrixStdLogicTy tI = error $ "input of unsigned uses matrix representation"
-        | isMatrixStdLogicTy tO = error $ "output of unsigned uses matrix representation"
+        | isMatrixStdLogicTy tI = error "input of unsigned uses matrix representation"
+        | isMatrixStdLogicTy tO = error "output of unsigned uses matrix representation"
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
 	]
         | otherwise =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat
-		[ ExprLit (Just $ zeros) $ ExprBitVector $ take zeros$ repeat F
+		[ ExprLit (Just zeros) $ ExprBitVector $ replicate zeros F
 		, ExprVar nm
 		]
 	]
@@ -473,17 +470,17 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
 
 
 genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
-        | isMatrixStdLogicTy tI = error $ "input of signed uses matrix representation"
-        | isMatrixStdLogicTy tO = error $ "output of signed uses matrix representation"
+        | isMatrixStdLogicTy tI = error "input of signed uses matrix representation"
+        | isMatrixStdLogicTy tO = error "output of signed uses matrix representation"
         | typeWidth tI >= typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
 	]
         | otherwise =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat $
-                (take zeros $ repeat $
+                replicate zeros
                   (ExprIndex nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tI - 1)))))
-                ) ++
+                  ++
 		[ ExprVar nm
 		]
 	]
@@ -652,7 +649,7 @@ genInst env i (Entity (Prim "RAM") outputs@[("o0",data_ty)] inputs) | goodAddrTy
 	(B  , V 0) -> genInst env i $ boolTrick ["wData","o0"] $ zeroArg $ inst 1 1
 	(B  , V m) -> genInst env i $ boolTrick ["wData","o0"] $ inst 1 m
 	(V n, V m) -> genInst env i $ inst n m
-	_ -> error $ "RAM typing issue (should not happen)"
+	_ -> error "RAM typing issue (should not happen)"
  where
         ("rAddr",addr_ty,_) = last inputs
 
@@ -749,7 +746,7 @@ genInst _ i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) =
 -- has in and outs of type std_logic[_vector].
 
 genInst _ i (Entity name@(External nm) outputs inputs) =
-	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ]))
           [ InstDecl nm ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
@@ -771,7 +768,7 @@ genInst _ i (Entity name@(External nm) outputs inputs) =
 
 
 genInst _ i (Entity name@(Name mod_nm nm) outputs inputs) =
-	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ])) $
+	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ]))
           [ InstDecl (mod_nm ++ "_" ++ sanitizeName nm) ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
@@ -879,7 +876,7 @@ mkSpecialTestBit =
 
 specials :: [(Id, NetlistOperation)]
 specials =
-      mkSpecialBinary (\ _t -> active_high) toTypedExpr
+      mkSpecialBinary (const active_high) toTypedExpr
         [ (".<.",LessThan)
 	, (".>.",GreaterThan)
 	, (".<=.",LessEqual)
@@ -912,6 +909,6 @@ specials =
 
 
 slvVarName :: (Show v, ToStdLogicExpr v) => Type -> v -> Ident
-slvVarName tI w = case (toStdLogicExpr tI w) of
+slvVarName tI w = case toStdLogicExpr tI w of
                     ExprVar varname -> varname
                     _ -> error $ "Can't get the name of variable " ++ show w
