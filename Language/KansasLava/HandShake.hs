@@ -17,98 +17,21 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Shallow
 import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
-import Language.KansasLava.Shallow.FIFO
+--import Language.KansasLava.Shallow.FIFO
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 
 import System.IO
 
------------------------------------------------------------------------------------------------
---
--- In
-
-
-
------------------------------------------------------------------------------------------------
--- type Handshake a = HandShaken (Seq (Enabled a))
-
-{- |
-
-A Handshaken value is a value that has a has been accepted backedge.
-
-> DIAGRAM
-
-There is nothing wrong with trying to accept a value that is not sent.
-
--}
-
-data HandShaken c a = HandShaken { unHandShaken :: CSeq c Bool -> a }
-
-
-infix 4 <~~
-
-(<~~) :: HandShaken c a -> CSeq c Bool -> a
-(HandShaken h) <~~ a = h a
-
-instance Functor (HandShaken c) where
-        fmap f (HandShaken g) = HandShaken (f . g)
-
-instance Applicative (HandShaken c) where
-        pure a = HandShaken $ const a                                   -- K
-        (HandShaken f) <*> (HandShaken g) = HandShaken (\ s -> f s (g s))       -- S
-
-instance Monad (HandShaken c) where
-        return a = HandShaken $ const a                                 -- K
-        (HandShaken f) >>= k = HandShaken $ \ s -> unHandShaken (k (f s)) s
-
-
-{-
-instance Signal Handshake where
-  liftS0 comb = Handshake $ \ _ -> enabledS $ liftS0 comb
-
-  liftS1 f (Handshake shake) = Handshake $ \ rd -> liftS1 (mapEnabled f) (shake rd)
-
-  liftS2 f (Handshake s1) (Handshake s2) = undefined
-        -- This is where the magic will happen, giving a token passing implementation for free
-
-  deepS _ = error "not possible to extract a Handshake without backedge"
--}
-
-
---liftHandShaken :: (a -> b) -> Handshake a -> Handshake b
---liftHandShaken = undefined
-
 ----------------------------------------------------------------------------------------------------
-{-
--- | @toHandshake'@ takes a list of stutters (counts of time to delay the output of a value) and
--- a list of values to be handshaken, including @Nothing@'s, that represent
-toHandshake' :: (Rep a) => [Int] -> [Maybe a] -> Handshake a
-toHandshake' stutter xs = Handshake $ \ ready -> toSeq (fn stutter xs (fromSeq ready))
-        where
-           -- We rely on the semantics of pattern matching to not match (x:xs)
-           -- if (0:ps) does not match.
-           fn (0:ps) (x:xs) c
-                    = x : case (c,x) of -- read c after issuing x
-                        (Nothing:rs,_)         -> error "toVariableHandshake: bad protocol state (1)"
-                        (Just True:rs,_)       -> fn ps xs rs         -- has been written
-                        (_:rs,_)               -> fn (0:ps) (x:xs) rs -- not written yet
-
-           fn (p:ps) xs c
-                    = Nothing : case c of
-                        (Nothing:rs)         -> error "toVariableHandshake: bad protocol state (2)"
-                        (Just _:rs)          -> fn (pred p:ps) xs rs -- nothing read
--}
-
-toHandShaken' :: (Rep a) => [Int] -> [Maybe a] -> HandShaken c (CSeq c (Enabled a))
-toHandShaken' _ xs = HandShaken $ \ ready -> toHandShaken xs ready
 
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
-toHandShaken :: (Rep a)
+toHandShaken :: (Rep a, Clock c, sig ~ CSeq c)
              => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> (CSeq c Bool
-             -> CSeq c (Enabled a)) -- ^ takes a flag back from FIFO that indicates successful write
+             -> sig Bool
+             -> sig (Enabled a)     -- ^ takes a flag back from FIFO that indicates successful write
                                     --   to a stream of values sent to FIFO
 toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
         where

@@ -15,7 +15,6 @@ module Language.KansasLava (
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Shallow,
-    module Language.KansasLava.Shallow.FIFO,
     module Language.KansasLava.Signal,
     module Language.KansasLava.StdLogicVector,
     module Language.KansasLava.Testing.Observe,
@@ -42,7 +41,6 @@ import Language.KansasLava.Reify
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
-import Language.KansasLava.Shallow.FIFO
 import Language.KansasLava.Signal
 import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Testing.Observe
