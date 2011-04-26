@@ -16,7 +16,6 @@ module Language.KansasLava (
     module Language.KansasLava.Seq,
     module Language.KansasLava.Shallow,
     module Language.KansasLava.Signal,
-    module Language.KansasLava.StdLogicVector,
     module Language.KansasLava.Testing.Observe,
     module Language.KansasLava.Testing.Output.Dot,
     module Language.KansasLava.Types,
@@ -42,7 +41,6 @@ import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
-import Language.KansasLava.StdLogicVector
 import Language.KansasLava.Testing.Observe
 import Language.KansasLava.Testing.Output.Dot
 import Language.KansasLava.Types

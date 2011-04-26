@@ -48,7 +48,6 @@ Library
        Language.KansasLava.Reify
        Language.KansasLava.Seq
        Language.KansasLava.Signal
-       Language.KansasLava.StdLogicVector
        Language.KansasLava.Types
        Language.KansasLava.Utils
        Language.KansasLava.VHDL

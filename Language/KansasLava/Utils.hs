@@ -10,7 +10,7 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Deep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.StdLogicVector as SLV
+--import Language.KansasLava.StdLogicVector as SLV
 --import qualified Data.Stream as S
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
@@ -77,7 +77,6 @@ infixr 2 .^.
 (.^.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 (.^.)  = xor2
 
--- TODO: create .&&.and .||. and .^.
 -----------------------------------------------------------------------------------------------
 
 instance (Show a, Rep a, Num a) => Num (Comb a) where
@@ -643,6 +642,8 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 --  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 -- This is pack/unpack???
 -}
+
+{-
 toStdLogicVector :: forall sig w . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
 						       RepValue v' -> StdLogicVector $ M.matrix $ v'
@@ -665,7 +666,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 		    Comb (optX $ do a' <- unX a
 			            return $ (SLV.spliceSLV i a' :: StdLogicVector b))
 		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
-
+-}
 {-
 {-
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c)
@@ -694,8 +695,8 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 -}
 
 -- This is the funny one, needed for our application
-instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
-	type WIDTH (Sampled.Sampled m ix) = m
+--instance (Enum ix, Size ix, Integral m, Size m) => StdLogic (Sampled.Sampled m ix) where
+--	type WIDTH (Sampled.Sampled m ix) = m
 
 -- Move this to a better place.
 instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
