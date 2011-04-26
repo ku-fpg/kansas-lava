@@ -31,7 +31,6 @@ class {- (Size (W w)) => -} Rep w where
     optX :: Maybe w -> X w
 
     -- | Each wire has a known type.
-    -- TODO: call repTupe
     repType :: Witness w -> Type
 
     -- | convert to binary (rep) format
