@@ -1,7 +1,7 @@
 -- | The 'Reify' module converts a the deep embedding of a Lava circuit, wrapped
 -- in a 'Fabric', into a 'Circuit' graph.
 {-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ScopedTypeVariables #-}
-module Language.KansasLava.Reify (reifyFabric, reifyCircuit) where
+module Language.KansasLava.Reify (reifyFabric) where
 
 import Data.List as L
 import Data.Maybe(fromMaybe)
@@ -87,7 +87,3 @@ reifyFabric (F.Fabric circuit) = do
                           }
 
 
--- | 'reifyCircuit' creates a 'Fabric' for a Lava circuit based on the circuit
--- arguments and return type and then calls 'reifyFabric' on the resulting 'Fabric'.
-reifyCircuit :: F.MakeFabric a => a -> IO Circuit
-reifyCircuit c = reifyFabric $ F.genFabric c

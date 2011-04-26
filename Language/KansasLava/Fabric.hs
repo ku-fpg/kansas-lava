@@ -10,23 +10,19 @@ module Language.KansasLava.Fabric
         , outStdLogic
         , outStdLogicVector
         , padStdLogicType
---        , driving
---        , fabric_example
-        , backedges
-        , genFabric, MakeFabric
         ) where
 
 
-import Language.KansasLava.Types
-import Language.KansasLava.Seq
-import Data.Sized.Unsigned
-import Data.Sized.Ix
 import Control.Monad.Fix
 import Control.Monad
-import Control.Monad.State
+import Data.Sized.Unsigned
+import Data.Sized.Ix
 
--- For testing
+import Language.KansasLava.Types
+import Language.KansasLava.Seq
 import Language.KansasLava.Utils
+
+
 
 
 -- The '_' will disappear soon from these names.
@@ -49,7 +45,23 @@ instance Show Pad where
 
          -- TODO: the 2D Array
 
--- The 'Fabric' structure, which is also a monad.
+{- | The 'Fabric' structure, which is also a monad.
+
+> fabric_example :: Fabric ()
+> fabric_example = do
+>        i0 <- inStdLogic "i0"
+>        i1 <- inStdLogic "i1"
+>        let (c,s) = halfAdder i0 i1
+>        outStdLogic "carry" c
+>        outStdLogic "sum" s
+>  where
+>          halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool,Seq Bool)
+>          halfAdder a b = (carry,sum_)
+>                where carry = and2 a b
+>                      sum_  = xor2 a b
+
+-}
+
 data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
 
 instance Functor Fabric where
@@ -113,32 +125,6 @@ outStdLogicVector nm sq = output nm (StdLogicVector_ sq)
 
 -------------------------------------------------------------------------------
 
--- | 'driving' chains two fabrics together, leting
--- the first one drive the second one. Note this
--- is not the same as '(>>)', which makes no
--- connections.
-
--- NOTES: I'm unsure about the shadowing of names here.
--- It will work, as long as inputs and output never
--- interset.
-{-
-infixr 5 `driving`
-
-driving :: Fabric a -> Fabric b -> Fabric b
-driving (Fabric f) (Fabric g) = Fabric $ \ ins ->
-    let (_,f_in_names,f_outs) = f ins
-        (b,g_in_names,g_outs) = g (f_outs ++ ins)
-    in ( b
-       , f_in_names ++ [ (nm,ty)
-                       | (nm,ty) <- g_in_names
-                       , nm `notElem` map fst f_outs ]
-       , [ (nm,ty)
-         | (nm,ty) <- f_outs
-         , nm `notElem` map fst g_in_names
-         ] ++ g_outs
-       )
-
--}
 
 -- 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
 runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
@@ -147,80 +133,3 @@ runFabric (Fabric f) args = result
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
-{-
-fabric_example :: Fabric ()
-fabric_example = do
-        i0 <- inStdLogic "i0"
-        i1 <- inStdLogic "i1"
-        let (c,s) = halfAdder i0 i1
-        outStdLogic "carry" c
-        outStdLogic "sum" s
-  where
-          halfAdder :: Seq Bool -> Seq Bool -> (Seq Bool,Seq Bool)
-          halfAdder a b = (carry,sum_)
-                where carry = and2 a b
-                      sum_  = xor2 a b
--}
--------------------------------------------------------------------------------
-
-backedges :: (MonadFix m) => (b -> m (a,b)) -> m a
-backedges f = liftM fst $ mfix $ \ ~(_,b) -> f b
-
-
--- | Given a circuit (where the inputs/outputs support MakeFabric),
--- automatically generate a Fabric.
-genFabric :: MakeFabric a => a -> Fabric ()
-genFabric c = evalStateT (mkFabric c) (0,0)
-
-
--- | The FabricGen just wraps Fabric with some state for tracking the number of
--- inputs/outputs.
-type FabricGen = StateT (Int,Int) Fabric
-
-
--- | Generate the next output name in the sequence.
-newOutputName :: FabricGen String
-newOutputName = do
-  (i,o) <- get
-  put (i,o+1)
-  return $  "out" ++ show o
-
--- | Generate the next input name in the sequence.
-newInputName :: FabricGen String
-newInputName = do
-  (i,o) <- get
-  put (i,o+1)
-  return $  "in" ++ show o
-
--- | Automatically generate the input/output declarations for a Lava function.
-class MakeFabric a where
-  -- | Construct the Fabric
-  mkFabric :: a -> FabricGen ()
-
-instance MakeFabric (Seq Bool) where
-   mkFabric b = do
-     nm <- newOutputName
-     lift $ outStdLogic nm b
-
-instance MakeFabric a =>  MakeFabric (Seq Bool -> a) where
-   mkFabric f = do
-     nm <- newInputName
-     i <- lift $ inStdLogic nm
-     mkFabric (f i)
-
-instance Size x =>  MakeFabric (Seq (Unsigned x)) where
-  mkFabric v = do
-    nm <- newOutputName
-    lift $ outStdLogicVector nm v
-
-instance (Size x, MakeFabric a) =>  MakeFabric (Seq (Unsigned x) -> a) where
-   mkFabric f = do
-     nm <- newInputName
-     i <- lift $ inStdLogicVector nm
-     mkFabric (f i)
-
-instance (MakeFabric a, MakeFabric b) => MakeFabric (a,b) where
-  mkFabric (a,b) = do
-    mkFabric a
-    mkFabric b
-
