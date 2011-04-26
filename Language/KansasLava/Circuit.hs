@@ -1,3 +1,4 @@
+-- | This module provides some utility functions for working with probes.
 module Language.KansasLava.Circuit (toGraph,mergeProbes,mergeProbesIO,remProbes) where
 
 import Language.KansasLava.Types hiding (probes)
@@ -7,13 +8,13 @@ import Data.List
 import qualified Data.Graph.Inductive as G
 import qualified Data.Reify.Graph as DRG
 
--- In case we want to work with the functional graph algorithms library
+-- | Convert a 'Circuit' to a fgl graph.
 toGraph :: Circuit -> G.Gr (Entity DRG.Unique) ()
 toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                        | (n1,Entity _ _ ins) <- theCircuit rc
                                        , (_,_,Port _ n2) <- ins ]
 
--- | Gives probes their node ids. This should be run after mergeProbes
+-- | Gives probes their node ids. This should be run after mergeProbes.
 addProbeIds :: Circuit -> Circuit
 addProbeIds circuit = circuit { theCircuit = newCircuit }
     where newCircuit = [ addId entity | entity <- theCircuit circuit ]
@@ -21,6 +22,7 @@ addProbeIds circuit = circuit { theCircuit = newCircuit }
           addId other = other
           addToName nid (OVar _ nm) = OVar nid nm
 
+-- | Lift the pure 'mergeProbes' function into the 'IO' monad.
 mergeProbesIO :: Circuit -> IO Circuit
 mergeProbesIO = return . mergeProbes
 
@@ -30,7 +32,7 @@ mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
     where go ((pid,Entity (TraceVal pnames strm) outs ins@[(_,_,d)]):pl) rc =
                          let others = probesOnAL d pl
                              otherIds = [ k | (k,_) <- others, k /= pid ]
-                             newNames = nub $ pnames ++ (concatMap snd others)
+                             newNames = nub $ pnames ++ concatMap snd others
                              updatedNames = updateAL pid (Entity (TraceVal newNames strm) outs ins) $ theCircuit rc
                          in go pl $ replaceWith (f pid)  otherIds $ rc { theCircuit = updatedNames }
           go [] rc = rc
