@@ -1,4 +1,4 @@
-
+-- | This module generates Netlist 'Decl's for a circuit graph.
 module Language.KansasLava.Netlist.Decl where
 
 import Language.KansasLava.Types hiding (Trace(..))
@@ -16,7 +16,7 @@ import Language.KansasLava.Netlist.Utils
 -- We have a few exceptions, where we generate some extra signals,
 -- but in general, we generate a single signal decl for each
 -- entity.
-
+-- | Generate declarations.
 genDecl :: (Unique, Entity Unique) -> [Decl]
 -- Special cases
 {-
@@ -58,7 +58,7 @@ genDecl (i,e@(Entity _ outputs _))
                           -- This is reversed because we defined from (n-1) downto 0
                           -> Just $ reverse $ map (toTypedExpr (V y))
                                             $ take x'
-                                            $ (lits ++ repeat (RepValue $ take y $ repeat $ WireVal False))
+                                              (lits ++ repeat (RepValue $ replicate y $ WireVal False))
                         _ -> Nothing
                     )
 	      _ -> NetDecl
