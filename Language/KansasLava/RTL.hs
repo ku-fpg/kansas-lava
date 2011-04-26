@@ -28,27 +28,6 @@ data Reg s c a  = Reg (CSeq c a) 		-- output of register
 	    	      (STRef s [CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))])
 		      Int
 						-- the "assignments"
---	(Maybe (CSeq c Bool),CSeq c ix, CSeq c a)])
-
--- type R a b c = ()
-{-
-class IsReg (v :: * -> * -> * -> *) where
---	type R v :: * -> * -> * -> *
-	fromReg :: Reg s c a -> v s c a
-
-{-
-instance IsReg (Reg s) where
-	type R (Reg s) = Reg
-	fromReg x = x
--}
-type CCSeq s c a = CSeq c a
-
--- Project out the final answer,
-instance IsReg (CCSeq) where
---	type R CSeq = CSeq
-	fromReg (Reg seq _) = seq
---	fromReg (Arr seq _ _) = seq
--}
 
 reg :: Reg s c a -> CSeq c a
 reg (Reg iseq _ _ _) = iseq
@@ -59,7 +38,6 @@ var (Reg iseq _ _ _) = iseq
 var (Arr iseq _ _ _) = iseq
 
 -------------------------------------------------------------------------------
-
 data Pred c = Pred (Maybe (CSeq c Bool))
 
 truePred :: Pred c
@@ -74,7 +52,6 @@ muxPred (Pred Nothing) (t,_) = t
 muxPred (Pred (Just p)) (t,f) = mux2 p (t,f)
 
 -------------------------------------------------------------------------------
-
 
 data RTL s c a where
 	RTL :: (Pred c -> STRef s Int -> ST s (a,[Int])) -> RTL s c a
@@ -132,7 +109,6 @@ data Cond s c
 	| OTHERWISE (RTL s c ())
 
 -------------------------------------------------------------------------------
-
 -- data NewReg c a = NewReg (forall r . (IsReg r) => r c a)
 
 -- Not quite sure why we need the NewReg indirection;
@@ -151,9 +127,7 @@ newReg def = RTL $ \ _ u -> do
 		return $ (v_old,v_new)
 	return (Reg regRes variable varSt uq,[])
 
-
 -- Arrays support partual updates.
-
 newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (CSeq c ix -> Reg s c a)
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
@@ -161,15 +135,6 @@ newArr Witness = RTL $ \ _ u -> do
 	varSt <- newSTRef []
 	proj <- unsafeInterleaveST $ do
 		assigns <- readSTRef varSt
-{-
-		let memMux :: forall a . (Rep a) => (Maybe (CSeq c Bool), CSeq c ix, CSeq c a) -> CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))
-		    memMux (Nothing,ix,v) d  = enabledS (pack (ix,v))
-		    memMux (Just p,ix,v) d  = mux2 p (enabledS (pack (ix,v)),d)
-
---			let mux :: forall a . (Rep a) => (Maybe (CSeq c Bool),CSeq c a) -> CSeq c a -> CSeq c a
---		    mux (Nothing,a) d = a	-- Nothing is used to represent always true
---		    mux (Just b,a) d  = mux2 b (a,d)
--}
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
 		let look ix = writeMemory (ass :: CSeq c (Maybe (ix,a)))
 					`readMemory` ix
@@ -178,33 +143,6 @@ newArr Witness = RTL $ \ _ u -> do
 
 --assign :: Reg s c (Matrix ix a) -> CSeq c ix -> Reg s c a
 --assign (Reg seq var uq) = Arr
-
-{-
-	var <- newMVar []
-	proj <- unsafeInterleaveIO $ do
-		assigns <- readMVar var
-
-		let memMux :: forall a . (Rep a) => (Maybe (CSeq c Bool), CSeq c ix, CSeq c a) -> CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))
-		    memMux (Nothing,ix,v) d  = enabledS (pack (ix,v))
-		    memMux (Just p,ix,v) d  = mux2 p (enabledS (pack (ix,v)),d)
-
-		let ass = foldr memMux (pureS Nothing) assigns
-		let look ix = pipeToMemory (ass :: CSeq c (Maybe (ix,a))) ix
-		return $ look
-
-	return (ARR (\ ix -> fromReg (Arr (proj ix) ix var)), [])
--}
-
-{-
-
-newReg :: forall s a c . (Clock c, Rep a) => Comb a -> RTL s c (forall r . (IsReg r) => r c a)
-newReg def = do
-	NewReg r <- newReg' def
-	return r
-
--------------------------------------------------------------------------------
--- data NewArr c ix a = NewArr (forall v . (IsReg v) => CSeq c ix -> v c a)
--}
 
 -------------------------------------------------------------------------------
 
