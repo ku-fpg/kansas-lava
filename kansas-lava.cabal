@@ -33,7 +33,6 @@ Library
        Language.KansasLava
        Language.KansasLava.Comb
        Language.KansasLava.Circuit
-       Language.KansasLava.Circuit.Depth
        Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Clock
        Language.KansasLava.Deep
@@ -59,7 +58,6 @@ Library
        Language.KansasLava.Testing.Output.Dot
        Language.KansasLava.Testing.Thunk
        Language.KansasLava.Testing.Trace
-       -- Language.KansasLava.Testing.Utils
   Other-modules:
        Language.KansasLava.Radix
        Language.KansasLava.Netlist.Decl
