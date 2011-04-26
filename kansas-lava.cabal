@@ -39,10 +39,6 @@ Library
        Language.KansasLava.Deep
        Language.KansasLava.Fabric
        Language.KansasLava.Netlist
-       Language.KansasLava.Netlist.Decl
-       Language.KansasLava.Netlist.Inst
-       Language.KansasLava.Netlist.Sync
-       Language.KansasLava.Netlist.Utils
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
@@ -66,6 +62,11 @@ Library
        -- Language.KansasLava.Testing.Utils
   Other-modules:
        Language.KansasLava.Radix
+       Language.KansasLava.Netlist.Decl
+       Language.KansasLava.Netlist.Inst
+       Language.KansasLava.Netlist.Sync
+       Language.KansasLava.Netlist.Utils
+
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
