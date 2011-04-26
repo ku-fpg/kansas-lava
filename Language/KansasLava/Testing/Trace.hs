@@ -38,7 +38,7 @@ import Language.KansasLava.Utils
 
 --import Data.Stream(Stream)
 import qualified Language.KansasLava.Stream as S
-import Language.KansasLava.Testing.Utils
+
 
 import Data.List
 import Data.Maybe
@@ -262,3 +262,9 @@ addStream key m stream = m ++ [(key,toTrace stream)]
 
 addSeq :: forall w. (Rep w) => OVar -> Seq w -> [(OVar,TraceStream)] -> [(OVar,TraceStream)]
 addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
+
+
+-- surely this exists in the prelude?
+mergeWith :: (a -> a -> a) -> [[a]] -> [a]
+mergeWith _ [] = []
+mergeWith f ls = foldr1 (zipWith f) ls

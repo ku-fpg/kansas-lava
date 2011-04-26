@@ -63,7 +63,7 @@ Library
        Language.KansasLava.Testing.Output.Dot
        Language.KansasLava.Testing.Thunk
        Language.KansasLava.Testing.Trace
-       Language.KansasLava.Testing.Utils
+       -- Language.KansasLava.Testing.Utils
   Other-modules:
        Language.KansasLava.Radix
 
