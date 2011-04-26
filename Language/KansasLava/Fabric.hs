@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, UndecidableInstances
+{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, UndecidableInstances, GADTs
  #-}
 module Language.KansasLava.Fabric
         ( Fabric(..)
@@ -15,33 +15,35 @@ module Language.KansasLava.Fabric
 
 import Control.Monad.Fix
 import Control.Monad
-import Data.Sized.Unsigned
 import Data.Sized.Ix
+--import Data.Sized.Matrix
 
 import Language.KansasLava.Types
 import Language.KansasLava.Seq
 import Language.KansasLava.Utils
-
+import Language.KansasLava.Shallow
 
 
 
 -- The '_' will disappear soon from these names.
 
-data Pad = StdLogic_ (Seq Bool)
-         | forall x . (Size x) => StdLogicVector_ (Seq (Unsigned x))
-         | Generic_ Integer
+data Pad = StdLogic (Seq Bool)
+         | forall a x . (Size (W a), Show a, Rep a) 
+                => StdLogicVector (Seq a)
+--         | TypedPad (...)
+         | GenericPad Integer
 
 padStdLogicType :: Pad -> StdLogicType
-padStdLogicType (StdLogic_ _)       = SL
-padStdLogicType (StdLogicVector_ s) = SLV $ size (untype s)
-    where untype :: Seq (Unsigned a) -> a
+padStdLogicType (StdLogic _)       = SL
+padStdLogicType (StdLogicVector s) = SLV $ size (untype s)
+    where untype :: (Size (W a)) => Seq a -> W a
           untype = error "untype"
-padStdLogicType (Generic_ _)        = G
+padStdLogicType (GenericPad _)        = G
 
 instance Show Pad where
-        show (StdLogic_ sq)       = "StdLogic_ " ++ show sq
-        show (StdLogicVector_ sq) = "StdLogicVector_ " ++ show sq
-        show (Generic_ i)         = "Generic_ " ++ show i
+        show (StdLogic sq)       = "StdLogic " ++ show sq
+        show (StdLogicVector sq) = "StdLogicVector " ++ show sq
+        show (GenericPad i)      = "Generic " ++ show i
 
          -- TODO: the 2D Array
 
@@ -93,35 +95,34 @@ output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
 inStdLogic :: String -> Fabric (Seq Bool)
 inStdLogic nm = do
-        pad <- input nm (StdLogic_ $ deepSeq $ D $ Pad (OVar 0 nm))
+        pad <- input nm (StdLogic $ deepSeq $ D $ Pad (OVar 0 nm))
         case pad of
-          StdLogic_ sq -> return sq
+          StdLogic sq -> return sq
           _            -> fail "internal type error in inStdLogic"
 
 
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
-        pad <- input nm (Generic_ $ error "Fix Generic")
+        pad <- input nm (GenericPad $ error "Fix Generic")
         case pad of
-          Generic_ g -> return g
-          _          -> fail "internal type error in inGeneric"
+          GenericPad g -> return g
+          _            -> fail "internal type error in inGeneric"
 
-inStdLogicVector :: forall x . (Size x) => String -> Fabric (Seq (Unsigned x))
+inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-        pad <- input nm (StdLogicVector_ $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq (Unsigned x)))
+        pad <- input nm (StdLogicVector $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq a))
         case pad of
-          StdLogicVector_ sq -> return $ (unsigned) sq
+                                -- This unsigned is hack, but the sizes should always match.
+          StdLogicVector sq -> return $ (unsigned sq)
           _                  -> fail "internal type error in inStdLogic"
 
-
-
 outStdLogic :: String -> Seq Bool -> Fabric ()
-outStdLogic nm seq_bool = output nm (StdLogic_ seq_bool)
-
+outStdLogic nm seq_bool = output nm (StdLogic seq_bool)
 
 outStdLogicVector
-  :: Size x => String -> Seq (Unsigned x) -> Fabric ()
-outStdLogicVector nm sq = output nm (StdLogicVector_ sq)
+  :: forall a .
+     (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
+outStdLogicVector nm sq = output nm (StdLogicVector sq)
 
 -------------------------------------------------------------------------------
 

@@ -66,9 +66,9 @@ signatureTrace (Signature inps outps _) = Trace Nothing (convert inps) (convert 
     where convert l = [ (ovar, TraceStream ty [])  | (ovar, ty) <- l ]
 
 padToTraceStream :: Pad -> TraceStream
-padToTraceStream (StdLogic_ s) = toTrace $ seqValue s
-padToTraceStream (StdLogicVector_ s) = toTrace $ seqValue s
-padToTraceStream (Generic_ _) = error "fix padToTraceStream for Generics"
+padToTraceStream (StdLogic s) = toTrace $ seqValue s
+padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
+padToTraceStream (GenericPad _) = error "fix padToTraceStream for Generics"
 
 -- Combinators to change a trace
 -- | Set the length of the trace, in cycles.

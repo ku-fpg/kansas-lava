@@ -59,15 +59,15 @@ testFIFO (TestSeq test toList) tyName ws wit = do
                 outStdLogic      "flag"         $ toSeq outBools
                 let vals' :: Seq (Enabled w)
                     vals' = toHandShaken vals (toSeq (map fst specRes))
-                outStdLogicVector "vals"        ((coerce) (enabledVal vals'))
+                outStdLogicVector "vals"        ((enabledVal vals'))
                 outStdLogic       "vals_en"     (isEnabled vals')
 
             dut = do
                 flag    <- inStdLogic "flag"
                 vals    <- inStdLogicVector "vals"
                 vals_en <- inStdLogic "vals_en"
-                let (ack,res) = unpack $ cir $ (pack (packEnabled vals_en (coerce vals), flag) :: Seq (Enabled w,Bool))
-                outStdLogicVector "res"    ((coerce) (enabledVal res))
+                let (ack,res) = unpack $ cir $ (pack (packEnabled vals_en (vals), flag) :: Seq (Enabled w,Bool))
+                outStdLogicVector "res"    ((enabledVal res))
                 outStdLogic "res_en" (isEnabled res)
                 outStdLogic "ack" ack
 
@@ -77,7 +77,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
             res :: Fabric ()
             res = do
                 let specResSeq = toSeq $ map snd $ specRes
-                outStdLogicVector "res" ((coerce) (enabledVal specResSeq))
+                outStdLogicVector "res" ((enabledVal specResSeq))
                 outStdLogic "res_en" (isEnabled specResSeq)
                 outStdLogic "ack" undefinedS
                 

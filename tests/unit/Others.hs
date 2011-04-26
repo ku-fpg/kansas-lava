@@ -78,7 +78,6 @@ tests test = do
         t "U3" (loop 10 (arbitrary :: Gen U3))
         t "Int" (loop 10 (arbitrary :: Gen Int))
         t "Bool" (loop 10 (arbitrary :: Gen Bool))
-
         let t :: (Eq a, Show a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t str arb = testDelay test str arb
 
@@ -103,13 +102,13 @@ testUniOp :: forall a b .
 testUniOp (TestSeq test toList) nm op lavaOp gen = do
         let us0 = toList gen
         let driver = do
-                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i0" (toSeq us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = liftS1 lavaOp (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = liftS1 lavaOp (i0)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce $ toSeq (fmap op us0))
+                outStdLogicVector "o0" (toSeq (fmap op us0))
 
         test nm (length us0) driver dut res
 
@@ -127,15 +126,15 @@ testBinOp :: forall a b c .
 testBinOp (TestSeq test toList) nm op lavaOp gen = do
         let (us0,us1) = unzip $ toList gen
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
-                outStdLogicVector "i1" (coerce (toSeq us1) :: Seq (Unsigned (W b)))
+                outStdLogicVector "i0" (toSeq us0)
+                outStdLogicVector "i1" (toSeq us1)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
-                let o0 = liftS2 lavaOp (coerce i0) (coerce i1)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = liftS2 lavaOp (i0) (i1)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce $ toSeq (Prelude.zipWith op us0 us1))
+                outStdLogicVector "o0" (toSeq (Prelude.zipWith op us0 us1))
 
         test nm (length (zip us0 us1)) driver dut res
 
@@ -153,17 +152,17 @@ testTriOp :: forall a b c d .
 testTriOp (TestSeq test toList) nm op lavaOp gen = do
         let (us0,us1,us2) = unzip3 $ toList gen
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
-                outStdLogicVector "i1" (coerce (toSeq us1) :: Seq (Unsigned (W b)))
-                outStdLogicVector "i2" (coerce (toSeq us2) :: Seq (Unsigned (W c)))
+                outStdLogicVector "i0" (toSeq us0)
+                outStdLogicVector "i1" (toSeq us1)
+                outStdLogicVector "i2" (toSeq us2)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
                 i2 <- inStdLogicVector "i2"
-                let o0 = liftS3 lavaOp (coerce i0) (coerce i1) (coerce i2)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = liftS3 lavaOp (i0) (i1) (i2)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce $ toSeq (Prelude.zipWith3 op us0 us1 us2))
+                outStdLogicVector "o0" ( toSeq (Prelude.zipWith3 op us0 us1 us2))
         test nm (length (zip3 us0 us1 us2)) driver dut res
 
 ------------------------------------------------------------------------------------------------
@@ -298,13 +297,13 @@ testRegister  (TestSeq test toList) tyName ws = do
         let (u0:us0) = toList ws
             reg = register :: a -> Seq a -> Seq a
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i0" (toSeq us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = reg u0 $ coerce i0
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = reg u0 $ i0
+                outStdLogicVector "o0" o0
             res = do
-                outStdLogicVector "o0" (coerce $ toSeq (u0 : us0))
+                outStdLogicVector "o0" (toSeq (u0 : us0))
         test ("register/" ++ tyName) (length us0) driver dut res
         return ()
 
@@ -313,13 +312,13 @@ testDelay  (TestSeq test toList) tyName ws = do
         let us0 = toList ws
             dlay = delay :: Seq a -> Seq a
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq us0) :: Seq (Unsigned (W a)))
+                outStdLogicVector "i0" (toSeq us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = dlay $ coerce i0
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = dlay $ i0
+                outStdLogicVector "o0" o0
             res = do
-                outStdLogicVector "o0" (coerce $ shallowSeq (S.Cons unknownX (S.fromList (map pureX us0))))
+                outStdLogicVector "o0" (shallowSeq (S.Cons unknownX (S.fromList (map pureX us0))))
 
         test ("delay/" ++ tyName) (length us0) driver dut res
         return ()

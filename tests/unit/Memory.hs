@@ -16,7 +16,7 @@ tests :: TestSeq -> IO ()
 tests test = do
         --  Memories
         let t :: (Eq b, Integral a, Show b,
-                 Size (Column a), Size (Row a), Size (W a),
+                 Size (W a),
                  Size (W (Maybe (a,b))), Size (MUL a (W b)),
                  Size a, Rep a, Rep b) =>
                  String -> Gen (Maybe (a,b)) -> IO ()
@@ -29,7 +29,6 @@ tests test = do
         t "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X256,S10))))
 
         let t :: (Eq a, Integral a, Show b,
-                  Size (Column a), Size (Row a),
                   Size (W a), Size (W b), Size (MUL a (W b)), Size (W (Maybe (a,b))),
                   Size a, Rep a, Rep b, Eq b
                  ) =>
@@ -40,7 +39,6 @@ tests test = do
         t "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
         let t :: (Eq a, Integral a, Show b,
-                  Size (Column a), Size (Row a),
                   Size (W a), Size (W b), Size (MUL a (W b)), Size (W (Maybe (a,b))),
                   Size a, Rep a, Rep b, Eq b
                  ) =>
@@ -54,7 +52,6 @@ tests test = do
         -- test ROM
         let t :: (Integral a, Size a, Eq a, Rep a,
                  Eq b, Show b, Rep b,
-                 Size (Column a), Size (Row a),
                  Size (W a), Size (W b)) =>
                  String -> Gen (a,b) -> IO ()
             t str arb = testRomMemory test str arb
@@ -66,7 +63,7 @@ tests test = do
 testAsyncMemory :: forall w1 w2 .
                   ( Integral w1, Size w1, Eq w1, Rep w1
                   , Eq w2, Show w2, Rep w2
-                  , Size (Column w1), Size (Row w1), Size (W w1), Size (W w2)
+                  , Size (W w1), Size (W w2)
                   , Size (W (Maybe (w1,w2))))
                 => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testAsyncMemory (TestSeq test toList) tyName ws = do
@@ -74,15 +71,15 @@ testAsyncMemory (TestSeq test toList) tyName ws = do
         mem = asyncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 
         driver = do
-                outStdLogicVector "writes" (coerce (toSeq writes) :: Seq (Unsigned (W (Maybe (w1,w2)))))
-                outStdLogicVector "reads" (coerce (toSeq reads) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "writes" (toSeq writes)
+                outStdLogicVector "reads" (toSeq reads) 
         dut = do
                 ws <- inStdLogicVector "writes"
                 rs <- inStdLogicVector "reads"
-                let o0 = mem (coerce ws) (coerce rs)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = mem (ws) (rs)
+                outStdLogicVector "o0" (o0)
         res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
         -- we look backwards in the writes, starting with what was written
         -- in the previous cycle. If we find a write for this address, we
@@ -107,7 +104,7 @@ testAsyncMemory (TestSeq test toList) tyName ws = do
 testSyncMemory :: forall w1 w2 .
                   ( Integral w1, Size w1, Eq w1, Rep w1
                   , Eq w2, Show w2, Rep w2
-                  , Size (Column w1), Size (Row w1), Size (W w1), Size (W w2)
+                  , Size (W w1), Size (W w2)
                   , Size (W (Maybe (w1,w2))))
                => TestSeq -> String -> Gen (Maybe (w1,w2),w1) -> IO ()
 testSyncMemory (TestSeq test toList) tyName ws = do
@@ -115,15 +112,15 @@ testSyncMemory (TestSeq test toList) tyName ws = do
         mem = syncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 
         driver = do
-                outStdLogicVector "writes" (coerce (toSeq writes) :: Seq (Unsigned (W (Maybe (w1,w2)))))
-                outStdLogicVector "reads" (coerce (toSeq reads) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "writes" (toSeq writes)
+                outStdLogicVector "reads" (toSeq reads)
         dut = do
                 ws <- inStdLogicVector "writes"
                 rs <- inStdLogicVector "reads"
-                let o0 = mem (coerce ws) (coerce rs)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = mem (ws) (rs)
+                outStdLogicVector "o0" (o0)
         res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
         -- see note in testAsyncMemory for semantics of generating expected output
         shallow :: Seq w2
@@ -146,7 +143,7 @@ testSyncMemory (TestSeq test toList) tyName ws = do
 testMatrixMemory :: forall w1 w2 .
                     ( Integral w1, Size w1, Eq w1, Rep w1
                     , Eq w2, Show w2, Rep w2
-                    , Size (Column w1), Size (Row w1), Size (W w1)
+                    , Size (W w1)
                     , Size (W (Maybe (w1,w2))), Size (MUL w1 (W w2)))
                  => TestSeq -> String -> Gen (Maybe (w1,w2)) -> IO ()
 testMatrixMemory (TestSeq test toList) tyName ws = do
@@ -154,13 +151,13 @@ testMatrixMemory (TestSeq test toList) tyName ws = do
         mem = memoryToMatrix . writeMemory :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
 
         driver = do
-                outStdLogicVector "i0" (coerce (toSeq writes) :: Seq (Unsigned (W (Maybe (w1,w2)))))
+                outStdLogicVector "i0" (toSeq writes)
         dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = mem (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = mem (i0)
+                outStdLogicVector "o0" (o0)
         res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
         -- see note in testAsyncMemory for semantics of generating expected output
         shallow :: Seq (M.Matrix w1 w2)
@@ -186,7 +183,7 @@ testMatrixMemory (TestSeq test toList) tyName ws = do
 testRomMemory :: forall w1 w2 .
                  ( Integral w1, Size w1, Eq w1, Rep w1
                  , Eq w2, Show w2, Rep w2
-                 , Size (Column w1), Size (Row w1), Size (W w1), Size (W w2))
+                 , Size (W w1), Size (W w2))
               => TestSeq
               -> String
               -> Gen (w1,w2)
@@ -197,23 +194,16 @@ testRomMemory (TestSeq test toList) tyName ws = do
         m :: Matrix w1 w2
         m = matrix $ take (size (error "" :: w1)) (cycle $ List.nub vals)
         driver = do
-                outStdLogicVector "i0" (coerce (toSeq addr) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "i0" (toSeq addr)
         dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = mem (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = mem (i0)
+                outStdLogicVector "o0" (o0)
         res = do
-                outStdLogicVector "o0" (coerce (toSeq [ m M.! a | a <- addr ] :: Seq w2))
+                outStdLogicVector "o0" (toSeq [ m M.! a | a <- addr ] :: Seq w2)
 
 
         mem = funMap (\ a -> return (m M.! a)) :: Seq w1 -> Seq w2
 
     test ("memory/async/rom/" ++ tyName) (length addr) driver dut res
     return ()
-
-mytest :: (Eq b, Integral a, Show b,
-           Size (Column a), Size (Row a), Size (W a),
-           Size (W (Maybe (a,b))), Size (MUL a (W b)),
-           Size a, Rep a, Rep b)
-       => String -> Gen (Maybe (a,b)) -> IO ()
-mytest str arb = testMatrixMemory undefined str arb

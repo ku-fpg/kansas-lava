@@ -67,9 +67,9 @@ cmpFabricOutputs count expected shallow =
         ]
     where getTyRep :: Pad -> (StdLogicType, [RepValue])
           getTyRep pad = case pad of
-                           StdLogic_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
-                           StdLogicVector_ s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
-                           Generic_ _ -> error "testFabrics: Generic output pad?"
+                           StdLogic s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                           StdLogicVector s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
+                           GenericPad _ -> error "testFabrics: Generic output pad?"
 
 testFabrics
         :: Options                  -- Options

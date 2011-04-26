@@ -77,7 +77,7 @@ tests test = do
         t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))
         t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))
 
-        let t :: (Eq w2, Eq w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
+        let t :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
                  String -> Witness w2 -> Gen w1 -> IO ()
             t str witness arb = testCoerce test str witness arb
 
@@ -112,13 +112,13 @@ testUnsigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
             cir = unsigned :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq ms) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "i0" (toSeq ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = cir (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = cir (i0)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
             -- shallow will always pass; it *is* the semantics here
             shallow :: Seq w2
@@ -137,13 +137,13 @@ testSigned (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
             cir = signed :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq ms) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "i0" (toSeq ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = cir (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = cir (i0)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
             -- shallow will always pass; it *is* the semantics here
             shallow :: Seq w2
@@ -156,19 +156,19 @@ testSigned (TestSeq test toList) tyName Witness ws = do
         test ("signed/" ++ tyName) (length ms) driver dut res
         return ()
 
-testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
+testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
 testCoerce (TestSeq test toList) tyName Witness ws = do
         let ms = toList ws
             cir = coerce :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (coerce (toSeq ms) :: Seq (Unsigned (W w1)))
+                outStdLogicVector "i0" (toSeq ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = cir (coerce i0)
-                outStdLogicVector "o0" (coerce o0)
+                let o0 = cir (i0)
+                outStdLogicVector "o0" (o0)
             res = do
-                outStdLogicVector "o0" (coerce shallow)
+                outStdLogicVector "o0" (shallow)
 
             -- shallow will always pass; it *is* the semantics here
             shallow :: Seq w2
