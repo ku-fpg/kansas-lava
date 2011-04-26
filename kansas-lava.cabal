@@ -59,12 +59,10 @@ Library
        Language.KansasLava.Testing.Thunk
        Language.KansasLava.Testing.Trace
   Other-modules:
-       Language.KansasLava.Radix
        Language.KansasLava.Netlist.Decl
        Language.KansasLava.Netlist.Inst
        Language.KansasLava.Netlist.Sync
        Language.KansasLava.Netlist.Utils
-
 
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types

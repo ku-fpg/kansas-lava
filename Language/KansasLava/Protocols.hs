@@ -12,10 +12,11 @@ import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Signal
 
 import Data.Sized.Matrix as M
-import Control.Applicative
+import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
 import Language.KansasLava.Deep
-import Language.KansasLava.Radix as Radix
+-- import Language.KansasLava.Radix as Radix
+import Prelude hiding (lookup)
 
 type Enabled a = Maybe a
 
@@ -67,7 +68,7 @@ writeMemory pipe = res
 	shallowRes = pure (\ m -> XFunction $ \ ix ->
 			case getValidRepValue (toRep (optX (Just ix))) of
 			       Nothing -> optX Nothing
-			       Just a' -> case Radix.lookup a' m of
+			       Just a' -> case lookup a' m of
 					    Nothing -> optX Nothing
 					    Just v -> optX (Just v)
 			  )
@@ -110,13 +111,13 @@ writeMemory pipe = res
 -}
 	mem :: Stream (Radix d)
 	mem = stepifyStream (\ a -> a `seq` ())
-	    $ Cons Radix.empty $ Stream.fromList
+	    $ Cons empty $ Stream.fromList
 		[ case u of
-		    Nothing           -> Radix.empty	-- unknown again
+		    Nothing           -> empty	-- unknown again
 		    Just Nothing      -> m
 		    Just (Just (a,d)) ->
 			case getValidRepValue (toRep (optX (Just a))) of
-			  Just bs -> ((Radix.insert $! bs) $! d) $! m
+			  Just bs -> ((insert $! bs) $! d) $! m
                           Nothing -> error "mem: can't get a valid rep value"
 		| u <- Stream.toList updates
 		| m <- Stream.toList mem
@@ -422,4 +423,39 @@ instance (Eval a) => Eval (Maybe a) where
 instance (Eval a, Eval b) => Eval (a,b) where
 	eval (a,b) = eval a `seq` eval b `seq` ()
 -}
+
+
+
+-- | A 'Radix' is a trie indexed by bitvectors.
+data Radix a
+  = Res !a -- ^ A value stored in the tree
+  | NoRes -- ^ Non-present value
+  -- | A split-node, left corresponds to 'True' key bit, right corresponds to 'False' key bit.
+  | Choose !(Radix a) !(Radix a)
+	deriving Show
+
+-- | The empty tree
+empty :: Radix a
+empty = NoRes
+
+-- | Add a value (keyed by the list of bools) into a tree
+insert :: [Bool] -> a -> Radix a -> Radix a
+insert []    y (Res _) = Res $! y
+insert []    y NoRes   = Res $! y
+insert []    _ (Choose _ _) = error "inserting with short key"
+insert xs     y NoRes   = insert xs y (Choose NoRes NoRes)
+insert _  _ (Res _) = error "inserting with too long a key"
+insert (True:a) y (Choose l r) = Choose (insert a y l) r
+insert (False:a) y (Choose l r) = Choose l (insert a y r)
+
+
+-- | Find a value in a radix tree
+lookup :: [Bool] -> Radix a -> Maybe a
+lookup [] (Res v) = Just v
+lookup [] NoRes   = Nothing
+lookup [] _       = error "lookup error with short key"
+lookup (_:_) (Res _) = error "lookup error with long key"
+lookup (_:_) NoRes   = Nothing
+lookup (True:a) (Choose l _) = lookup a l
+lookup (False:a) (Choose _ r) = lookup a r
 
