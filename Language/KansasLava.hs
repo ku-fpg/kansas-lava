@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GADTs, FlexibleContexts #-}
-
+-- | A top-level module that re-exports the library's internal modules.
 module Language.KansasLava (
     module Language.KansasLava.Circuit,
     module Language.KansasLava.Circuit.Optimization,
