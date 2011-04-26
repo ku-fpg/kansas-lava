@@ -10,7 +10,7 @@ module Language.KansasLava.Radix
 
 import Prelude hiding (lookup)
 
-
+-- | A 'Radix' is a trie indexed by bitvectors.
 data Radix a
   = Res !a -- ^ A value stored in the tree
   | NoRes -- ^ Non-present value
@@ -35,11 +35,9 @@ insert (False:a) y (Choose l r) = Choose l (insert a y r)
 
 -- | Find a value in a radix tree
 lookup :: [Bool] -> Radix a -> Maybe a
-
 lookup [] (Res v) = Just v
 lookup [] NoRes   = Nothing
 lookup [] _       = error "lookup error with short key"
-
 lookup (_:_) (Res _) = error "lookup error with long key"
 lookup (_:_) NoRes   = Nothing
 lookup (True:a) (Choose l _) = lookup a l
