@@ -13,7 +13,7 @@ import System.FilePath.Posix
 mkTestbench :: String -> FilePath -> Circuit -> IO ()
 mkTestbench name path circuit = do
     createDirectoryIfMissing True path
-    writeVhdlCircuit ["work.lava.all","work.all"] name (path </> name <.> "vhd") circuit
+    writeVhdlCircuit name (path </> name <.> "vhd") circuit
 
     writeFile (path </> name ++ "_tb.vhd")
             $ entity name ++ architecture name (preprocessNetlistCircuit circuit)
