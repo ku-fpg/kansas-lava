@@ -131,10 +131,12 @@ testFabrics opts name count f_driver f_dut f_expected
                             sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
                                            copyLavaPrelude opts (path </> modname)
                                            writeFile (path </> modname </> "options") $ show opts
+                                           rep $ SimGenerated
                                            vrb 9 $ show ("trace",fromJust t)
                                       | (modname, t) <- zip (map fst sims) ts
                                       , isJust t
                                       , let vrb = verbose (verboseOpt opts) (name </> modname)
+                                      , let rep = report (name </> modname)
                                       ]
 
                             return ()
