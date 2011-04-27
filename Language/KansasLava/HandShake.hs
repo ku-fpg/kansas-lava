@@ -36,11 +36,15 @@ toHandShaken :: (Rep a, Clock c, sig ~ CSeq c)
 toHandShaken ys ready = toSeq (fn ys (fromSeq ready))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
-           fn (x:_) (Nothing:_) = x:(error "toHandShaken: bad protocol state (1)")
-           fn (x:xs) (Just True:rs) = x:(fn xs rs)     -- has been written
-           fn (x:xs) (_:rs) = x : fn (x:xs) rs -- not written yet
+           fn (x:xs) ys' = x :
+                case (x,ys') of
+                 (_,Nothing:_)          -> error "toHandShaken: bad protocol state (1)"
+                 (Just _,Just True:rs)  -> fn xs rs     -- has been written
+                 (Just _,Just False:rs) -> fn (x:xs) rs -- not written yet
+                 (Nothing,Just _:rs)    -> fn xs rs     -- nothing to write
+                 (_,[])                 -> error "toHandShaken: can't handle empty list of values to receive"
            fn [] _ = error "toHandShaken: can't handle empty list of values to issue"
-           fn _ [] = error "toHandShaken: can't handle empty list of values to receive"
+
 
 
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
@@ -53,13 +57,55 @@ fromHandShaken inp = (toSeq (map fst internal), map snd internal)
    where
         internal = fn (fromSeq inp)
 
-        fn ~(x:xs) = (True,rep) : rest
+        fn (x:xs) = (True,rep) : rest
            where
                 (rep,rest) = case x of
                                Nothing       -> error "fromVariableHandshake: bad reply to ready status"
                                Just Nothing  -> (Nothing,fn xs)
                                Just (Just v) -> (Just v,fn xs)
+        fn [] = (False,Nothing) : fn []                     
 
+
+-- introduce protocol-compliant delays.
+
+shallowHandShakenBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) => (sig Bool,sig Bool) -> (sig (Enabled a),sig Bool) -> (sig (Enabled a),sig Bool)
+shallowHandShakenBridge (lhsS,rhsS) (inp,back) 
+        = unpack (toSeq $ fn (fromSeq lhsS) (fromSeq rhsS) (fromSeq inp) (fromSeq back) [])
+   where
+        fn :: [Maybe Bool] -> [Maybe Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
+--        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
+        fn (Just True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) True
+        fn (_:lhss)      rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        False
+        fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
+
+--        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
+        fn2 lhss (Just True:rhss) as bs (s:ss) bk = (Just s,bk) : 
+                                                 case bs of
+                                                   (Just True : bs')  -> fn lhss rhss as bs' ss
+                                                   (Just False : bs') -> fn lhss rhss as bs' (s:ss)
+                                                   _ -> error "failure in shallowHandShakenBridge (fn2/case)"
+
+        fn2 lhss (Just _:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (tail bs) store
+        fn2 _ _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn2)"
+        
+{-
+test = take 100 res
+  where
+        input :: [Int]
+        input = [1..]
+
+        inp :: Seq (Enabled Int)
+        inp = toHandShaken (concat [[Just x, Nothing,Nothing]| x <- input ]) inp_back
+        
+--        bridge = id
+        bridge = shallowHandShakenBridge (randomBools (mkStdGen 0)  (const 0.9),randomBools (mkStdGen 1) (const 0.1))
+
+        (outp,inp_back) = bridge (inp,out_back)
+
+        inp_back :: Seq Bool
+        res :: [Maybe Int]
+        (out_back,res) = fromHandShaken outp
+-}
 
 ----------------------------------------------------------------------------------------------------
 -- These are functions that are used to thread together Hand shaking and FIFO.
@@ -416,14 +462,15 @@ divBy Witness rst trig = mux2 issue (1,0)
                 counter1 :: CSeq c sz
                 counter1 = register 0
                          $ mux2 issue (0,counter0)
+
+
+
 {-
-
--- sub-domain for the inner clock.
-liftHandShaken :: (Clock c1)
-        => (forall c0 . (Clock c0) => Clocked c0 a -> Clocked c0 b)
-        -> HandShaken c1 (Enabled a)
-        -> HandShaken c1 (Enabled b)
-liftHandShaken f = undefined
-
+-- Turn a Hand Shaken signal into a packetized Hand Shaken signal.
+mkPacketFIFO :: 
 
 -}
+
+
+
+
