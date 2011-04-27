@@ -5,10 +5,10 @@
 
 module Language.KansasLava.Seq where
 
+
+import System.Random
 import Control.Applicative
-
 import Data.List
-
 
 import Language.KansasLava.Types
 import Language.KansasLava.Signal
@@ -172,3 +172,14 @@ showSeqVals ss = [ showRep witness i
        	         ]
 
      where witness = Witness :: Witness a
+
+
+
+----------------------------------------------------------------------------------
+
+-- | generate a (shallow) stream of random boolean. Used for testing
+-- shallow circuits.
+
+randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Float -> Float) -> sig Bool
+randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [1..] ]
+
