@@ -3,7 +3,8 @@
 
 module Language.KansasLava.Shallow where
 
---import qualified Data.Stream as Stream
+
+
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types hiding (Trace(..))
 import Control.Monad (liftM)
