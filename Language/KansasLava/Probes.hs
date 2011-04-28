@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes,ExistentialQuantification,ScopedTypeVariables,UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes, ExistentialQuantification, ScopedTypeVariables, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
 module Language.KansasLava.Probes (
@@ -35,10 +35,9 @@ probeCircuit :: Int -> Fabric () -> IO [(OVar, TraceStream)]
 probeCircuit n fabric = do
     rc <- (reifyFabric >=> mergeProbesIO) fabric
 
-    return [(nm,TraceStream ty $ take n strm)
-            | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _) <- theCircuit rc
+    return [ (nm,TraceStream ty $ take n strm)
+           | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _) <- theCircuit rc
            , nm <- nms ]
-
 
 -- | Get all of the named probes for a 'Circuit' node.
 probeNames :: DRG.Unique -> Circuit -> [OVar]
@@ -62,7 +61,6 @@ probeData n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms strm) _ _) -> Just (nms, strm)
                         _ -> Nothing
 
-
 -- | The 'Probe' class is used for adding probes to all inputs/outputs of a Lava
 -- circuit.
 class Probe a where
@@ -73,12 +71,12 @@ class Probe a where
 instance (Clock c, Rep a) => Probe (CSeq c a) where
     probe' (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where strm = toTrace s
-    probe' [] (Seq _ _) = error "probe'2"
+    probe' [] _ = error "Can't add probe: no name supply available (Seq)"
 
 instance Rep a => Probe (Comb a) where
     probe' (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where strm = toTrace $ S.fromList $ repeat s
-    probe' [] _ = error "Can't add probe: no name supply available"
+    probe' [] _ = error "Can't add probe: no name supply available (Comb)"
 
 instance (Probe a, Probe b) => Probe (a,b) where
     probe' names (x,y) = (probe' (addSuffixToOVars names "-fst") x,
@@ -95,15 +93,12 @@ instance (Probe a, M.Size x) => Probe (M.Matrix x a) where
 
 instance (Probe a, Probe b) => Probe (a -> b) where
     probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
-    probe' [] _ _ = error "Can't add probe: no name supply available."
+    probe' [] _ _ = error "Can't add probe: no name supply available (a -> b)"
 
 addSuffixToOVars :: [OVar] -> String -> [OVar]
 addSuffixToOVars pns suf = [ OVar i $ name ++ suf | OVar i name <- pns ]
 
-
-
-
--- -- | Convert a 'Circuit' to a fgl graph.
+-- | Convert a 'Circuit' to a fgl graph.
 toGraph :: Circuit -> G.Gr (Entity DRG.Unique) ()
 toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                        | (n1,Entity _ _ ins) <- theCircuit rc
@@ -126,7 +121,7 @@ mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
                              otherIds = [ k | (k,_) <- others, k /= pid ]
                              newNames = nub $ pnames ++ concatMap snd others
                              updatedNames = updateAL pid (Entity (TraceVal newNames strm) outs ins) $ theCircuit rc
-                         in go pl $ replaceWith (f pid)  otherIds $ rc { theCircuit = updatedNames }
+                         in go pl $ replaceWith (f pid) otherIds $ rc { theCircuit = updatedNames }
           go [] rc = rc
           go other _ = error $ "mergeProbes: " ++ show other
           f pid (Port s _) = Port s pid
@@ -150,7 +145,6 @@ remProbes circuit = go (probeList circuit) circuit
 -- Surely this exists somewhere!
 updateAL :: (Eq k) => k -> v -> [(k,v)] -> [(k,v)]
 updateAL key val list = [ (k,if k == key then val else v) | (k,v) <- list ]
-
 
 replaceWith :: (Driver DRG.Unique -> Driver DRG.Unique) -> [DRG.Unique] -> Circuit -> Circuit
 replaceWith _ [] rc = rc
