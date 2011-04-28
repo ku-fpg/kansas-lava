@@ -2,7 +2,8 @@
 -- | This module contains functions for manipulating (extending, querying, modifying) debugging Traces. It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.Testing.Trace
     ( Trace(..)
-    , traceSignature
+    , toSignature
+    , fromSignature
     , setCycles
     , addInput
     , getInput
@@ -21,9 +22,6 @@ module Language.KansasLava.Testing.Trace
     , dropTrace
     , serialize
     , deserialize
-    , genShallow
-    , genInfo
-    , asciiToTrace
     , writeToFile
     , readFromFile
     , padToTraceStream
@@ -40,7 +38,6 @@ import Language.KansasLava.Shallow
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 
---import Data.Stream(Stream)
 import qualified Language.KansasLava.Stream as S
 
 import Control.Monad
@@ -61,13 +58,13 @@ instance Rep a => Traceable (Comb a) where
 
 -- | Generate a signature from a trace.
 -- TODO: support generics in both these functions?
-traceSignature :: Trace -> Signature
-traceSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
+toSignature :: Trace -> Signature
+toSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
     where convert m = [ (ovar,ty) | (ovar,TraceStream ty _) <- m ]
 
 -- | Creates an (empty) trace from a signature
-signatureTrace :: Signature -> Trace
-signatureTrace (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) []
+fromSignature :: Signature -> Trace
+fromSignature (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) []
     where convert l = [ (ovar, TraceStream ty [])  | (ovar, ty) <- l ]
 
 padToTraceStream :: Pad -> TraceStream
@@ -194,34 +191,6 @@ deserialize str = [(Trace { len = read cstr, inputs = ins, outputs = outs, probe
           (outs,"PROBES":r2) = readMap r1
           (ps,"END":rest) = readMap r2
 
--- | Convert the inputs and outputs of a Trace to a textual format.
-genShallow :: Trace -> [String]
-genShallow (Trace c ins outs _) = mergeWith (++) [ showTraceStream c v | v <- alldata ]
-    where alldata = map snd $ ins ++ outs
-
--- | Inverse of genShallow
-asciiToTrace :: [String] -> Signature -> Trace
-asciiToTrace ilines sig = et { inputs = ins, outputs = outs }
-    where et = setCycles (length ilines) $ signatureTrace sig
-          widths = [ typeWidth ty
-                   | (_,TraceStream ty _) <- inputs et ++ outputs et
-                   ]
-          (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
-          addToMap sigs m = [ (k,TraceStream ty (map (RepValue . reverse . (map fromXBit)) strm))
-                            | (strm,(k,TraceStream ty _)) <- zip sigs m
-                            ]
-          (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
-
-splitLists :: [[a]] -> [Int] -> [[[a]]]
-splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
-splitLists _  []     = [[]]
-
--- | Generate a human readable format for a trace.
-genInfo :: Trace -> [String]
-genInfo (Trace c ins outs _) = [ "(" ++ show i ++ ") " ++ l | (i::Int,l) <- zip [1..] lines' ]
-    where alldata = map snd $ ins ++ outs
-          lines' = mergeWith (\ x y -> x ++ " -> " ++ y) [ showTraceStream c v | v <- alldata ]
-
 -- | Serialize a Trace to a file.
 writeToFile :: FilePath -> Trace -> IO ()
 writeToFile fp t = writeFile fp $ serialize t
@@ -233,22 +202,6 @@ readFromFile fp = do
     return $ fst $ head $ deserialize str
 
 -- Functions below are not exported.
-
-toXBit :: WireVal Bool -> Char
-toXBit WireUnknown = 'X'
-toXBit (WireVal True) = '1'
-toXBit (WireVal False) = '0'
-
-fromXBit :: Char -> WireVal Bool
-fromXBit 'X' = WireUnknown
-fromXBit 'U' = WireUnknown -- is this really the case?
-fromXBit '1' = WireVal True
-fromXBit '0' = WireVal False
-fromXBit _ = error "fromXBit: no parse"
-
--- note the reverse here is crucial due to way vhdl indexes stuff
-showTraceStream :: Maybe Int -> TraceStream -> [String]
-showTraceStream c (TraceStream _ s) = [map toXBit $ reverse val | RepValue val <- takeMaybe c s]
 
 readMap :: [String] -> ([(OVar,TraceStream)], [String])
 readMap ls = (go thismap, rest)
@@ -267,11 +220,6 @@ addStream key m stream = m ++ [(key,toTrace stream)]
 
 addSeq :: forall w. (Rep w) => OVar -> Seq w -> [(OVar,TraceStream)] -> [(OVar,TraceStream)]
 addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
-
--- surely this exists in the prelude?
-mergeWith :: (a -> a -> a) -> [[a]] -> [a]
-mergeWith _ [] = []
-mergeWith f ls = foldr1 (zipWith f) ls
 
 -- | Make a 'Trace' from a 'Fabric' and its input.
 mkTrace :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.

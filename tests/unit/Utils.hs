@@ -105,7 +105,7 @@ testFabrics opts name count f_driver f_dut f_expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (writeTestbench (path </> modname) count (snd cmod) f_dut inp))
+                            let sims = [ (modname, (mkTestbench (path </> modname) count (snd cmod) f_dut inp))
                                        | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
@@ -167,8 +167,8 @@ simCompare path report verb = do
                             deep    <- lines <$> Strict.readFile (path </> localname <.> "deep")
                             sig     <- read  <$> Strict.readFile (path </> localname <.> "sig")
 
-                            let t1 = asciiToTrace shallow sig
-                                t2 = asciiToTrace deep sig
+                            let t1 = fromASCII shallow sig
+                                t2 = fromASCII deep sig
                             if cmpTraceIO t1 t2
                                 then do verb 3 "simulation passed"
                                         report $ Pass t1 t2 transcript

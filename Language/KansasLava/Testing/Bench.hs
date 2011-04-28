@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
-module Language.KansasLava.Testing.Bench (mkTestbench, writeTestbench, runTestbench) where
+module Language.KansasLava.Testing.Bench (mkTestbench, fromASCII) where
 
 import Language.KansasLava
 import Language.KansasLava.Netlist(preprocessNetlistCircuit)
@@ -11,8 +11,71 @@ import Data.List(mapAccumL,sort)
 import System.Directory
 import System.FilePath.Posix
 
-mkTestbench :: String -> FilePath -> Circuit -> IO ()
-mkTestbench name path circuit = do
+-- | Make a VHDL testbench from a 'Fabric' and its inputs.
+mkTestbench :: FilePath                 -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
+            -> Int                      -- ^ Generate inputs for this many cycles.
+            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
+            -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
+            -> [(String,Pad)]           -- ^ Inputs to the Fabric
+            -> IO Trace
+mkTestbench path cycles circuitMod fabric input = do
+    let name = last $ splitPath path
+
+    createDirectoryIfMissing True path
+
+    (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
+
+    writeFile (path </> name <.> "shallow") $ toASCII trace
+    writeFile (path </> name <.> "info") $ toInfo trace
+    writeFile (path </> name <.> "sig") $ show $ toSignature trace
+
+    writeTestbench name path rc
+
+    return trace
+
+-- | Convert the inputs and outputs of a Trace to the textual format expected
+-- by a testbench.
+toASCII :: Trace -> String
+toASCII = unlines . mergeWith (++) . asciiStrings
+
+-- | Inverse of toASCII, needs a signature for the shape of the desired Trace.
+-- Creates a Trace from testbench signal files.
+fromASCII :: [String] -> Signature -> Trace
+fromASCII ilines sig = et { inputs = ins, outputs = outs }
+    where et = setCycles (length ilines) $ fromSignature sig
+          widths = [ typeWidth ty
+                   | (_,TraceStream ty _) <- inputs et ++ outputs et
+                   ]
+          (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
+          addToMap sigs m = [ (k,TraceStream ty (map (read . reverse) strm))
+                            | (strm,(k,TraceStream ty _)) <- zip sigs m
+                            ]
+          (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
+
+-- | Generate a human readable format for a trace.
+toInfo :: Trace -> String
+toInfo t = unlines [ "(" ++ show i ++ ") " ++ l
+                   | (i::Int,l) <- zip [1..] lines' ]
+    where lines' = mergeWith (\ x y -> x ++ " -> " ++ y) $ asciiStrings t
+
+-- | Convert a Trace into a list of lists of Strings, each String is a value,
+-- each list of Strings is a signal.
+asciiStrings :: Trace -> [[String]]
+asciiStrings (Trace c ins outs _) = [ map (reverse . show) $ takeMaybe c s
+                                    | (_,TraceStream _ s) <- ins ++ outs ]
+-- Note the reverse here is crucial due to way vhdl indexes stuff
+
+-- surely this exists in the prelude?
+mergeWith :: (a -> a -> a) -> [[a]] -> [a]
+mergeWith _ [] = []
+mergeWith f ls = foldr1 (Prelude.zipWith f) ls
+
+splitLists :: [[a]] -> [Int] -> [[[a]]]
+splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
+splitLists _  []     = [[]]
+
+writeTestbench :: String -> FilePath -> Circuit -> IO ()
+writeTestbench name path circuit = do
     createDirectoryIfMissing True path
     writeVhdlCircuit name (path </> name <.> "vhd") circuit
 
@@ -169,39 +232,3 @@ genProbes top c = concatMap getProbe graph
           getProbe _ = []
 -}
 
--- | Make a VHDL testbench from a 'Fabric' and its inputs.
-writeTestbench :: FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
-            -> Int      -- ^ Generate inputs for this many cycles.
-            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
-            -> Fabric ()
-            -> [(String,Pad)]
-            -> IO Trace
-writeTestbench path cycles circuitMod fabric input = do
-    let name = last $ splitPath path
-
-    createDirectoryIfMissing True path
-
-    (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
-
-    writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
-    writeFile (path </> name <.> "info") $ unlines $ genInfo trace
-    writeFile (path </> name <.> "sig") $ show $ traceSignature trace
-
-    mkTestbench name path rc
-
-    return trace
-
--- | Run a generated testbench.
--- eventually runTestBench :: FilePath -> (FilePath -> IO ()) -> IO Trace
-runTestbench :: FilePath            -- ^ Path to testbench we want to run.
-             -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and
-                                    --   charged with actually executing the test. Can assume path exists.
-             -> IO ()
-runTestbench path invoker = do
-    exists <- doesDirectoryExist path
-
-    if exists
-        then invoker path
-        else putStrLn $ "runTestBench: " ++ path ++ " does not exist!"
-
-    -- eventually we will read the deep file here and return it as a trace

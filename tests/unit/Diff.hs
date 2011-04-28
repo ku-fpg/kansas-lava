@@ -1,5 +1,5 @@
 import Language.KansasLava.Types
-import Language.KansasLava.Testing.Trace
+import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Output.VCD
 
 import Control.Applicative
@@ -28,7 +28,7 @@ main = do
                 deep    <- lines <$> readFile rightfile
                 sig     <- read  <$> readFile sigfile
 
-                let t1 = asciiToTrace shallow sig
-                    t2 = asciiToTrace deep sig
+                let t1 = fromASCII shallow sig
+                    t2 = fromASCII deep sig
 
                 writeFile "diff.vcd" $ vcdDiff t1 t2

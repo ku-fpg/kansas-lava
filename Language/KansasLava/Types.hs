@@ -432,13 +432,14 @@ instance Show RepValue where
 instance Read RepValue where
         readsPrec _ xs = [(RepValue [ case c of
                                         'X' -> WireUnknown
+                                        'U' -> WireUnknown
                                         '0' -> WireVal False
                                         '1' -> WireVal True
                                         v -> error $ "Can't read repvalue " ++ show v
                                     | c <- cs
                                     ]
                           ,rest)]
-            where (cs,rest) = span (`elem` "01X") xs
+            where (cs,rest) = span (`elem` "01XU") xs
 
 -- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
 appendRepValue :: RepValue -> RepValue -> RepValue
