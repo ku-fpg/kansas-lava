@@ -3,7 +3,8 @@ Version:            0.2.1.20100623
 Synopsis:           Kansas Lava is a locally grown version of Lava,
 		    in the spirit of Chalmers Lava, and Xilinx Lava.
 		    .
-		    &#169; 2009 The University of Kansas; BSD3 license.
+
+		    (c) 2009 The University of Kansas; BSD3 license.
 
 Category:            Language
 License:             BSD3
