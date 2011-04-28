@@ -47,11 +47,11 @@ testFIFO :: forall w sz sz1 . (Eq w, Rep w, Show w,
                                Rep sz, Rep sz1,                 Num w,
                                Num sz, Num sz1)
         => TestSeq -> String -> Gen (Bool,Maybe w) -> Witness sz -> IO ()
-testFIFO (TestSeq test toList) tyName ws wit = do
+testFIFO (TestSeq test toL) tyName ws wit = do
         let outBools :: [Bool]
             vals    :: [Maybe w]
-            (outBools,vals) = unzip $ toList ws
-            
+            (outBools,vals) = unzip $ toL ws
+
         let
             cir = pack . fifo wit low . unpack :: Seq (Enabled w, Bool) -> Seq (Bool, Enabled w)
 
@@ -64,11 +64,11 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 
             dut = do
                 flag    <- inStdLogic "flag"
-                vals    <- inStdLogicVector "vals"
+                vls    <- inStdLogicVector "vals"
                 vals_en <- inStdLogic "vals_en"
-                let (ack,res) = unpack $ cir $ (pack (packEnabled vals_en (vals), flag) :: Seq (Enabled w,Bool))
-                outStdLogicVector "res"    ((enabledVal res))
-                outStdLogic "res_en" (isEnabled res)
+                let (ack,res') = unpack $ cir $ (pack (packEnabled vals_en (vls), flag) :: Seq (Enabled w,Bool))
+                outStdLogicVector "res"    ((enabledVal res'))
+                outStdLogic "res_en" (isEnabled res')
                 outStdLogic "ack" ack
 
             specRes ::[(Bool,Enabled w)]
@@ -80,7 +80,7 @@ testFIFO (TestSeq test toList) tyName ws wit = do
                 outStdLogicVector "res" ((enabledVal specResSeq))
                 outStdLogic "res_en" (isEnabled specResSeq)
                 outStdLogic "ack" undefinedS
-                
+
 
             fifoSize :: Int
             fifoSize = size (error "witness" :: sz)
@@ -93,18 +93,18 @@ testFIFO (TestSeq test toList) tyName ws wit = do
 --                             trace (show ("fifoLen",length [ () | Just _ <- state ])) False = undefined
 
             fifoSpec [] _ _ = error "fifoSpec: no value to enqueue"
-            fifoSpec (val:vals) outs state
+            fifoSpec (val:vals') outs state
                         | length [ () | Just _ <- state ] < fifoSize
-                        = fifoSpec2 vals outs (val:state) True
+                        = fifoSpec2 vals' outs (val:state) True
                           -- FIFO is full, so do not accept
                         | otherwise
-                        = fifoSpec2  (val:vals) outs (Nothing:state) False
+                        = fifoSpec2  (val:vals') outs (Nothing:state) False
 
             fifoSpec2 _ [] _ _ = error "fifoSpec2: no ready/output signal"
-            fifoSpec2 vals (ready:outs) state ack =
+            fifoSpec2 vals' (ready:outs) state ack =
                     case [ x | Just x <- reverse $ drop 3 state ] of
-                        [] -> (ack,Nothing)   : fifoSpec vals outs state
-                        (x:_) -> (ack,Just x) : fifoSpec  vals outs (nextState state ready)
+                        [] -> (ack,Nothing)   : fifoSpec vals' outs state
+                        (x:_) -> (ack,Just x) : fifoSpec  vals' outs (nextState state ready)
 
             nextState state False = state
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]

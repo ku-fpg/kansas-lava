@@ -82,9 +82,7 @@ Executable kansas-lava-unittest
       buildable: False
     Main-Is:        Main.hs
     Hs-Source-Dirs: ., tests/unit
--- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2
-                 -fno-warn-name-shadowing
                  -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-tracediff
@@ -97,9 +95,7 @@ Executable kansas-lava-tracediff
       buildable: False
     Main-Is:        Diff.hs
     Hs-Source-Dirs: ., tests/unit
--- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
-                 -fno-warn-name-shadowing
                  -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-testreport
@@ -112,9 +108,7 @@ Executable kansas-lava-testreport
       buildable: False
     Main-Is:        GenReport.hs
     Hs-Source-Dirs: ., tests/unit
--- we intentionally use shadowing at times in the unit test module
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
-                 -fno-warn-name-shadowing
                  -fno-warn-orphans -fcontext-stack=256
 
 --Executable kansas-lava-test2

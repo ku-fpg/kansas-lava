@@ -63,7 +63,7 @@ main = do
 
         Tix tix <- examineTix
         let counts = concat [ xs | TixModule _ _ _ xs <- tix ]
-        let len = length counts
+        let l = length counts
         let txs = length $ filter (> 0) counts
-        putStrLn $ "Raw coverage: " ++ show (floor (100 * fromIntegral txs / fromIntegral len :: Double) :: Int) ++ "%"
+        putStrLn $ "Raw coverage: " ++ show (floor (100 * fromIntegral txs / fromIntegral l :: Double) :: Int) ++ "%"
 

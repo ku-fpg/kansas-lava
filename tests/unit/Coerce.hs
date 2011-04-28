@@ -12,104 +12,104 @@ import Data.Sized.Signed
 tests :: TestSeq -> IO ()
 tests test = do
 
-        let t :: (Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
                   String -> Witness w2 -> Gen w1 -> IO ()
 
-            t str witness arb = testUnsigned test str witness arb
+            t1 str witness arb = testUnsigned test str witness arb
 
-        t "U1_U1" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U1))
-        t "U2_U1" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U1))
-        t "U3_U1" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U1))
-        t "U1_U2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U2))
-        t "U2_U2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U2))
-        t "U3_U2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U2))
-        t "U1_U3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U3))
-        t "U2_U3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U3))
-        t "U3_U3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U3))
-        t "U4_U8" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen U8))
-        t "U8_U4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen U4))
+        t1 "U1_U1" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U1))
+        t1 "U2_U1" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U1))
+        t1 "U3_U1" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U1))
+        t1 "U1_U2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U2))
+        t1 "U2_U2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U2))
+        t1 "U3_U2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U2))
+        t1 "U1_U3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen U3))
+        t1 "U2_U3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen U3))
+        t1 "U3_U3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen U3))
+        t1 "U4_U8" (Witness :: Witness U4) (dubSeq (arbitrary :: Gen U8))
+        t1 "U8_U4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen U4))
 
-        t "U1_S2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S2))
-        t "U2_S2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S2))
-        t "U3_S2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S2))
-        t "U1_S3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S3))
-        t "U2_S3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S3))
-        t "U3_S3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S3))
-        t "U8_S4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen S4))
+        t1 "U1_S2" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S2))
+        t1 "U2_S2" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S2))
+        t1 "U3_S2" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S2))
+        t1 "U1_S3" (Witness :: Witness U1) (dubSeq (arbitrary :: Gen S3))
+        t1 "U2_S3" (Witness :: Witness U2) (dubSeq (arbitrary :: Gen S3))
+        t1 "U3_S3" (Witness :: Witness U3) (dubSeq (arbitrary :: Gen S3))
+        t1 "U8_S4" (Witness :: Witness U8) (dubSeq (arbitrary :: Gen S4))
 
-        t "X2_X2" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X2))
-        t "X2_X3" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X3))
-        t "X2_X4" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X4))
-        t "X2_X5" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X5))
+        t1 "X2_X2" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X2))
+        t1 "X2_X3" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X3))
+        t1 "X2_X4" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X4))
+        t1 "X2_X5" (Witness :: Witness X2) (dubSeq (arbitrary :: Gen X5))
 
-        t "X3_X2" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X2))
-        t "X3_X3" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X3))
-        t "X3_X4" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X4))
-        t "X3_X5" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X5))
+        t1 "X3_X2" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X2))
+        t1 "X3_X3" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X3))
+        t1 "X3_X4" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X4))
+        t1 "X3_X5" (Witness :: Witness X3) (dubSeq (arbitrary :: Gen X5))
 
-        t "X4_X2" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X2))
-        t "X4_X3" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X3))
-        t "X4_X4" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X4))
-        t "X4_X5" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X5))
+        t1 "X4_X2" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X2))
+        t1 "X4_X3" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X3))
+        t1 "X4_X4" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X4))
+        t1 "X4_X5" (Witness :: Witness X4) (dubSeq (arbitrary :: Gen X5))
 
-        t "X5_X2" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X2))
-        t "X5_X3" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X3))
-        t "X5_X4" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X4))
-        t "X5_X5" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X5))
+        t1 "X5_X2" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X2))
+        t1 "X5_X3" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X3))
+        t1 "X5_X4" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X4))
+        t1 "X5_X5" (Witness :: Witness X5) (dubSeq (arbitrary :: Gen X5))
 
-        let t :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
                   String -> Witness w2 -> Gen w1 -> IO ()
-            t str witness arb = testSigned test str witness arb
+            t2 str witness arb = testSigned test str witness arb
 
-        t "S2_U1" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U1))
-        t "S3_U1" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U1))
-        t "S2_U2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U2))
-        t "S3_U2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U2))
-        t "S2_U3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U3))
-        t "S3_U3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U3))
-        t "S4_U8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen U8))
-        t "S8_U4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen U4))
+        t2 "S2_U1" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U1))
+        t2 "S3_U1" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U1))
+        t2 "S2_U2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U2))
+        t2 "S3_U2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U2))
+        t2 "S2_U3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen U3))
+        t2 "S3_U3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen U3))
+        t2 "S4_U8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen U8))
+        t2 "S8_U4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen U4))
 
-        t "S2_S2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S2))
-        t "S3_S2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S2))
-        t "S2_S3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S3))
-        t "S3_S3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S3))
-        t "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))
-        t "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))
+        t2 "S2_S2" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S2))
+        t2 "S3_S2" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S2))
+        t2 "S2_S3" (Witness :: Witness S2) (dubSeq (arbitrary :: Gen S3))
+        t2 "S3_S3" (Witness :: Witness S3) (dubSeq (arbitrary :: Gen S3))
+        t2 "S4_S8" (Witness :: Witness S4) (dubSeq (arbitrary :: Gen S8))
+        t2 "S8_S4" (Witness :: Witness S8) (dubSeq (arbitrary :: Gen S4))
 
-        let t :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
+        let t3 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
                  String -> Witness w2 -> Gen w1 -> IO ()
-            t str witness arb = testCoerce test str witness arb
+            t3 str witness arb = testCoerce test str witness arb
 
-        t "S16_M_X4_S4"    (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
-        t "U15_M_X3_S5"    (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
-        t "U3_M_X3_Bool"   (Witness :: Witness U3) (dubSeq (arbitrary :: Gen (Matrix X3 Bool)))
-        t "U1_M_X1_Bool"   (Witness :: Witness U1) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
-        t "Bool_M_X1_Bool" (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
+        t3 "S16_M_X4_S4"    (Witness :: Witness S16) (dubSeq (arbitrary :: Gen (Matrix X4 S4)))
+        t3 "U15_M_X3_S5"    (Witness :: Witness U15) (dubSeq (arbitrary :: Gen (Matrix X3 S5)))
+        t3 "U3_M_X3_Bool"   (Witness :: Witness U3) (dubSeq (arbitrary :: Gen (Matrix X3 Bool)))
+        t3 "U1_M_X1_Bool"   (Witness :: Witness U1) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
+        t3 "Bool_M_X1_Bool" (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen (Matrix X1 Bool)))
 
-        t "M_X4_S4_S16"    (Witness :: Witness (Matrix X4 S4)) (dubSeq (arbitrary :: Gen S16))
-        t "M_X3_S5_U15"    (Witness :: Witness (Matrix X3 S5)) (dubSeq (arbitrary :: Gen U15))
-        t "M_X3_Bool_U3"   (Witness :: Witness (Matrix X3 Bool)) (dubSeq (arbitrary :: Gen U3))
-        t "M_X1_Bool_U1"   (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen U1))
-        t "M_X1_Bool_Bool" (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen Bool))
+        t3 "M_X4_S4_S16"    (Witness :: Witness (Matrix X4 S4)) (dubSeq (arbitrary :: Gen S16))
+        t3 "M_X3_S5_U15"    (Witness :: Witness (Matrix X3 S5)) (dubSeq (arbitrary :: Gen U15))
+        t3 "M_X3_Bool_U3"   (Witness :: Witness (Matrix X3 Bool)) (dubSeq (arbitrary :: Gen U3))
+        t3 "M_X1_Bool_U1"   (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen U1))
+        t3 "M_X1_Bool_Bool" (Witness :: Witness (Matrix X1 Bool)) (dubSeq (arbitrary :: Gen Bool))
 
-        t "U3_x_U2_U5"     (Witness :: Witness (U3,U2)) (dubSeq (arbitrary :: Gen U5))
-        t "U5_U3_x_U2"     (Witness :: Witness U5) (dubSeq (arbitrary :: Gen (U3,U2)))
-        t "U4_U3_x_Bool"   (Witness :: Witness U4) (dubSeq (arbitrary :: Gen (U3,Bool)))
+        t3 "U3_x_U2_U5"     (Witness :: Witness (U3,U2)) (dubSeq (arbitrary :: Gen U5))
+        t3 "U5_U3_x_U2"     (Witness :: Witness U5) (dubSeq (arbitrary :: Gen (U3,U2)))
+        t3 "U4_U3_x_Bool"   (Witness :: Witness U4) (dubSeq (arbitrary :: Gen (U3,Bool)))
 
-        t "Bool_U1"        (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen U1))
-        t "U1_Bool"        (Witness :: Witness U1) (dubSeq (arbitrary :: Gen Bool))
+        t3 "Bool_U1"        (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen U1))
+        t3 "U1_Bool"        (Witness :: Witness U1) (dubSeq (arbitrary :: Gen Bool))
 
-        t "Bool_Bool"      (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen Bool))
-        t "U8_U8"          (Witness :: Witness U8)   (dubSeq (arbitrary :: Gen U8))
+        t3 "Bool_Bool"      (Witness :: Witness Bool) (dubSeq (arbitrary :: Gen Bool))
+        t3 "U8_U8"          (Witness :: Witness U8)   (dubSeq (arbitrary :: Gen U8))
 
         return ()
 
 
 testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (W w1), Size (W w2))
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
-testUnsigned (TestSeq test toList) tyName Witness ws = do
-        let ms = toList ws
+testUnsigned (TestSeq test toL) tyName Witness ws = do
+        let ms = toL ws
             cir = unsigned :: Seq w1 -> Seq w2
             driver = do
                 outStdLogicVector "i0" (toSeq ms)
@@ -133,8 +133,8 @@ testUnsigned (TestSeq test toList) tyName Witness ws = do
 
 testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (W w1), Size (W w2))
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
-testSigned (TestSeq test toList) tyName Witness ws = do
-        let ms = toList ws
+testSigned (TestSeq test toL) tyName Witness ws = do
+        let ms = toL ws
             cir = signed :: Seq w1 -> Seq w2
             driver = do
                 outStdLogicVector "i0" (toSeq ms)
@@ -158,8 +158,8 @@ testSigned (TestSeq test toList) tyName Witness ws = do
 
 testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
-testCoerce (TestSeq test toList) tyName Witness ws = do
-        let ms = toList ws
+testCoerce (TestSeq test toL) tyName Witness ws = do
+        let ms = toL ws
             cir = coerce :: Seq w1 -> Seq w2
             driver = do
                 outStdLogicVector "i0" (toSeq ms)

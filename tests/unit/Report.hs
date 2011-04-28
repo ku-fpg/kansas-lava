@@ -142,18 +142,18 @@ reportToHtml (Report summary results) = do
                                            ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, show ts])
                                            ShallowPass -> ("shallowpass", "Shallow Passed", unDiv [""])
                                            SimGenerated -> ("simgenerated", "Simulation Generated", unDiv [""])
-                                           CodeGenFail s -> ("codegenfail", "VHDL Generation Failed", unDiv [s])
-                                           CompileFail s -> ("compilefail", "VHDL Compilation Failed", unDiv [s])
-                                           SimFail s -> ("simfail", "Simulation Failed (other)", unDiv [s])
-                                           CompareFail t1 t2 s -> ("comparefail", "Failed", unDiv [show t1, show t2, s])
-                                           Pass t1 t2 s -> ("pass", "Passed", unDiv [show t1, show t2, s])
+                                           CodeGenFail s' -> ("codegenfail", "VHDL Generation Failed", unDiv [s'])
+                                           CompileFail s' -> ("compilefail", "VHDL Compilation Failed", unDiv [s'])
+                                           SimFail s' -> ("simfail", "Simulation Failed (other)", unDiv [s'])
+                                           CompareFail t1 t2 s' -> ("comparefail", "Failed", unDiv [show t1, show t2, s'])
+                                           Pass t1 t2 s' -> ("pass", "Passed", unDiv [show t1, show t2, s'])
                       ]
     return $ header ++ (summaryToHtml summary) ++ mid ++ showall ++ res ++ footer
 
 unDiv :: [String] -> String
-unDiv = foldr (\s tail -> "<div>" ++ sliceString 200 80 s ++ "</div>" ++ tail) ""
+unDiv = foldr (\s t -> "<div>" ++ sliceString 200 80 s ++ "</div>" ++ t) ""
 
 sliceString :: Int -> Int -> String -> String
 sliceString r c str = unlines $ take r $ chunk str
     where chunk [] = []
-          chunk s  = let (c1,r) = splitAt c s in c1 : chunk r
+          chunk s  = let (c1,r') = splitAt c s in c1 : chunk r'
