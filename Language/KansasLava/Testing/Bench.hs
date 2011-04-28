@@ -1,9 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | This module is used to generate a VHDL testbench for a Lava circuit.
-module Language.KansasLava.Testing.Bench (mkTestbench) where
+module Language.KansasLava.Testing.Bench (mkTestbench, writeTestbench, runTestbench) where
 
 import Language.KansasLava
 import Language.KansasLava.Netlist(preprocessNetlistCircuit)
+import Language.KansasLava.Testing.Trace
 
 import Data.List(mapAccumL,sort)
 
@@ -167,3 +168,40 @@ genProbes top c = concatMap getProbe graph
             , let sig = "/" ++ top ++ "_tb/dut/sig_" ++ show ident ++ "_" ++ v ]
           getProbe _ = []
 -}
+
+-- | Make a VHDL testbench from a 'Fabric' and its inputs.
+writeTestbench :: FilePath -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
+            -> Int      -- ^ Generate inputs for this many cycles.
+            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
+            -> Fabric ()
+            -> [(String,Pad)]
+            -> IO Trace
+writeTestbench path cycles circuitMod fabric input = do
+    let name = last $ splitPath path
+
+    createDirectoryIfMissing True path
+
+    (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
+
+    writeFile (path </> name <.> "shallow") $ unlines $ genShallow trace
+    writeFile (path </> name <.> "info") $ unlines $ genInfo trace
+    writeFile (path </> name <.> "sig") $ show $ traceSignature trace
+
+    mkTestbench name path rc
+
+    return trace
+
+-- | Run a generated testbench.
+-- eventually runTestBench :: FilePath -> (FilePath -> IO ()) -> IO Trace
+runTestbench :: FilePath            -- ^ Path to testbench we want to run.
+             -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and
+                                    --   charged with actually executing the test. Can assume path exists.
+             -> IO ()
+runTestbench path invoker = do
+    exists <- doesDirectoryExist path
+
+    if exists
+        then invoker path
+        else putStrLn $ "runTestBench: " ++ path ++ " does not exist!"
+
+    -- eventually we will read the deep file here and return it as a trace

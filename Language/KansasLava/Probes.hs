@@ -2,14 +2,14 @@
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
 module Language.KansasLava.Probes (
- Probe(..),probe,probeCircuit,probeNames,probeValue,
- remProbes, mergeProbesIO,
- toGraph,
+ Probe(..), probe, probeCircuit, probeNames, probeValue, probeData,
+ remProbes, mergeProbes, mergeProbesIO, exposeProbes, exposeProbesIO,
+ toGraph
  ) where
 
 import qualified Data.Reify.Graph as DRG
 
-import Data.List(nub)
+import Data.List(nub,sortBy,sort,isPrefixOf)
 import Control.Monad
 import Control.Applicative
 import qualified Data.Graph.Inductive as G
@@ -21,7 +21,7 @@ import Language.KansasLava.Fabric
 import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
-import Language.KansasLava.Stream as S
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types hiding (probes)
 
 -- this is the public facing method for probing
@@ -104,7 +104,7 @@ toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                        | (n1,Entity _ _ ins) <- theCircuit rc
                                        , (_,_,Port _ n2) <- ins ]
 
--- | Gives probes their node ids. This should be run after mergeProbes.
+-- Gives probes their node ids. This is used by mergeProbes and should not be exposed.
 addProbeIds :: Circuit -> Circuit
 addProbeIds circuit = circuit { theCircuit = newCircuit }
     where newCircuit = [ addId entity | entity <- theCircuit circuit ]
@@ -139,6 +139,27 @@ remProbes circuit = go (probeList circuit) circuit
                          in go pl $ replaceWith (\_ -> d) probes rc
           go [] rc = rc
           go other _ = error $ "remProbes: " ++ show other
+
+-- | The 'exposeProbes' function lifted into the 'IO' monad.
+exposeProbesIO :: [String] -> Circuit -> IO Circuit
+exposeProbesIO names = return . (exposeProbes names)
+
+-- | Takes a list of prefixes and exposes any probe whose name
+-- contains that prefix as an output pad.
+exposeProbes :: [String] -> Circuit -> Circuit
+exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
+    where oldSinks = theSinks rc
+          n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
+          allProbes = sort [ (pname, nm, outs)
+                        | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
+                        , pname <- pnames ]
+          exposed = nub [ (p, oty, Port onm nm)
+                        | (p@(OVar _ pname), nm, outs) <- allProbes
+                        , or [ name `isPrefixOf` pname | name <- names ]
+                        , (onm,oty) <- outs ]
+          showPNames x pname = show pname ++ "_" ++ show x
+
+          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
 
 -- Below is not exported.
 

@@ -2,7 +2,7 @@
 module Utils where
 
 import Language.KansasLava
-import Language.KansasLava.Testing.Thunk
+import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Trace
 
 import Control.Applicative
@@ -105,7 +105,7 @@ testFabrics opts name count f_driver f_dut f_expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (mkTestBench (path </> modname) count (snd cmod) f_dut inp))
+                            let sims = [ (modname, (writeTestbench (path </> modname) count (snd cmod) f_dut inp))
                                        | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations

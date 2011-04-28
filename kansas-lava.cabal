@@ -56,7 +56,6 @@ Library
        Language.KansasLava.Testing.Observe
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
-       Language.KansasLava.Testing.Thunk
        Language.KansasLava.Testing.Trace
   Other-modules:
        Language.KansasLava.Netlist.Decl

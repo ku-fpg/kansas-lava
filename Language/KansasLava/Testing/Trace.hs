@@ -27,10 +27,14 @@ module Language.KansasLava.Testing.Trace
     , writeToFile
     , readFromFile
     , padToTraceStream
+    , mkTrace
+    , mkTraceCM
     ) where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
+import Language.KansasLava.Probes
+import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import Language.KansasLava.Types
@@ -39,6 +43,7 @@ import Language.KansasLava.Utils
 --import Data.Stream(Stream)
 import qualified Language.KansasLava.Stream as S
 
+import Control.Monad
 
 import Data.List
 import Data.Maybe
@@ -263,8 +268,38 @@ addStream key m stream = m ++ [(key,toTrace stream)]
 addSeq :: forall w. (Rep w) => OVar -> Seq w -> [(OVar,TraceStream)] -> [(OVar,TraceStream)]
 addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
 
-
 -- surely this exists in the prelude?
 mergeWith :: (a -> a -> a) -> [[a]] -> [a]
 mergeWith _ [] = []
 mergeWith f ls = foldr1 (zipWith f) ls
+
+-- | Make a 'Trace' from a 'Fabric' and its input.
+mkTrace :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+        -> Fabric () -- ^ The fabric we are tracing
+        -> [(String,Pad)]
+        -> IO Trace
+mkTrace c fabric input = do
+    (trace, _) <- mkTraceCM c fabric input (return)
+    return trace
+
+-- | Version of 'mkTrace' that accepts arbitrary circuit mods.
+mkTraceCM :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+          -> Fabric ()
+          -> [(String, Pad)]
+          -> (Circuit -> IO Circuit) -- Circuit Mod
+          -> IO (Trace, Circuit)
+mkTraceCM c fabric input circuitMod = do
+    rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
+
+    let output = runFabric fabric input
+        withInput  = foldr (\(i,(nm,p)) t@(Trace _ ins _ _)  -> t { inputs  = (OVar i nm, padToTraceStream p):ins }) emptyT $ zip [0..] input
+        withOutput = foldr (\(i,(nm,p)) t@(Trace _ _ outs _) -> t { outputs = (OVar i nm, padToTraceStream p):outs }) withInput $ zip [0..] output
+        emptyT = Trace { len = c, inputs = [], outputs = [], probes = [] }
+
+    return (addProbes rc withOutput, rc)
+
+-- | Used by 'mkTraceCM' to add internal probes to the Trace.
+addProbes :: Circuit -> Trace -> Trace
+addProbes rc t = t { probes = ps }
+    where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
+          ps = [ (OVar nid nm, strm) | (nid, OVar _ nm, strm) <- pdata ]

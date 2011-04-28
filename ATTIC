@@ -241,3 +241,33 @@ firstFifo (FIFO f) = FIFO (\(inp,rr) -> let -- get the enabled signal off the tu
                                             -- make a combined enabled output
                                             out = pack (oen .&&. oen', pack (osf,osid)) :: CSeq clk (Enabled (c,d))
                                         in (wrf .&&. wrid, out))
+
+-- Begin Thunk.hs
+{-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
+module Language.KansasLava.Testing.Thunk where
+
+import Language.KansasLava hiding (head)
+
+import Language.KansasLava.Testing.Bench
+
+import System.Directory
+import System.FilePath.Posix
+
+-- | Combination of recordThunk and runTestBench, working in the temp directory.
+runDeep :: String              -- ^ User significant name for the Thunk
+        -> Int                 -- ^ Number of cycles to simulate.
+        -> Fabric ()
+        -> (Circuit -> IO Circuit) -- ^ any operations on the circuit before VHDL generation
+        -> (FilePath -> IO ()) -- ^ Invocation function, given a path to the testbench and charged with actually executing the test. Can assume path exists.
+        -> IO ()
+runDeep name cycles fabric circuitMod invoker = do
+    tmp <- getTemporaryDirectory
+
+    let target = tmp </> name
+
+    _ <- writeTestbench target cycles circuitMod fabric []
+    runTestbench target invoker
+
+    -- there better not be any symlinks in here!
+    removeDirectoryRecursive target
+-- End Thunk.hs
