@@ -15,7 +15,6 @@ module Language.KansasLava (
     module Language.KansasLava.Seq,
     module Language.KansasLava.Shallow,
     module Language.KansasLava.Signal,
-    module Language.KansasLava.Testing.Observe,
     module Language.KansasLava.Testing.Output.Dot,
     module Language.KansasLava.Types,
     module Language.KansasLava.Utils,
@@ -39,7 +38,6 @@ import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
-import Language.KansasLava.Testing.Observe
 import Language.KansasLava.Testing.Output.Dot
 import Language.KansasLava.Types
 import Language.KansasLava.Utils

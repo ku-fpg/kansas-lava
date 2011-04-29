@@ -2,24 +2,42 @@
     FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses #-}
 
-
 module Language.KansasLava.Seq where
-
 
 import System.Random
 import Control.Applicative
 import Data.List
 
-import Language.KansasLava.Types
-import Language.KansasLava.Signal
-
 import Language.KansasLava.Comb
---import qualified Data.Stream as S
-import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Shallow
+import Language.KansasLava.Signal
+import qualified Language.KansasLava.Stream as S
+import Language.KansasLava.Types
 
+-----------------------------------------------------------------------------------------------
+-- For lack of a better place at the moment.
+-- Places that don't work (needs Seq and Comb): Types, Entity, Signal, Comb
 
+-- | Select the shallow embedding from one circuit, and the deep embedding from another.
+class Dual a where
+    -- | Take the shallow value from the first argument, and the deep value from the second.
+    dual :: a -> a -> a
 
+instance Dual (CSeq c a) where
+    dual ~(Seq a _) ~(Seq _ eb) = Seq a eb
+
+instance Dual (Comb a) where
+    -- dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
+    dual c d = Comb (combValue c) (combDriver d)
+
+instance (Dual a, Dual b) => Dual (a,b) where
+	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
+
+instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
+	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
+
+instance (Dual b) => Dual (a -> b) where
+	dual f1 f2 x = dual (f1 x) (f2 x)
 
 -----------------------------------------------------------------------------------------------
 
@@ -182,4 +200,3 @@ showSeqVals ss = [ showRep witness i
 
 randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Float -> Float) -> sig Bool
 randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [1..] ]
-

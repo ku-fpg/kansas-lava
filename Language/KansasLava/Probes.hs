@@ -4,7 +4,7 @@
 module Language.KansasLava.Probes (
  Probe(..), probe, probeCircuit, probeNames, probeValue, probeData,
  remProbes, mergeProbes, mergeProbesIO, exposeProbes, exposeProbesIO,
- toGraph, toTrace, fromTrace
+ toGraph, toTrace, fromTrace, observeRep
  ) where
 
 import qualified Data.Reify.Graph as DRG
@@ -23,6 +23,18 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
+
+import Debug.Trace
+
+-- TODO: Combine with probe
+-- | Trace the values of the shallow stream.
+observeRep :: forall a. (Rep a) => String -> Seq a -> Seq a
+observeRep msg = dual shallow id
+  where shallow
+	  = shallowSeq
+	  . foldr (\ (i,x) xs -> trace (msg ++ "(" ++ show i ++ ")" ++ showRep (Witness :: Witness a) x) $ S.Cons x xs) (error "never done")
+	  . zip [(0::Int)..]
+	  . fromSeqX
 
 -- basic conversion to trace representation
 toTrace :: forall w . (Rep w) => S.Stream (X w) -> TraceStream

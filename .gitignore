@@ -5,4 +5,6 @@ dist/
 .hpc/
 *.o
 *.hi
+*.dot
+*.html
 tests/unit/sims/

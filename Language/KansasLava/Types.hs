@@ -611,4 +611,3 @@ data Witness w = Witness
 -- eventually, these may become datatypes.
 type I input     readflag = (input    ,readflag)
 type O writeflag output   = (writeflag,output  )
-
