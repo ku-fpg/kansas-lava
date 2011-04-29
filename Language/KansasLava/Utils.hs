@@ -7,14 +7,12 @@ import Control.Monad
 import Data.Bits
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Deep
+import Language.KansasLava.Entity
 import Language.KansasLava.Seq
+import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
---import Language.KansasLava.StdLogicVector as SLV
---import qualified Data.Stream as S
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
-import Language.KansasLava.Shallow
 
 import Data.Sized.Arith
 import Data.Sized.Matrix	as M

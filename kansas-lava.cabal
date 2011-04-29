@@ -35,7 +35,7 @@ Library
        Language.KansasLava.Comb
        Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Clock
-       Language.KansasLava.Deep
+       Language.KansasLava.Entity
        Language.KansasLava.Fabric
        Language.KansasLava.Netlist
        Language.KansasLava.Probes

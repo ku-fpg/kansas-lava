@@ -2,19 +2,17 @@
 module Language.KansasLava.Protocols where
 
 import Language.KansasLava.Comb
+import Language.KansasLava.Entity
 import Language.KansasLava.Seq
--- import Language.KansasLava.Entity
 import Language.KansasLava.Shallow
-import Language.KansasLava.Utils
-import Language.KansasLava.Types
---import Data.Stream as Stream
-import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Signal
+import Language.KansasLava.Stream as Stream
+import Language.KansasLava.Types
+import Language.KansasLava.Utils
 
 import Data.Sized.Matrix as M
 import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
-import Language.KansasLava.Deep
 -- import Language.KansasLava.Radix as Radix
 import Prelude hiding (lookup)
 

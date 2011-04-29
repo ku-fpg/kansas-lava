@@ -3,7 +3,7 @@
 
 -- | This module contains ways of building deep embedings.
 
-module Language.KansasLava.Deep where
+module Language.KansasLava.Entity where
 import Language.KansasLava.Types
 import Language.KansasLava.Shallow
 

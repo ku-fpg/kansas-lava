@@ -4,11 +4,12 @@
 
 module Language.KansasLava.Dynamic where
 
-import Language.KansasLava.Types
-import Language.KansasLava.Signal
 import Language.KansasLava.Comb
+import Language.KansasLava.Entity
 import Language.KansasLava.Shallow
-import Language.KansasLava.Deep
+import Language.KansasLava.Signal
+import Language.KansasLava.Types
+
 import Data.Dynamic
 
 -- | We use identity "black boxes" as arbitary tags in the syntax, for extentablity.

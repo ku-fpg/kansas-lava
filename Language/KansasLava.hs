@@ -4,8 +4,8 @@ module Language.KansasLava (
     module Language.KansasLava.Circuit.Optimization,
     module Language.KansasLava.Clock,
     module Language.KansasLava.Comb,
-    module Language.KansasLava.Deep,
     module Language.KansasLava.Dynamic,
+    module Language.KansasLava.Entity,
     module Language.KansasLava.Fabric,
     module Language.KansasLava.HandShake,
     module Language.KansasLava.Probes,
@@ -28,8 +28,8 @@ module Language.KansasLava (
 import Language.KansasLava.Circuit.Optimization
 import Language.KansasLava.Clock
 import Language.KansasLava.Comb
-import Language.KansasLava.Deep
 import Language.KansasLava.Dynamic
+import Language.KansasLava.Entity
 import Language.KansasLava.Fabric
 import Language.KansasLava.HandShake
 import Language.KansasLava.Probes
