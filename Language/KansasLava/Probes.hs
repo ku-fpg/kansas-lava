@@ -4,7 +4,7 @@
 module Language.KansasLava.Probes (
  Probe(..), probe, probeCircuit, probeNames, probeValue, probeData,
  remProbes, mergeProbes, mergeProbesIO, exposeProbes, exposeProbesIO,
- toGraph
+ toGraph, toTrace, fromTrace
  ) where
 
 import qualified Data.Reify.Graph as DRG
@@ -22,7 +22,14 @@ import Language.KansasLava.Reify
 import Language.KansasLava.Seq
 import Language.KansasLava.Shallow
 import qualified Language.KansasLava.Stream as S
-import Language.KansasLava.Types hiding (probes)
+import Language.KansasLava.Types
+
+-- basic conversion to trace representation
+toTrace :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
+toTrace stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- S.toList stream ]
+
+fromTrace :: (Rep w) => TraceStream -> S.Stream (X w)
+fromTrace (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
 -- this is the public facing method for probing
 -- | Add a named probe to a circuit

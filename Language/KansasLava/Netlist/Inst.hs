@@ -3,7 +3,7 @@
 -- circuit.
 module Language.KansasLava.Netlist.Inst(genInst') where
 
-import Language.KansasLava.Types hiding (Trace(..))
+import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
 import Language.KansasLava.Shallow

@@ -1,7 +1,7 @@
 -- | This module generates Netlist 'Decl's for a circuit graph.
 module Language.KansasLava.Netlist.Decl where
 
-import Language.KansasLava.Types hiding (Trace(..))
+import Language.KansasLava.Types
 import Language.Netlist.AST
 
 import Data.Reify.Graph (Unique)

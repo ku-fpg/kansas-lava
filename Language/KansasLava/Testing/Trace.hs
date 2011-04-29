@@ -24,7 +24,6 @@ module Language.KansasLava.Testing.Trace
     , deserialize
     , writeToFile
     , readFromFile
-    , padToTraceStream
     , mkTrace
     , mkTraceCM
     ) where
@@ -45,6 +44,63 @@ import Control.Monad
 import Data.List
 import Data.Maybe
 
+-- | Make a 'Trace' from a 'Fabric' and its input.
+mkTrace :: Maybe Int      -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+        -> Fabric ()      -- ^ The Fabric we are tracing
+        -> [(String,Pad)] -- ^ Inputs to the Fabric
+        -> IO Trace
+mkTrace c fabric input = do
+    (trace, _) <- mkTraceCM c fabric input (return)
+    return trace
+
+-- | Version of 'mkTrace' that accepts arbitrary circuit mods.
+mkTraceCM :: Maybe Int               -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
+          -> Fabric ()               -- ^ Fabric we are tracing
+          -> [(String, Pad)]         -- ^ Inputs to the Fabric
+          -> (Circuit -> IO Circuit) -- Circuit Mod
+          -> IO (Trace, Circuit)
+mkTraceCM c fabric input circuitMod = do
+    rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
+
+    let output = runFabric fabric input
+        withInput  = foldr (\(i,(nm,p)) t@(Trace _ ins _ _)  -> t { inputs  = (OVar i nm, padToTraceStream p):ins }) emptyT $ zip [0..] input
+        withOutput = foldr (\(i,(nm,p)) t@(Trace _ _ outs _) -> t { outputs = (OVar i nm, padToTraceStream p):outs }) withInput $ zip [0..] output
+        emptyT = Trace { len = c, inputs = [], outputs = [], probes = [] }
+
+    return (addProbes rc withOutput, rc)
+
+-- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
+data Trace = Trace { len :: Maybe Int
+                   , inputs :: [(OVar,TraceStream)]
+                   , outputs :: [(OVar,TraceStream)]
+                   , probes :: [(OVar,TraceStream)]
+                   }
+
+-- instances for Trace
+instance Show Trace where
+    show = serialize
+
+instance Read Trace where
+    readsPrec _ = deserialize
+
+-- | Two traces are equal if they have the same length and all the streams are equal over that length
+instance Eq Trace where
+    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 /= Nothing || c2 /= Nothing) && (c1 == c2) && insEqual && outEqual && probesEqual
+        where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- m]
+              insEqual = sorted i1 == sorted i2
+              outEqual = sorted o1 == sorted o2
+              probesEqual = sorted p1 == sorted p2
+
+-- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
+-- uses 'cmpRepValue' under the hood, so the first argument is considered the
+-- golden trace.
+cmpTraceStream :: Int -> TraceStream -> TraceStream -> Bool
+cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
+    where countLTs1 = count <= (length $ take count s1)
+          s1LTs2 = (length $ take count s1) <= (length $ take count s2)
+          eql = and $ take count $ zipWith cmpRepValue s1 s2
+
+-- | To turn a TraceStream back into a shallow KL signal.
 class Traceable a where
     getSignal :: TraceStream -> a
 
@@ -66,11 +122,6 @@ toSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
 fromSignature :: Signature -> Trace
 fromSignature (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) []
     where convert l = [ (ovar, TraceStream ty [])  | (ovar, ty) <- l ]
-
-padToTraceStream :: Pad -> TraceStream
-padToTraceStream (StdLogic s) = toTrace $ seqValue s
-padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
-padToTraceStream (GenericPad _) = error "fix padToTraceStream for Generics"
 
 -- Combinators to change a trace
 -- | Set the length of the trace, in cycles.
@@ -112,21 +163,6 @@ getProbe key trace = getSignal $ fromJust $ lookup key (probes trace)
 -- | Remove a named internal probe from a Trace.
 remProbe :: OVar -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = filter ((== key) . fst) ps }
-
--- instances for Trace
-instance Show Trace where
-    show = serialize
-
-instance Read Trace where
-    readsPrec _ = deserialize
-
--- | Two traces are equal if they have the same length and all the streams are equal over that length
-instance Eq Trace where
-    (==) (Trace c1 i1 o1 p1) (Trace c2 i2 o2 p2) = (c1 /= Nothing || c2 /= Nothing) && (c1 == c2) && insEqual && outEqual && probesEqual
-        where sorted m = [(k,TraceStream ty $ takeMaybe c1 s) | (k,TraceStream ty s) <- m]
-              insEqual = sorted i1 == sorted i2
-              outEqual = sorted o1 == sorted o2
-              probesEqual = sorted p1 == sorted p2
 
 -- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
 cmpTrace :: Trace -> Trace -> Bool
@@ -221,30 +257,10 @@ addStream key m stream = m ++ [(key,toTrace stream)]
 addSeq :: forall w. (Rep w) => OVar -> Seq w -> [(OVar,TraceStream)] -> [(OVar,TraceStream)]
 addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
 
--- | Make a 'Trace' from a 'Fabric' and its input.
-mkTrace :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
-        -> Fabric () -- ^ The fabric we are tracing
-        -> [(String,Pad)]
-        -> IO Trace
-mkTrace c fabric input = do
-    (trace, _) <- mkTraceCM c fabric input (return)
-    return trace
-
--- | Version of 'mkTrace' that accepts arbitrary circuit mods.
-mkTraceCM :: Maybe Int -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
-          -> Fabric ()
-          -> [(String, Pad)]
-          -> (Circuit -> IO Circuit) -- Circuit Mod
-          -> IO (Trace, Circuit)
-mkTraceCM c fabric input circuitMod = do
-    rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
-
-    let output = runFabric fabric input
-        withInput  = foldr (\(i,(nm,p)) t@(Trace _ ins _ _)  -> t { inputs  = (OVar i nm, padToTraceStream p):ins }) emptyT $ zip [0..] input
-        withOutput = foldr (\(i,(nm,p)) t@(Trace _ _ outs _) -> t { outputs = (OVar i nm, padToTraceStream p):outs }) withInput $ zip [0..] output
-        emptyT = Trace { len = c, inputs = [], outputs = [], probes = [] }
-
-    return (addProbes rc withOutput, rc)
+padToTraceStream :: Pad -> TraceStream
+padToTraceStream (StdLogic s) = toTrace $ seqValue s
+padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
+padToTraceStream (GenericPad _) = error "fix padToTraceStream for Generics"
 
 -- | Used by 'mkTraceCM' to add internal probes to the Trace.
 addProbes :: Circuit -> Trace -> Trace

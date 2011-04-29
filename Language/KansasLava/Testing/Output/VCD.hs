@@ -3,6 +3,7 @@
 module Language.KansasLava.Testing.Output.VCD(toVCD) where
 
 import Language.KansasLava.Types
+import Language.KansasLava.Testing.Trace
 
 import Data.Char
 import Data.List

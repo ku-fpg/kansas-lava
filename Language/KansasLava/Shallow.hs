@@ -3,10 +3,7 @@
 
 module Language.KansasLava.Shallow where
 
-
-
-import qualified Language.KansasLava.Stream as Stream
-import Language.KansasLava.Types hiding (Trace(..))
+import Language.KansasLava.Types
 import Control.Monad (liftM)
 import Data.Sized.Arith
 import Data.Sized.Ix
@@ -142,13 +139,6 @@ fromRepToInteger (RepValue xs) =
 -- | compare a golden value with a generated value.
 cmpRep :: (Rep a) => X a -> X a -> Bool
 cmpRep g v = toRep g `cmpRepValue` toRep v
-
--- basic conversion to trace representation
-toTrace :: forall w . (Rep w) => Stream.Stream (X w) -> TraceStream
-toTrace stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- Stream.toList stream ]
-
-fromTrace :: (Rep w) => TraceStream -> Stream.Stream (X w)
-fromTrace (TraceStream _ list) = Stream.fromList [fromRep val | val <- list]
 
 ------------------------------------------------------------------------------------
 

@@ -34,8 +34,6 @@ module Language.KansasLava.Types (
         , cmpRepValue
         -- * Tracing
         , TraceStream(..)
-        , cmpTraceStream
-        , Trace(..)
         -- * Circuit
         , Circuit(..)
         , visitEntities
@@ -478,7 +476,6 @@ cmpRepValue _ _ = False
 
 ---------------------------------------------------------------------------------------------------------
 -- 'TraceStream' is a typed stream,
-
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
     deriving (Eq, Ord, Read)
 
@@ -487,24 +484,8 @@ data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually cl
 instance Show TraceStream where
     show (TraceStream ty strm) = "TraceStream " ++ show ty ++ " " ++ show (take 1000 strm)
 
--- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
--- uses 'cmpRepValue' under the hood, so the first argument is considered the
--- golden trace.
-cmpTraceStream :: Int -> TraceStream -> TraceStream -> Bool
-cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
-    where countLTs1 = count <= (length $ take count s1)
-          s1LTs2 = (length $ take count s1) <= (length $ take count s2)
-          eql = and $ take count $ zipWith cmpRepValue s1 s2
-
--- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
-data Trace = Trace { len :: Maybe Int
-                   , inputs :: [(OVar,TraceStream)]
-                   , outputs :: [(OVar,TraceStream)]
-                   , probes :: [(OVar,TraceStream)]
-                   }
---    deriving (Show, Read)
-
--- | 'Circuit' isd our primary way of representing a graph of entities.
+---------------------------------------------------------------------------------------------------------
+-- | 'Circuit' is our primary way of representing a graph of entities.
 data Circuit = Circuit
         { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.
