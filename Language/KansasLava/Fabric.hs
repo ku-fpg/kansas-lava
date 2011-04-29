@@ -113,7 +113,7 @@ inStdLogicVector nm = do
         pad <- input nm (StdLogicVector $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq a))
         case pad of
                                 -- This unsigned is hack, but the sizes should always match.
-          StdLogicVector sq -> return $ (unsigned sq)
+          StdLogicVector sq -> return $ (unsafeCoerce sq)
           _                  -> fail "internal type error in inStdLogic"
 
 outStdLogic :: String -> Seq Bool -> Fabric ()

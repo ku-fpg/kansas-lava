@@ -767,6 +767,12 @@ coerceX = id
 coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
 coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
 
+-- ^ translate using raw underlying bits, Width *must* be the same,
+-- but is not statically checked.
+unsafeCoerce :: forall sig a b . (Signal sig, Rep a, Rep b) => sig a -> sig b
+unsafeCoerce = liftS1 $ \ (Comb a ae) -> Comb (fromRep $ toRep a) $ entity1 (Prim "coerce") ae
+
+
 signedX :: forall a b . (Rep a, Rep b) => X a -> X b
 signedX = id
        . fromRep
