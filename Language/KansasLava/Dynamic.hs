@@ -6,7 +6,7 @@ module Language.KansasLava.Dynamic where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
-import Language.KansasLava.Shallow
+import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 

@@ -6,7 +6,7 @@ module Language.KansasLava.Netlist.Inst(genInst') where
 import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
-import Language.KansasLava.Shallow
+import Language.KansasLava.Rep
 import qualified Data.Map as M
 
 import Data.List

@@ -14,10 +14,9 @@ import Data.Sized.Ix as X
 import Data.Word
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Shallow
-import Language.KansasLava.Seq
 import Language.KansasLava.Protocols
---import Language.KansasLava.Shallow.FIFO
+import Language.KansasLava.Rep
+import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
@@ -63,13 +62,13 @@ fromHandShaken inp = (toSeq (map fst internal), map snd internal)
                                Nothing       -> error "fromVariableHandshake: bad reply to ready status"
                                Just Nothing  -> (Nothing,fn xs)
                                Just (Just v) -> (Just v,fn xs)
-        fn [] = (False,Nothing) : fn []                     
+        fn [] = (False,Nothing) : fn []
 
 
 -- introduce protocol-compliant delays.
 
 shallowHandShakenBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) => (sig Bool,sig Bool) -> (sig (Enabled a),sig Bool) -> (sig (Enabled a),sig Bool)
-shallowHandShakenBridge (lhsS,rhsS) (inp,back) 
+shallowHandShakenBridge (lhsS,rhsS) (inp,back)
         = unpack (toSeq $ fn (fromSeq lhsS) (fromSeq rhsS) (fromSeq inp) (fromSeq back) [])
    where
         fn :: [Maybe Bool] -> [Maybe Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
@@ -79,7 +78,7 @@ shallowHandShakenBridge (lhsS,rhsS) (inp,back)
         fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
 
 --        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
-        fn2 lhss (Just True:rhss) as bs (s:ss) bk = (Just s,bk) : 
+        fn2 lhss (Just True:rhss) as bs (s:ss) bk = (Just s,bk) :
                                                  case bs of
                                                    (Just True : bs')  -> fn lhss rhss as bs' ss
                                                    (Just False : bs') -> fn lhss rhss as bs' (s:ss)
@@ -87,7 +86,7 @@ shallowHandShakenBridge (lhsS,rhsS) (inp,back)
 
         fn2 lhss (Just _:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (tail bs) store
         fn2 _ _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn2)"
-        
+
 {-
 test = take 100 res
   where
@@ -96,7 +95,7 @@ test = take 100 res
 
         inp :: Seq (Enabled Int)
         inp = toHandShaken (concat [[Just x, Nothing,Nothing]| x <- input ]) inp_back
-        
+
 --        bridge = id
         bridge = shallowHandShakenBridge (randomBools (mkStdGen 0)  (const 0.9),randomBools (mkStdGen 1) (const 0.1))
 
@@ -126,14 +125,14 @@ mVarToHandShaken sfifo = do
 
 handShakeToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
 handShakeToMVar sfifo sink = do
-        sequence_ 
-                $ map (putMVar sfifo) 
+        sequence_
+                $ map (putMVar sfifo)
                 $ Maybe.catMaybes
                 $ (let (back,res) = fromHandShaken $ sink back in res)
         return ()
 
 
--- interactMVar 
+-- interactMVar
 interactMVar :: forall src sink
          . (Rep src, Rep sink)
         => (forall clk sig . (Clock clk, sig ~ CSeq clk) => I (sig (Enabled src)) (sig Bool) -> O (sig Bool) (sig (Enabled sink)))
@@ -150,7 +149,7 @@ interactMVar fn varA varB = do
                 in
                     rhs_out
 
-hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk) 
+hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
                 => I (sig (Enabled Word8)) (sig Bool) -> O (sig Bool) (sig (Enabled Word8))
              )
           -> Handle
@@ -467,7 +466,7 @@ divBy Witness rst trig = mux2 issue (1,0)
 
 {-
 -- Turn a Hand Shaken signal into a packetized Hand Shaken signal.
-mkPacketFIFO :: 
+mkPacketFIFO ::
 
 -}
 

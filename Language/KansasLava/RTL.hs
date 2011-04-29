@@ -3,12 +3,12 @@
 
 module Language.KansasLava.RTL where
 
+import Language.KansasLava.Protocols
+import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.Protocols
-import Language.KansasLava.Signal
 import Data.Sized.Matrix
 import Control.Monad.ST
 import Data.STRef

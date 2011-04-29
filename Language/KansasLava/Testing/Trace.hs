@@ -32,8 +32,8 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
 import Language.KansasLava.Probes
 import Language.KansasLava.Reify
+import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 

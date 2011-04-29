@@ -19,7 +19,7 @@ module Language.KansasLava.Netlist.Utils
 
 import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
-import Language.KansasLava.Shallow
+import Language.KansasLava.Rep
 
 import Data.Reify.Graph (Unique)
 import Data.List(find,mapAccumL)

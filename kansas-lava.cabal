@@ -41,12 +41,12 @@ Library
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
+       Language.KansasLava.Rep
        Language.KansasLava.Seq
        Language.KansasLava.Signal
        Language.KansasLava.Types
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
-       Language.KansasLava.Shallow
        Language.KansasLava.Stream
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic

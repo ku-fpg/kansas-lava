@@ -3,8 +3,8 @@ module Language.KansasLava.Protocols where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types

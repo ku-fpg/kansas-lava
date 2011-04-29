@@ -12,23 +12,19 @@ module Language.KansasLava.Fabric
         , padStdLogicType
         ) where
 
-
 import Control.Monad.Fix
 import Control.Monad
 import Data.Sized.Ix
---import Data.Sized.Matrix
 
-import Language.KansasLava.Types
+import Language.KansasLava.Rep
 import Language.KansasLava.Seq
+import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.Shallow
-
-
 
 -- The '_' will disappear soon from these names.
 
 data Pad = StdLogic (Seq Bool)
-         | forall a x . (Size (W a), Show a, Rep a) 
+         | forall a x . (Size (W a), Show a, Rep a)
                 => StdLogicVector (Seq a)
 --         | TypedPad (...)
          | GenericPad Integer

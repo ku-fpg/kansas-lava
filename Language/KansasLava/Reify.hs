@@ -7,11 +7,10 @@ import Data.List as L
 import Data.Maybe(fromMaybe)
 import Data.Reify
 
-import Language.KansasLava.Seq
 import qualified Language.KansasLava.Fabric as F
+import Language.KansasLava.Rep
+import Language.KansasLava.Seq
 import Language.KansasLava.Types
-import Language.KansasLava.Shallow
-
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'Circuit'.
 reifyFabric :: F.Fabric () -> IO Circuit

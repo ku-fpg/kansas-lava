@@ -3,7 +3,7 @@
 -- | This module contains ways of building deep embedings.
 module Language.KansasLava.Entity where
 
-import Language.KansasLava.Shallow
+import Language.KansasLava.Rep
 import Language.KansasLava.Types
 
 entity0 :: forall o . (Rep o) => Id -> D o

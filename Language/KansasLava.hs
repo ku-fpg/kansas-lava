@@ -11,9 +11,9 @@ module Language.KansasLava (
     module Language.KansasLava.Probes,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Reify,
+    module Language.KansasLava.Rep,
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
-    module Language.KansasLava.Shallow,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Testing.Output.Dot,
     module Language.KansasLava.Types,
@@ -34,9 +34,9 @@ import Language.KansasLava.Optimization
 import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Reify
+import Language.KansasLava.Rep
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
 import Language.KansasLava.Testing.Output.Dot
 import Language.KansasLava.Types

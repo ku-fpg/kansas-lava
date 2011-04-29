@@ -8,8 +8,8 @@ import Data.Bits
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
+import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Shallow
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types

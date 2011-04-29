@@ -7,9 +7,8 @@ module Language.KansasLava.Comb(
  combValue, combDriver
  ) where
 
+import Language.KansasLava.Rep
 import Language.KansasLava.Types
-import Language.KansasLava.Shallow
-
 
 ----------------------------------------------------------------------------------------------------
 -- | An observable Combinatoral value. Not a functor, applicative functor, or monad.

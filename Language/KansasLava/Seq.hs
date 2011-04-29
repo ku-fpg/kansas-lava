@@ -9,7 +9,7 @@ import Control.Applicative
 import Data.List
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Shallow
+import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
