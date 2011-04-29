@@ -3,7 +3,8 @@
 module FIFO where
 
 import Language.KansasLava
---import Language.KansasLava.Testing.Thunk
+
+--import Debug.Trace
 
 import Utils
 import Data.Sized.Unsigned
@@ -88,23 +89,25 @@ testFIFO (TestSeq test toL) tyName ws wit = do
 --            fifoSpec b c d | trace (show ("fifoSpec",take 10 b, take 10 c,d)) False = undefined
             fifoSpec :: [Maybe w] -> [Bool] -> [Maybe w] -> [(Bool,Maybe w)]
 
---            fifoSpec _ _ state
---                        | -- length [ () | Just _ <- state ] == fifoSize &&
---                             trace (show ("fifoLen",length [ () | Just _ <- state ])) False = undefined
+--            fifoSpec vx _ state |
+--                         -- length [ () | Just _ <- state ] == fifoSize &&
+--                             trace (show ("fifoLen",Prelude.head vx,state {- length [ () | Just _ <- state ] -})) False = undefined
 
             fifoSpec [] _ _ = error "fifoSpec: no value to enqueue"
-            fifoSpec (val:vals') outs state
+            fifoSpec (val@(Just {}):vals') outs state
                         | length [ () | Just _ <- state ] < fifoSize
                         = fifoSpec2 vals' outs (val:state) True
                           -- FIFO is full, so do not accept
-                        | otherwise
-                        = fifoSpec2  (val:vals') outs (Nothing:state) False
+            fifoSpec (Just val:vals') outs state
+                        = fifoSpec2  (Just val:vals') outs (Nothing:state) False
+            fifoSpec (Nothing:vals') outs state
+                        = fifoSpec2  vals' outs (Nothing:state) False
 
             fifoSpec2 _ [] _ _ = error "fifoSpec2: no ready/output signal"
             fifoSpec2 vals' (ready:outs) state ack =
                     case [ x | Just x <- reverse $ drop 3 state ] of
-                        [] -> (ack,Nothing)   : fifoSpec vals' outs state
-                        (x:_) -> (ack,Just x) : fifoSpec  vals' outs (nextState state ready)
+                        []    -> (ack,Nothing) : fifoSpec vals' outs state
+                        (x:_) -> (ack,Just x)   : fifoSpec  vals' outs (nextState state ready)
 
             nextState state False = state
             nextState state True  = take 3 state ++ init [ Just x | Just x <- drop 3 state ]
