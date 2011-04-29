@@ -1,4 +1,4 @@
-module Language.KansasLava.Circuit.Optimization
+module Language.KansasLava.Optimization
 	( optimizeCircuit
 	, OptimizationOpts(..)
 	, Opt

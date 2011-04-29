@@ -33,11 +33,11 @@ Library
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
-       Language.KansasLava.Circuit.Optimization
        Language.KansasLava.Clock
        Language.KansasLava.Entity
        Language.KansasLava.Fabric
        Language.KansasLava.Netlist
+       Language.KansasLava.Optimization
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Reify
