@@ -2,7 +2,6 @@
 module Utils where
 
 import Language.KansasLava
-import Language.KansasLava.Testing.Bench
 import Language.KansasLava.Testing.Trace
 
 import Control.Applicative

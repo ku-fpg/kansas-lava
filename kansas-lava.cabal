@@ -52,7 +52,6 @@ Library
        Language.KansasLava.Dynamic
        Language.KansasLava.RTL
        Language.KansasLava.Testing
-       Language.KansasLava.Testing.Bench
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
        Language.KansasLava.Testing.Trace
