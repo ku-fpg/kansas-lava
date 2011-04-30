@@ -1,6 +1,6 @@
 -- | The VCD module transforms a Trace into the Verilog Value Change Dump
 -- format for viewing in a waveform viewer.
-module Language.KansasLava.Testing.Output.VCD(toVCD) where
+module Language.KansasLava.VCD(toVCD) where
 
 import Language.KansasLava.Trace
 import Language.KansasLava.Types

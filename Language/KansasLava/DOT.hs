@@ -1,5 +1,5 @@
 -- | Convert a reified Lava 'Circuit' into a graphical Graphviz format.
-module Language.KansasLava.Testing.Output.Dot (writeDotCircuit) where
+module Language.KansasLava.DOT (writeDotCircuit) where
 
 import Language.KansasLava.Types
 

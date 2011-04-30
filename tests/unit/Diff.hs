@@ -1,7 +1,7 @@
 import Language.KansasLava.Trace
 import Language.KansasLava.Types
+import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
-import Language.KansasLava.Testing.Output.VCD
 
 import Control.Applicative
 import System.Environment

@@ -15,7 +15,7 @@ module Language.KansasLava (
     module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
-    module Language.KansasLava.Testing.Output.Dot,
+    module Language.KansasLava.DOT,
     module Language.KansasLava.Types,
     module Language.KansasLava.Utils,
     module Language.KansasLava.VHDL,
@@ -38,7 +38,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.Testing.Output.Dot
+import Language.KansasLava.DOT
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL

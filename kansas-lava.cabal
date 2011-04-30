@@ -34,6 +34,7 @@ Library
        Language.KansasLava
        Language.KansasLava.Comb
        Language.KansasLava.Clock
+       Language.KansasLava.DOT
        Language.KansasLava.Entity
        Language.KansasLava.Fabric
        Language.KansasLava.Netlist
@@ -51,8 +52,7 @@ Library
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
        Language.KansasLava.RTL
-       Language.KansasLava.Testing.Output.VCD
-       Language.KansasLava.Testing.Output.Dot
+       Language.KansasLava.VCD
        Language.KansasLava.Trace
   Other-modules:
        Language.KansasLava.Netlist.Decl
