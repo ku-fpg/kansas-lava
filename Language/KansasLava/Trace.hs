@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
 -- | This module contains functions for manipulating (extending, querying, modifying) debugging Traces. It also provides functionality for (de)serializing Traces.
-module Language.KansasLava.Testing.Trace
+module Language.KansasLava.Trace
     ( Trace(..)
     , toSignature
     , fromSignature

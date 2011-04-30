@@ -2,8 +2,8 @@
 -- format for viewing in a waveform viewer.
 module Language.KansasLava.Testing.Output.VCD(toVCD) where
 
+import Language.KansasLava.Trace
 import Language.KansasLava.Types
-import Language.KansasLava.Testing.Trace
 
 import Data.Char
 import Data.List

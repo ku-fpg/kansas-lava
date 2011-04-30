@@ -6,7 +6,7 @@ import Data.List(mapAccumL,sort)
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Netlist
-import Language.KansasLava.Testing.Trace
+import Language.KansasLava.Trace
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 

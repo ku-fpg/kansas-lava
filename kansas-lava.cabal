@@ -51,10 +51,9 @@ Library
        Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
        Language.KansasLava.RTL
-       Language.KansasLava.Testing
        Language.KansasLava.Testing.Output.VCD
        Language.KansasLava.Testing.Output.Dot
-       Language.KansasLava.Testing.Trace
+       Language.KansasLava.Trace
   Other-modules:
        Language.KansasLava.Netlist.Decl
        Language.KansasLava.Netlist.Inst
