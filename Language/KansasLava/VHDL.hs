@@ -15,8 +15,8 @@ import Language.Netlist.GenVHDL
 import System.Directory
 import System.FilePath.Posix
 
--- | The 'vhdlCircuit' function converts a Lava Circuit into a VHDL entity/architecture pair.
-writeVhdlCircuit :: String -> FilePath -> Circuit -> IO ()
+-- | The 'vhdlCircuit' function converts a Lava KLEG into a VHDL entity/architecture pair.
+writeVhdlCircuit :: String -> FilePath -> KLEG -> IO ()
 writeVhdlCircuit nm file cir = do
 	nlMod <- netlistCircuit nm cir
 	writeFile file (genVHDL nlMod mods)
@@ -27,7 +27,7 @@ writeVhdlCircuit nm file cir = do
 -- | Make a VHDL testbench from a 'Fabric' and its inputs.
 mkTestbench :: FilePath                 -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
             -> Int                      -- ^ Generate inputs for this many cycles.
-            -> (Circuit -> IO Circuit)  -- ^ any operations on the circuit before VHDL generation
+            -> (KLEG -> IO KLEG)  -- ^ any operations on the circuit before VHDL generation
             -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
             -> [(String,Pad)]           -- ^ Inputs to the Fabric
             -> IO Trace
@@ -87,7 +87,7 @@ splitLists :: [[a]] -> [Int] -> [[[a]]]
 splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
 splitLists _  []     = [[]]
 
-writeTestbench :: String -> FilePath -> Circuit -> IO ()
+writeTestbench :: String -> FilePath -> KLEG -> IO ()
 writeTestbench name path circuit = do
     createDirectoryIfMissing True path
     writeVhdlCircuit name (path </> name <.> "vhd") circuit
@@ -110,7 +110,7 @@ entity name = unlines
    "end entity " ++ name ++ "_tb;"
   ]
 
-architecture :: String -> Circuit -> String
+architecture :: String -> KLEG -> String
 architecture name circuit = unlines $
         ["architecture sim of " ++ name ++ "_tb is"
         ,"signal clk, rst : std_logic;"
@@ -190,7 +190,7 @@ stimulus name ins outs = unlines $ [
 	outputRange = show (portLen (ins ++ outs) - 1) ++ " downto " ++ show (portLen outs)
 
 -- Manipulating ports
-ports :: Circuit -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
+ports :: KLEG -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
 ports reified = (sort ins, sort outs, sort clocks)
     where ins  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
           outs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
@@ -235,7 +235,7 @@ As of modelsim 6.6, you can't label waves anymore.
 The add wave -r /* above puts waves on all signals.
 
 -- Generating probes
-genProbes :: String -> Circuit -> [String]
+genProbes :: String -> KLEG -> [String]
 genProbes top c = concatMap getProbe graph
     where graph = theCircuit c
           getProbe (ident, (Entity (TraceVal nms _) [( v, _)] _)) =

@@ -1,5 +1,5 @@
 -- | The 'Reify' module converts a the deep embedding of a Lava circuit, wrapped
--- in a 'Fabric', into a 'Circuit' graph.
+-- in a 'Fabric', into a 'KLEG' graph.
 {-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, ScopedTypeVariables #-}
 module Language.KansasLava.Reify (reifyFabric) where
 
@@ -12,8 +12,8 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
 
--- | 'reifyFabric' does reification of a 'Fabric ()' into a 'Circuit'.
-reifyFabric :: F.Fabric () -> IO Circuit
+-- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
+reifyFabric :: F.Fabric () -> IO KLEG
 reifyFabric (F.Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
         let (_,ins0,outs0) = circuit ins0
@@ -45,10 +45,10 @@ reifyFabric (F.Fabric circuit) = do
                      _ -> error $ "reifyFabric: " ++ show o
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
-        let rCit = Circuit { theCircuit = gr
-                            , theSrcs = [ (OVar 0 nm,fromStdLogicType $ F.padStdLogicType pad) | (nm,pad) <- ins0 ]
-                            , theSinks = outpads
-                            }
+        let rCit = KLEG { theCircuit = gr
+                        , theSrcs = [ (OVar 0 nm,fromStdLogicType $ F.padStdLogicType pad) | (nm,pad) <- ins0 ]
+                        , theSinks = outpads
+                        }
 
 
         let domains = nub $ concat $ visitEntities rCit $ \ _ (Entity _ _ outs) ->

@@ -58,12 +58,12 @@ probeCircuit n fabric = do
            | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _) <- theCircuit rc
            , nm <- nms ]
 
--- | Get all of the named probes for a 'Circuit' node.
-probeNames :: DRG.Unique -> Circuit -> [OVar]
+-- | Get all of the named probes for a 'KLEG' node.
+probeNames :: DRG.Unique -> KLEG -> [OVar]
 probeNames n c = maybe [] fst $ probeData n c
 
--- | Get all of the prove values for a 'Circuit' node.
-probeValue :: DRG.Unique -> Circuit -> Maybe TraceStream
+-- | Get all of the prove values for a 'KLEG' node.
+probeValue :: DRG.Unique -> KLEG -> Maybe TraceStream
 probeValue n c = snd <$> probeData n c
 
 -- | Capture the shallow embedding probe value to the deep embedding.
@@ -74,8 +74,8 @@ insertProbe n s@(TraceStream ty _) = mergeNested
                         = Port nm (E (Entity (TraceVal (n:names) strm) outs ins))
           mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)]))
 
--- | Get the probe names and trace from a 'Circuit' graph.
-probeData :: DRG.Unique -> Circuit -> Maybe ([OVar], TraceStream)
+-- | Get the probe names and trace from a 'KLEG' graph.
+probeData :: DRG.Unique -> KLEG -> Maybe ([OVar], TraceStream)
 probeData n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms strm) _ _) -> Just (nms, strm)
                         _ -> Nothing
@@ -117,14 +117,14 @@ instance (Probe a, Probe b) => Probe (a -> b) where
 addSuffixToOVars :: [OVar] -> String -> [OVar]
 addSuffixToOVars pns suf = [ OVar i $ name ++ suf | OVar i name <- pns ]
 
--- | Convert a 'Circuit' to a fgl graph.
-toGraph :: Circuit -> G.Gr (Entity DRG.Unique) ()
+-- | Convert a 'KLEG' to a fgl graph.
+toGraph :: KLEG -> G.Gr (Entity DRG.Unique) ()
 toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
                                        | (n1,Entity _ _ ins) <- theCircuit rc
                                        , (_,_,Port _ n2) <- ins ]
 
 -- Gives probes their node ids. This is used by mergeProbes and should not be exposed.
-addProbeIds :: Circuit -> Circuit
+addProbeIds :: KLEG -> KLEG
 addProbeIds circuit = circuit { theCircuit = newCircuit }
     where newCircuit = [ addId entity | entity <- theCircuit circuit ]
           addId (nid, Entity (TraceVal nms strm) outs ins) = (nid, Entity (TraceVal (map (addToName nid) nms) strm) outs ins)
@@ -133,7 +133,7 @@ addProbeIds circuit = circuit { theCircuit = newCircuit }
 
 
 -- | Rewrites the circuit graph and commons up probes that have the same stream value.
-mergeProbes :: Circuit -> Circuit
+mergeProbes :: KLEG -> KLEG
 mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
     where go ((pid,Entity (TraceVal pnames strm) outs ins@[(_,_,d)]):pl) rc =
                          let others = probesOnAL d pl
@@ -147,11 +147,11 @@ mergeProbes circuit = addProbeIds $ go (probeList circuit) circuit
           f _ p = p
 
 -- | Lift the pure 'mergeProbes' function into the 'IO' monad.
-mergeProbesIO :: Circuit -> IO Circuit
+mergeProbesIO :: KLEG -> IO KLEG
 mergeProbesIO = return . mergeProbes
 
 -- | Removes all probe nodes from the circuit.
-remProbes :: Circuit -> Circuit
+remProbes :: KLEG -> KLEG
 remProbes circuit = go (probeList circuit) circuit
     where go ((pid,Entity _ _ [(_,_,d)]):pl) rc =
                          let probes = pid : [ ident | (ident,_) <- probesOnAL d pl ]
@@ -160,12 +160,12 @@ remProbes circuit = go (probeList circuit) circuit
           go other _ = error $ "remProbes: " ++ show other
 
 -- | The 'exposeProbes' function lifted into the 'IO' monad.
-exposeProbesIO :: [String] -> Circuit -> IO Circuit
+exposeProbesIO :: [String] -> KLEG -> IO KLEG
 exposeProbesIO names = return . (exposeProbes names)
 
 -- | Takes a list of prefixes and exposes any probe whose name
 -- contains that prefix as an output pad.
-exposeProbes :: [String] -> Circuit -> Circuit
+exposeProbes :: [String] -> KLEG -> KLEG
 exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
           n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
@@ -186,7 +186,7 @@ exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
 updateAL :: (Eq k) => k -> v -> [(k,v)] -> [(k,v)]
 updateAL key val list = [ (k,if k == key then val else v) | (k,v) <- list ]
 
-replaceWith :: (Driver DRG.Unique -> Driver DRG.Unique) -> [DRG.Unique] -> Circuit -> Circuit
+replaceWith :: (Driver DRG.Unique -> Driver DRG.Unique) -> [DRG.Unique] -> KLEG -> KLEG
 replaceWith _ [] rc = rc
 replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
     where -- newCircuit :: [(DRG.Unique, Entity DRG.Unique)]
@@ -201,10 +201,10 @@ replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
           change (nm,ty,p@(Port _ i)) | i `elem` xs = (nm,ty,y p)
           change other = other
 
-probeList :: Circuit -> [(DRG.Unique, Entity DRG.Unique)]
+probeList :: KLEG -> [(DRG.Unique, Entity DRG.Unique)]
 probeList rc = [ (n,e) | (n,e@(Entity (TraceVal _ _) _ _)) <- theCircuit rc ]
 
--- probesOn :: Driver DRG.Unique -> Circuit -> [(DRG.Unique,[ProbeName])]
+-- probesOn :: Driver DRG.Unique -> KLEG -> [(DRG.Unique,[ProbeName])]
 -- probesOn x rc = probesOnAL x $ theCircuit rc
 
 probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[OVar])]

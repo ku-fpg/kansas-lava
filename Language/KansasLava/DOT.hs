@@ -1,4 +1,4 @@
--- | Convert a reified Lava 'Circuit' into a graphical Graphviz format.
+-- | Convert a reified Lava 'KLEG' into a graphical Graphviz format.
 module Language.KansasLava.DOT (writeDotCircuit) where
 
 import Language.KansasLava.Types
@@ -10,9 +10,9 @@ import Data.Maybe(fromMaybe)
 
 -- | The 'writeDotCircuit' function converts a Lava circuit into a graphviz output.
 writeDotCircuit :: FilePath  -- ^ Name of output dot file, can be relative or absolute path.
-                -> Circuit   -- ^ The reified Lava circuit.
-                -> IO Circuit
-writeDotCircuit filename circuit@(Circuit nodes circInputs circOutputs) = do
+                -> KLEG   -- ^ The reified Lava circuit.
+                -> IO KLEG
+writeDotCircuit filename circuit@(KLEG nodes circInputs circOutputs) = do
 
    let showP :: (String,Type) -> String
        showP (v,ty) = "<" ++ v ++ ">" ++ v ++ "::" ++ show ty

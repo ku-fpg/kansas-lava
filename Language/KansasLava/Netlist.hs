@@ -21,10 +21,10 @@ import qualified Data.Map as M
 --   result will be exposed as an output port (or ports, if it is a compound
 --   type).
 netlistCircuit :: String         -- ^ The name of the generated entity.
-               -> Circuit 	 -- ^ The Lava circuit.
+               -> KLEG 	 -- ^ The Lava circuit.
                -> IO Module
 netlistCircuit name circ = do
-  let (Circuit nodes srcs sinks) = preprocessNetlistCircuit circ
+  let (KLEG nodes srcs sinks) = preprocessNetlistCircuit circ
 
   let inports = checkPortType srcs
   let outports = checkPortType (map outputNameAndType sinks)
@@ -52,11 +52,11 @@ netlistCircuit name circ = do
 -- | This gets a circuit ready for Netlist generation.
 -- Specifically, it normalizes all the arguments
 -- because arguments that are of type MatrixTy are now supported.
-preprocessNetlistCircuit :: Circuit -> Circuit
+preprocessNetlistCircuit :: KLEG -> KLEG
 preprocessNetlistCircuit cir = res
     where
-        Circuit nodes srcs sinks = cir
-        res = Circuit nodes' srcs' sinks'
+        KLEG nodes srcs sinks = cir
+        res = KLEG nodes' srcs' sinks'
 
         vars = allocEntities cir
 

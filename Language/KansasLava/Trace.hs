@@ -57,8 +57,8 @@ mkTrace c fabric input = do
 mkTraceCM :: Maybe Int               -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
           -> Fabric ()               -- ^ Fabric we are tracing
           -> [(String, Pad)]         -- ^ Inputs to the Fabric
-          -> (Circuit -> IO Circuit) -- Circuit Mod
-          -> IO (Trace, Circuit)
+          -> (KLEG -> IO KLEG) -- KLEG Mod
+          -> IO (Trace, KLEG)
 mkTraceCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
 
@@ -263,7 +263,7 @@ padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
 padToTraceStream (GenericPad _) = error "fix padToTraceStream for Generics"
 
 -- | Used by 'mkTraceCM' to add internal probes to the Trace.
-addProbes :: Circuit -> Trace -> Trace
+addProbes :: KLEG -> Trace -> Trace
 addProbes rc t = t { probes = ps }
     where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
           ps = [ (OVar nid nm, strm) | (nid, OVar _ nm, strm) <- pdata ]

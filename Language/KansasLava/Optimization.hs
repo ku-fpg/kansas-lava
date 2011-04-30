@@ -69,7 +69,7 @@ runOpt (Opt a i) = (a,if i == 0
 ----------------------------------------------------------------------
 
 -- copy elimination
-copyElimCircuit :: Circuit -> Opt Circuit
+copyElimCircuit :: KLEG -> Opt KLEG
 copyElimCircuit rCir =  Opt rCir' (length renamings)
     where
 	env0 = theCircuit rCir
@@ -110,7 +110,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 
 --
 -- Starting CSE.
-cseCircuit :: Circuit -> Opt Circuit
+cseCircuit :: KLEG -> Opt KLEG
 cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
    where
 
@@ -161,7 +161,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 			  | (uX,Entity _ outs' _) <- rest, length outs == length outs'
 			  ]
 
-dceCircuit :: Circuit -> Opt Circuit
+dceCircuit :: KLEG -> Opt KLEG
 dceCircuit rCir = if optCount == 0
 			 then return rCir
 			 else Opt  rCir' optCount
@@ -186,7 +186,7 @@ dceCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 -- return Nothing *if* no optimization can be found.
-patternMatchCircuit :: Circuit -> Opt Circuit
+patternMatchCircuit :: KLEG -> Opt KLEG
 patternMatchCircuit rCir = if optCount == 0
 			      then return rCir	-- no changes
 			      else Opt rCir' optCount
@@ -207,7 +207,7 @@ patternMatchCircuit rCir = if optCount == 0
 
 	rCir' = rCir { theCircuit = optCir }
 
-optimizeCircuits :: [(String,Circuit -> Opt Circuit)] -> Circuit -> [(String,Opt Circuit)]
+optimizeCircuits :: [(String,KLEG -> Opt KLEG)] -> KLEG -> [(String,Opt KLEG)]
 optimizeCircuits [] _ = []
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 	where opt@(Opt c' _) = case fn c of
@@ -228,7 +228,7 @@ instance Default OptimizationOpts
 
 
 -- Basic optimizations, and assumes reaching a fixpoint :-)
-optimizeCircuit :: OptimizationOpts -> Circuit -> IO Circuit
+optimizeCircuit :: OptimizationOpts -> KLEG -> IO KLEG
 optimizeCircuit options rCir = do
 	when debug $ do
 		print rCir

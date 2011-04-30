@@ -6,19 +6,19 @@ import Language.KansasLava.Trace
 import Data.Default
 
 data Options = Options
-        { genSim      :: Bool                              -- ^ Generate modelsim testbenches for each test?
-        , runSim      :: Bool                              -- ^ Run the tests after generation?
-        , simCmd      :: String                            -- ^ Command to call with runSim is True
-        , simPath     :: FilePath                          -- ^ Path into which we place all our simulation directories.
-        , simMods     :: [(String, Circuit -> IO Circuit)] -- ^ List of modifications (like optimizations) to apply to
-                                                           --   the circuit before simulation.
-        , permuteMods :: Bool                              -- ^ False: Run each mod separately. True: Run all possible
-                                                           --   permutations of the mods to see if they affect each other.
-        , preludePath :: FilePath                          -- ^ location of the Lava prelude.
-        , verboseOpt  :: Int                               -- ^ See verbose table below.
-        , testOnly    :: Maybe [String]                    -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
-        , testNever   :: [String]                          -- ^ List of tests to never execute. Can match either end.
-        , testData    :: Int                               -- ^ cut off for random testing
+        { genSim      :: Bool                        -- ^ Generate modelsim testbenches for each test?
+        , runSim      :: Bool                        -- ^ Run the tests after generation?
+        , simCmd      :: String                      -- ^ Command to call with runSim is True
+        , simPath     :: FilePath                    -- ^ Path into which we place all our simulation directories.
+        , simMods     :: [(String, KLEG -> IO KLEG)] -- ^ List of modifications (like optimizations) to apply to
+                                                     --   the circuit before simulation.
+        , permuteMods :: Bool                        -- ^ False: Run each mod separately. True: Run all possible
+                                                     --   permutations of the mods to see if they affect each other.
+        , preludePath :: FilePath                    -- ^ location of the Lava prelude.
+        , verboseOpt  :: Int                         -- ^ See verbose table below.
+        , testOnly    :: Maybe [String]              -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
+        , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
+        , testData    :: Int                         -- ^ cut off for random testing
         }
 
 instance Show Options where

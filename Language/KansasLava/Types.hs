@@ -34,8 +34,8 @@ module Language.KansasLava.Types (
         , cmpRepValue
         -- * Tracing
         , TraceStream(..)
-        -- * Circuit
-        , Circuit(..)
+        -- * KLEG
+        , KLEG(..)
         , visitEntities
         , mapEntities
         , allocEntities
@@ -485,8 +485,8 @@ instance Show TraceStream where
     show (TraceStream ty strm) = "TraceStream " ++ show ty ++ " " ++ show (take 1000 strm)
 
 ---------------------------------------------------------------------------------------------------------
--- | 'Circuit' is our primary way of representing a graph of entities.
-data Circuit = Circuit
+-- | 'KLEG' (Kansas Lava Entity Graph) is our primary way of representing a graph of entities.
+data KLEG = KLEG
         { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.
         , theSrcs    :: [(OVar,Type)]
@@ -496,7 +496,7 @@ data Circuit = Circuit
         }
 
 
-instance Show Circuit where
+instance Show KLEG where
    show rCir = msg
      where
         showDriver d t = show d ++ " : " ++ show t
@@ -543,14 +543,14 @@ instance Show Circuit where
                 ++ bar
 
 
-visitEntities :: Circuit -> (Unique -> Entity Unique -> Maybe a) -> [a]
+visitEntities :: KLEG -> (Unique -> Entity Unique -> Maybe a) -> [a]
 visitEntities cir fn =
         [ a
         | (u,m) <- theCircuit cir
         , Just a <- [fn u m]
         ]
 
-mapEntities :: Circuit -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> Circuit
+mapEntities :: KLEG -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> KLEG
 mapEntities cir fn = cir { theCircuit =
                                 [ (u,a)
                                 | (u,m) <- theCircuit cir
@@ -558,12 +558,12 @@ mapEntities cir fn = cir { theCircuit =
                                 ] }
 
 
-allocEntities :: Circuit -> [Unique]
+allocEntities :: KLEG -> [Unique]
 allocEntities cir = [ highest + i | i <- [1..]]
    where
         highest = maximum (0 : (visitEntities cir $ \ u _ -> return u))
 
--- | A 'Signature' is the structure-level type of a Circuit.
+-- | A 'Signature' is the structure-level type of a KLEG.
 data Signature = Signature
         { sigInputs   :: [(OVar,Type)]
         , sigOutputs  :: [(OVar,Type)]
@@ -571,7 +571,7 @@ data Signature = Signature
         }
         deriving (Show, Read, Eq)
 
-circuitSignature :: Circuit -> Signature
+circuitSignature :: KLEG -> Signature
 circuitSignature cir = Signature
         { sigInputs   = theSrcs cir
         , sigOutputs  = [ (v,t) | (v,t,_) <- theSinks cir ]
