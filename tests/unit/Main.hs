@@ -15,7 +15,6 @@ import Utils
 
 import qualified Matrix
 import qualified Memory
-import qualified FIFO
 import qualified Coerce
 import qualified Others
 
@@ -42,7 +41,6 @@ main = do
         sequence_ [ t test
                   | t <- [ Matrix.tests
                          , Memory.tests
-                         , FIFO.tests
                          , Coerce.tests
                          , Others.tests
                          ]

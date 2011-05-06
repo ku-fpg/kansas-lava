@@ -33,7 +33,6 @@ Library
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Comb
-       Language.KansasLava.Clock
        Language.KansasLava.DOT
        Language.KansasLava.Entity
        Language.KansasLava.Fabric
@@ -49,9 +48,7 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.VHDL
        Language.KansasLava.Stream
-       Language.KansasLava.HandShake
        Language.KansasLava.Dynamic
-       Language.KansasLava.RTL
        Language.KansasLava.VCD
        Language.KansasLava.Trace
   Other-modules:
