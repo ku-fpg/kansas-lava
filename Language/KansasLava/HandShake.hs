@@ -208,7 +208,7 @@ fifoFE :: forall c a counter ix .
          -- ^ input, and Seq trigger of how much to decrement the counter
       -> (CSeq c Bool, CSeq c (Enabled (ix,a)), CSeq c counter)
          -- ^ backedge for input, and write request for memory, and internal counter.
-fifoFE Witness rst (inp,dec_by) = (inp_ready,wr,in_counter1)
+fifoFE Witness rst (inp,dec_by) = (inp_done0,wr,in_counter1)
   where
 --      mem :: Seq ix -> Seq a
 --      mem = pipeToMemory env env wr
