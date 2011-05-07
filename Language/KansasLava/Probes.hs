@@ -4,13 +4,13 @@
 module Language.KansasLava.Probes (
  Probe(..), probe, probeCircuit, probeNames, probeValue, probeData,
  remProbes, mergeProbes, mergeProbesIO, exposeProbes, exposeProbesIO,
- toGraph, toTrace, fromTrace, observeRep
+ toGraph, toTrace, fromTrace, observeRep, printProbes, printProbeTable
  ) where
 
 import qualified Data.Reify.Graph as DRG
 
-import Data.List(nub,sortBy,sort,isPrefixOf)
-import Control.Monad
+import Data.List(nub,sortBy,sort,isPrefixOf,transpose)
+-- import Control.Monad
 import Control.Applicative
 import qualified Data.Graph.Inductive as G
 
@@ -24,16 +24,6 @@ import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
 import Debug.Trace
-
--- TODO: Combine with probe
--- | Trace the values of the shallow stream.
-observeRep :: forall a. (Rep a) => String -> Seq a -> Seq a
-observeRep msg = dual shallow id
-  where shallow
-	  = shallowSeq
-	  . foldr (\ (i,x) xs -> trace (msg ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
-	  . zip [(0::Int)..]
-	  . fromSeqX
 
 -- basic conversion to trace representation
 toTrace :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
@@ -51,11 +41,37 @@ probe name = probe' [ OVar i name | i <- [0..] ]
 -- indicates the sequence length to capture.
 probeCircuit :: Int -> Fabric () -> IO [(OVar, TraceStream)]
 probeCircuit n fabric = do
-    rc <- (reifyFabric >=> mergeProbesIO) fabric
+    -- TODO: figure out why mergeProbes is broken
+    -- rc <- (reifyFabric >=> mergeProbesIO) fabric
+    rc <- reifyFabric fabric
 
     return [ (nm,TraceStream ty $ take n strm)
            | (_,Entity (TraceVal nms (TraceStream ty strm)) _ _) <- theCircuit rc
            , nm <- nms ]
+
+-- | Print the output of 'probeCircuit' nicely on stdout, one stream per line
+printProbes :: [(OVar, TraceStream)] -> IO ()
+printProbes strms = do
+    let maxlen = maximum $ map (length . show . fst) strms
+    sequence_ [ putStrLn $ replicate p ' ' ++ show nm ++ ": " ++ show strm
+              | (nm,strm) <- strms, let p = maxlen - (length $ show nm) ]
+
+-- | Print the output of 'probeCircuit' in a tabular format on stdout, one stream per column
+printProbeTable :: [(OVar, TraceStream)] -> IO ()
+printProbeTable strms = do
+    let (headers, strms') = unzip strms
+        strms'' = [map show s | TraceStream _ s <- strms']
+        (ticks, _) = unzip $ zip (map show [(0::Int)..]) $ case strms'' of [] -> [""]; (x:_) -> x
+        table = ("clk" : map show headers) : transpose (ticks : strms'')
+        clkwidth = 1 + (max 3 $ maximum $ map length ticks)
+        widths = clkwidth : [1 + (max hl sl) | (h,TraceStream _ (v:_)) <- strms
+                                      , let hl = length (show h)
+                                      , let sl = length (unRepValue v)]
+        pr :: [Int] -> [String] -> IO ()
+        pr ws ss = do
+            sequence_ [putStr $ s ++ replicate p ' ' | (w,s) <- zip ws ss, let p = w - length s]
+            putStr "\n"
+    mapM_ (pr widths) table
 
 -- | Get all of the named probes for a 'KLEG' node.
 probeNames :: DRG.Unique -> KLEG -> [OVar]
@@ -79,6 +95,11 @@ probeData n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms strm) _ _) -> Just (nms, strm)
                         _ -> Nothing
 
+-- | Trace the values of the shallow stream.
+-- Deprecated: use 'probe'
+observeRep :: (Clock c, Rep a) => String -> CSeq c a -> CSeq c a
+observeRep = trace ("\nobserveRep is deprecated, please use 'probe :: String -> a -> a' instead\n") probe
+
 -- | The 'Probe' class is used for adding probes to all inputs/outputs of a Lava
 -- circuit.
 class Probe a where
@@ -87,8 +108,11 @@ class Probe a where
     probe' :: [OVar] -> a -> a
 
 instance (Clock c, Rep a) => Probe (CSeq c a) where
-    probe' (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+    probe' (n:_) (Seq s (D d)) = Seq (obs s) (D (insertProbe n strm d))
         where strm = toTrace s
+              obs = foldr (\ (i,x) xs -> trace (show n ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
+                  . zip [(0::Int)..]
+                  . S.toList
     probe' [] _ = error "Can't add probe: no name supply available (Seq)"
 
 instance Rep a => Probe (Comb a) where
