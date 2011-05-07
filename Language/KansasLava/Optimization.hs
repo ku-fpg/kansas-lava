@@ -219,7 +219,9 @@ instance Default OptimizationOpts
 		}
 
 
--- Basic optimizations, and assumes reaching a fixpoint :-)
+-- | Basic optimizations, and assumes reaching a fixpoint.
+-- Cleans things up, but does not work to hard, because 
+-- the VHDL compiler get many of the combinatorial optimizations anyway.
 optimizeCircuit :: OptimizationOpts -> KLEG -> IO KLEG
 optimizeCircuit options rCir = do
 	when debug $ do
