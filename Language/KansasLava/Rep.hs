@@ -17,12 +17,13 @@ import Data.Traversable(sequenceA)
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
 class {- (Size (W w)) => -} Rep w where
+    -- | the width of the represented value.
     type W w
 
     -- | a way of adding unknown inputs to this wire.
     data X w
 
-    -- | check for bad things
+    -- | check for bad things.
     unX :: X w -> Maybe w
 
     -- | and, put the good or bad things back.
