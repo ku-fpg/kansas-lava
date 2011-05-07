@@ -1,8 +1,6 @@
 Name:               kansas-lava
 Version:            0.2.1.20100623
-Synopsis:           Kansas Lava is a locally grown version of Lava,
-		    in the spirit of Chalmers Lava, and Xilinx Lava.
-		    .
+Synopsis:           Kansas Lava is a hardware simulator and VHDL generator.
 
 		    (c) 2009 The University of Kansas; BSD3 license.
 
@@ -36,7 +34,6 @@ Library
        Language.KansasLava.DOT
        Language.KansasLava.Entity
        Language.KansasLava.Fabric
-       Language.KansasLava.Netlist
        Language.KansasLava.Optimization
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
