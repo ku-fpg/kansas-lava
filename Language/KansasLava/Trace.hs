@@ -216,7 +216,7 @@ serialize (Trace c ins outs ps) = unlines
                                ++ ["END"]
     where showMap :: [(OVar,TraceStream)] -> [String]
           showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
-          showStrm s = unwords [concatMap ((showRep (Witness :: Witness Bool)) . XBool) $ val | RepValue val <- takeMaybe c s]
+          showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- takeMaybe c s]
 
 -- | Parse a textual representation of a Trace. Return the Trace and the remainder of the unparsed output.
 deserialize :: String -> [(Trace,String)]

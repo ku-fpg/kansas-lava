@@ -23,7 +23,7 @@ combDriver :: Comb a -> D a
 combDriver (Comb _ d) = d
 
 instance (Rep a) => Show (Comb a) where
-	show (Comb x _) = showRep (Witness :: Witness a) x
+	show (Comb x _) = showRep x
 
 
 -- This is required for Arithmetic to be overloaded.

@@ -38,9 +38,8 @@ class {- (Size (W w)) => -} Rep w where
     fromRep :: RepValue -> X w
 
     -- show the value (in its Haskell form, default is the bits)
-    -- TODO: remove Witness, its not needed any longer
-    showRep :: Witness w -> X w -> String
-    showRep _ x = show (toRep x)
+    showRep :: X w -> String
+    showRep x = show (toRep x)
 
 
 -- Give me all possible (non-X) representations (2^n of them).
@@ -76,8 +75,8 @@ unknownX = optX (Nothing :: Maybe w)
 
 -- This is not wired into the class because of the extra 'Show' requirement.
 
-showRepDefault :: forall w. (Show w, Rep w) => Witness w -> X w -> String
-showRepDefault _ v = case unX v :: Maybe w of
+showRepDefault :: forall w. (Show w, Rep w) => X w -> String
+showRepDefault v = case unX v :: Maybe w of
             Nothing -> "?"
             Just v' -> show v'
 
@@ -180,7 +179,7 @@ instance Rep () where
     repType _  = V 1   -- should really be V 0 TODO
     toRep _ = RepValue []
     fromRep _ = XUnit $ return ()
-    showRep _ _ = "()"
+    showRep _ = "()"
 
 data IntegerWidth = IntegerWidth
 
@@ -193,7 +192,7 @@ instance Rep Integer where
     repType _  = GenericTy
     toRep = error "can not turn a Generic to a Rep"
     fromRep = error "can not turn a Rep to a Generic"
-    showRep _ (XInteger v) = show v
+    showRep (XInteger v) = show v
 
 -------------------------------------------------------------------------------------
 -- Now the containers
@@ -217,7 +216,7 @@ instance (Rep a, Rep b) => Rep (a,b) where
                   , fromRep (RepValue (drop size_a vs))
                   )
         where size_a = typeWidth (repType (Witness :: Witness a))
-    showRep _ (XTuple (a,b)) = "(" ++ showRep (Witness :: Witness a) a ++ "," ++ showRep (Witness :: Witness b) b ++ ")"
+    showRep (XTuple (a,b)) = "(" ++ showRep a ++ "," ++ showRep b ++ ")"
 
 instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
     type W (a,b,c) = ADD (W a) (ADD (W b) (W c))
@@ -243,9 +242,9 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
                   )
         where size_a = typeWidth (repType (Witness :: Witness a))
               size_b = typeWidth (repType (Witness :: Witness b))
-    showRep _ (XTriple (a,b,c)) = "(" ++ showRep (Witness :: Witness a) a ++
-                "," ++ showRep (Witness :: Witness b) b ++
-                "," ++ showRep (Witness :: Witness c) c ++ ")"
+    showRep (XTriple (a,b,c)) = "(" ++ showRep a ++
+                "," ++ showRep b ++
+                "," ++ showRep c ++ ")"
 
 instance (Rep a) => Rep (Maybe a) where
     type W (Maybe a) = ADD (W a) X1
@@ -273,9 +272,9 @@ instance (Rep a) => Rep (Maybe a) where
     fromRep (RepValue vs) = XMaybe ( fromRep (RepValue (take 1 vs))
                   , fromRep (RepValue (drop 1 vs))
                   )
-    showRep _ (XMaybe (XBool WireUnknown,_a)) = "?"
-    showRep _ (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep (Witness :: Witness a) a
-    showRep _ (XMaybe (XBool (WireVal False),_)) = "Nothing"
+    showRep (XMaybe (XBool WireUnknown,_a)) = "?"
+    showRep (XMaybe (XBool (WireVal True),a)) = "Just " ++ showRep a
+    showRep (XMaybe (XBool (WireVal False),_)) = "Nothing"
 
 instance (Size ix, Rep a) => Rep (Matrix ix a) where
     type W (Matrix ix a) = MUL ix (W a)

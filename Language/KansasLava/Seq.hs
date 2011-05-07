@@ -59,7 +59,7 @@ seqDriver (Seq _ d) = d
 
 instance (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
-         	= concat [ showRep (Witness :: Witness a) x ++ " "
+         	= concat [ showRep x ++ " "
                          | x <- take 20 $ S.toList vs
                          ] ++ "..."
 
@@ -130,7 +130,7 @@ encSeqBool = encSeq enc
 
 showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
 showStreamList ss =
-	[ showRep (Witness :: Witness a) x
+	[ showRep  x
 	| x <- S.toList (seqValue ss)
 	]
 
@@ -185,13 +185,9 @@ showSeqBits ss = [ show $ toRep (i :: X a)
        --       witness = error "witness" :: a
 
 showSeqVals :: forall a c . (Rep a) => CSeq c a -> [String]
-showSeqVals ss = [ showRep witness i
+showSeqVals ss = [ showRep i
 	 	 | i <- fromSeqX (ss :: CSeq c a)
        	         ]
-
-     where witness = Witness :: Witness a
-
-
 
 ----------------------------------------------------------------------------------
 
