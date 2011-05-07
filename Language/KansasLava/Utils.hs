@@ -36,7 +36,7 @@ and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just False,_)        -> optX $ Just False
 					     	     (_,Just False)        -> optX $ Just False
 						     _                     -> optX $ Nothing)
-					 $ entity2 (Name "Lava" "and2") ae be
+					 $ entity2 (Prim "and2") ae be
 
 or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
@@ -44,16 +44,16 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just True,_)           -> optX $ Just True
 					     	     (_,Just True)           -> optX $ Just True
 						     _                       -> optX $ Nothing )
-					 $ entity2 (Name "Lava" "or2") ae be
+					 $ entity2 (Prim "or2") ae be
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
-xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Name "Lava" "xor2") ae be
+xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Prim "xor2") ae be
 
 bitNot :: (Signal sig) => sig Bool -> sig Bool
-bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Name "Lava" "not") ae
+bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Prim "not") ae
 
 testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a))
-                                      $ entity2 (Name "Lava" "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
+                                      $ entity2 (Prim "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
 		      ) x
 
 
@@ -147,7 +147,7 @@ mapToBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(( optX (liftM fromWireRep ((unX a) :: Maybe w
 		    ) :: Maybe (Matrix (WIDTH w) Bool))
 	 ) :: X (Matrix (WIDTH w) Bool))
-	(entity1 (Name "Lava" "toBoolMatrix") d)
+	(entity1 (Prim "toBoolMatrix") d)
 
 toBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
              => sig w -> Matrix (WIDTH w) (sig Bool)
@@ -159,7 +159,7 @@ mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	     Nothing -> optX (Nothing :: Maybe w)
 	     Just r0 -> optX (toWireRep r0 :: Maybe w)
 	)
-	(entity1 (Name "Lava" "fromBoolMatrix") d)
+	(entity1 (Prim "fromBoolMatrix") d)
 
 fromBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
 	       => Matrix (WIDTH w) (sig Bool) ->  sig w
@@ -227,8 +227,8 @@ mux2 iSig (tSig,eSig)
 	 	    (Comb t _)
 	 	    (Comb e _)
 			-> Comb (mux2shallow i t e)
-                            (entity3 (Name "Lava" "mux2") (deepS iSig) (deepS tSig) (deepS eSig))
---			        (entity3 (Name "Lava" "mux2") (ei et ee)
+                            (entity3 (Prim "mux2") (deepS iSig) (deepS tSig) (deepS eSig))
+--			        (entity3 (Prim "mux2") (ei et ee)
 
 	         ) iSig tSig eSig
 
@@ -344,7 +344,7 @@ muxMatrix = (.!.)
 				    Just x' -> m M.! x'
 				    Nothing -> optX Nothing
 				)
-			     (entity2 (Name "Lava" "index") xe me) -- order reversed
+			     (entity2 (Prim "index") xe me) -- order reversed
 	         ) mSig xSig
 
 {-
@@ -397,7 +397,7 @@ boolOp nm fn =
 		    Comb (optX $ do a' <- unX a
 			            b' <- unX b
 			            return $ a' `fn` b')
-		      (entity2 (Name (wireName (error "boolOp" :: a)) nm) ea eb)
+		      (entity2 (Prim nm) ea eb)
 
 infix 4 .==., .>=., .<=., .<., .>.
 (.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
@@ -562,7 +562,7 @@ instance (Signal sig) => Pack sig SysEnv where
         pack ~(a,b) = liftS2 pf a b
             where pf  :: Comb Clk -> Comb Rst -> Comb SysEnv
                   pf ~(Comb a ae) ~(Comb b be) =
-                    let d = entity2 (Name "Lava" "pair") ae be
+                    let d = entity2 (Prim "pair") ae be
                         s = (a,b)
                     in (Comb s d)
 
@@ -631,7 +631,7 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
 	pack m = liftSL (\ ms -> let sh :: Matrix ix (WireVal Bool)
 				     sh = M.fromList [ m | Comb (XBool m) _ <- ms ]
-				     de = entityN (Name "Lava" "concat") [ d | Comb _ d <- ms ]
+				     de = entityN (Prim "concat") [ d | Comb _ d <- ms ]
 				 in Comb (XSV (StdLogicVector sh)) de) (M.toList m)
 	unpack sig = forAll $ \ i -> testABit sig (fromIntegral i)
 
@@ -663,7 +663,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
 		    Comb (optX $ do a' <- unX a
 			            return $ (SLV.spliceSLV i a' :: StdLogicVector b))
-		         (entity2 (Name "Lava" "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
+		         (entity2 (Prim "spliceStdLogicVector") (D $ Generic (fromIntegral i) :: D Integer) ea)
 -}
 {-
 {-
@@ -675,7 +675,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			Comb (optX $ do a' <- unX a
 					b' <- unX b
 					return $ undefined)
-			     (entity2 (Name "Lava" "concat") ea eb)
+			     (entity2 (Prim "concat") ea eb)
 -}
 
 appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
@@ -686,7 +686,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			Comb (optX $ do a' <- unX a
 					b' <- unX b
 					return $ SLV.appendSLV a' b')
-			     (entity2 (Name "Lava" "concat") ea eb)
+			     (entity2 (Prim "concat") ea eb)
 
 
 

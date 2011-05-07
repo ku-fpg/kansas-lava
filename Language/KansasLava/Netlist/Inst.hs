@@ -54,12 +54,6 @@ genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 =
 -}
 
 
--- For now, translate primitives to Prim
-genInst env i (Entity (Name "Lava" nm) ins outs) =
-	genInst env i (Entity (Prim nm) ins outs)
-genInst env i (Entity (Name "" nm) ins outs) =
-	genInst env i (Entity (Prim nm) ins outs)
-
 -- Probes are turned into id nodes, add comments to indicate
 -- which probes are on which signals in the vhdl.
 genInst env i (Entity (TraceVal _ _) ins outs) =
@@ -96,11 +90,6 @@ genInst env i (Entity (Prim "snd3") outputs inputs)
 genInst env i (Entity (Prim "thd3") outputs inputs)
 	= genInst env i (Entity (Prim "index") outputs (addNum 2 inputs))
 
--- TMP aliases
-
---genInst env i (Entity n@(Name "Sampled" op) outputs inputs dyn)
---      | op `elem` [".<.", ".>.", ".<=.", ".>=.", ".==."]
---      = genInst env i (Entity (Name "Signed" op) outputs inputs dyn)
 
 -- identity
 
@@ -244,13 +233,6 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 	   	   _ -> error $ "can not find clock domain for " ++ show (p_id,e)
 -}
 
-genInst _ i (Entity (Name "Memory" "register") [("o0",_)] inputs) =
-          [NetAssign input (toStdLogicExpr ty d) ]
-  where output = sigName "o0" i
-        input =  next output
-	(ty,d) = head [ (ity,driver) | ("i0",ity,driver) <- inputs ]
-
-
 -- Muxes
 genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",_,_)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
@@ -300,13 +282,6 @@ genInst _ i (Entity (Prim "/") [("o0",SampledTy m n)] [ ("i0",iTy,v), ("i1",_,Li
   where val' = fromRepToInteger lit
         val  = val' `div` (2 ^ frac_width)
         frac_width = n - log2 m
-
--- The following do not need any code in the inst segement
-
-genInst _ _ (Entity nm _ _)
-	| nm `elem` [ Name "Memory" "BRAM"
-		    ]
-	= []
 
 -- Logic assignments
 
@@ -764,23 +739,6 @@ genInst _ i (Entity name@(External nm) outputs inputs) =
          -- Think of this as a silent (0) at the end of the right hand size.
          fixName B n | "(0)" `isSuffixOf` n = reverse (drop 3 (reverse n))
          fixName _ n = n
-
-
-
-genInst _ i (Entity name@(Name mod_nm nm) outputs inputs) =
-	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ]))
-          [ InstDecl (mod_nm ++ "_" ++ sanitizeName nm) ("inst" ++ show i)
-		[ (n,case x of
-			Generic v -> ExprLit Nothing (ExprNum v)
-			_ -> error $ "genInst, Generic, " ++ show (n,nTy,x)
-	          )
-		| (n,nTy,x) <- inputs, isGenericTy nTy
-		]
-                [ (n,toStdLogicExpr nTy x)  | (n,nTy,x) <- inputs, not (isGenericTy nTy) ]
-		[ (n,ExprVar $ sigName n i) | (n,_)   <- outputs ]
-          ]
-   where isGenericTy GenericTy = True
-         isGenericTy _         = False
 
 -- Idea: table that says you take the Width of i/o Var X, and call it y, for the generics.
 

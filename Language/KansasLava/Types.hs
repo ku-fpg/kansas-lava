@@ -223,9 +223,8 @@ instance Read OVar where
 -------------------------------------------------------------------------
 -- | Id is the name/tag of a block of compuation.
 
-data Id = Name String String                    -- ^ external thing (TODO: remove)
-        | Prim String                           -- ^ built in thing
-        | External String                       --
+data Id = Prim String                           -- ^ built in thing
+        | External String                       -- ^ VHDL entity
         | Function [(RepValue,RepValue)]        -- ^ anonymous function
 
 
@@ -257,8 +256,6 @@ data Id = Name String String                    -- ^ external thing (TODO: remov
 -}
 
 instance Show Id where
---    show (Name "" nm)  = nm     -- do we use "" or "Lava" for the magic built-in?
-    show (Name pre nm) = pre ++ "::" ++ nm
     show (External nm) = "$" ++ nm
     show (Prim nm)     = nm
     show (Label nm)    = show nm ++ ":"

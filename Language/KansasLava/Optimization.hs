@@ -18,24 +18,24 @@ import Data.Default
 
 -- This returns an optimized version of the Entity, or fails to optimize.
 optimizeEntity :: (Unique -> Entity Unique) -> Entity Unique -> Maybe (Entity Unique)
-optimizeEntity env (Entity (Name "Lava" "fst") [(o0,_)] [(_,_,Port o0' u)]) =
+optimizeEntity env (Entity (Prim "fst") [(o0,_)] [(_,_,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',_)] [(i1',t1,p1),(_,_,_)]
+	    Entity (Prim "pair") [(o0'',_)] [(i1',t1,p1),(_,_,_)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i1',t1,p1)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "snd") [(o0,_)] [(_,_,Port o0' u)]) =
+optimizeEntity env (Entity (Prim "snd") [(o0,_)] [(_,_,Port o0' u)]) =
 	case env u of
-	    Entity (Name "Lava" "pair") [(o0'',_)] [(_,_,_),(i2',t2,p2)]
+	    Entity (Prim "pair") [(o0'',_)] [(_,_,_),(i2',t2,p2)]
 	       | o0' == o0'' -> return $ replaceWith o0 (i2',t2,p2)
 	    _ -> Nothing
-optimizeEntity env (Entity (Name "Lava" "pair") [(o0,tO)] [(_,_,Port o0' u0),(_,_,Port o1' u1)]) =
+optimizeEntity env (Entity (Prim "pair") [(o0,tO)] [(_,_,Port o0' u0),(_,_,Port o1' u1)]) =
 	case (env u0,env u1) of
-	    ( Entity (Name "Lava" "fst") [(o0'',_)] [(_,_,p2)]
-	      , Entity (Name "Lava" "snd") [(o1'',_)] [(_,_,p1)]
+	    ( Entity (Prim "fst") [(o0'',_)] [(_,_,p2)]
+	      , Entity (Prim "snd") [(o1'',_)] [(_,_,p1)]
 	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
 			return $ replaceWith o0 ("o0",tO,p1)
 	    _ -> Nothing
-optimizeEntity _ (Entity (Name _ "mux2") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
+optimizeEntity _ (Entity (Prim "mux2") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
 optimizeEntity _ (Entity (BlackBox _) [(o0,_)] [(i0, ti, di)]) =
@@ -45,7 +45,7 @@ optimizeEntity _ _ = Nothing
 ----------------------------------------------------------------------
 
 replaceWith :: String -> (String, Type, Driver s) -> Entity s
-replaceWith o (i,t,other) = Entity (Name "Lava" "id") [(o,t)] [(i,t,other)]
+replaceWith o (i,t,other) = Entity (Prim "id") [(o,t)] [(i,t,other)]
 --replaceWith (i,t,x) = error $ "replaceWith " ++ show (i,t,x)
 
 ----------------------------------------------------------------------
@@ -89,7 +89,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 	      }
 
 	renamings = [ ((u,o),other)
-		    | (u,Entity (Name "Lava" "id") [(o,tO)] [(_,tI,other)]) <- env0
+		    | (u,Entity (Prim "id") [(o,tO)] [(_,tI,other)]) <- env0
 		    , tO == tI	-- should always be, anyway
 		    ]
 
@@ -125,7 +125,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 	      $ theCircuit rCir
 
 
-	isId (Entity (Name "Lava" "id") _ _) = True
+	isId (Entity (Prim "id") _ _) = True
 	isId _ = False
 
 	-- The outputs do not form part of the comparison here,
@@ -147,7 +147,7 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
         canonicalize [] = []
 	canonicalize ((u0,e0@(Entity _ outs _)):rest) =
 		(u0,e0) : [ ( uX,
-                              Entity (Name "Lava" "id") outs'
+                              Entity (Prim "id") outs'
                                 [ (n,t, Port n u0) | (n,t) <- outs ]
 			    )
 			  | (uX,Entity _ outs' _) <- rest, length outs == length outs'

@@ -199,7 +199,7 @@ packY (aSig,bSig) = {-# SCC "pack(MaybeTT)" #-}
 							-- This last one is strange.
 						   Nothing -> optX (Just Nothing)
 					 )
-					 (entity2 (Name "Lava" "pair") ae be)
+					 (entity2 (Prim "pair") ae be)
 			     ) aSig bSig
 unpackY :: forall a sig . (Rep a, Signal sig) => sig (Maybe a) -> (sig Bool, sig a)
 unpackY ma = {-# SCC "unpack(MaybeY)" #-}
@@ -210,7 +210,7 @@ unpackY ma = {-# SCC "unpack(MaybeY)" #-}
 							Just Nothing -> {-# SCC "unpack(Maybe,2)" #-}optX (Just False)
 							Just (Just _) -> {-# SCC "unpack(Maybe,3)" #-}optX (Just True)
 						     )
-						     ({-# SCC"a_2" #-}(entity1 (Name "Lava" "fst") abe))
+						     ({-# SCC"a_2" #-}(entity1 (Prim "fst") abe))
 			      )) ma
 		    )) $! ( {-# SCC "unpack(MaybeY2)" #-}liftS1 (\ (Comb a abe) -> {-# SCC "unpack(Maybe_a)" #-}
 						Comb (case unX a of
@@ -218,19 +218,19 @@ unpackY ma = {-# SCC "unpack(MaybeY)" #-}
 							Just Nothing -> {-# SCC "unpack(Maybe,4)" #-}optX Nothing
 							Just (Just v) ->{-# SCC "unpack(Maybe,5)" #-} optX (Just v)
 						     )
-						     (entity1 (Name "Lava" "snd") abe)
+						     (entity1 (Prim "snd") abe)
 			      ) ma
 		    )
 
 {-
 packX :: (Rep a, Rep b, Signal sig) => (sig a, sig b) -> sig (a,b)
 packX ~(a,b) = {-# SCC "pack(,)" #-}
-			liftS2 (\ ~(Comb a ae) ~(Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Name "Lava" "pair") ae be))
+			liftS2 (\ ~(Comb a ae) ~(Comb b be) -> {-# SCC "pack(,)i" #-} Comb (a,b) (entity2 (Prim "pair") ae be))
 			    a b
 unpackX :: (Rep a, Rep b, Signal sig) => sig (a,b) -> (sig a, sig b)
 unpackX ab = {-# SCC "unpack(,)" #-}
-		    ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Name "Lava" "fst") abe)) ab
-		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Name "Lava" "snd") abe)) ab
+		    ( liftS1 (\ (Comb (~(a,b)) abe) -> Comb a (entity1 (Prim "fst") abe)) ab
+		    , liftS1 (\ (Comb (~(a,b)) abe) -> Comb b (entity1 (Prim "snd") abe)) ab
 		    )
 -}
 
