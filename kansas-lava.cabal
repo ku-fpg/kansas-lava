@@ -74,7 +74,7 @@ Executable kansas-lava-unittest
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests/unit
+    Hs-Source-Dirs: ., tests
     Ghc-Options: -Wall  -Werror -O2
                  -fno-warn-orphans -fcontext-stack=256
 
@@ -87,7 +87,7 @@ Executable kansas-lava-tracediff
       Build-depends: base
       buildable: False
     Main-Is:        Diff.hs
-    Hs-Source-Dirs: ., tests/unit
+    Hs-Source-Dirs: ., tests
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
@@ -100,30 +100,7 @@ Executable kansas-lava-testreport
       Build-depends: base
       buildable: False
     Main-Is:        GenReport.hs
-    Hs-Source-Dirs: ., tests/unit
+    Hs-Source-Dirs: ., tests
     Ghc-Options: -Wall  -Werror -O2 -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
---Executable kansas-lava-test2
---    if flag(all)
---      Build-Depends: base
---      buildable: True
---      Other-modules:
---    else
---      Build-depends: base
---      buildable: False
---    Main-Is:        Main.hs
---    Hs-Source-Dirs: ., tests/test2
---    Ghc-Options: -Wall
-
---Executable kansas-lava-test_api
---    if flag(all)
---      Build-Depends: base
---      buildable: True
---      Other-modules:
---    else
---      Build-depends: base
---      buildable: False
---    Main-Is:        Main.hs
---    Hs-Source-Dirs: ., tests/test_api
---    Ghc-Options: -Wall

@@ -58,7 +58,7 @@ instance Default Options where
                 , simPath = "sims"
                 , simMods = []
                 , permuteMods = True
-                , preludePath = "../../Prelude/VHDL"
+                , preludePath = "../Prelude/VHDL"
                 , verboseOpt = 3
                 , testOnly = Nothing
                 , testNever = []
