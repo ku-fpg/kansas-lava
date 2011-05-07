@@ -191,8 +191,12 @@ showSeqVals ss = [ showRep i
 
 ----------------------------------------------------------------------------------
 
--- | generate a (shallow) stream of random boolean. Used for testing
--- shallow circuits.
+-- | Generate a (shallow) stream of random boolean. Used for testing
+-- shallow circuits. The function is a mapping from clock cycle number (starting
+-- at 0) to (0..1), which is the likelihood of returning a True.
+-- The clock cycle count allows for periodic tests.
 
-randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Float -> Float) -> sig Bool
-randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [1..] ]
+randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Integer -> Float) -> sig Bool
+randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [0..] ]
+
+
