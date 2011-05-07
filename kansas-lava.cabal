@@ -37,7 +37,6 @@ Library
        Language.KansasLava.Optimization
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
-       Language.KansasLava.Reify
        Language.KansasLava.Rep
        Language.KansasLava.Seq
        Language.KansasLava.Signal

@@ -31,7 +31,6 @@ module Language.KansasLava.Trace
 import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
 import Language.KansasLava.Probes
-import Language.KansasLava.Reify
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
