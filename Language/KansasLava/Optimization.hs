@@ -1,8 +1,6 @@
 module Language.KansasLava.Optimization
 	( optimizeCircuit
 	, OptimizationOpts(..)
-	, Opt
-	, runOpt
 	) where
 
 import Language.KansasLava.Types
@@ -58,12 +56,6 @@ instance Monad Opt where
     return a = Opt a 0
     (Opt a n) >>= k = case k a of
 	 		Opt r m -> Opt r (n + m)
-
-runOpt :: Opt a -> (a,[String])
-runOpt (Opt a i) = (a,if i == 0
-		      then []
-		      else [show i ++ " optimizations"]
-		   )
 
 
 ----------------------------------------------------------------------
