@@ -24,7 +24,7 @@ class Dual a where
     dual :: a -> a -> a
 
 instance Dual (CSeq c a) where
-    dual ~(Seq a _) ~(Seq _ eb) = Seq a eb
+    dual c d = Seq (seqValue c) (seqDriver d)
 
 instance Dual (Comb a) where
     -- dual ~(Comb a _) ~(Comb _ eb) = Comb a eb
