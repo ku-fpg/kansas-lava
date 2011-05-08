@@ -63,7 +63,7 @@ Library
 
 Executable kansas-lava-unittest
     if flag(unit)
-      Build-Depends: base, QuickCheck >= 2.0, hpc, strict
+      Build-Depends: base,  hpc, strict
       buildable: True
       Other-modules:
     else
@@ -76,7 +76,7 @@ Executable kansas-lava-unittest
 
 Executable kansas-lava-tracediff
     if flag(unit)
-      Build-Depends: base, QuickCheck >= 2.0, strict
+      Build-Depends: base, strict
       buildable: True
       Other-modules:
     else
@@ -89,7 +89,7 @@ Executable kansas-lava-tracediff
 
 Executable kansas-lava-testreport
     if flag(unit)
-      Build-Depends: base, QuickCheck >= 2.0, strict
+      Build-Depends: base, strict
       buildable: True
       Other-modules:
     else
