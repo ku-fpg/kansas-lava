@@ -46,6 +46,8 @@ module Language.KansasLava.Types (
         -- I and O
         , I
         , O
+        -- *Dual shallow/deep
+        , Dual(..)
         ) where
 
 import Control.Applicative
@@ -55,7 +57,7 @@ import Data.Dynamic
 import qualified Data.Foldable as F
 import Data.List as L
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding (Dual)
 import Data.Reify
 import qualified Data.Traversable as T
 
@@ -608,3 +610,20 @@ data Witness w = Witness
 -- eventually, these may become datatypes.
 type I input     readflag = (input    ,readflag)
 type O writeflag output   = (writeflag,output  )
+
+
+----------------------------------------------------------------------------
+
+-- | Select the shallow embedding from one circuit, and the deep embedding from another.
+class Dual a where
+    -- | Take the shallow value from the first argument, and the deep value from the second.
+    dual :: a -> a -> a
+
+instance (Dual a, Dual b) => Dual (a,b) where
+	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
+
+instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
+	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
+
+instance (Dual b) => Dual (a -> b) where
+	dual f1 f2 x = dual (f1 x) (f2 x)

@@ -50,6 +50,7 @@ undefinedComb = Comb (optX Nothing)
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
 
-
+instance Dual (Comb a) where
+    dual c d = Comb (combValue c) (combDriver d)
 
 
