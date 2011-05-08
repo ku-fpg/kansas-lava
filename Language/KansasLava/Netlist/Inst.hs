@@ -543,7 +543,7 @@ genInst _ i (Entity (Prim "write") [ ("o0",_) ]
                                      , ("wData",wDataTy,wData)
                                       ,("element_count",GenericTy,_)            -- now ignored?
                                       ]) =
-        [ ProcessDecl
+        [ mkProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
            , If (isHigh (toStdLogicExpr B clk_en))
                 (If (isHigh (toStdLogicExpr B wEn))
@@ -565,7 +565,7 @@ genInst _ i (Entity (Prim "delay") [("o0",_)]    [ ("i0",tI,d)
                                                   , ("clk",ClkTy,clk)
                                                   , ("rst",B,_)
                                                   ]) =
-        [ ProcessDecl
+        [ mkProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
            , If (isHigh (toStdLogicExpr B clk_en))
                 (statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
@@ -581,15 +581,15 @@ genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                                                   , ("rst",B,rst)
                                                   ]) =
         [ ProcessDecl
-         [ (Event (toStdLogicExpr B rst) AsyncHigh
-           , statements [Assign (ExprVar $ sigName "o0" i) (toTypedExpr ty n)]
+           (Event (toStdLogicExpr B clk) PosEdge)
+           (Just ( Event (toStdLogicExpr B rst) PosEdge
+                 , Assign (ExprVar $ sigName "o0" i) (toTypedExpr ty n)
+                 )
            )
-         , ( Event (toStdLogicExpr B clk) PosEdge
-           , If (isHigh (toStdLogicExpr B clk_en))
+           ( If (isHigh (toStdLogicExpr B clk_en))
 		(statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
                 Nothing
            )
-         ]
         ]
 
 {-
@@ -870,3 +870,7 @@ slvVarName :: (Show v, ToStdLogicExpr v) => Type -> v -> Ident
 slvVarName tI w = case toStdLogicExpr tI w of
                     ExprVar varname -> varname
                     _ -> error $ "Can't get the name of variable " ++ show w
+
+mkProcessDecl :: [(Event, Stmt)] -> Decl
+mkProcessDecl [(e,s)] = ProcessDecl e Nothing s
+mkProcessDecl _ = error "mkProcessDecl"

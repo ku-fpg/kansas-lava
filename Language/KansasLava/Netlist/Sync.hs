@@ -38,13 +38,12 @@ regProc (clk,rst,clk_en) es
 -}
   | otherwise =
     [ProcessDecl
-     [(Event (toStdLogicExpr ClkTy rst) AsyncHigh,
-       statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es]
-      )
-     ,(Event (toStdLogicExpr ClkTy clk) PosEdge,
-        regNext
-      )
-     ]
+       (Event (toStdLogicExpr ClkTy clk) PosEdge)
+       (Just ( Event (toStdLogicExpr ClkTy rst) PosEdge
+             , statements [Assign (outName e i) (defaultDriver e) |  (i,e) <- es]
+             )
+       )
+       regNext
     ]
 
   where outName e i = toStdLogicExpr (lookupInputType "o0" e) (Port ("o0") i)
@@ -65,8 +64,9 @@ bramProc :: (Driver Unique, Driver Unique,  Driver Unique)
 bramProc (_,_,_) [] = []
 bramProc (clk,_,clk_en) es =
   [ProcessDecl
-   [(Event (toStdLogicExpr ClkTy clk) PosEdge,
-           (statements $ concat
+    (Event (toStdLogicExpr ClkTy clk) PosEdge)
+    Nothing
+    (statements $ concat
              [ [ If (isHigh (clk_en'))
 	 	    (Seq [ If (isHigh (wEn e))
                               (Assign (writeIndexed i e) (wData e))
@@ -77,7 +77,7 @@ bramProc (clk,_,clk_en) es =
                ]
 	     | (i,e) <- es
 	     ]
-	   ))]
+	   )
   ]
     where outName e i = toStdLogicExpr (lookupInputType "wData" e) (Port ("o0") i)
           ramName i = "sig_" ++ show i ++ "_o0_ram"
