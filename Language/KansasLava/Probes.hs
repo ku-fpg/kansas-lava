@@ -23,6 +23,9 @@ import Language.KansasLava.Seq
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
+import System.Environment
+import System.IO.Unsafe
+
 import Debug.Trace
 
 -- basic conversion to trace representation
@@ -35,7 +38,7 @@ fromTrace (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 -- this is the public facing method for probing
 -- | Add a named probe to a circuit
 probe :: (Probe a) => String -> a -> a
-probe name = probe' [ OVar i name | i <- [0..] ]
+probe name = probe' probeState [ OVar i name | i <- [0..] ]
 
 -- | Probe all of the inputs/outputs for the given Fabric. The parameter 'n'
 -- indicates the sequence length to capture.
@@ -105,37 +108,41 @@ observeRep = trace ("\nobserveRep is deprecated, please use 'probe :: String -> 
 class Probe a where
     -- | Add probes (using the input list of 'OVar's as a name supply) to Lava
     -- circuit.
-    probe' :: [OVar] -> a -> a
+    probe' :: ProbeState -> [OVar] -> a -> a
 
 instance (Clock c, Rep a) => Probe (CSeq c a) where
-    probe' (n:_) (Seq s (D d)) = Seq (obs s) (D (insertProbe n strm d))
-        where strm = toTrace s
-              obs = foldr (\ (i,x) xs -> trace (show n ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
+    probe' NoProbe _ sq = sq
+    probe' TraceProbe (n:_) (Seq s (D d)) = Seq (obs s) (D d)
+        where obs = foldr (\ (i,x) xs -> trace (show n ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
                   . zip [(0::Int)..]
                   . S.toList
-    probe' [] _ = error "Can't add probe: no name supply available (Seq)"
+    probe' CaptureProbe (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+        where strm = toTrace s
+    probe' _ [] _ = error "Can't add probe: no name supply available (Seq)"
 
 instance Rep a => Probe (Comb a) where
-    probe' (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
+    probe' NoProbe _ sq = sq
+    probe' TraceProbe _ sq = sq
+    probe' CaptureProbe (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
         where strm = toTrace $ S.fromList $ repeat s
-    probe' [] _ = error "Can't add probe: no name supply available (Comb)"
+    probe' _ [] _ = error "Can't add probe: no name supply available (Comb)"
 
 instance (Probe a, Probe b) => Probe (a,b) where
-    probe' names (x,y) = (probe' (addSuffixToOVars names "-fst") x,
-                          probe' (addSuffixToOVars names "-snd") y)
+    probe' m names (x,y) = (probe' m(addSuffixToOVars names "-fst") x,
+                            probe' m (addSuffixToOVars names "-snd") y)
 
 
 instance (Probe a, Probe b, Probe c) => Probe (a,b,c) where
-    probe' names (x,y,z) = (probe' (addSuffixToOVars names "-fst") x,
-                            probe' (addSuffixToOVars names "-snd") y,
-                            probe' (addSuffixToOVars names "-thd") z)
+    probe' m names (x,y,z) = (probe' m (addSuffixToOVars names "-fst") x,
+                              probe' m (addSuffixToOVars names "-snd") y,
+                              probe' m (addSuffixToOVars names "-thd") z)
 
 instance (Probe a, M.Size x) => Probe (M.Matrix x a) where
-    probe' _ _ = error "Probe(probe') not defined for Matrix"
+    probe' _ _ _ = error "Probe(probe') not defined for Matrix"
 
 instance (Probe a, Probe b) => Probe (a -> b) where
-    probe' (n:ns) f x = probe' ns $ f (probe' [n] x)
-    probe' [] _ _ = error "Can't add probe: no name supply available (a -> b)"
+    probe' m (n:ns) f x = probe' m ns $ f (probe' m [n] x)
+    probe' _ [] _ _ = error "Can't add probe: no name supply available (a -> b)"
 
 addSuffixToOVars :: [OVar] -> String -> [OVar]
 addSuffixToOVars pns suf = [ OVar i $ name ++ suf | OVar i name <- pns ]
@@ -234,4 +241,19 @@ probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Un
 probesOnAL x al = [ (ident,nms) | (ident, Entity (TraceVal nms _) _ ins) <- al
                              , (_,_,d) <- ins
                              , d == x ]
+
+
+
+data ProbeState = NoProbe | TraceProbe | CaptureProbe
+
+{-# NOINLINE probeState #-}
+probeState :: ProbeState
+probeState = unsafePerformIO $ do
+        nm <- getEnv "KANSAS_LAVA_PROBE" `catch` (\ _ -> return "")
+        return $ case nm of
+          "none"    -> NoProbe
+          "trace"   -> TraceProbe
+          "capture" -> CaptureProbe
+          _         -> NoProbe
+           
 
