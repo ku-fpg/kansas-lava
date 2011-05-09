@@ -25,6 +25,8 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
+import Language.KansasLava.Comb
+import Language.KansasLava.Signal
 
 -- The '_' will disappear soon from these names.
 
@@ -101,7 +103,6 @@ inStdLogic nm = do
           StdLogic sq -> return sq
           _            -> fail "internal type error in inStdLogic"
 
-
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
         pad <- input nm (GenericPad $ error "Fix Generic")
@@ -111,11 +112,23 @@ inGeneric nm = do
 
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-        pad <- input nm (StdLogicVector $ (deepSeq $ D $ Pad (OVar 0 nm) :: Seq a))
+	let seq' = deepSeq $ D $ Pad (OVar 0 nm) :: Seq a
+        pad <- input nm (StdLogicVector $ seq')
         case pad of
-                                -- This unsigned is hack, but the sizes should always match.
-          StdLogicVector sq -> return $ (unsafeCoerce sq)
+                     -- This unsigned is hack, but the sizes should always match.
+          StdLogicVector sq -> return $ case toStdLogicType ty of
+					     SLV _ -> unsafeId sq
+					     G -> error $ "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
+					     _     -> liftS1 (\ (Comb a (D ae)) -> Comb (fromRep $ toRep a) 
+					     	      	 $ D $ Port ("o0") $ E $ Entity (Prim "coerce")
+							   	    	            [("o0",ty)]
+									            [("i0",V $ typeWidth ty,ae)]) sq
           _                  -> fail "internal type error in inStdLogic"
+  where
+	ty = repType (Witness :: Witness a)
+
+
+-------------------------------------------------------------------------------
 
 outStdLogic :: String -> Seq Bool -> Fabric ()
 outStdLogic nm seq_bool = output nm (StdLogic seq_bool)
@@ -123,7 +136,18 @@ outStdLogic nm seq_bool = output nm (StdLogic seq_bool)
 outStdLogicVector
   :: forall a .
      (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
-outStdLogicVector nm sq = output nm (StdLogicVector sq)
+outStdLogicVector nm sq = 
+		  case toStdLogicType (typeOfSeq sq) of
+		    SLV _ -> output nm (StdLogicVector sq)
+		    G -> error $ "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
+		    _     -> output nm $ StdLogicVector
+		    	     	       $ liftS1 (\ (Comb a (D ae)) -> Comb a
+				                      $ D $ Port ("o0") $ E $ Entity (Prim "coerce")
+							   	    	            [("o0",V $ typeWidth ty)]
+									            [("i0",ty,ae)]) 
+				       $ sq					    		
+  where
+	ty = repType (Witness :: Witness a)
 
 -------------------------------------------------------------------------------
 
@@ -142,7 +166,12 @@ reifyFabric (Fabric circuit) = do
         let (_,ins0,outs0) = circuit ins0
 
         let mkU :: forall a . (Rep a) => Seq a -> Type
-            mkU _ = repType (Witness :: Witness a)
+            mkU _ = case toStdLogicType ty of
+		      G      -> error $ "reifyFabric, outputing a non stdlogic[vector]: " ++ show ty
+	    	      SLV {} -> ty
+		      _      -> V $ typeWidth ty
+	       where 
+	       	     ty = repType (Witness :: Witness a)
 
         let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,StdLogic s) <- outs0 ] ++
                        [ (nm, mkU s, unD $ seqDriver s) | (nm,StdLogicVector s) <- outs0 ]
