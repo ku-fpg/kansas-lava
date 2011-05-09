@@ -172,6 +172,8 @@ instance Dual (CSeq c a) where
     dual c d = Seq (seqValue c) (seqDriver d)
 
 
+typeOfSeq :: forall w  . (Rep w) => Seq w -> Type
+typeOfSeq _ = repType (Witness :: Witness w)
 
 -- | Generate a (shallow) stream of random boolean. Used for testing
 -- shallow circuits. The function is a mapping from clock cycle number (starting
