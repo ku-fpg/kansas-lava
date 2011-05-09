@@ -4,7 +4,7 @@
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
 module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench, toASCII, fromASCII) where
 
-import Data.List(mapAccumL,sort)
+import Data.List(mapAccumL)
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Trace
@@ -200,7 +200,7 @@ stimulus name ins outs = unlines $ [
 
 -- Manipulating ports
 ports :: KLEG -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
-ports reified = (sort ins, sort outs, sort clocks)
+ports reified = (ins, outs, clocks)
     where ins  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
           outs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
           clocks  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
@@ -257,7 +257,7 @@ netlistCircuit name circ = do
   let outports = checkPortType (map outputNameAndType sinks)
 
   -- Finals are the assignments from the output signals for entities to the output ports
-  let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sort sinks
+  let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sinks
                                                    , case toStdLogicTy ty of
                                                         MatrixTy {} -> error "can not have a matrix as an out argument"
                                                         _ -> True
@@ -269,7 +269,7 @@ netlistCircuit name circ = do
 	    finals)
 
 
-  where checkPortType ports' =  [ (nm,sizedRange ty) | (OVar _ nm, ty) <- sort ports'
+  where checkPortType ports' =  [ (nm,sizedRange ty) | (OVar _ nm, ty) <- ports'
                                , not (isMatrixStdLogicTy ty) || error "can not have a matrix as a port"
                                ]
         outputNameAndType (n,ty,_) = (n,ty)
@@ -294,7 +294,7 @@ preprocessNetlistCircuit cir = res
 
         -- figure out the list of srcs
         srcs'   =  [ (OVar k $ nm ++ extra1, ty2)
-                   | (OVar _ nm, ty) <- sort srcs
+                   | (OVar _ nm, ty) <- srcs
                          , (extra1,ty2)
                                 <- case toStdLogicTy ty of
                                      B    -> [("",ty)]
@@ -324,7 +324,7 @@ preprocessNetlistCircuit cir = res
                                 )
                               | j <- [0..(getMatrixNumColumns ty - 1)]]
                      )
-                  | (OVar i nm, ty) <- sort srcs
+                  | (OVar i nm, ty) <- srcs
                   , isMatrixStdLogicTy ty
                   ]
 
@@ -340,7 +340,7 @@ preprocessNetlistCircuit cir = res
         --------------------------------------------------------------------------------------------
 
         sinks'  = [ (OVar k $ nm ++ extra1, ty2, dr2)
-                  | (u,(OVar _ nm, ty, dr)) <- zip sinkVars (sort sinks)
+                  | (u,(OVar _ nm, ty, dr)) <- zip sinkVars (sinks)
                          , (extra1,ty2,dr2)
                                 <- case toStdLogicTy ty of
                                      B    -> [("",ty,dr)]
@@ -357,7 +357,7 @@ preprocessNetlistCircuit cir = res
         nodesOut = [  (u,Entity (Prim "unconcat")
                                 [('o':show j,innerTy) | j <- [0..(n-1)]]
                                 [("i0",ty,dr)])
-                   | (u,(OVar _ _, ty, dr)) <- zip sinkVars (sort sinks)
+                   | (u,(OVar _ _, ty, dr)) <- zip sinkVars (sinks)
                    , (innerTy,n )
                         <- case toStdLogicTy ty of
                              B    -> []
