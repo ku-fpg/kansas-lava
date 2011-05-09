@@ -4,7 +4,7 @@
 module Language.KansasLava.Probes (
  Probe(..), probe, probeCircuit, probeNames, probeValue, probeData,
  remProbes, mergeProbes, mergeProbesIO, exposeProbes, exposeProbesIO,
- toGraph, toTrace, fromTrace, observeRep, printProbes, printProbeTable
+ toGraph, toTrace, fromTrace, printProbes, printProbeTable
  ) where
 
 import qualified Data.Reify.Graph as DRG
@@ -97,11 +97,6 @@ probeData :: DRG.Unique -> KLEG -> Maybe ([OVar], TraceStream)
 probeData n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms strm) _ _) -> Just (nms, strm)
                         _ -> Nothing
-
--- | Trace the values of the shallow stream.
--- Deprecated: use 'probe'
-observeRep :: (Clock c, Rep a) => String -> CSeq c a -> CSeq c a
-observeRep = trace ("\nobserveRep is deprecated, please use 'probe :: String -> a -> a' instead\n") probe
 
 -- | The 'Probe' class is used for adding probes to all inputs/outputs of a Lava
 -- circuit.
