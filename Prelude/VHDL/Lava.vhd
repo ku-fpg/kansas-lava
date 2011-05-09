@@ -336,7 +336,8 @@ begin
 
   -- This is Round half to even (http://en.wikipedia.org/wiki/Rounding#Round_half_to_even)
   o0 <= r0 when i0(shift_by-1) = '0' else
-        r0 when i0(shift_by) = '0' and i0(shift_by-1) = '1' and i0(shift_by - 2 downto 0) = 0 else
+        r0 when i0(shift_by) = '0' and i0(shift_by-1) = '1' and (shift_by = 1 or i0(shift_by - 2 downto 0) = 0) else
         r0 + 1;
+
 end Behavioral;
 
