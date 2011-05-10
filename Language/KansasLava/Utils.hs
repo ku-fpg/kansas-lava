@@ -671,5 +671,24 @@ unsafeId = liftS1 $ \ (Comb a (D ae)) -> Comb (fromRep $ toRep a) $ (D ae)
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = coerce (pack (x,y) :: sig (a,b))
 
+----------------------------------------------------------------------------
+
+-- | The first argument is the value is our value under test;
+-- the second is our reference value.
+-- If the reference is undefined, then the VUT *can* also be under test.
+-- This only works for shallow circuits, and is used when creating test benches.
+
+refinesFrom :: forall sig a . (Signal sig, Rep a) => sig a -> sig a -> sig Bool
+refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) -> 
+                        Comb (let res = and
+                                      [ case (vut,ref) of
+                                           (_,WireUnknown)       -> True
+                                           (WireVal x,WireVal y) -> x == y
+                                           _                     -> False
+                                      | (vut,ref) <- zip (unRepValue (toRep a))
+                                                         (unRepValue (toRep b))
+                                      ]
+                              in optX (Just res))
+                             (D $ Error "no deep entity for refinesFrom")
 
 
