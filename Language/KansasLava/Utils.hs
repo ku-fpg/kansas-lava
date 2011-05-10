@@ -223,24 +223,12 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 -- the use of liftS3. This is safe, because we know the kind of node that we're building.
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig)
-	= liftS3 (\ (Comb i _)
-	 	    (Comb t _)
-	 	    (Comb e _)
+	= liftS3 (\ (Comb i ei)
+	 	    (Comb t et)
+	 	    (Comb e ee)
 			-> Comb (mux2shallow i t e)
-                            (entity3 (Prim "mux2") (deepS iSig) (deepS tSig) (deepS eSig))
---			        (entity3 (Prim "mux2") (ei et ee)
-
+                                (entity3 (Prim "mux2") ei et ee)
 	         ) iSig tSig eSig
-
-liftS3' :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d, sig a ~ Seq a, sig b ~ Seq b, sig c ~ Seq c, sig d ~ Seq d)
-       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3' f (Seq a _) (Seq b _) (Seq c _) = Seq (streamZipWith3 f' a b c) ed
-      where
-	Comb _ ed = error "" -- f (deepComb ea) (deepComb eb) (deepComb ec)
-	f' :: X a -> X b -> X c -> X d
-	f' x y z = case f (shallowComb x) (shallowComb y) (shallowComb z)  of
-		      Comb d _ -> d
-        streamZipWith3 fun (S.Cons x xs) (S.Cons y ys) (S.Cons z zs) = S.Cons (fun x y z) (streamZipWith3 fun xs ys zs)
 
 
 mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
