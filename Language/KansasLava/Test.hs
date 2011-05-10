@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts #-}
 module Language.KansasLava.Test  
         ( testMe
         , neverTestMe
@@ -16,13 +16,14 @@ module Language.KansasLava.Test
         , testDriver
         , generateReport
         , Options(..)
+        , matchExpected
         ) where
 
 import Language.KansasLava.Trace
 import Language.KansasLava.Types
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
-import Language.KansasLava.Stream
+import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.VHDL
 
@@ -41,7 +42,7 @@ import System.Directory
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
-
+import Data.Sized.Ix
 
 -------------------------------------------------------------------------------------
 
@@ -69,9 +70,10 @@ fileReporter path nm res = do
 -- do some tests for sanity.
 
 data TestSeq = TestSeq
-        (String -> Int  -> Fabric () -> Fabric () -> Fabric () -> IO ())
+        (String -> Int  -> Fabric () -> Fabric () -> Fabric (Seq Bool) -> IO ())
         (forall a. Gen a -> [a])
 
+{-
 -- | Fabric outputs are equal if for each output from the left fabric,
 --   there exists an output in the right fabric with the same name, type,
 --   and sequence of values. Sequences are compared with cmpRepValue,
@@ -91,6 +93,7 @@ cmpFabricOutputs count expected shallow =
                            StdLogic s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
                            StdLogicVector s -> (padStdLogicType pad,map toRep $ toList $ seqValue s)
                            GenericPad _ -> error "testFabrics: Generic output pad?"
+-}
 
 testFabrics
         :: Options                  -- Options
@@ -98,7 +101,7 @@ testFabrics
         -> Int                      -- Number of Cycles
         -> Fabric ()                -- Reference input
         -> Fabric ()                -- DUT
-        -> Fabric ()                -- Reference output
+        -> Fabric (Seq Bool)        -- Reference output
         -> IO ()
 testFabrics opts name count f_driver f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
@@ -114,13 +117,22 @@ testFabrics opts name count f_driver f_dut f_expected
             shallow :: [(String,Pad)]
             shallow = runFabric f_dut inp
 
-            expected :: [(String,Pad)]
-            expected = runFabric f_expected []
+        verb 9 $ show ("shallow",shallow)
+        
+         
+        let expected :: [(String,Pad)]
+            expected = runFabric (do r <- f_expected
+                                     outStdLogic "kl_test_out" r
+                                 ) shallow
 
         verb 9 $ show ("expected",expected)
-        verb 9 $ show ("shallow",shallow)
 
-        if cmpFabricOutputs count expected shallow
+        let expect_res_match :: [Bool]
+            expect_res_match = take count $ case expected of
+                   [("kl_test_out",StdLogic o)] -> map (== Just True) (fromSeq o)
+                   _ -> error "testFabric Failed, bad expected output formatting"
+
+        if null (filter (/= True) expect_res_match)
           then do verb 3 $ "shallow passed"
                   if genSim opts
                     then do createDirectoryIfMissing True path
@@ -165,14 +177,13 @@ testFabrics opts name count f_driver f_dut f_expected
           else do verb 1 $ "shallow FAILED"
                   t_dut <- mkTrace (return count) f_dut inp
                   t_driver <- mkTrace (return count) f_driver []
-                  t_expected <- mkTrace (return count) f_expected []
                   verb 4 "DUT:"
                   verb 4 $ show t_dut
                   verb 4 "EXPECT IN:"
                   verb 4 $ show t_driver
-                  verb 4 "EXPECT OUT:"
-                  verb 4 $ show t_expected
-                  report name $ ShallowFail t_dut t_expected
+                  verb 4 "EXPECT OUT match:"
+                  verb 4 $ show expect_res_match
+                  report name $ ShallowFail t_dut "shallow-fail"
   | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
@@ -622,7 +633,7 @@ instance Default Options where
                 , simMods = []
                 , permuteMods = True
                 , preludePath = "../Prelude/VHDL"
-                , verboseOpt = 3
+                , verboseOpt = 4
                 , testOnly = Nothing
                 , testNever = []
                 , testData = 1000
@@ -630,7 +641,7 @@ instance Default Options where
 
 type TestCase = (String, Result)
 
-data Result = ShallowFail Trace Trace        -- Shallow result doesn't match expected
+data Result = ShallowFail Trace String       -- Shallow result doesn't match expected
             | ShallowPass                    -- Shallow result matches, we aren't simulating
             | SimGenerated                   -- Shallow passed, testbench generated, not running sim
             | CodeGenFail String             -- Shallow passed, testbench generation failed
@@ -639,4 +650,14 @@ data Result = ShallowFail Trace Trace        -- Shallow result doesn't match exp
             | CompareFail Trace Trace String -- Deep result didn't match the shallow result
             | Pass        Trace Trace String -- Deep matches shallow which matches expected
     deriving (Show, Read)
+
+---------------------------------------------------------------------------------------
+
+-- | matchExpected reads a named input port from 
+-- a Fabric, and checks to see that it is a refinement 
+-- of a given "specification" of the output.
+matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Fabric (Seq Bool)
+matchExpected out_name ref = do
+        o0 <- inStdLogicVector out_name
+        return (o0 `refinesFrom` ref)
 

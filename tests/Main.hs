@@ -23,7 +23,7 @@ main = do
         testDriver opt 
                 [ Matrix.tests
                 , Memory.tests
-                , Coerce.tests
+                , Coerce.tests 
                 , Others.tests
                 ]
 

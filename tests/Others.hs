@@ -2,7 +2,6 @@
 module Others (tests) where
 
 import Language.KansasLava
---import qualified Data.Stream as S
 import qualified Language.KansasLava.Stream as S
 
 import Data.Bits
@@ -14,9 +13,9 @@ import Data.Sized.Unsigned
 import Control.Applicative
 
 
-
 tests :: TestSeq -> IO ()
 tests test = do
+
         -- Just the Num Stuff
         let t1 :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t1 str arb = testOpsFractional test str arb
@@ -108,10 +107,10 @@ testUniOp (TestSeq test toL) nm opr lavaOp gen = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = liftS1 lavaOp (i0)
                 outStdLogicVector "o0" (o0)
-            res = do
-                outStdLogicVector "o0" (toSeq (fmap opr us0))
+                
+            res = toSeq (fmap opr us0)
 
-        test nm (length us0) driver dut res
+        test nm (length us0) driver dut (matchExpected "o0" res)
 
 
 testBinOp :: forall a b c .
@@ -134,10 +133,9 @@ testBinOp (TestSeq test toL) nm opr lavaOp gen = do
                 i1 <- inStdLogicVector "i1"
                 let o0 = liftS2 lavaOp (i0) (i1)
                 outStdLogicVector "o0" (o0)
-            res = do
-                outStdLogicVector "o0" (toSeq (Prelude.zipWith opr us0 us1))
+            res = toSeq (Prelude.zipWith opr us0 us1)
 
-        test nm (length (zip us0 us1)) driver dut res
+        test nm (length (zip us0 us1)) driver dut (matchExpected "o0" res)
 
 testTriOp :: forall a b c d .
              (Rep a, Show a, Size (W a)
@@ -162,9 +160,8 @@ testTriOp (TestSeq test toL) nm opr lavaOp gen = do
                 i2 <- inStdLogicVector "i2"
                 let o0 = liftS3 lavaOp (i0) (i1) (i2)
                 outStdLogicVector "o0" (o0)
-            res = do
-                outStdLogicVector "o0" ( toSeq (Prelude.zipWith3 opr us0 us1 us2))
-        test nm (length (zip3 us0 us1 us2)) driver dut res
+            res = toSeq (Prelude.zipWith3 opr us0 us1 us2)
+        test nm (length (zip3 us0 us1 us2)) driver dut (matchExpected "o0" res)
 
 ------------------------------------------------------------------------------------------------
 
@@ -303,9 +300,8 @@ testRegister  (TestSeq test toL) tyName ws = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = r u0 $ i0
                 outStdLogicVector "o0" o0
-            res = do
-                outStdLogicVector "o0" (toSeq (u0 : us0))
-        test ("register/" ++ tyName) (length us0) driver dut res
+            res = toSeq (u0 : us0)
+        test ("register/" ++ tyName) (length us0) driver dut (matchExpected "o0" res)
         return ()
 
 testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
@@ -318,8 +314,8 @@ testDelay  (TestSeq test toL) tyName ws = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = dlay $ i0
                 outStdLogicVector "o0" o0
-            res = do
-                outStdLogicVector "o0" (shallowSeq (S.Cons unknownX (S.fromList (map pureX us0))))
 
-        test ("delay/" ++ tyName) (length us0) driver dut res
+            res = shallowSeq (S.Cons unknownX (S.fromList (map pureX us0)))
+
+        test ("delay/" ++ tyName) (length us0) driver dut (matchExpected "o0" res)
         return ()

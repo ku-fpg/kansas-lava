@@ -76,8 +76,7 @@ testAsyncMemory (TestSeq test toL) tyName ws = do
                 rs <- inStdLogicVector "reads"
                 let o0 = mem (ws') (rs)
                 outStdLogicVector "o0" (o0)
-        res = do
-                outStdLogicVector "o0" (shallow)
+        res = shallow
 
         -- we look backwards in the writes, starting with what was written
         -- in the previous cycle. If we find a write for this address, we
@@ -97,7 +96,7 @@ testAsyncMemory (TestSeq test toL) tyName ws = do
                     | (i,r) <- zip [1..(length writes-1)] rds
                     ]
 
-    test ("memory/async/" ++ tyName) (length writes) driver dut res
+    test ("memory/async/" ++ tyName) (length writes) driver dut (matchExpected "o0" res)
 
 testSyncMemory :: forall w1 w2 .
                   ( Integral w1, Size w1, Eq w1, Rep w1
@@ -117,8 +116,7 @@ testSyncMemory (TestSeq test toL) tyName ws = do
                 rs <- inStdLogicVector "reads"
                 let o0 = mem (ws') (rs)
                 outStdLogicVector "o0" (o0)
-        res = do
-                outStdLogicVector "o0" (shallow)
+        res = shallow
 
         -- see note in testAsyncMemory for semantics of generating expected output
         shallow :: Seq w2
@@ -135,7 +133,7 @@ testSyncMemory (TestSeq test toL) tyName ws = do
                     | (i,r) <- zip [1..(length writes-1)] rds
                     ]
 
-    test ("memory/sync/" ++ tyName) (length writes) driver dut res
+    test ("memory/sync/" ++ tyName) (length writes) driver dut (matchExpected "o0" res)
 
 
 testMatrixMemory :: forall w1 w2 .
@@ -154,8 +152,7 @@ testMatrixMemory (TestSeq test toL) tyName ws = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = mem (i0)
                 outStdLogicVector "o0" (o0)
-        res = do
-                outStdLogicVector "o0" (shallow)
+        res = shallow
 
         -- see note in testAsyncMemory for semantics of generating expected output
         shallow :: Seq (M.Matrix w1 w2)
@@ -175,7 +172,7 @@ testMatrixMemory (TestSeq test toL) tyName ws = do
                   | x <- [0..(size (error "witness" :: w1) - 1 )]
                   ]
 
-    test ("memory/matrix/" ++ tyName) (length writes) driver dut res
+    test ("memory/matrix/" ++ tyName) (length writes) driver dut (matchExpected "o0" res)
     return ()
 
 testRomMemory :: forall w1 w2 .
@@ -197,11 +194,10 @@ testRomMemory (TestSeq test toL) tyName ws = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = mem (i0)
                 outStdLogicVector "o0" (o0)
-        res = do
-                outStdLogicVector "o0" (toSeq [ m M.! a | a <- addr ] :: Seq w2)
+        res = toSeq [ m M.! a | a <- addr ] :: Seq w2
 
 
         mem = funMap (\ a -> return (m M.! a)) :: Seq w1 -> Seq w2
 
-    test ("memory/async/rom/" ++ tyName) (length addr) driver dut res
+    test ("memory/async/rom/" ++ tyName) (length addr) driver dut (matchExpected "o0" res)
     return ()
