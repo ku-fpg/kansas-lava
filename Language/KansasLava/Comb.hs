@@ -51,6 +51,7 @@ toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
 
 instance Dual (Comb a) where
-    dual c d = Comb (combValue c) (combDriver d)
+--    dual c d = Comb (combValue c) (combDriver d)
+    dual (Comb c _) (Comb _ d) = Comb c d
 
 

@@ -620,10 +620,10 @@ class Dual a where
     dual :: a -> a -> a
 
 instance (Dual a, Dual b) => Dual (a,b) where
-	dual ~(a1,b1) ~(a2,b2) = (dual a1 a2,dual b1 b2)
+	dual (a1,b1) (a2,b2) = (dual a1 a2,dual b1 b2)
 
 instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
-	dual ~(a1,b1,c1) ~(a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
+	dual (a1,b1,c1) (a2,b2,c2) = (dual a1 a2,dual b1 b2,dual c1 c2)
 
 instance (Dual b) => Dual (a -> b) where
 	dual f1 f2 x = dual (f1 x) (f2 x)
