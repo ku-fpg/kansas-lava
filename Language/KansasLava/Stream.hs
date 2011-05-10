@@ -23,45 +23,18 @@ showStream i vs           = unwords [ show x ++ " `Cons` "
                                 | x <- take i $ toList vs
                                 ] ++ "..."
 
--- You can not find Eq over streams.
---instance Eq a => Eq (Stream a) where
---   xs == ys = toList xs == toList ys
-
-{-
-showV :: (Show a) => Maybe a -> String
-showV Nothing = "?"
-showV (Just v) = show v
--}
-        -- Just a `Cons` pure a
-
 instance Applicative Stream where
         pure a = a `Cons` pure a
---        (Constant h1) <*> (h2 `Cons` t2)    = (h1 $ h2) `Cons` (Constant h1 <*> t2)
---        (h1 `Cons` t1) <*> (Constant h2)    = (h1 $ h2) `Cons` (t1 <*> Constant h2)
-        (h1 `Cons` t1) <*> (h2 `Cons` t2)       = (h1 $ h2) `Cons` (t1 <*> t2)
---        (Constant h1) <*> (Constant h2) = Constant (h1 $ h2)
---undefinedStream :: Stream a
---undefinedStream = Constant Nothing
-
+        (h1 `Cons` t1) <*> (h2 `Cons` t2) = (h1 $ h2) `Cons` (t1 <*> t2)
 
 instance Functor Stream where
    fmap f (a `Cons` as) = f a `Cons` fmap f as
---   fmap f (Constant a) = Constant $ f a
 
-{-
-fmapWithFail :: (a -> Maybe b) -> Stream a -> Stream b
-fmapWithFail f (Nothing `Cons` as) = Nothing `Cons` fmapWithFail f as
-fmapWithFail f (Just a `Cons` as) = f a `Cons` fmapWithFail f as
-fmapWithFail f (Constant Nothing) =  Constant Nothing
-fmapWithFail f (Constant (Just a)) = Constant (f a)
--}
 
 head :: Stream a -> a
---head (Constant a) = a
 head (a `Cons` _) = a
 
 tail :: Stream a -> Stream a
---tail (Constant a) = (Constant a)
 tail (_ `Cons` as) = as
 
 zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
@@ -76,26 +49,10 @@ fromList []       = error "Stream.fromList"
 
 toList :: Stream a -> [a]
 toList (x `Cons` xs) = x : toList xs
---toList (Constant x) = repeat x
-
-{-
--- To revisit (perhaps this was why we had our mux example pausing?
-
--- unlike using <*>, etc, this allows the unchosen Stream to be undefined at this time.
-streamMux :: Stream Bool -> Stream a -> Stream a -> Stream a
-streamMux sB sT sF =
-	fromList [ case b of
-		    True  -> t
-		    False -> f
-	         | (b,t,f) <- zip3 (toList sB) (toList sT) (toList sF)
-	         ]
--}
 
 instance F.Foldable Stream where
   foldMap f (a `Cons` as) = f a `mappend` F.foldMap f as
 
-
 instance Traversable Stream where
   traverse f (a `Cons` as) = Cons <$> f a <*> traverse f as
---  traverse f (Constant a) = Constant <$> f a
 
