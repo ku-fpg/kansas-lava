@@ -1,15 +1,17 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes #-}
-module Language.KansasLava.Protocols 
+        {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes #-}
+module Language.KansasLava.Protocols where
+{-
         ( module Language.KansasLava.Protocols 
-        ,  -- * Hand Shake
+          -- * Hand Shake
         , toHandShake
         , fromHandShake
-        , shallowHandShakeBridge, 
+        , shallowHandShakeBridge
         , mVarToHandShake
         , handShakeToMVar
         , interactMVar
         , hInteract
         ) where
+-}
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
