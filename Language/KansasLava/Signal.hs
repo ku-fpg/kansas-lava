@@ -88,7 +88,7 @@ wireName _ = "Lava"
 
 instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 	type Unpacked sig (Maybe a) = (sig Bool, sig a)
-	pack (a,b) = {-# SCC "pack(Maybe)" #-}
+	pack (a,b) = {-# SCC "pack_Maybe" #-}
 			liftS2 (\ (Comb a' ae) (Comb b' be) ->
 				    Comb (case unX a' of
 					    Nothing -> optX Nothing
@@ -101,7 +101,7 @@ instance (Rep a, Signal sig) => Pack sig (Maybe a) where
 					 )
 					 (entity2 (Prim "pair") ae be)
 			     ) a b
-	unpack ma = {-# SCC "unpack(Maybe)" #-}
+	unpack ma = {-# SCC "unpack_Maybe" #-}
 		    ( liftS1 (\ (Comb a abe) -> Comb (case unX a of
 							Nothing -> optX Nothing
 							Just Nothing -> optX (Just False)
