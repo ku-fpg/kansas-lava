@@ -1,4 +1,4 @@
-import Utils
+import Language.KansasLava.Test
 import System.Environment
 
 main :: IO ()

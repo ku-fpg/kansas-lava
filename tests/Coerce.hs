@@ -4,7 +4,6 @@ module Coerce where
 
 import Language.KansasLava
 
-import Utils
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed

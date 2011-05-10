@@ -13,7 +13,7 @@ import Data.Sized.Unsigned
 
 import Control.Applicative
 
-import Utils
+
 
 tests :: TestSeq -> IO ()
 tests test = do

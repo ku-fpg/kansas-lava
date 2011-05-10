@@ -2,7 +2,7 @@
 
 module Matrix where
 
---import Language.KansasLava
+import Language.KansasLava
 
 {-
 import Data.Sized.Arith
@@ -10,8 +10,6 @@ import Data.Sized.Unsigned
 import qualified Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Ix
 -}
-import Utils
-
 
 tests :: TestSeq -> IO ()
 tests _test = do

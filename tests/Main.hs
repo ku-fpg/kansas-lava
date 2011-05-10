@@ -6,9 +6,6 @@ import Language.KansasLava
 import Data.Default
 
 
-import Types
-import Utils
-
 import qualified Matrix
 import qualified Memory
 import qualified Coerce
