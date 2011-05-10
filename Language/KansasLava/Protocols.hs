@@ -1,5 +1,15 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs #-}
-module Language.KansasLava.Protocols where
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes #-}
+module Language.KansasLava.Protocols 
+        ( module Language.KansasLava.Protocols 
+        ,  -- * Hand Shake
+        , toHandShake
+        , fromHandShake
+        , shallowHandShakeBridge, 
+        , mVarToHandShake
+        , handShakeToMVar
+        , interactMVar
+        , hInteract
+        ) where
 
 import Language.KansasLava.Comb
 import Language.KansasLava.Entity
@@ -14,7 +24,16 @@ import Data.Sized.Matrix as M
 import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
-import Prelude hiding (lookup)
+import Control.Concurrent
+import qualified Data.ByteString.Lazy as BS
+import System.IO
+import Control.Monad
+import System.IO.Unsafe (unsafeInterleaveIO)
+import Data.Word
+
+import qualified Prelude
+import Prelude hiding (tail, lookup)
+
 
 type Enabled a = Maybe a
 
@@ -409,4 +428,135 @@ lookup (_:_) (Res _) = error "lookup error with long key"
 lookup (_:_) NoRes   = Nothing
 lookup (True:a) (Choose l _) = lookup a l
 lookup (False:a) (Choose _ r) = lookup a r
+
+
+------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+
+-- | Take a list of shallow values and create a stream which can be sent into
+--   a FIFO, respecting the write-ready flag that comes out of the FIFO.
+toHandShake :: (Rep a, Clock c, sig ~ CSeq c)
+             => [Maybe a]           -- ^ shallow values we want to send into the FIFO
+             -> sig Bool
+             -> sig (Enabled a)     -- ^ takes a flag back from FIFO that indicates successful write
+                                    --   to a stream of values sent to FIFO
+toHandShake ys ready = toSeq (fn ys (fromSeq ready))
+        where
+--           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
+           fn (x:xs) ys' = x :
+                case (x,ys') of
+                 (_,Nothing:_)          -> error "toHandShake: bad protocol state (1)"
+                 (Just _,Just True:rs)  -> fn xs rs     -- has been written
+                 (Just _,Just False:rs) -> fn (x:xs) rs -- not written yet
+                 (Nothing,Just _:rs)    -> fn xs rs     -- nothing to write
+                 (_,[])                 -> error "toHandShake: can't handle empty list of values to receive"
+           fn [] _ = error "toHandShaken: can't handle empty list of values to issue"
+
+
+-- | Take stream from a FIFO and return an asynchronous read-ready flag, which
+--   is given back to the FIFO, and a shallow list of values.
+-- I suspect this space-leaks.
+fromHandShake :: (Rep a, Clock c, sig ~ CSeq c)
+               => sig (Enabled a)       -- ^ fifo output sequence
+               -> (sig Bool, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
+fromHandShake inp = (toSeq (map fst internal), map snd internal)
+   where
+        internal = fn (fromSeq inp)
+
+        fn (x:xs) = (True,rep) : rest
+           where
+                (rep,rest) = case x of
+                               Nothing       -> error "fromVariableHandshake: bad reply to ready status"
+                               Just Nothing  -> (Nothing,fn xs)
+                               Just (Just v) -> (Just v,fn xs)
+        fn [] = (False,Nothing) : fn []
+
+
+-- introduce protocol-compliant delays.
+
+shallowHandShakeBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) => (sig Bool,sig Bool) -> (sig (Enabled a),sig Bool) -> (sig (Enabled a),sig Bool)
+shallowHandShakeBridge (lhsS,rhsS) (inp,back)
+        = unpack (toSeq $ fn (fromSeq lhsS) (fromSeq rhsS) (fromSeq inp) (fromSeq back) [])
+   where
+        fn :: [Maybe Bool] -> [Maybe Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
+--        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
+        fn (Just True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) True
+        fn (_:lhss)      rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        False
+        fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
+
+--        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
+        fn2 lhss (Just True:rhss) as bs (s:ss) bk = (Just s,bk) :
+                                                 case bs of
+                                                   (Just True : bs')  -> fn lhss rhss as bs' ss
+                                                   (Just False : bs') -> fn lhss rhss as bs' (s:ss)
+                                                   _ -> error "failure in shallowHandShakenBridge (fn2/case)"
+
+        fn2 lhss (Just _:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
+        fn2 _ _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn2)"
+
+
+----------------------------------------------------------------------------------------------------
+-- These are functions that are used to thread together Hand shaking and FIFO.
+
+-- | This function takes a MVar, and gives back a Handshaken signal that represents
+-- the continuous sequence of contents of the MVar.
+
+mVarToHandShake :: (Clock c, Rep a) => MVar a -> IO (CSeq c Bool -> (CSeq c (Enabled a)))
+mVarToHandShake sfifo = do
+        xs <- getFIFOContents sfifo
+        return (toHandShake xs)
+ where
+        getFIFOContents :: MVar a -> IO [Maybe a]
+        getFIFOContents var = unsafeInterleaveIO $ do
+ 	        x <- tryTakeMVar var
+ 	        xs <- getFIFOContents var
+ 	        return (x:xs)
+
+handShakeToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Bool -> CSeq c (Enabled a)) -> IO ()
+handShakeToMVar sfifo sink = do
+        sequence_
+                $ map (putMVar sfifo)
+                $ Maybe.catMaybes
+                $ (let (back,res) = fromHandShake $ sink back in res)
+        return ()
+
+
+-- interactMVar
+interactMVar :: forall src sink
+         . (Rep src, Rep sink)
+        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => (sig (Enabled src),sig Bool) -> (sig Bool,sig (Enabled sink)))
+        -> MVar src
+        -> MVar sink
+        -> IO ()
+interactMVar fn varA varB = do
+        inp_fifo <- mVarToHandShake varA
+
+        handShakeToMVar varB $ \ rhs_back ->
+                -- use fn at a specific (unit) clock
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Bool)
+                    lhs_inp = inp_fifo lhs_back
+                in
+                    rhs_out
+
+hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
+                => (sig (Enabled Word8),sig Bool) -> (sig Bool, sig (Enabled Word8))
+             )
+          -> Handle
+          -> Handle
+          -> IO ()
+hInteract fn inp out = do
+        inp_fifo_var <- newEmptyMVar
+        out_fifo_var <- newEmptyMVar
+
+        -- send the inp handle to the inp fifo
+        _ <- forkIO $ forever $ do
+                bs <- BS.hGetContents inp
+                sequence_ $ map (putMVar inp_fifo_var) $ BS.unpack bs
+
+        -- send the out fifo to the out handle
+        _ <- forkIO $ forever $ do
+                x <- takeMVar out_fifo_var
+                BS.hPutStr out $ BS.pack [x]
+
+        interactMVar fn inp_fifo_var out_fifo_var
 
