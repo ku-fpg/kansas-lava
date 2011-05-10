@@ -124,8 +124,8 @@ instance (Rep a, Rep b, Signal sig) => Pack sig (a,b) where
 			liftS2 (\ (Comb a' ae) (Comb b' be) -> {-# SCC "pack(,)i" #-} Comb (XTuple (a',b')) (entity2 (Prim "pair") ae be))
 			    a b
 	unpack ab = {-# SCC "unpack(,)" #-}
-		    ( liftS1 (\ (Comb (XTuple ~(a,_)) abe) -> Comb a (entity1 (Prim "fst") abe)) ab
-		    , liftS1 (\ (Comb (XTuple ~(_,b)) abe) -> Comb b (entity1 (Prim "snd") abe)) ab
+		    ( liftS1 (\ (Comb (XTuple (a,_)) abe) -> Comb a (entity1 (Prim "fst") abe)) ab
+		    , liftS1 (\ (Comb (XTuple (_,b)) abe) -> Comb b (entity1 (Prim "snd") abe)) ab
 		    )
 
 instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
@@ -134,9 +134,9 @@ instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 				Comb (XTriple (a',b',c'))
 				     (entity3 (Prim "triple") ae be ce))
 			    a b c
-	unpack abc = ( liftS1 (\ (Comb (XTriple ~(a,_b,_)) abce) -> Comb a (entity1 (Prim "fst3") abce)) abc
-		    , liftS1 (\ (Comb (XTriple ~(_,b,_)) abce) -> Comb b (entity1 (Prim "snd3") abce)) abc
-		    , liftS1 (\ (Comb (XTriple ~(_,_,c)) abce) -> Comb c (entity1 (Prim "thd3") abce)) abc
+	unpack abc = ( liftS1 (\ (Comb (XTriple (a,_b,_)) abce) -> Comb a (entity1 (Prim "fst3") abce)) abc
+		    , liftS1 (\ (Comb (XTriple (_,b,_)) abce) -> Comb b (entity1 (Prim "snd3") abce)) abc
+		    , liftS1 (\ (Comb (XTriple (_,_,c)) abce) -> Comb c (entity1 (Prim "thd3") abce)) abc
 		    )
 
 
