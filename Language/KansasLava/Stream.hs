@@ -12,7 +12,7 @@ import Data.Dynamic
 infixr 5 `Cons`
 
 -- A clocked sequence of values, which can be undefined (Nothing),  or have a specific value.
-data Stream a = Cons a (Stream a)
+data Stream a = Cons !a (Stream a)
     deriving (Typeable)
 
 instance Show a => Show (Stream a) where
