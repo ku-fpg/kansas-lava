@@ -9,6 +9,7 @@ module Language.KansasLava (
     module Language.KansasLava.Probes,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Rep,
+    module Language.KansasLava.RTL,
     module Language.KansasLava.Seq,
     module Language.KansasLava.Signal,
     module Language.KansasLava.DOT,
@@ -29,6 +30,7 @@ import Language.KansasLava.Optimization
 import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
+import Language.KansasLava.RTL
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Stream
