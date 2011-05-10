@@ -16,6 +16,7 @@ class Signal f where
     liftS0 :: (Rep a) => Comb a -> f a
     liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
     liftS2 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c) -> f a -> f b -> f c
+    liftS3 :: (Rep a, Rep b, Rep c) => (Comb a -> Comb b -> Comb c -> Comb d) -> f a -> f b -> f c -> f d
     liftSL :: (Rep a, Rep b) => ([Comb a] -> Comb b) -> [f a] -> f b
     deepS  :: f a -> D a
 
@@ -47,22 +48,17 @@ label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
 ----------------------------------------------------------------------------------------------------
 
 instance Signal Comb where
-    liftS0 a     = a
-    liftS1 f a   = f a
-    liftS2 f a b = f a b
-    liftSL f xs  = f xs
+    liftS0 a       = a
+    liftS1 f a     = f a
+    liftS2 f a b   = f a b
+    liftS3 f a b c = f a b c
+    liftSL f xs    = f xs
     deepS (Comb _ d) = d
 
 class (Signal sig) => Pack sig a where
  type Unpacked sig a
  pack :: Unpacked sig a -> sig a
  unpack :: sig a -> Unpacked sig a
-
---------------------------------------------------------------------------------
-
-liftS3 :: forall a b c d sig . (Signal sig, Rep a, Rep b, Rep c, Rep d)
-       => (Comb a -> Comb b -> Comb c -> Comb d) -> sig a -> sig b -> sig c -> sig d
-liftS3 f a b c = liftS2 (\ ab c' -> uncurry f (unpack ab) c') (pack (a,b) :: sig (a,b)) c
 
 --------------------------------------------------------------------------------
 

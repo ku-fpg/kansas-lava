@@ -71,6 +71,11 @@ instance Signal (CSeq c) where
 	ec = combDriver $ f (deepComb ea) (deepComb eb)
 	f' x y = combValue (f (shallowComb x) (shallowComb y))
 
+  liftS3 f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
+      where
+	ed = combDriver $ f (deepComb ea) (deepComb eb) (deepComb ec)
+	f' x y z = combValue (f (shallowComb x) (shallowComb y) (shallowComb z))
+  
   liftSL f ss = Seq (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
 		    | xs <- transpose [ S.toList x | Seq x _ <- ss ]
