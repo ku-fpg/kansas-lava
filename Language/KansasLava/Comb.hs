@@ -11,7 +11,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 
 ----------------------------------------------------------------------------------------------------
--- | An observable Combinatoral value. Not a functor, applicative functor, or monad.
+-- | An observable Combinatorial value. Not a functor, applicative functor, or monad.
 data Comb a = Comb !(X a) (D a)
 
 -- | Extract the shallow value from a combinational circuit.
