@@ -473,34 +473,6 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 
 -- zip (map (optX . Just :: Clk -> X Clk) (map Clk [0..]) :: [X Clk])
 
-{-
-register :: forall a. (Rep a) => Env -> Comb a -> Seq a -> Seq a
-register (Env (Clk clk)   c@(Comb def edef) l@(Seq line eline) = res
-   where
-	res = Seq sres (D $ Port ("o0") $ E $ entity)
-	sres = S.zipWith (\ i v ->
-				case unX i :: Maybe Bool of
-				   Nothing -> optX (Nothing :: Maybe a)
-				   Just (True) -> def
-				   Just (False) -> v
-			 ) (seqValue rst) (optX (Nothing :: Maybe a) :~ line)
-        entity = Entity (Name "Memory" "register")
-                    [("o0", bitTypeOf res)]
-                    [("def", bitTypeOf res, unD $ edef),
-		     ("i0", bitTypeOf res, unD eline),
-		     ("rst", RstTy, unD $ seqDriver $ rst),
-		     ("clk", ClkTy, Pad ("clk"))] []
-
--}
-
-{-
-
-
-
-delay :: forall a . (Rep a) => Seq a -> Seq a
-delay = register' low undefinedComb
--}
-
 -- a delay is a register with no defined default / initial value.
 
 delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
@@ -541,36 +513,6 @@ register first  ~(Seq line eline) = res
 
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
-
-{-
-instance Wire SysEnv where
-	type X SysEnv 	= (X Clk, X Rst)
-        optX _ = error "Wire.SysEnv(optX)"
-        unX _ = error "Wire.SystEnv(unX)"
-	wireName _	= "SysEnv"
-	repType _	= TupleTy [ClkTy, RstTy]
-
-instance Rep SysEnv where
-  type WIDTH SysEnv = X2
-  toWireRep _ = error "Rep.SysEnv(toWireRep)"
-  fromWireRep _ = error "Rep.SysEnv(fromRep)"
-  showRep _ = error "Rep.SysEnv(showRep)"
-
-
-instance (Signal sig) => Pack sig SysEnv where
-	type Unpacked sig SysEnv = (sig Clk, sig Rst)
-        pack ~(a,b) = liftS2 pf a b
-            where pf  :: Comb Clk -> Comb Rst -> Comb SysEnv
-                  pf ~(Comb a ae) ~(Comb b be) =
-                    let d = entity2 (Prim "pair") ae be
-                        s = (a,b)
-                    in (Comb s d)
-
-	unpack ab =
-          ( liftS1 (\ (Comb ~(a,b) abe) -> Comb a (D$ BitIndex 1 (unD abe))) ab
-	  , liftS1 (\ (Comb ~(a,b) abe) -> Comb b (D $ BitIndex 0 (unD abe))) ab
-	  )
--}
 
 -- For coerce operations, the boolean indicates if the coercian
 -- causes a loss of information (an error?)
