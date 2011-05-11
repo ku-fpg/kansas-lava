@@ -162,7 +162,7 @@ testFabrics opts name count f_driver f_dut f_expected
 
                             -- for successfully generated testbenches, add some files
                             sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
-                                           copyLavaPrelude opts (path </> modname)
+                                           copyLavaPrelude (path </> modname)
                                            writeFile (path </> modname </> "options") $ show opts
                                            rep $ SimGenerated
                                            vrb 9 $ show ("trace",fromJust t)
@@ -331,9 +331,9 @@ localMake relativePath = unlines
 preludeFile :: String
 preludeFile = "Lava.vhd"
 
-copyLavaPrelude :: Options -> FilePath -> IO ()
-copyLavaPrelude opts dest = do
-        prel <- Strict.readFile (preludePath opts </> preludeFile)
+copyLavaPrelude :: FilePath -> IO ()
+copyLavaPrelude dest = do
+        prel <- Strict.readFile ("Prelude/VHDL" </> preludeFile)
         writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
@@ -489,9 +489,9 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    header <- Strict.readFile "header.inc"
-    mid <- Strict.readFile "mid.inc"
-    footer <- Strict.readFile "footer.inc"
+    header <- Strict.readFile "Prelude/HTML/header.inc"
+    mid <- Strict.readFile "Prelude/HTML/mid.inc"
+    footer <- Strict.readFile "Prelude/HTML/footer.inc"
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -519,9 +519,9 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    header <- Strict.readFile "header.inc"
-    mid <- Strict.readFile "mid.inc"
-    footer <- Strict.readFile "footer.inc"
+    header <- Strict.readFile "Prelude/HTML/header.inc"
+    mid <- Strict.readFile "Prelude/HTML/mid.inc"
+    footer <- Strict.readFile "Prelude/HTML/footer.inc"
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
@@ -588,7 +588,6 @@ data Options = Options
                                                      --   the circuit before simulation.
         , permuteMods :: Bool                        -- ^ False: Run each mod separately. True: Run all possible
                                                      --   permutations of the mods to see if they affect each other.
-        , preludePath :: FilePath                    -- ^ location of the Lava prelude.
         , verboseOpt  :: Int                         -- ^ See verbose table below.
         , testOnly    :: Maybe [String]              -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
@@ -596,25 +595,18 @@ data Options = Options
         }
 
 instance Show Options where
-    show (Options gs rs sc sp sm pm pp vo to tn td) =
+    show (Options gs rs sc sp sm pm vo to tn td) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
                 , "simCmd: " ++ show sc
                 , "simPath: " ++ show sp
                 , "simMods: " ++ show (map fst sm)
                 , "permuteMods: " ++ show pm
-                , "preludePath: " ++ show pp
                 , "verboseOpt: " ++ show vo
                 , "testOnly: " ++ show to
                 , "testNever: " ++ show tn
                 , "testData: " ++ show td ]
 
-{-
-instance Read Options where
-    readsPrec _ xs = [(Options (read gs) (read rs) (read sc) (read sp) [] (read pm) (read pp) (read vo) (read to) (read tn) (read td),unlines rest)]
-        where (ls, rest) = splitAt 11 $ lines xs
-              [gs,rs,sc,sp,pm,pp,vo,to,tn,td] = [ tail $ dropWhile (\c -> c /= ' ') $ ls !! i | i <- [0,1,2,3,5,6,7,8,9,10] ]
--}
 -------------------------------------------------------------------------------------
 -- Verbose table
 -- 1: Failures
@@ -632,7 +624,6 @@ instance Default Options where
                 , simPath = "sims"
                 , simMods = []
                 , permuteMods = True
-                , preludePath = "../Prelude/VHDL"
                 , verboseOpt = 4
                 , testOnly = Nothing
                 , testNever = []
