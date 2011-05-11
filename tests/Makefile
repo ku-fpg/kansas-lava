@@ -12,3 +12,7 @@ report:
 clean:
 	mv sims sims.X
 	rm -Rf sims.X
+
+init:
+# 	Create a symbolic link to the Prelude directory
+	ln -s ../Prelude
