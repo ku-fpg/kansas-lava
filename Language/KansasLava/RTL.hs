@@ -14,7 +14,7 @@ import Control.Monad.ST
 import Data.STRef
 import Data.List as L
 
-import Debug.Trace
+--import Debug.Trace
 
 -------------------------------------------------------------------------------
 
@@ -98,7 +98,7 @@ unRTL (CASE alts) = \ c u -> do
 	   | alt <- alts
 	   ]
 	let assignments = L.nub $ concat [ xs | (_,xs) <- res ]
-	() <- trace (show res) $ return ()
+--	() <- trace (show res) $ return ()
 	return ((),assignments)
 unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
