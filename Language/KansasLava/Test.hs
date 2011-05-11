@@ -70,7 +70,7 @@ fileReporter path nm res = do
 -- do some tests for sanity.
 
 data TestSeq = TestSeq
-        (String -> Int  -> Fabric () -> Fabric () -> Fabric (Seq Bool) -> IO ())
+        (String -> Int  -> Fabric () -> Fabric () -> (Int -> Fabric (Maybe String)) -> IO ())
         (forall a. Gen a -> [a])
 
 {-
@@ -101,7 +101,7 @@ testFabrics
         -> Int                      -- Number of Cycles
         -> Fabric ()                -- Reference input
         -> Fabric ()                -- DUT
-        -> Fabric (Seq Bool)        -- Reference output
+        -> (Int -> Fabric (Maybe String))    -- Reference output
         -> IO ()
 testFabrics opts name count f_driver f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
@@ -120,20 +120,14 @@ testFabrics opts name count f_driver f_dut f_expected
         verb 9 $ show ("shallow",shallow)
         
          
-        let expected :: [(String,Pad)]
-            expected = runFabric (do r <- f_expected
-                                     outStdLogic "kl_test_out" r
-                                 ) shallow
+        let expected :: Maybe String
+            expected = runFabricWithResult (f_expected count) shallow
 
         verb 9 $ show ("expected",expected)
 
-        let expect_res_match :: [Bool]
-            expect_res_match = take count $ case expected of
-                   [("kl_test_out",StdLogic o)] -> map (== Just True) (fromSeq o)
-                   _ -> error "testFabric Failed, bad expected output formatting"
-
-        if null (filter (/= True) expect_res_match)
-          then do verb 3 $ "shallow passed"
+        case expected of 
+          Nothing -> do
+                  verb 3 $ "shallow passed"
                   if genSim opts
                     then do createDirectoryIfMissing True path
 
@@ -174,16 +168,17 @@ testFabrics opts name count f_driver f_dut f_expected
 
                             return ()
                     else report name ShallowPass
-          else do verb 1 $ "shallow FAILED"
+          Just msg -> do 
+                  verb 1 $ "shallow FAILED"
                   t_dut <- mkTrace (return count) f_dut inp
                   t_driver <- mkTrace (return count) f_driver []
                   verb 4 "DUT:"
                   verb 4 $ show t_dut
                   verb 4 "EXPECT IN:"
                   verb 4 $ show t_driver
-                  verb 4 "EXPECT OUT match:"
-                  verb 4 $ show expect_res_match
-                  report name $ ShallowFail t_dut "shallow-fail"
+                  verb 4 "EXPECT OUT MESSAGE:"
+                  verb 4 $ msg
+                  report name $ ShallowFail t_dut msg
   | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
@@ -647,8 +642,15 @@ data Result = ShallowFail Trace String       -- Shallow result doesn't match exp
 -- | matchExpected reads a named input port from 
 -- a Fabric, and checks to see that it is a refinement 
 -- of a given "specification" of the output.
-matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Fabric (Seq Bool)
-matchExpected out_name ref = do
-        o0 <- inStdLogicVector out_name
-        return (o0 `refinesFrom` ref)
+-- If there is a problem, issue an error message.
 
+matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Int -> Fabric (Maybe String)
+matchExpected out_name ref count = do
+        o0 <- inStdLogicVector out_name
+        let sq = o0 `refinesFrom` ref
+        case [ i::Int
+             | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSeq sq)
+             , v /= Just True
+             ] of
+          [] -> return Nothing
+          ns -> return (Just $ "failed on cycles " ++ show (take 20 $ ns))
