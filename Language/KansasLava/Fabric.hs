@@ -11,6 +11,7 @@ module Language.KansasLava.Fabric
         , outStdLogicVector
         , padStdLogicType
         , reifyFabric
+        , runFabricWithResult
         ) where
 
 import Control.Monad.Fix
@@ -156,6 +157,13 @@ outStdLogicVector nm sq =
 runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
 runFabric (Fabric f) args = result
         where ((),_arg_types,result) = f args
+
+-- 'runFabric'  runs a Fabric a with arguments, and gives a value result.
+-- must have no (monadic) outputs.
+runFabricWithResult :: Fabric a -> [(String,Pad)] -> a
+runFabricWithResult (Fabric f) args = a
+        where (a,_arg_types,[]) = f args
+
 
 -------------------------------------------------------------------------------
 
