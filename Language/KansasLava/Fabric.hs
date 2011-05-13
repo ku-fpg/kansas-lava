@@ -4,6 +4,7 @@ module Language.KansasLava.Fabric
         ( Fabric(..)
         , Pad(..)
         , runFabric
+        , runFabric'                    -- TODO: rename as runFabric
         , inStdLogic
         , inStdLogicVector
         , inGeneric
@@ -12,6 +13,7 @@ module Language.KansasLava.Fabric
         , padStdLogicType
         , reifyFabric
         , runFabricWithResult
+        , runFabricWithDriver
         ) where
 
 import Control.Monad.Fix
@@ -158,12 +160,22 @@ runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
 runFabric (Fabric f) args = result
         where ((),_arg_types,result) = f args
 
+runFabric' :: Fabric a -> [(String,Pad)] -> (a,[(String,Pad)])
+runFabric' (Fabric f) args = (a,result)
+        where (a,_arg_types,result) = f args
+
 -- 'runFabric'  runs a Fabric a with arguments, and gives a value result.
 -- must have no (monadic) outputs.
 runFabricWithResult :: Fabric a -> [(String,Pad)] -> a
 runFabricWithResult (Fabric f) args = a
         where (a,_arg_types,[]) = f args
 
+-- 'runFabricWithDriver' runs a Fabric () using a driver Fabric,
+-- returning 
+runFabricWithDriver :: Fabric () -> Fabric a -> a
+runFabricWithDriver (Fabric f) (Fabric g) = a
+        where ((),_,f_result) = f g_result
+              (a,_,g_result)  = g f_result
 
 -------------------------------------------------------------------------------
 
