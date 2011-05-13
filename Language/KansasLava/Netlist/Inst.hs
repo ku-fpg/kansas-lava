@@ -798,6 +798,8 @@ mkSpecialBinary coerceR coerceF ops =
                  ir = fromRepToInteger rl
              in case (op,lty,rty) of
                   (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
+                  (Minus,U x,U y)       | x == y && il >= ir
+                                       -> toStdLogicExpr fTy (il - ir)
                   other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
         _ -> coerceR fTy (ExprBinary op (coerceF lty l)(coerceF rty r))
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
