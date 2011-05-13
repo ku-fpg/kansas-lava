@@ -77,9 +77,11 @@ fromASCII ilines sig = et { inputs = ins, outputs = outs }
 
 -- | Generate a human readable format for a trace.
 toInfo :: Trace -> String
-toInfo t = unlines [ "(" ++ show i ++ ") " ++ l
+toInfo t = unwords names ++ "\n" 
+         ++ unlines [ "(" ++ show i ++ ") " ++ l
                    | (i::Int,l) <- zip [1..] lines' ]
-    where lines' = mergeWith (\ x y -> x ++ " -> " ++ y) $ asciiStrings t
+    where lines' = mergeWith (\ x y -> x ++ " " ++ y) $ asciiStrings t
+          names  = case t of (Trace _ ins outs _) -> map show (map fst (ins ++ outs))
 
 -- | Convert a Trace into a list of lists of Strings, each String is a value,
 -- each list of Strings is a signal.
