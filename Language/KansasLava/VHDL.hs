@@ -50,6 +50,7 @@ mkTestbench path cycles circuitMod fabric input = do
     writeFile (path </> name <.> "shallow") $ toASCII trace
     writeFile (path </> name <.> "info") $ toInfo trace
     writeFile (path </> name <.> "sig") $ show $ toSignature trace
+    writeFile (path </> name <.> "kleg") $ show rc
 
     writeTestbench name path rc
 
