@@ -114,16 +114,11 @@ testFabrics opts name count f_dut f_expected
             (expected_fn,inp) = runFabric' f_expected shallow
 
             shallow :: [(String,Pad)]
-            shallow = runFabric f_dut inp
+            (_,shallow) = runFabric' f_dut inp
 
             expected = expected_fn count
 
         verb 9 $ show ("shallow",shallow)
-        
-         
---        let expected :: Maybe String
---            expected = runFabricWithResult (f_expected count) shallow
-
         verb 9 $ show ("expected",expected)
 
         case expected of 
