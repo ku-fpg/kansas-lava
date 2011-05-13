@@ -323,7 +323,7 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
-        prel <- Strict.readFile ("Prelude/VHDL" </> preludeFile)
+        prel <- Strict.readFile ("KansasLava/Prelude/VHDL" </> preludeFile)
         writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
@@ -479,9 +479,9 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    header <- Strict.readFile "Prelude/HTML/header.inc"
-    mid <- Strict.readFile "Prelude/HTML/mid.inc"
-    footer <- Strict.readFile "Prelude/HTML/footer.inc"
+    header <- Strict.readFile "KansasLava/Prelude/HTML/header.inc"
+    mid <- Strict.readFile "KansasLava/Prelude/HTML/mid.inc"
+    footer <- Strict.readFile "KansasLava/Prelude/HTML/footer.inc"
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -509,9 +509,9 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    header <- Strict.readFile "Prelude/HTML/header.inc"
-    mid <- Strict.readFile "Prelude/HTML/mid.inc"
-    footer <- Strict.readFile "Prelude/HTML/footer.inc"
+    header <- Strict.readFile "KansasLava/Prelude/HTML/header.inc"
+    mid <- Strict.readFile "KansasLava/Prelude/HTML/mid.inc"
+    footer <- Strict.readFile "KansasLava/Prelude/HTML/footer.inc"
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name

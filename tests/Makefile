@@ -15,4 +15,4 @@ clean:
 
 init:
 # 	Create a symbolic link to the Prelude directory
-	ln -s ../Prelude
+	ln -s .. KansasLava
