@@ -62,13 +62,24 @@ mkTraceCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
 
     let output = runFabric fabric input
-        withInput  = foldr (\(i,(nm,p)) t@(Trace _ ins _ _)  -> t { inputs  = (OVar i nm, padToTraceStream p):ins }) emptyT $ zip [0..] input
-        withOutput = foldr (\(i,(nm,p)) t@(Trace _ _ outs _) -> t { outputs = (OVar i nm, padToTraceStream p):outs }) withInput $ zip [0..] output
-        emptyT = Trace { len = c, inputs = [], outputs = [], probes = [] }
+        tr = Trace { len = c
+                   , inputs = [ (OVar 0 nm, padToTraceStream p)
+                              | (OVar _ nm,_) <- theSrcs rc
+                              , (nm',p) <- input
+                              , nm == nm'
+                              ]
+                   , outputs = [ (OVar 0 nm, padToTraceStream p)
+                               | (OVar _ nm,_,_) <- theSinks rc
+                               , (nm',p) <- output
+                               , nm == nm'
+                               ]
+                   , probes = []
+                   }
 
-    return (addProbes rc withOutput, rc)
+    return (addProbes rc tr, rc)
 
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
+-- The inputs and outputs are in the order of the parent KLEG.
 data Trace = Trace { len :: Maybe Int
                    , inputs :: [(OVar,TraceStream)]
                    , outputs :: [(OVar,TraceStream)]
