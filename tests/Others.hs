@@ -15,7 +15,6 @@ import Control.Applicative
 
 tests :: TestSeq -> IO ()
 tests test = do
-
         -- Just the Num Stuff
         let t1 :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> Gen a -> IO ()
             t1 str arb = testOpsFractional test str arb
@@ -110,7 +109,7 @@ testUniOp (TestSeq test toL) nm opr lavaOp gen = do
                 
             res = toSeq (fmap opr us0)
 
-        test nm (length us0) driver dut (matchExpected "o0" res)
+        test nm (length us0) dut (driver >> matchExpected "o0" res)
 
 
 testBinOp :: forall a b c .
@@ -135,7 +134,7 @@ testBinOp (TestSeq test toL) nm opr lavaOp gen = do
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith opr us0 us1)
 
-        test nm (length (zip us0 us1)) driver dut (matchExpected "o0" res)
+        test nm (length (zip us0 us1)) dut (driver >> matchExpected "o0" res)
 
 testTriOp :: forall a b c d .
              (Rep a, Show a, Size (W a)
@@ -161,7 +160,7 @@ testTriOp (TestSeq test toL) nm opr lavaOp gen = do
                 let o0 = liftS3 lavaOp (i0) (i1) (i2)
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith3 opr us0 us1 us2)
-        test nm (length (zip3 us0 us1 us2)) driver dut (matchExpected "o0" res)
+        test nm (length (zip3 us0 us1 us2)) dut (driver >> matchExpected "o0" res)
 
 ------------------------------------------------------------------------------------------------
 
@@ -301,7 +300,7 @@ testRegister  (TestSeq test toL) tyName ws = do
                 let o0 = r u0 $ i0
                 outStdLogicVector "o0" o0
             res = toSeq (u0 : us0)
-        test ("register/" ++ tyName) (length us0) driver dut (matchExpected "o0" res)
+        test ("register/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
 testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
@@ -314,8 +313,8 @@ testDelay  (TestSeq test toL) tyName ws = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = dlay $ i0
                 outStdLogicVector "o0" o0
-
+                
             res = shallowSeq (S.Cons unknownX (S.fromList (map pureX us0)))
 
-        test ("delay/" ++ tyName) (length us0) driver dut (matchExpected "o0" res)
+        test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()

@@ -70,7 +70,7 @@ fileReporter path nm res = do
 -- do some tests for sanity.
 
 data TestSeq = TestSeq
-        (String -> Int  -> Fabric () -> Fabric () -> (Int -> Fabric (Maybe String)) -> IO ())
+        (String -> Int  -> Fabric () -> (Fabric (Int -> Maybe String)) -> IO ())
         (forall a. Gen a -> [a])
 
 {-
@@ -99,11 +99,10 @@ testFabrics
         :: Options                  -- Options
         -> String                   -- Test Name
         -> Int                      -- Number of Cycles
-        -> Fabric ()                -- Reference input
-        -> Fabric ()                -- DUT
-        -> (Int -> Fabric (Maybe String))    -- Reference output
+        -> Fabric ()                         -- DUT
+        -> (Fabric (Int -> Maybe String))    -- Driver
         -> IO ()
-testFabrics opts name count f_driver f_dut f_expected
+testFabrics opts name count f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
             path = (simPath opts) </> name
@@ -112,16 +111,18 @@ testFabrics opts name count f_driver f_dut f_expected
         verb 2 $ "testing(" ++ show count ++ ")"
 
         let inp :: [(String,Pad)]
-            inp = runFabric f_driver []
+            (expected_fn,inp) = runFabric' f_expected shallow
 
             shallow :: [(String,Pad)]
             shallow = runFabric f_dut inp
 
+            expected = expected_fn count
+
         verb 9 $ show ("shallow",shallow)
         
          
-        let expected :: Maybe String
-            expected = runFabricWithResult (f_expected count) shallow
+--        let expected :: Maybe String
+--            expected = runFabricWithResult (f_expected count) shallow
 
         verb 9 $ show ("expected",expected)
 
@@ -171,11 +172,10 @@ testFabrics opts name count f_driver f_dut f_expected
           Just msg -> do 
                   verb 1 $ "shallow FAILED"
                   t_dut <- mkTrace (return count) f_dut inp
-                  t_driver <- mkTrace (return count) f_driver []
                   verb 4 "DUT:"
                   verb 4 $ show t_dut
                   verb 4 "EXPECT IN:"
-                  verb 4 $ show t_driver
+                  verb 4 $ show $ take count shallow
                   verb 4 "EXPECT OUT MESSAGE:"
                   verb 4 $ msg
                   report name $ ShallowFail t_dut msg
@@ -644,13 +644,14 @@ data Result = ShallowFail Trace String       -- Shallow result doesn't match exp
 -- of a given "specification" of the output.
 -- If there is a problem, issue an error message.
 
-matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Int -> Fabric (Maybe String)
-matchExpected out_name ref count = do
+matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Fabric (Int -> Maybe String)
+matchExpected out_name ref = do
         o0 <- inStdLogicVector out_name
         let sq = o0 `refinesFrom` ref
-        case [ i::Int
-             | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSeq sq)
-             , v /= Just True
-             ] of
-          [] -> return Nothing
-          ns -> return (Just $ "failed on cycles " ++ show (take 20 $ ns))
+        return $ \ count -> 
+                case [ i::Int
+                     | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSeq sq)
+                     , v /= Just True
+                     ] of
+                     [] -> Nothing
+                     ns -> Just $ "failed on cycles " ++ show (take 20 $ ns)

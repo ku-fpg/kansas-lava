@@ -125,7 +125,7 @@ testUnsigned (TestSeq test toL) tyName Witness ws = do
                                 else return m
                                | m <- ms
                                ]
-        test ("unsigned/" ++ tyName) (length ms) driver dut (matchExpected "o0" res)
+        test ("unsigned/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
 testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (W w1), Size (W w2))
@@ -148,7 +148,7 @@ testSigned (TestSeq test toL) tyName Witness ws = do
                                  else return m
                                | m <- ms
                                ]
-        test ("signed/" ++ tyName) (length ms) driver dut (matchExpected "o0" res)
+        test ("signed/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
 testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
@@ -165,6 +165,6 @@ testCoerce (TestSeq test toL) tyName Witness ws = do
             -- will always pass; it *is* the semantics here
             res :: Seq w2
             res = cir $ toSeq ms
-        test ("coerce/" ++ tyName) (length ms) driver dut (matchExpected "o0" res)
+        test ("coerce/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
