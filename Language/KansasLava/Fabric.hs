@@ -102,31 +102,31 @@ output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 inStdLogic :: String -> Fabric (Seq Bool)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ deepSeq $ D $ Pad (OVar 0 nm))
-        case pad of
-          StdLogic sq -> return sq
-          _            -> fail "internal type error in inStdLogic"
+        return $ case pad of
+          StdLogic sq -> sq
+          _           -> error "internal type error in inStdLogic"
 
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
         pad <- input nm (GenericPad $ error "Fix Generic")
-        case pad of
-          GenericPad g -> return g
-          _            -> fail "internal type error in inGeneric"
+        return $ case pad of
+          GenericPad g -> g
+          _            -> error "internal type error in inGeneric"
 
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
 	let seq' = deepSeq $ D $ Pad (OVar 0 nm) :: Seq a
         pad <- input nm (StdLogicVector $ seq')
-        case pad of
+        return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
-          StdLogicVector sq -> return $ case toStdLogicType ty of
+          StdLogicVector sq -> case toStdLogicType ty of
 					     SLV _ -> unsafeId sq
 					     G -> error $ "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 					     _     -> liftS1 (\ (Comb a (D ae)) -> Comb (fromRep $ toRep a) 
 					     	      	 $ D $ Port ("o0") $ E $ Entity (Prim "coerce")
 							   	    	            [("o0",ty)]
 									            [("i0",V $ typeWidth ty,ae)]) sq
-          _                  -> fail "internal type error in inStdLogic"
+          _                  -> error "internal type error in inStdLogic"
   where
 	ty = repType (Witness :: Witness a)
 
