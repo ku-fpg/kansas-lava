@@ -4,7 +4,6 @@
 
 module Language.KansasLava.Seq where
 
-import System.Random
 import Control.Applicative
 import Data.List
 
@@ -180,6 +179,9 @@ instance Dual (CSeq c a) where
 typeOfSeq :: forall w  . (Rep w) => Seq w -> Type
 typeOfSeq _ = repType (Witness :: Witness w)
 
+{-
+  - TODO: TO BE MOVED
+
 -- | Generate a (shallow) stream of random boolean. Used for testing
 -- shallow circuits. The function is a mapping from clock cycle number (starting
 -- at 0) to (0..1), which is the likelihood of returning a True.
@@ -187,5 +189,4 @@ typeOfSeq _ = repType (Witness :: Witness w)
 
 randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Integer -> Float) -> sig Bool
 randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [0..] ]
-
-
+-}
