@@ -21,11 +21,11 @@ tests test = do
                  String -> Gen (Maybe (a,b)) -> IO ()
             t1 str arb = testMatrixMemory test str arb
 
-        t1 "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool))))
-        t1 "X1xU4" (dubSeq (arbitrary :: Gen (Maybe (X1,U4))))
-        t1 "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4))))
-        t1 "X4xU4" (dubSeq (arbitrary :: Gen (Maybe (X4,U4))))
-        t1 "X16xS10" (dubSeq (arbitrary :: Gen (Maybe (X256,S10))))
+        t1 "X1xBool" (loop 10 $ dubGen (arbitrary :: Gen (Maybe (X1,Bool))))
+        t1 "X1xU4" (dubGen (arbitrary :: Gen (Maybe (X1,U4))))
+        t1 "X2xU4" (dubGen (arbitrary :: Gen (Maybe (X2,U4))))
+        t1 "X4xU4" (dubGen (arbitrary :: Gen (Maybe (X4,U4))))
+        t1 "X16xS10" (dubGen (arbitrary :: Gen (Maybe (X256,S10))))
 
         let t2 :: (Eq a, Integral a, Show b,
                   Size (W a), Size (W b), Size (MUL a (W b)), Size (W (Maybe (a,b))),
@@ -33,9 +33,9 @@ tests test = do
                  ) =>
                   String -> Gen (Maybe (a,b),a) -> IO ()
             t2 str arb = testSyncMemory test str arb
-        t2 "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
-        t2 "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
-        t2 "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
+        t2 "X1xBool" (loop 10 $ dubGen (arbitrary :: Gen (Maybe (X1,Bool),X1)))
+        t2 "X2xU4" (dubGen (arbitrary :: Gen (Maybe (X2,U4),X2)))
+        t2 "X4xU5" (dubGen (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
         let t3 :: (Eq a, Integral a, Show b,
                   Size (W a), Size (W b), Size (MUL a (W b)), Size (W (Maybe (a,b))),
@@ -43,9 +43,9 @@ tests test = do
                  ) =>
                   String -> Gen (Maybe (a,b),a) -> IO ()
             t3 str arb = testAsyncMemory test str arb
-        t3 "X1xBool" (loop 10 $ dubSeq (arbitrary :: Gen (Maybe (X1,Bool),X1)))
-        t3 "X2xU4" (dubSeq (arbitrary :: Gen (Maybe (X2,U4),X2)))
-        t3 "X4xU5" (dubSeq (arbitrary :: Gen (Maybe (X4,U5),X4)))
+        t3 "X1xBool" (loop 10 $ dubGen (arbitrary :: Gen (Maybe (X1,Bool),X1)))
+        t3 "X2xU4" (dubGen (arbitrary :: Gen (Maybe (X2,U4),X2)))
+        t3 "X4xU5" (dubGen (arbitrary :: Gen (Maybe (X4,U5),X4)))
 
         -- test ROM
         let t4 :: (Integral a, Size a, Eq a, Rep a,
@@ -54,9 +54,9 @@ tests test = do
                  String -> Gen (a,b) -> IO ()
             t4 str arb = testRomMemory test str arb
 
-        t4 "X4xU5" (dubSeq (arbitrary :: Gen (X4,U5)))
-        t4 "X4xU8" (dubSeq (arbitrary :: Gen (X4,U8)))
-        t4 "X8xB"  (dubSeq (arbitrary :: Gen (X8,Bool)))
+        t4 "X4xU5" (dubGen (arbitrary :: Gen (X4,U5)))
+        t4 "X4xU8" (dubGen (arbitrary :: Gen (X4,U8)))
+        t4 "X8xB"  (dubGen (arbitrary :: Gen (X8,Bool)))
 
 testAsyncMemory :: forall w1 w2 .
                   ( Integral w1, Size w1, Eq w1, Rep w1

@@ -9,7 +9,7 @@ module Language.KansasLava.Test
         , Gen(..)
         , arbitrary
         , loop
-        , dubSeq
+        , dubGen
         , genToList
         , genToRandom
         , largeNumber
@@ -358,8 +358,8 @@ loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
 
 -- | makes sure all sequences of two specific elements happen.
 -- Random messes this up a bit, but its still an approximation.
-dubSeq :: Gen w -> Gen w
-dubSeq g = ((\ a b c -> if a then b else c) <$> arbitrary)
+dubGen :: Gen w -> Gen w
+dubGen g = ((\ a b c -> if a then b else c) <$> arbitrary)
         <*> g
         <*> g
 
@@ -383,7 +383,7 @@ genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
 genToRandom :: Gen a -> [a]
 genToRandom (Gen n f)
         | n <= 100 = unsort $ genToList (Gen n f)
-        | otherwise = take (fromIntegral (min n largeNumber)) $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
+        | otherwise = {- take (fromIntegral (min n largeNumber)) $ -} Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
 
 largeNumber :: Integer
 largeNumber = 10000
