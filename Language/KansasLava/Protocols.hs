@@ -32,6 +32,7 @@ import System.IO
 import Control.Monad
 import System.IO.Unsafe (unsafeInterleaveIO)
 import Data.Word
+import System.Random
 
 import qualified Prelude
 import Prelude hiding (tail, lookup)
@@ -476,24 +477,33 @@ fromHandShake inp = (toSeq (map fst internal), map snd internal)
 
 -- introduce protocol-compliant delays.
 
-shallowHandShakeBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) => (sig Bool,sig Bool) -> (sig (Enabled a),sig Bool) -> (sig (Enabled a),sig Bool)
-shallowHandShakeBridge (lhsS,rhsS) (inp,back)
-        = unpack (toSeq $ fn (fromSeq lhsS) (fromSeq rhsS) (fromSeq inp) (fromSeq back) [])
+shallowHandShakeBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
+                       => StdGen
+                       -> (Integer -> Float,Integer -> Float)
+                       -> (sig (Enabled a),sig Bool) 
+                       -> (sig (Enabled a),sig Bool)
+shallowHandShakeBridge stdGen (lhsF,rhsF) (inp,back)
+        = unpack (toSeq $ fn lhs_rs rhs_rs (fromSeq inp) (fromSeq back) [])
    where
-        fn :: [Maybe Bool] -> [Maybe Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
+        (lhs_r,rhs_r) = split stdGen
+
+        lhs_rs = [ c < lhsF t | (c,t) <- zip (randoms lhs_r) [0..] ] 
+        rhs_rs = [ c < rhsF t | (c,t) <- zip (randoms rhs_r) [0..] ] 
+
+        fn :: [Bool] -> [Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
 --        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
-        fn (Just True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) True
-        fn (_:lhss)      rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        False
+        fn (True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) True
+        fn (_:lhss)    rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        False
         fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
 
 --        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
-        fn2 lhss (Just True:rhss) as bs (s:ss) bk = (Just s,bk) :
+        fn2 lhss (True:rhss) as bs (s:ss) bk = (Just s,bk) :
                                                  case bs of
                                                    (Just True : bs')  -> fn lhss rhss as bs' ss
                                                    (Just False : bs') -> fn lhss rhss as bs' (s:ss)
                                                    _ -> error "failure in shallowHandShakenBridge (fn2/case)"
 
-        fn2 lhss (Just _:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
+        fn2 lhss (_:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
         fn2 _ _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn2)"
 
 
