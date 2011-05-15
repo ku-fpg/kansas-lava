@@ -219,15 +219,19 @@ dropTrace i t@(Trace c ins outs ps)
 serialize :: Trace -> String
 serialize (Trace c ins outs ps) = unlines
                                 $ [show c, "INPUTS"]
-                               ++ showMap ins
+                               ++ boxIn (showMap ins)
                                ++ ["OUTPUTS"]
-                               ++ showMap outs
+                               ++ boxIn (showMap outs)
                                ++ ["PROBES"]
-                               ++ showMap ps
+                               ++ boxIn (showMap ps)
                                ++ ["END"]
     where showMap :: [(OVar,TraceStream)] -> [String]
           showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
           showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- takeMaybe c s]
+
+          boxIn = take 20 . map (take 75) 
+
+
 
 -- | Parse a textual representation of a Trace. Return the Trace and the remainder of the unparsed output.
 deserialize :: String -> [(Trace,String)]
