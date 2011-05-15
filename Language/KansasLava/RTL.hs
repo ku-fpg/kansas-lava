@@ -29,13 +29,17 @@ data Reg s c a  = Reg (CSeq c a) 		-- output of register
 		      Int
 						-- the "assignments"
 
+-- | reg is the value of a register, as set by the start of the cycle.
 reg :: Reg s c a -> CSeq c a
 reg (Reg iseq _ _ _) = iseq
 reg (Arr iseq _ _ _) = iseq
 
+-- | var is the value of a register, as will be set in the next cycle,
+-- so intra-cycle changes are observed. The is simular to a *variable*
+-- in VHDL.
 var :: Reg s c a -> CSeq c a
-var (Reg iseq _ _ _) = iseq
-var (Arr iseq _ _ _) = iseq
+var (Reg _ iseq _ _) = iseq
+var (Arr _ _ _ _) = error "can not take the var of an array"
 
 -------------------------------------------------------------------------------
 data Pred c = Pred (Maybe (CSeq c Bool))
