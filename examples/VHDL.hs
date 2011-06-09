@@ -1,4 +1,9 @@
+-- Example for building a fabric and generating VHDL/Dot output of a circuit.
+-- You are highly encouraged to run both main and main2 and view the VHDL output.
 import Language.KansasLava
+
+-- for dut2
+import Data.Sized.Unsigned
 
 -- define a circuit
 halfAdder a b = (sum,carry)
@@ -11,6 +16,7 @@ fullAdder a b cin = (sum,cout)
         cout = xor2 c1 c2
 
 -- turn it into a fabric
+-- inStdLogic is like the vhdl std_logic, which is a wire that can be either high or low
 dut = do
     a <- inStdLogic "a"
     b <- inStdLogic "b"
@@ -33,6 +39,26 @@ main = do
 
     -- just print out the kleg, output shown below
     print kleg
+
+--------------------------------------------------------------------------------
+
+-- inStdLogicVector is a group of wires representing some type 'a'
+-- You must provide enough type ascriptions that the types of inputs and
+-- outputs can be deduced by the type checker. Here, since 'register' has
+-- the type signature:
+--
+--      register :: (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
+--
+-- Ascribing the type 'U4' to the first argument is sufficient to deduce
+-- the types of 'inp' and 'out' (which must be "CSeq clk U4")
+dut2 = do
+    inp <- inStdLogicVector "in"
+    let out = register (4 :: U4) inp
+    outStdLogicVector "out" out
+
+main2 = do
+    kleg <- reifyFabric dut2
+    writeVhdlCircuit "u4reg" "u4reg.vhdl" kleg
 
 {- ------------------------- Output --------------------------------------------
 
