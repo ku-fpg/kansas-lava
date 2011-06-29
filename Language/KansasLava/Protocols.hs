@@ -574,3 +574,29 @@ hInteract fn inp out = do
 
         interactMVar fn inp_fifo_var out_fifo_var
 
+-----------------------------------------------------------------------
+
+liftHandShake :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
+              => (forall c' . (Clock c') => CSeq c' a)
+              -> sig Bool
+              -> sig (Enabled a)
+liftHandShake seq' (Seq s_ack d_ack) = enabledS res
+
+   where
+        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick
+
+        res = Seq (fn s_seq s_ack) 
+                  (D $ Port "o0" $ E $ Entity (Prim "retime")
+                                        [("o0",bitTypeOf res)]
+                                        [("i0",bitTypeOf res, unD d_seq)
+                                        ,("pulse",B, unD d_ack)
+                                        ]
+                  )                
+
+        -- drop the head, when the ack comes back.
+        fn (s `Cons` ss) ack = s `Cons` case ack of
+                                 (XBool (WireVal True)  `Cons` acks) -> fn ss acks 
+                                 (XBool (WireVal False) `Cons` acks) -> fn (s `Cons` ss) acks 
+                                 (XBool _               `Cons` _) -> Stream.repeat unknownX 
+
+
