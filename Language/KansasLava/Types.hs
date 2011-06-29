@@ -580,7 +580,7 @@ circuitSignature cir = Signature
 -------------------------------------------------------------------------------------
 -- | Create a type witness, to help resolve some of the type issues.
 -- Really, we are using this in a system-F style.
--- (As suggested by an anonymous TFP referee, as a better alterntive to using 'error "witness"').
+-- (As suggested by an anonymous TFP referee, as a better alternative to using 'error "witness"').
 
 -- TODO: Move into sized types.
 
