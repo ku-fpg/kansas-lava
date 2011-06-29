@@ -63,6 +63,9 @@ genInst env i (Entity (TraceVal _ _) ins outs) =
 genInst env i (Entity (BlackBox _) ins outs) =
   genInst env i (Entity (Prim "id") ins outs)
 
+genInst env i (Entity (Prim "retime") outs [("i0",ty,dr),("pulse",_,_)]) = 
+    genInst env i (Entity (Prim "id") outs [("i0",ty,dr)])
+
 genInst _ _ (Entity (Comment' comments) [] []) =
         [ CommentDecl (unlines comments)
         ]

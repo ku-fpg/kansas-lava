@@ -419,7 +419,9 @@ delay ~(Seq line eline) = res
         entity = Entity (Prim "delay")
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
-		     ("env",ClkDomTy, unD $ (clock :: D clk))
+		     ("clk_en",B,  ClkDom "domain"),
+		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
+		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
 
 register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
@@ -437,7 +439,9 @@ register first  ~(Seq line eline) = res
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
                      ("def",GenericTy,Generic (fromRepToInteger rep)),
-		     ("env",ClkDomTy, unD $ (clock :: D clk))
+		     ("clk_en",B,  ClkDom "domain"),
+		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
+		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
 
 
@@ -691,4 +695,9 @@ refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) ->
                               in optX (Just res))
                              (D $ Error "no deep entity for refinesFrom")
 
+--------------------------------------------------------------------------------
+
+iterateS :: (Rep a, Clock c, seq ~ CSeq c) => (Comb a -> Comb a) -> a -> seq a
+iterateS f start = out where
+        out = register start (liftS1 f out)
 

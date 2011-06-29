@@ -147,7 +147,9 @@ writeMemory pipe = res
     	entity =
 		Entity (Prim "write")
 			[ ("o0",bitTypeOf res)]
-			[ ("env",ClkDomTy, unD $ (clock :: D clk1))
+			[ ("clk_en",B,  ClkDom "domain")
+   		        , ("clk",ClkTy, Pad $ OVar (-2) "clk")
+   		        , ("rst",B,     Pad $ OVar (-1) "rst")
 			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
 			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)

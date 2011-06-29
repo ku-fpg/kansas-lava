@@ -17,12 +17,14 @@ module Language.KansasLava.Fabric
         ) where
 
 import Control.Monad.Fix
-import Control.Monad
+import Control.Monad hiding (join)
 import Data.Sized.Ix
 import Data.List as L
-import Data.Maybe(fromMaybe)
 import Data.Reify
-
+import qualified Data.Set as Set
+import Data.Set(Set)
+import qualified Data.Map as Map
+import Data.Map(Map)
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
@@ -154,7 +156,6 @@ outStdLogicVector nm sq =
 
 -------------------------------------------------------------------------------
 
-
 -- 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
 runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
 runFabric (Fabric f) args = result
@@ -218,43 +219,112 @@ reifyFabric (Fabric circuit) = do
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
         let rCit = KLEG { theCircuit = gr
-                        , theSrcs = [ (OVar 0 nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0 ]
+                        , theSrcs = 
+                                [ (OVar 0 "clk",ClkTy)
+                                , (OVar 0 "clk_en",B)
+                                , (OVar 0 "rst", B)             -- Reset Ty?
+                                ] ++
+                                [ (OVar 0 nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0 ]
                         , theSinks = outpads
                         }
 
+        -- find the clock domains
+        
+        let start :: [(EntityClock,Set Unique)]
+            start = [( EntityClock $ Pad $ OVar 0 "clk_en"
+                     , Set.fromList [ u | (_,_,Port _ u) <- theSinks rCit ]
+                     ) ]
 
-        let domains = nub $ concat $ visitEntities rCit $ \ _ (Entity _ _ outs) ->
-                return [ nm | (_,ClkDomTy,ClkDom nm) <- outs ]
 
-        let envIns = [("clk_en",B),("clk",ClkTy),("rst",B)]     -- in reverse order for a reason
+        let follow :: EntityClock -> Unique -> [(EntityClock, Driver Unique)]
+            follow clk u = case lookup u (theCircuit rCit) of
+                        Nothing -> []
+                        Just (Entity (Prim "retime") _outs [("i0",_,i0), ("pulse",_,p)]) -> 
+                                        [ (EntityClock p,i0)
+                                        , (clk,p)
+                                        ]
+                        Just (Entity _nm _outs ins) -> [ (clk,dr) | (_,_,dr) <- ins ]
 
-        let domToPorts =
-                [ (dom, [ (nm,ty,Pad (OVar idx nm))
-                       | ((nm,ty),idx) <- zip envIns [i*3-1,i*3-2,i*3-3]
-                       ])
-                | (dom,i) <- zip domains [0,-1..]
+        let normalize :: [(EntityClock, Driver Unique)] -> [(EntityClock, Set Unique)]
+            normalize = map (\ xss -> (fst (head xss),Set.fromList [ u | (_,Port _ u) <- xss ]))
+                      . L.groupBy (\ a b -> fst a == fst b)
+                      . L.sortBy (\ a b -> fst a `compare` fst b)
+
+
+        -- given a working set, find the next working set.
+        let step :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+            step val = normalize 
+                        [ (c,d)
+                        | (clk,xs) <- val 
+                        , s <- Set.toList xs
+                        , (c,d) <- follow clk s
+                        ]
+
+        -- given a previous result, and a new result, figure out the new Uniques (the front)
+        let front :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+            front old new = concat
+                [ case (lookup clk old, lookup clk new) of
+                    (Just o',Just n) -> [(clk,n `Set.difference` o')]
+                    (Nothing,Just n) -> [(clk,n)]
+                    (Just _,Nothing) -> []
+                    _                -> error "internal error"
+                | (clk,_) <- new
                 ]
+
+        let join :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+            join old new = 
+                [ case (lookup clk old, lookup clk new) of
+                    (Just o',Just n) -> (clk,n `Set.union` o')
+                    (Nothing,Just n) -> (clk,n)
+                    (Just o',Nothing) -> (clk,o')
+                    _                -> error "internal error"
+                | clk <- Set.toList (Set.fromList (map fst old) `Set.union` Set.fromList (map fst new))
+                ]
+
+        let interp :: [(EntityClock,Set Unique)]  -- working set
+                   -> [(EntityClock,Set Unique)]  -- new set
+                   -> IO [(EntityClock,Set Unique)]  -- result
+            interp working [] = return working
+            interp working new = do
+--                print ("working",working)
+--                print ("new",new)
+                let new' = step new
+--                print ("new'",new')
+                let working' = join working new'
+--                print ("working'",working')
+                let new'' = front working new'
+--                print ("new''",new'')
+                interp working' new''
+
+        clocks <- interp start start
+
+
+        let uqToClk :: Map Unique (EntityClock)
+            uqToClk = Map.fromList
+                               [ (uq,clk)
+                               | (clk,uqs) <- clocks
+                               , uq <- Set.toList uqs
+                               ]
+
         return $ rCit { theCircuit =
                                 [  (u,case e of
                                         Entity nm outs ins -> Entity
                                                 nm
                                                 outs
-                                                (concat
                                                 [ case p of
-                                                   (_,ClkDomTy,ClkDom cdnm) ->
-                                                     fromMaybe (error $ "can not find port: " ++ show cdnm)
-                                                               (lookup cdnm domToPorts)
-                                                   _ -> [p]
-                                                | p <- ins ])
+                                                   ("clk_en",B,ClkDom _) ->
+                                                     case Map.lookup u uqToClk of
+                                                       Nothing -> error $ "can not find port: " ++ show u
+                                                       Just (EntityClock dr) -> ("clk_en",B,dr)
+                                                   _ -> p
+                                                | p <- ins ]
                                     )
                                 | (u,e) <- theCircuit rCit ]
-                          , theSrcs =
-                                [ (ovar,ty) | (_,outs) <- domToPorts
-                                            , (_,ty,Pad ovar) <- outs
-                                ] ++
-                                theSrcs rCit
-                          }
+                          } 
 
 
 
 -------------------------------------------------------------------------------
+-- A clock is represented using its 'clock enable'.
+data EntityClock = EntityClock (Driver Unique)
+        deriving (Eq,Ord,Show)

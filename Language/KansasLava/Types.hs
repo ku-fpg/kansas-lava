@@ -321,7 +321,7 @@ instance Eq E where
 
 data Driver s = Port String s   -- ^ a specific port on the entity
               | Pad OVar        -- ^ an input pad
-              | ClkDom String   -- ^ the clock domain
+              | ClkDom String   -- ^ the clock domain (the clock enable, resolved via context)
               | Lit RepValue    -- ^ A representable Value (including unknowns, aka X in VHDL)
               | Generic Integer -- ^ A generic argument, always fully defined
               | Lits [RepValue] -- ^ A list of values, typically constituting a ROM initialization.
@@ -489,7 +489,7 @@ data KLEG = KLEG
         { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.
         , theSrcs    :: [(OVar,Type)]
-                -- ^ this is a (convenence) list of the src values.
+                -- ^ this is a (convenience) list of the src values.
         , theSinks   :: [(OVar,Type,Driver Unique)]
                 -- ^ these are the sinks; all values are generated from here.
         }
