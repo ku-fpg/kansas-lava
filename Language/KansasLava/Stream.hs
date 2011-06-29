@@ -5,7 +5,7 @@ import Data.Traversable
 import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
-import Prelude hiding (zipWith,zipWith3)
+import Prelude hiding (zipWith,zipWith3, repeat)
 import Data.Monoid
 import Data.Dynamic
 
@@ -36,6 +36,9 @@ head (a `Cons` _) = a
 
 tail :: Stream a -> Stream a
 tail (_ `Cons` as) = as
+
+repeat :: a -> Stream a
+repeat a = a `Cons` repeat a
 
 zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
 zipWith f (x `Cons` xs) (y `Cons` ys) = f x y `Cons` zipWith f xs ys
