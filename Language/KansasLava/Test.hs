@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts #-}
-module Language.KansasLava.Test  
+module Language.KansasLava.Test
         ( testMe
         , neverTestMe
         , verbose
@@ -121,7 +121,7 @@ testFabrics opts name count f_dut f_expected
         verb 9 $ show ("shallow",shallow)
         verb 9 $ show ("expected",expected)
 
-        case expected of 
+        case expected of
           Nothing -> do
                   verb 3 $ "shallow passed"
                   if genSim opts
@@ -164,7 +164,7 @@ testFabrics opts name count f_dut f_expected
 
                             return ()
                     else report name ShallowPass
-          Just msg -> do 
+          Just msg -> do
                   verb 1 $ "shallow FAILED"
                   t_dut <- mkTrace (return count) f_dut inp
                   verb 4 "DUT:"
@@ -315,7 +315,7 @@ localMake relativePath = unlines
     ,"\techo \"quit\" >> " ++ name ++ ".tcl"
     ]
     where dots = joinPath $ replicate l ".."
-          l = 3 + (length $ splitPath relativePath)
+          l = 2 + (length $ splitPath relativePath)
           name = last $ splitPath relativePath
 
 preludeFile :: String
@@ -634,8 +634,8 @@ data Result = ShallowFail Trace String       -- Shallow result doesn't match exp
 
 ---------------------------------------------------------------------------------------
 
--- | matchExpected reads a named input port from 
--- a Fabric, and checks to see that it is a refinement 
+-- | matchExpected reads a named input port from
+-- a Fabric, and checks to see that it is a refinement
 -- of a given "specification" of the output.
 -- If there is a problem, issue an error message.
 
@@ -643,7 +643,7 @@ matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Fabric (Int -
 matchExpected out_name ref = do
         o0 <- inStdLogicVector out_name
         let sq = o0 `refinesFrom` ref
-        return $ \ count -> 
+        return $ \ count ->
                 case [ i::Int
                      | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSeq sq)
                      , v /= Just True
