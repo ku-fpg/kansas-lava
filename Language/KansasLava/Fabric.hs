@@ -236,8 +236,10 @@ reifyFabric (Fabric circuit) = do
                      ) ]
 
 
+        let theCircuitFM = Map.fromList (theCircuit rCit)
+
         let follow :: EntityClock -> Unique -> [(EntityClock, Driver Unique)]
-            follow clk u = case lookup u (theCircuit rCit) of
+            follow clk u = case Map.lookup u theCircuitFM of
                         Nothing -> []
                         Just (Entity (Prim "retime") _outs [("i0",_,i0), ("pulse",_,p)]) -> 
                                         [ (EntityClock p,i0)
