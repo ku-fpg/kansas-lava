@@ -74,7 +74,7 @@ entity lava_src_tube is
 end entity;
 
 
-architecture Behavioral of lava_src_tube is
+architecture Behavioral of lava_src_pipe is
 begin
   runtest: process is
     type char_file is file of character;
@@ -144,7 +144,7 @@ use std.textio.all;
 library work;
 
 
-entity lava_sink_tube is
+entity lava_sink_pipe is
   generic (
     sink_file_name : string
   ); 
@@ -160,7 +160,7 @@ entity lava_sink_tube is
 end entity;
 
 
-architecture Behavioral of lava_sink_tube is
+architecture Behavioral of lava_sink_pipe is
 begin
   runtest: process is
     type char_file is file of character;
@@ -182,6 +182,7 @@ begin
         my_char_v := character'val(to_integer(unsigned(S_DATA)));          
         write(my_file, my_char_v);
 	file_close(my_file);
+        report("WROTE: " & my_char_v);
       end if;
     end loop;
   end process;
