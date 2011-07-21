@@ -20,7 +20,7 @@ class {- (Size (W w)) => -} Rep w where
     -- | the width of the represented value.
     type W w
 
-    -- | a way of adding unknown inputs to this wire.
+    -- | X are lifted inputs to this wire.
     data X w
 
     -- | check for bad things.
@@ -29,18 +29,18 @@ class {- (Size (W w)) => -} Rep w where
     -- | and, put the good or bad things back.
     optX :: Maybe w -> X w
 
-    -- | Each wire has a known type.
-    repType :: Witness w -> Type
-
     -- | convert to binary (rep) format
     toRep   :: X w -> RepValue
+
     -- | convert from binary (rep) format
     fromRep :: RepValue -> X w
+
+    -- | Each wire has a known type.
+    repType :: Witness w -> Type
 
     -- show the value (in its Haskell form, default is the bits)
     showRep :: X w -> String
     showRep x = show (toRep x)
-
 
 -- Give me all possible (non-X) representations (2^n of them).
 allReps :: (Rep w) => Witness w -> [RepValue]
