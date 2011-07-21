@@ -62,6 +62,24 @@ class (Signal sig) => Pack sig a where
 
 --------------------------------------------------------------------------------
 
+
+mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
+mapPacked f = pack . f . unpack
+
+zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
+zipPacked f x y = pack $ f (unpack x) (unpack y)
+
+phi :: forall a sig . (Signal sig, Rep a) => sig a -> sig a -> sig a
+phi = liftS2 $ \ (Comb a ea) (Comb b _) ->
+        Comb (if toRep a == toRep b
+		then a
+		else optX $ (fail "phi problem" :: Maybe a))	-- an internal error, like an assert
+		(ea) -- pick one, they are the same
+			-- later, consider puting the phi nodes into the deep syntax
+
+
+--------------------------------------------------------------------------------
+
 fun0 :: forall a sig . (Signal sig, Rep a) => String -> a -> sig a
 fun0 nm a = liftS0 $ Comb (optX $ Just $ a) $ entity0 (Prim nm)
 

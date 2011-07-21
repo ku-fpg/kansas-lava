@@ -1,50 +1,27 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
-module Language.KansasLava.Protocols (
-	module Language.KansasLava.Protocols.Enabled,
-	module Language.KansasLava.Protocols.Memory,
-	module Language.KansasLava.Protocols.HandShake
-	) where
+module Language.KansasLava.Protocols.Memory where
 
-
-
+import Language.KansasLava.Comb
+import Language.KansasLava.Entity
+import Language.KansasLava.Rep
+import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+import Language.KansasLava.Stream as Stream
+import Language.KansasLava.Types
+import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
-import Language.KansasLava.Protocols.Memory
-import Language.KansasLava.Protocols.HandShake
 
-{-
 import Data.Sized.Matrix as M
 import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
--- import Language.KansasLava.Radix as Radix
-import Control.Concurrent
-import qualified Data.ByteString.Lazy as BS
-import System.IO
 import Control.Monad
-import System.IO.Unsafe (unsafeInterleaveIO)
-import Data.Word
-import System.Random
 
-import qualified Prelude
 import Prelude hiding (tail, lookup)
-
-
-type Enabled a = Maybe a
 
 type Pipe a d = Enabled (a,d)
 
+-- TODO: remove
 type Memory clk a d = CSeq clk a -> CSeq clk d
-
-enabledRegister :: forall a clk. (Rep a, Clock clk) => CSeq clk (Enabled a) -> CSeq clk a
-enabledRegister inp = res
-   where
-	(en,v) = unpack inp
-	res    = delay (mux2 en (v,res))
-
--- | Turns a list of maybe values into enabled values.
-toEnabledSeq :: forall a . (Rep a) => [Maybe a] -> Seq (Enabled a)
-toEnabledSeq xs = toSeqX [ optX (Just x)
-			 | x <- xs
-			 ]
 
 memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clock clk) =>  CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
 memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
@@ -181,58 +158,11 @@ memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
 	=> sig (a -> d) -> sig (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
-fullEnabled :: forall a b sig . (Signal sig, Show a, Rep a, Show b, Rep b)
-	   => sig a -> (a -> Maybe b) -> sig (Enabled b)
-fullEnabled iseq f = pack (funMap (return . isJust . f) iseq :: sig Bool,funMap f iseq :: sig b)
 
 enabledToPipe :: (Rep x, Rep y, Rep z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, (liftS1 f x))
    where (en,x) = unpack se
 
--- This is lifting *Comb* because Comb is stateless, and the 'en' Bool being passed on assumes no history,
--- in the 'a -> b' function.
-mapEnabled :: (Rep a, Rep b, Signal sig) => (Comb a -> Comb b) -> sig (Enabled a) -> sig (Enabled b)
-mapEnabled f en = pack (en_bool,liftS1 f en_val)
-   where (en_bool,en_val) = unpack en
-
-zipEnabled :: (Rep a, Rep b, Rep c, Signal sig) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
-zipEnabled f en1 en2 = pack (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
-   where (en_bool1,en_val1) = unpack en1
-	 (en_bool2,en_val2) = unpack en2
-
-
-phi :: forall a sig . (Signal sig, Rep a) => sig a -> sig a -> sig a
-phi = liftS2 $ \ (Comb a ea) (Comb b _) ->
-        Comb (if toRep a == toRep b
-		then a
-		else optX $ (fail "phi problem" :: Maybe a))	-- an internal error, like an assert
-		(ea) -- pick one, they are the same
-			-- later, consider puting the phi nodes into the deep syntax
-
-mapPacked :: (Pack sig a, Pack sig b) => (Unpacked sig a -> Unpacked sig b) -> sig a -> sig b
-mapPacked f = pack . f . unpack
-
-enabledS :: (Rep a, Signal sig) => sig a -> sig (Enabled a)
-enabledS s = pack (pureS True,s)
-
-disabledS :: (Rep a, Signal sig) => sig (Enabled a)
-disabledS = pack (pureS False,undefinedS)
-
-packEnabled :: (Rep a, Signal sig) => sig Bool -> sig a -> sig (Enabled a)
-packEnabled s1 s2 = pack (s1,s2)
-
-unpackEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> (sig Bool, sig a)
-unpackEnabled sig = unpack sig
-
-enabledVal :: (Rep a, Signal sig) => sig (Enabled a) -> sig a
-enabledVal = snd .  unpackEnabled
-
-isEnabled :: (Rep a, Signal sig) => sig (Enabled a) -> sig Bool
-isEnabled = fst .  unpackEnabled
-
--- a 'safe' delay that uses the disabled to give a default value.
-delayEnabled :: (Rep a, Clock clk) => CSeq clk (Enabled a) -> CSeq clk (Enabled a)
-delayEnabled inp = register Nothing inp
 
 {-
 -- to move into a counters module
@@ -253,86 +183,16 @@ cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> CSeq clk a -> CSeq clk b
 cmp env f inp = liftS2 f (delay env inp) inp
 
 -}
-
-zipPacked :: (Pack sig a, Pack sig b, Pack sig c) => (Unpacked sig a -> Unpacked sig b -> Unpacked sig c) -> sig a -> sig b -> sig c
-zipPacked f x y = pack $ f (unpack x) (unpack y)
-
 mapPipe :: (Signal sig, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
+
+{-
 -- | only combines pipes when both inputs are enabled, and *assumes* the
 -- x addresses are the same.
 zipPipe :: (Signal sig, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
-
-
---
-joinEnabled :: (Signal sig, Rep a) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
-joinEnabled = liftS2 $ \ e1 e2 ->
-			let (en1,v1) = unpack e1
-	 		    (en2,v2) = unpack e2
-	                in pack (en1 `or2` en2, mux2 en1 (v1,v2))
-
-
-
-shiftRegister :: (Rep d, Integral x, Size x, Clock clk) =>  CSeq clk (Enabled d) -> CSeq clk (Matrix x d)
-shiftRegister inp = pack m
-  where
-	(en,val) = unpack inp
-	(m, _)   = scanR fn (val, forAll $ \ _ -> ())
-	fn (v,()) = (reg,reg)
-		where reg = enabledRegister (pack (en,v))
-
-
-unShiftRegister :: forall x d clk . (Integral x, Size x, Rep d, Clock clk) =>  CSeq clk (Enabled (Matrix x d)) -> CSeq clk (Enabled d)
-unShiftRegister inpSig = r
-  where
-	en :: CSeq clk Bool
-	m :: CSeq clk (Matrix x d)
-	(en,m) = unpack inpSig
-	r :: CSeq clk (Enabled d)
-	(_, r) = scanR fn (pack (low,undefinedSeq), unpack m)
-
-	fn (carry,inp) = ((),reg)
-	  where (en',mv) = unpack carry
-		reg = (delay
-		 	      (mux2 en ( pack (high,inp),
-				         pack (en',mv)
-			)))
-
-
-
--- Should really be in Utils (but needs Protocols!)
--- Assumes input is not too fast; double buffering would fix this.
-
-runBlock :: forall a b x y clk . (Rep x, Bounded x, Integral y, Integral x, Size x, Size y, Rep a, Rep b, Clock clk)
-	 => (Comb (Matrix x a) -> Comb (Matrix y b))
-	 -> CSeq clk (Enabled a)
-	 -> CSeq clk (Enabled b)
-runBlock fn inp = unShiftRegister
-		       $ addSync
-		       $ liftS1 fn
-		       $ shiftRegister inp
-   where
-	addSync a = pack (syncGo,a)
-
-	(en,_) = unpack inp
-
-	-- counting n things put into the queue
-	syncGo :: CSeq clk Bool
-	syncGo = delay (pureS maxBound .==. syncCounter)
-
-	syncCounter :: CSeq clk x
-	syncCounter = counter' en
-
--- If the Seq Bool is enabled, then we want to generate the
--- next number in the sequence, in the *next* cycle.
-
--- TODO: remove, its confusing
-counter' :: (Rep x, Num x, Clock clk) =>  CSeq clk Bool -> CSeq clk x
-counter' inc = res
-   where res = register 0 (res + mux2 inc (1,0))
-
+-}
 
 
 --------------------------------------------------
@@ -349,11 +209,6 @@ rom inp fn = delay $ funMap fn inp
 ---------------------------------
 
 
-latch :: forall a. (Rep a) => Seq (Enabled a) -> Seq a
-latch inp0 = out
-  where out = mux2 (isEnabled inp0) (enabledVal inp0,delay out)
-
-----------------------
 
 class Stepify a where
   stepify :: a -> a
@@ -425,44 +280,3 @@ lookup (True:a) (Choose l _) = lookup a l
 lookup (False:a) (Choose _ r) = lookup a r
 
 
-
--- An Ack is always in response to an incoming packet or message
-newtype Ready = Ready { unReady :: Bool }
-
-instance Rep Ready where
-  data X Ready = XReadyRep { unXReadyRep :: (X Bool) }
-  type W Ready = W Bool
-  -- The template for using representations
-  unX             = liftM Ready   . unX  . unXReadyRep
-  optX            = XReadyRep     . optX . liftM unReady 
-  toRep           = toRep       . unXReadyRep
-  fromRep         = XReadyRep     . fromRep
-  repType Witness = repType (Witness :: Witness Bool)
-
-toReady :: Comb Bool -> Comb Ready
-toReady = coerce Ready
-
-fromReady :: Comb Ready -> Comb Bool
-fromReady = coerce unReady
-
-
-----------------------------------------------------------------------------------------------------
-
-toInvited :: (Rep a, Clock c, sig ~ CSeq c)
-             => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Ready	     -- ^ takes a flag back from FIFO that indicates a write would be successful
-             -> sig (Enabled a)     
-
-toInvited ys ack = toSeq (fn ys (fromSeq ack))
-        where
---           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
-	   -- send the value *before* checking thr Ack
-           fn xs ys' = 
-                case ys' of
-                 (Nothing:_)                  -> error "toInvited: bad protocol state (1)"
-                 (Just (Ready True) :rs) -> 
-			case xs of
-			   (x:xs') -> x : fn xs' rs      -- has been written
-			   []      -> Nothing : fn [] rs -- nothing to write
-                 (Just (Ready False):rs) -> Nothing : fn xs rs   -- not ready yet
--}
