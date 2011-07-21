@@ -54,7 +54,10 @@ Library
        Language.KansasLava.Netlist.Inst
        Language.KansasLava.Netlist.Sync
        Language.KansasLava.Netlist.Utils
-
+       Language.KansasLava.Protocols.Enabled
+       Language.KansasLava.Protocols.Memory
+       Language.KansasLava.Protocols.HandShake
+       
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
 -- need a module refactor to address the orphan warnings
