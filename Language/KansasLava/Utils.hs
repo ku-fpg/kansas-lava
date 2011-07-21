@@ -630,14 +630,7 @@ takeMaybe = maybe id take
 -- | translate using raw underlying bits, Width *must* be the same.
 
 bitwise :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
-bitwise = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
-  where
-	-- This cheats, and uses the deep embedding support to realize the shallow.
-	coerceX :: forall a b . (Rep a, Rep b, W a ~ W b ) => X a -> X b
-	coerceX = id
-	       . fromRep
-	       . toRep
-
+bitwise = liftS1 $ \ (Comb a ae) -> Comb (fromRep (toRep a)) $ entity1 (Prim "coerce") ae
 
 -- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
 -- We need to read up and figure out something better.
