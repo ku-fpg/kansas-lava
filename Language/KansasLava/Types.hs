@@ -388,6 +388,7 @@ instance Clock () where
 -- | 'WireVal' is a value over a wire, either known or representing unknown.
 -- The 'Show' class is overloaded to 'show' "?" for unknowns.
 
+-- TODO: replace WireVal with Maybe, because it is Maybe.
 
 data WireVal a = WireUnknown | WireVal a
     deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
