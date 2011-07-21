@@ -73,6 +73,9 @@ pureX = optX . Just
 unknownX :: forall w . (Rep w) => X w
 unknownX = optX (Nothing :: Maybe w)
 
+liftX :: (Rep a, Rep b) => (a -> b) -> X a -> X b
+liftX f = optX . liftM f . unX
+
 -- This is not wired into the class because of the extra 'Show' requirement.
 
 showRepDefault :: forall w. (Show w, Rep w) => X w -> String
