@@ -588,8 +588,6 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 
 -------------------------------------------------------------------------------------
 
-factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
-factor a = unpack (coerce a :: sig (a1,a2))
 
 {-
 	   , Signal sig, Rep a2, Rep a1
@@ -629,17 +627,25 @@ takeMaybe = maybe id take
 -------------------------------------------------------------------------------------
 
 
-coerceX :: forall a b . (Rep a, Rep b, W a ~ W b ) => X a -> X b
-coerceX = id
-       . fromRep
-       . toRep
+-- | translate using raw underlying bits, Width *must* be the same.
+
+bitwise :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
+bitwise = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
+  where
+	-- This cheats, and uses the deep embedding support to realize the shallow.
+	coerceX :: forall a b . (Rep a, Rep b, W a ~ W b ) => X a -> X b
+	coerceX = id
+	       . fromRep
+	       . toRep
+
 
 -- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
 -- We need to read up and figure out something better.
 
--- ^ translate using raw underlying bits, Width *must* be the same.
-coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
-coerce = liftS1 $ \ (Comb a ae) -> Comb (coerceX a) $ entity1 (Prim "coerce") ae
+
+-- ^ translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
+coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
+coerce f = liftS1 $ \ (Comb a ae) -> Comb (liftX f a) $ entity1 (Prim "coerce") ae
 
 
 signedX :: forall a b . (Rep a, Rep b) => X a -> X b
@@ -672,8 +678,12 @@ unsafeId :: forall sig a b . (Signal sig, Rep a, Rep b) => sig a -> sig b
 unsafeId = liftS1 $ \ (Comb a (D ae)) -> Comb (fromRep $ toRep a) $ (D ae)
 
 ----------------------------------------------------------------------------
+
+factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+factor a = unpack (bitwise a :: sig (a1,a2))
+
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
-append x y = coerce (pack (x,y) :: sig (a,b))
+append x y = bitwise (pack (x,y) :: sig (a,b))
 
 ----------------------------------------------------------------------------
 
