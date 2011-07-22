@@ -78,7 +78,7 @@ tests test = do
 
         let t3 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
                  String -> Witness w2 -> Gen w1 -> IO ()
-            t3 str witness arb = testCoerce test str witness arb
+            t3 str witness arb = testBitwise test str witness arb
 
         t3 "S16_M_X4_S4"    (Witness :: Witness S16) (dubGen (arbitrary :: Gen (Matrix X4 S4)))
         t3 "U15_M_X3_S5"    (Witness :: Witness U15) (dubGen (arbitrary :: Gen (Matrix X3 S5)))
@@ -101,6 +101,17 @@ tests test = do
 
         t3 "Bool_Bool"      (Witness :: Witness Bool) (dubGen (arbitrary :: Gen Bool))
         t3 "U8_U8"          (Witness :: Witness U8)   (dubGen (arbitrary :: Gen U8))
+
+        let t4 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
+                 String -> Witness w2 -> Gen w1 -> (w1 -> w2) -> IO ()
+            t4 str witness arb f = testCoerce test str witness arb f
+
+        t4 "Bool_U1"        (Witness :: Witness Bool) (dubGen (arbitrary :: Gen U1))
+			$ \ u1 -> u1 == 1
+        t4 "U1_Bool"        (Witness :: Witness U1) (dubGen (arbitrary :: Gen Bool))
+			$ \ b -> if b then 1 else 0
+        t4 "Bool_Bool"      (Witness :: Witness Bool) (dubGen (arbitrary :: Gen Bool)) id
+        t4 "U8_U8"          (Witness :: Witness U8)   (dubGen (arbitrary :: Gen U8)) id
 
         return ()
 
@@ -151,11 +162,28 @@ testSigned (TestSeq test toL) tyName Witness ws = do
         test ("signed/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
-testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
+testBitwise :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
             => TestSeq -> String -> Witness w2 -> Gen w1 -> IO ()
-testCoerce (TestSeq test toL) tyName Witness ws = do
+testBitwise (TestSeq test toL) tyName Witness ws = do
         let ms = toL ws
-            cir = coerce :: Seq w1 -> Seq w2
+            cir = bitwise :: Seq w1 -> Seq w2
+            driver = do
+                outStdLogicVector "i0" (toSeq ms)
+            dut = do
+                i0 <- inStdLogicVector "i0"
+                let o0 = cir (i0)
+                outStdLogicVector "o0" (o0)
+            -- will always pass; it *is* the semantics here
+            res :: Seq w2
+            res = cir $ toSeq ms
+        test ("bitwise/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
+        return ()
+
+testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
+            => TestSeq -> String -> Witness w2 -> Gen w1 -> (w1 -> w2) -> IO ()
+testCoerce (TestSeq test toL) tyName Witness ws f = do
+        let ms = toL ws
+            cir = coerce f :: Seq w1 -> Seq w2
             driver = do
                 outStdLogicVector "i0" (toSeq ms)
             dut = do
@@ -167,4 +195,3 @@ testCoerce (TestSeq test toL) tyName Witness ws = do
             res = cir $ toSeq ms
         test ("coerce/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
-
