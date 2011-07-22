@@ -626,19 +626,20 @@ takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
 
-
 -- | translate using raw underlying bits, Width *must* be the same.
 
 bitwise :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
 bitwise = liftS1 $ \ (Comb a ae) -> Comb (fromRep (toRep a)) $ entity1 (Prim "coerce") ae
 
--- Comment from Nick Frisby: Somewhere, an angel has lost its wings!
--- We need to read up and figure out something better.
-
 
 -- ^ translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
 coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
-coerce f = liftS1 $ \ (Comb a ae) -> Comb (liftX f a) $ entity1 (Prim "coerce") ae
+coerce f = liftS1 $ \ (Comb a ae) -> 
+	let
+	    b = liftX f a
+	    b' | toRep a == toRep b = b
+	       | otherwise          = error "coerce fails to preserve bit pattern"
+	in Comb b' $ entity1 (Prim "coerce") ae
 
 
 signedX :: forall a b . (Rep a, Rep b) => X a -> X b
