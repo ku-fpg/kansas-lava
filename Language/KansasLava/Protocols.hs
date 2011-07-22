@@ -465,4 +465,24 @@ toInvited ys ack = toSeq (fn ys (fromSeq ack))
 			   (x:xs') -> x : fn xs' rs      -- has been written
 			   []      -> Nothing : fn [] rs -- nothing to write
                  (Just (Ready False):rs) -> Nothing : fn xs rs   -- not ready yet
+
+-- | Take stream from a FIFO and return an asynchronous read-ready flag, which
+--   is given back to the FIFO, and a shallow list of values.
+-- I suspect this space-leaks.
+fromHandShake :: (Rep a, Clock c, sig ~ CSeq c)
+               => sig (Enabled a)       -- ^ fifo output sequence
+               -> (sig Ack, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
+fromHandShake inp = (toSeq (map fst internal), map snd internal)
+   where
+        internal = fn (fromSeq inp)
+
+        fn (x:xs) = (Ack True,rep) : rest
+           where
+                (rep,rest) = case x of
+                               Nothing       -> error "fromVariableHandshake: bad reply to ready status"
+                               Just Nothing  -> (Nothing,fn xs)
+                               Just (Just v) -> (Just v,fn xs)
+        fn [] = (Ack False,Nothing) : fn []
+
+
 -}
