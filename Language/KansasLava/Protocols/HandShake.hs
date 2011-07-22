@@ -5,7 +5,6 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
-import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
@@ -13,11 +12,9 @@ import Language.KansasLava.Protocols.Enabled
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
 import Control.Concurrent
-import qualified Data.ByteString.Lazy as BS
 import System.IO
 import Control.Monad
 import System.IO.Unsafe (unsafeInterleaveIO)
-import Data.Word
 import System.Random
 
 import qualified Prelude
@@ -56,7 +53,7 @@ toHandShake :: (Rep a, Clock c, sig ~ CSeq c)
 toHandShake ys ack = toSeq (fn ys (fromSeq ack))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
-	   -- send the value *before* checking thr Ack
+	   -- send the value *before* checking the Ack
            fn (x:xs) ys' = x :
                 case (x,ys') of
                  (_,Nothing:_)          -> error "toHandShake: bad protocol state (1)"
@@ -64,35 +61,48 @@ toHandShake ys ack = toSeq (fn ys (fromSeq ack))
                  (Just _,Just (Ack False):rs) -> fn (x:xs) rs   -- not written yet
                  (Nothing,Just _:rs)    -> fn xs rs     	-- nothing to write
                  (_,[])                 -> error "toHandShake: can't handle empty list of values to receive"
-           fn [] _ = error "toHandShaken: can't handle empty list of values to issue"
+           fn [] ys' = fn (Prelude.repeat Nothing) ys'
 
 
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
 --   is given back to the FIFO, and a shallow list of values.
--- I suspect this space-leaks.
-fromHandShake :: (Rep a, Clock c, sig ~ CSeq c)
+-- I'm sure this space-leaks.
+fromHandShake :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
                => sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Ack, [Maybe a]) -- ^ read-ready flag sent back to FIFO and shallow list of values
+               -> (sig Ack, [Maybe a]) -- ^ ack flag sent back to FIFO and shallow list of values
 fromHandShake inp = (toSeq (map fst internal), map snd internal)
    where
         internal = fn (fromSeq inp)
 
-        fn (x:xs) = (Ack True,rep) : rest
-           where
-                (rep,rest) = case x of
-                               Nothing       -> error "fromVariableHandshake: bad reply to ready status"
-                               Just Nothing  -> (Nothing,fn xs)
-                               Just (Just v) -> (Just v,fn xs)
-        fn [] = (Ack False,Nothing) : fn []
+	-- pretty simple API
+	fn :: [Maybe (Enabled a)] -> [(Ack,Maybe a)]
+        fn (Nothing:_)         = error "found an unknown value in HandShake input"
+        fn (Just Nothing:xs)   = (Ack False,Nothing) : fn xs
+	fn ((Just v):xs)       = (Ack True,v)        : fn xs
+	fn []                  = error "fromHandShake: ack sequences should never end"
 
+
+---------------------------------------------------------------------------
+
+{-
+test1 :: [Maybe Int] -> [Maybe Int]
+test1 xs = res
+  where
+	hs :: CSeq () (Enabled Int)
+	hs = toHandShake xs ack
+
+	(hs', ack) = shallowHandShakeBridge (mkStdGen 1000) (const 1.5,const 1.5) (hs,ack')
+
+	(ack',res) = fromHandShake hs'
+-- -}
 
 -- introduce protocol-compliant delays (in the shallow embedding)
 
 shallowHandShakeBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => StdGen
                        -> (Integer -> Float,Integer -> Float)
-                       -> (sig (Enabled a),sig Bool) 
-                       -> (sig (Enabled a),sig Bool)
+                       -> (sig (Enabled a),sig Ack) 
+                       -> (sig (Enabled a),sig Ack)
 shallowHandShakeBridge stdGen (lhsF,rhsF) (inp,back)
         = unpack (toSeq $ fn lhs_rs rhs_rs (fromSeq inp) (fromSeq back) [])
    where
@@ -101,17 +111,17 @@ shallowHandShakeBridge stdGen (lhsF,rhsF) (inp,back)
         lhs_rs = [ c < lhsF t | (c,t) <- zip (randoms lhs_r) [0..] ] 
         rhs_rs = [ c < rhsF t | (c,t) <- zip (randoms rhs_r) [0..] ] 
 
-        fn :: [Bool] -> [Bool] -> [Maybe (Enabled a)] -> [Maybe Bool] -> [a] -> [(Enabled a,Bool)]
+        fn :: [Bool] -> [Bool] -> [Maybe (Enabled a)] -> [Maybe Ack] -> [a] -> [(Enabled a,Ack)]
 --        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
-        fn (True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) True
-        fn (_:lhss)    rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        False
+        fn (True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) (Ack True)
+        fn (_:lhss)    rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        (Ack False)
         fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
 
 --        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
         fn2 lhss (True:rhss) as bs (s:ss) bk = (Just s,bk) :
                                                  case bs of
-                                                   (Just True : bs')  -> fn lhss rhss as bs' ss
-                                                   (Just False : bs') -> fn lhss rhss as bs' (s:ss)
+                                                   (Just (Ack True) : bs')  -> fn lhss rhss as bs' ss
+                                                   (Just (Ack False) : bs') -> fn lhss rhss as bs' (s:ss)
                                                    _ -> error "failure in shallowHandShakenBridge (fn2/case)"
 
         fn2 lhss (_:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
@@ -143,7 +153,7 @@ handShakeToMVar sfifo sink = do
                 $ (let (back,res) = fromHandShake $ sink back in res)
         return ()
 
-
+{-
 -- interactMVar
 interactMVar :: forall src sink
          . (Rep src, Rep sink)
@@ -208,4 +218,5 @@ liftHandShake seq' (Seq s_ack d_ack) = enabledS res
                                  (XAckRep (XBool (WireVal False)) `Cons` acks) -> fn (s `Cons` ss) acks 
                                  (XAckRep _               `Cons` _) -> Stream.repeat unknownX 
 
+-}
 
