@@ -1,7 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
 module Language.KansasLava.Protocols.HandShake where
 
-import Language.KansasLava.Comb
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
@@ -24,6 +23,13 @@ import Prelude hiding (tail, lookup)
 ------------------------------------------------------------------------------------
 -- An Ack is always in response to an incoming packet or message
 newtype Ack = Ack { unAck :: Bool }
+	deriving (Eq,Ord)
+	
+instance Show Ack where
+	show (Ack True)  = "@"
+	show (Ack False) = "~"
+	
+	
 
 instance Rep Ack where
   data X Ack = XAckRep { unXAckRep :: (X Bool) }
@@ -34,11 +40,12 @@ instance Rep Ack where
   toRep           = toRep       . unXAckRep
   fromRep         = XAckRep     . fromRep
   repType Witness = repType (Witness :: Witness Bool)
+  showRep         = showRepDefault
 
-toAck :: Comb Bool -> Comb Ack
+toAck :: (Signal sig) => sig Bool -> sig Ack
 toAck = coerce Ack
 
-fromAck :: Comb Ack -> Comb Bool
+fromAck :: (Signal sig) => sig Ack -> sig Bool
 fromAck = coerce unAck
 
 
