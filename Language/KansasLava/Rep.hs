@@ -14,6 +14,8 @@ import Data.Sized.Signed as S
 import Data.Word
 import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
+import qualified Data.Sized.Sampled as Sampled
+
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
 class {- (Size (W w)) => -} Rep w where
@@ -400,4 +402,19 @@ sizedFromRepToIntegral w
 
         val :: X w
         val = fromRepToIntegral w
+
+-----------------------------------------------------------------
+
+instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
+        type W (Sampled.Sampled m ix) = ix
+	data X (Sampled.Sampled m ix) = XSampled (WireVal (Sampled.Sampled m ix))
+	optX (Just b)	    = XSampled $ return b
+	optX Nothing	    = XSampled $ fail "Wire Sampled"
+	unX (XSampled (WireVal a))     = return a
+	unX (XSampled WireUnknown)   = fail "Wire Sampled"
+	repType _   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
+	toRep (XSampled WireUnknown) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
+	toRep (XSampled (WireVal a))   = RepValue $ fmap WireVal $ M.toList $ Sampled.toMatrix a
+	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
+	showRep = showRepDefault
 
