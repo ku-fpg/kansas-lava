@@ -101,11 +101,11 @@ input nm deepPad = Fabric $ \ ins ->
 output :: String -> Pad -> Fabric ()
 output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
-inStdLogic :: String -> Fabric (Seq Bool)
+inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ deepSeq $ D $ Pad (OVar 0 nm))
         return $ case pad of
-          StdLogic sq -> sq
+          StdLogic sq -> bitwise sq
           _           -> error "internal type error in inStdLogic"
 
 inGeneric :: String -> Fabric Integer
@@ -135,8 +135,9 @@ inStdLogicVector nm = do
 
 -------------------------------------------------------------------------------
 
-outStdLogic :: String -> Seq Bool -> Fabric ()
-outStdLogic nm seq_bool = output nm (StdLogic seq_bool)
+outStdLogic :: 
+	(Rep a, Show a, W a ~ X1) => String -> Seq a -> Fabric ()
+outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
 outStdLogicVector
   :: forall a .
