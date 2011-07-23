@@ -1,7 +1,9 @@
 DIR := sims
+KANSAS_LAVA_ROOT := ..
+RUN := env KANSAS_LAVA_ROOT=$(KANSAS_LAVA_ROOT)
 
 test:
-	../dist/build/kansas-lava-unittest/kansas-lava-unittest
+	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest
 
 simulate:
 	$(DIR)/runsims

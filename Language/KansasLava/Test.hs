@@ -30,7 +30,6 @@ import Language.KansasLava.VHDL
 import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
-
 import Data.List as List
 import Data.Maybe as Maybe
 import Data.Default
@@ -39,6 +38,7 @@ import Data.Ord ( comparing )
 
 import System.Cmd
 import System.Directory
+import System.Environment
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
@@ -323,8 +323,9 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
-        prel <- Strict.readFile ("KansasLava/Prelude/VHDL" </> preludeFile)
-        writeFile (dest </> preludeFile) prel
+	ks <- getEnv "KANSAS_LAVA_ROOT"
+        prel <- Strict.readFile (ks </> "Prelude/VHDL" </> preludeFile)
+	writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
 
@@ -479,9 +480,10 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    header <- Strict.readFile "KansasLava/Prelude/HTML/header.inc"
-    mid <- Strict.readFile "KansasLava/Prelude/HTML/mid.inc"
-    footer <- Strict.readFile "KansasLava/Prelude/HTML/footer.inc"
+    ks <- getEnv "KANSAS_LAVA_ROOT"
+    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
+    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
+    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -509,9 +511,10 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    header <- Strict.readFile "KansasLava/Prelude/HTML/header.inc"
-    mid <- Strict.readFile "KansasLava/Prelude/HTML/mid.inc"
-    footer <- Strict.readFile "KansasLava/Prelude/HTML/footer.inc"
+    ks <- getEnv "KANSAS_LAVA_ROOT"
+    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
+    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
+    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
