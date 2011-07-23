@@ -2,7 +2,8 @@
 module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Enabled,
 	module Language.KansasLava.Protocols.Memory,
-	module Language.KansasLava.Protocols.HandShake
+	module Language.KansasLava.Protocols.HandShake,
+	module Language.KansasLava.Protocols.MailBox
 	) where
 
 
@@ -10,6 +11,7 @@ module Language.KansasLava.Protocols (
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Protocols.HandShake
+import Language.KansasLava.Protocols.MailBox
 
 {-
 import Data.Sized.Matrix as M
