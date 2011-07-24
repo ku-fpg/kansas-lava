@@ -41,7 +41,7 @@ newtype Full = Full { unFull :: Bool }
 	deriving (Eq,Ord)
 	
 instance Show Full where
-	show (Full True)  = "@"
+	show (Full True)  = "F"
 	show (Full False) = "~"
 	
 	

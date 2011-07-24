@@ -41,7 +41,7 @@ newtype Ack = Ack { unAck :: Bool }
 	deriving (Eq,Ord)
 	
 instance Show Ack where
-	show (Ack True)  = "@"
+	show (Ack True)  = "A"
 	show (Ack False) = "~"
 	
 	
