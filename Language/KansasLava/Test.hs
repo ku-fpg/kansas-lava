@@ -17,6 +17,8 @@ module Language.KansasLava.Test
         , generateReport
         , Options(..)
         , matchExpected
+	, StreamTest(..)
+	, testStream
         ) where
 
 import Language.KansasLava.Trace
@@ -26,6 +28,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.VHDL
+import Language.KansasLava.Protocols
 
 import Control.Applicative
 import qualified Control.Exception as E
@@ -43,6 +46,8 @@ import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
 import Data.Sized.Ix
+--import System.Random
+
 
 -------------------------------------------------------------------------------------
 
@@ -653,3 +658,110 @@ matchExpected out_name ref = do
                      ] of
                      [] -> Nothing
                      ns -> Just $ "failed on cycles " ++ show (take 20 $ ns)
+
+
+----------------------------------------------------------------------------
+
+data StreamTest w1 w2 = StreamTest
+            { theStream              :: (Seq (Enabled w1), 	Seq Full) 
+				   -> (Seq Ack, 		Seq (Enabled w2))
+            , correctnessCondition :: [w1] -> [w2] -> Maybe String
+	    , theStreamTestCount     :: Int
+	    , theStreamTestCycles    :: Int
+            , theStreamName          :: String
+            }
+
+testStream :: forall w . (Eq w, Rep w, Show w, Size (W w))
+        => TestSeq -> String -> StreamTest w w -> Gen (Maybe w) -> IO ()
+testStream (TestSeq test _) tyName streamTest ws = do
+
+        let vals0 :: [Maybe w]
+	    vals0 = take (fromIntegral (theStreamTestCycles streamTest))
+			 (cycle (genToRandom $ loop 10 $ ws))
+
+	    vals1 :: [Int]
+	    vals1 = drop (fromIntegral (theStreamTestCount streamTest))
+		    [ n
+	  	    | (Just _,n) <- zip vals0 [0..]
+	            ]
+
+	    vals :: [Maybe w]
+	    vals = case vals1 of
+		     [] -> vals0
+		     (n:_) -> [ if i < n then v else Nothing
+			      | (v,i) <- zip vals0 [0..]
+			      ]
+
+{-
+	print (theStreamTestCount StreamTest,theStreamTestCycles StreamTest)
+	print vals0
+	print vals1
+	print vals
+-}
+        -- good enough for this sort of testing
+--        let stdGen = mkStdGen 0
+
+        let -- (lhs_r,rhs_r) = split stdGen
+
+            cir = theStream streamTest
+
+            driver :: Fabric (Int -> Maybe String)
+            driver = do
+                -- backedge output from DUT
+                ack <- inStdLogic "ack" :: Fabric (Seq Ack)
+
+                let vals' :: Seq (Enabled w)
+                    vals' = toHandShake (vals ++ Prelude.repeat Nothing) ack'
+
+                    (ack', vals2) = shallowHandShakeBridge (a,b) (vals',ack)
+
+                -- sent to DUT
+                outStdLogicVector "vals"        (enabledVal vals2)
+                outStdLogic       "vals_en"     (isEnabled vals2)
+
+                -- DUT does stuff
+
+                -- reading from DUT
+                res     <- inStdLogicVector "res" 
+                res_en  <- inStdLogic       "res_en"
+
+                let flag :: Seq Full 
+                    opt_as :: [Maybe w]
+
+                    (flag, res') = shallowMailBoxBridge (c,d) (packEnabled res_en res,flag')
+
+                    (flag', opt_as) = fromMailBox res'
+
+                outStdLogic "flag" flag
+
+                return $ \ n -> correctnessCondition streamTest 
+                                   [ x | (Just x) <- take n $ vals ]
+                                   [ x | (Just x) <- take n $ opt_as ]
+
+{-
+let ans = [ a | Just a <- take n opt_as ]
+                                    inp = [ a | Just a <- take n vals ]
+                                in if ans == take (length ans) inp
+                                   && length inp > 1000
+                                   then Nothing -- ("matched" ++ show (length ans))
+                                   else Just (show (ans,inp))
+-}
+
+            dut :: Fabric ()
+            dut = do
+                flag    <- inStdLogic "flag"
+                vls     <- inStdLogicVector "vals"
+                vals_en <- inStdLogic "vals_en"
+                let (ack,res') = cir (packEnabled vals_en vls, flag)
+                outStdLogicVector "res"  (enabledVal res')
+                outStdLogic "res_en"     (isEnabled res')
+                outStdLogic "ack"        ack
+
+
+            a = cycle [0..16] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
+            b = cycle [0..22] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
+            c = cycle [0..18] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
+            d = cycle [0..26] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)  
+
+        test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
+
