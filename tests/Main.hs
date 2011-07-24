@@ -10,6 +10,7 @@ import qualified Matrix
 import qualified Memory
 import qualified Coerce
 import qualified Others
+import qualified Protocols
 
 main :: IO ()
 main = do
@@ -25,6 +26,6 @@ main = do
                 , Memory.tests
                 , Coerce.tests 
                 , Others.tests
+		, Protocols.tests 
                 ]
-
 
