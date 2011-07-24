@@ -663,12 +663,12 @@ matchExpected out_name ref = do
 ----------------------------------------------------------------------------
 
 data StreamTest w1 w2 = StreamTest
-            { theStream              :: (Seq (Enabled w1), 	Seq Full) 
+            { theStream            :: (Seq (Enabled w1), 	Seq Full) 
 				   -> (Seq Ack, 		Seq (Enabled w2))
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
-	    , theStreamTestCount     :: Int
-	    , theStreamTestCycles    :: Int
-            , theStreamName          :: String
+	    , theStreamTestCount   :: Int
+	    , theStreamTestCycles  :: Int
+            , theStreamName        :: String
             }
 
 testStream :: forall w . (Eq w, Rep w, Show w, Size (W w))
