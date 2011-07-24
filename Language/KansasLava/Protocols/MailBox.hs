@@ -36,39 +36,38 @@ OR
 -}
 
 ------------------------------------------------------------------------------------
--- An Full is always in response to an incoming pFullet or message
-newtype Full = Full { unFull :: Bool }
+-- An Ready is always in response to an incoming packet or message
+newtype Ready = Ready { unReady :: Bool }
 	deriving (Eq,Ord)
 	
-instance Show Full where
-	show (Full True)  = "F"
-	show (Full False) = "~"
-	
+instance Show Ready where
+	show (Ready True)  = "R"
+	show (Ready False) = "~"
 	
 
-instance Rep Full where
-  data X Full = XFullRep { unXFullRep :: (X Bool) }
-  type W Full = W Bool
+instance Rep Ready where
+  data X Ready = XReadyRep { unXReadyRep :: (X Bool) }
+  type W Ready = W Bool
   -- The template for using representations
-  unX             = liftM Full   . unX  . unXFullRep
-  optX            = XFullRep     . optX . liftM unFull 
-  toRep           = toRep        . unXFullRep
-  fromRep         = XFullRep     . fromRep
+  unX             = liftM Ready   . unX  . unXReadyRep
+  optX            = XReadyRep     . optX . liftM unReady 
+  toRep           = toRep        . unXReadyRep
+  fromRep         = XReadyRep     . fromRep
   repType Witness = repType (Witness :: Witness Bool)
   showRep         = showRepDefault
 
-toFull :: (Signal sig) => sig Bool -> sig Full
-toFull = coerce Full
+toReady :: (Signal sig) => sig Bool -> sig Ready
+toReady = coerce Ready
 
-fromFull :: (Signal sig) => sig Full -> sig Bool
-fromFull = coerce unFull
+fromReady :: (Signal sig) => sig Ready -> sig Bool
+fromReady = coerce unReady
 
 
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toMailBox :: (Rep a, Clock c, sig ~ CSeq c)
              => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Full				-- ^ takes a flag back from FIFO that indicates successful write
+             -> sig Ready				-- ^ takes a flag back from FIFO that indicates successful write
                                     --   to a stream of values sent to FIFO
              -> sig (Enabled a)     
 toMailBox = toMailBox' (repeat 0)
@@ -76,26 +75,26 @@ toMailBox = toMailBox' (repeat 0)
 toMailBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Full	    -- ^ takes a flag back from FIFO that indicates successful write
+             -> sig Ready	    -- ^ takes a flag back from FIFO that indicates successful write
                                     --   to a stream of values sent to FIFO
              -> sig (Enabled a)     
 
 toMailBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
-	   -- send the value *before* checking the Full
+	   -- send the value *before* checking the Ready
            fn xs fs ps = 
                 case fs of
                  (Nothing:_)              -> error "toMailBox: bad protocol state (1)"
-                 (Just (Full False) : fs') -> 
+                 (Just (Ready True) : fs') -> 
 			case (xs,ps) of
 			   (x:xs',0:ps')       -> x : fn xs' fs' ps'     -- write it (it may be Nothing)
 			   (Nothing:xs',p:ps') -> Nothing : fn xs' fs (pred p : ps')
 			   (_:_,p:ps')         -> Nothing : fn xs fs (pred p : ps')
 			   (_:_,[])            -> fn xs fs (repeat 0)
 			   (_,_)               -> Nothing : fn xs fs ps  -- nothing to write
-                 (Just (Full True):rs)         -> Nothing : fn xs rs ps -- not ready yet
-		 [] 			       -> error "toMailBox: Full seq should never end"
+                 (Just (Ready False):rs)         -> Nothing : fn xs rs ps -- not ready yet
+		 [] 			       -> error "toMailBox: Ready seq should never end"
 
 
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
@@ -103,32 +102,32 @@ toMailBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
 -- I'm sure this space-leaks.
 fromMailBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
                => sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Full, [Maybe a]) -- ^ Full flag sent back to FIFO and shallow list of values
+               -> (sig Ready, [Maybe a]) -- ^ Ready flag sent back to FIFO and shallow list of values
 fromMailBox = fromMailBox' (repeat 0)
 
 fromMailBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
                => [Int]			-- ^ list of wait counts before reading
                -> sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Full, [Maybe a]) -- ^ Full flag sent back to FIFO and shallow list of values
+               -> (sig Ready, [Maybe a]) -- ^ Ready flag sent back to FIFO and shallow list of values
 fromMailBox' ps inp = (toSeq (map fst internal), map snd internal)
    where
         internal = fn (fromSeq inp) ps
 
 	-- pretty simple API
-	fn :: [Maybe (Enabled a)] -> [Int] -> [(Full,Maybe a)]
-        fn xs (0:ps') = (Full False,v) : rest
+	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ready,Maybe a)]
+        fn xs (0:ps') = (Ready True,v) : rest
          where
 	    (v,rest) = case xs of
 			(Nothing:_)          -> error "found an unknown value in MailBox input"
         		(Just Nothing:xs')   -> (Nothing,fn xs' (0:ps'))	-- nothing read yet
 			(Just v':xs')        -> (v',fn xs' ps')
-			[]                   -> error "fromMailBox: Full sequences should never end"
-        fn xs (p:ps') = (Full True,Nothing) : fn (Prelude.tail xs) (pred p:ps')
+			[]                   -> error "fromMailBox: Ready sequences should never end"
+        fn xs (p:ps') = (Ready False,Nothing) : fn (Prelude.tail xs) (pred p:ps')
 	fn xs []      = fn xs (repeat 0)
 {-
 test1 xs = xs'
     where
-	e = toMailBox' (repeat 0) xs (full :: Seq Full)
+	e = toMailBox' (repeat 0) xs (full :: Seq Ready)
  	(full,xs') = fromMailBox' [0..] e
 -}
 
@@ -150,8 +149,8 @@ test2 xs = res
 
 shallowMailBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => ([Int],[Int])
-                       -> (sig (Enabled a),sig Full) 
-                       -> (sig Full, sig (Enabled a))
+                       -> (sig (Enabled a),sig Ready) 
+                       -> (sig Ready, sig (Enabled a))
 shallowMailBoxBridge (lhsF,rhsF) (inp,back) = (full,res)
    where
 	(full,xs) = fromMailBox' lhsF inp
@@ -163,7 +162,7 @@ shallowMailBoxBridge (lhsF,rhsF) (inp,back) = (full,res)
 -- | This function takes a MVar, and gives back a MailBox signal that represents
 -- the continuous sequence of contents of the MVar.
 
-mVarToMailBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Full -> (CSeq c (Enabled a)))
+mVarToMailBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Ready -> (CSeq c (Enabled a)))
 mVarToMailBox sfifo = do
         xs <- getFIFOContents sfifo
         return (toMailBox xs)
@@ -174,7 +173,7 @@ mVarToMailBox sfifo = do
  	        xs <- getFIFOContents var
  	        return (x:xs)
 
-mailBoxToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Full -> CSeq c (Enabled a)) -> IO ()
+mailBoxToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Ready -> CSeq c (Enabled a)) -> IO ()
 mailBoxToMVar sfifo sink = do
         sequence_
                 $ map (putMVar sfifo)
@@ -186,7 +185,7 @@ mailBoxToMVar sfifo sink = do
 -- interactMVar
 interactMVar :: forall src sink
          . (Rep src, Rep sink)
-        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => (sig (Enabled src),sig Full) -> (sig Full,sig (Enabled sink)))
+        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => (sig (Enabled src),sig Ready) -> (sig Ready,sig (Enabled sink)))
         -> MVar src
         -> MVar sink
         -> IO ()
@@ -195,13 +194,13 @@ interactMVar fn varA varB = do
 
         MailBoxToMVar varB $ \ rhs_back ->
                 -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Full)
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Ready)
                     lhs_inp = inp_fifo lhs_back
                 in
                     rhs_out
 
 hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
-                => (sig (Enabled Word8),sig Full) -> (sig Full, sig (Enabled Word8))
+                => (sig (Enabled Word8),sig Ready) -> (sig Full, sig (Enabled Word8))
              )
           -> Handle
           -> Handle

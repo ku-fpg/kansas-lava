@@ -663,7 +663,7 @@ matchExpected out_name ref = do
 ----------------------------------------------------------------------------
 
 data StreamTest w1 w2 = StreamTest
-            { theStream            :: (Seq (Enabled w1), 	Seq Full) 
+            { theStream            :: (Seq (Enabled w1), 	Seq Ready) 
 				   -> (Seq Ack, 		Seq (Enabled w2))
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
 	    , theStreamTestCount   :: Int
@@ -725,7 +725,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 res     <- inStdLogicVector "res" 
                 res_en  <- inStdLogic       "res_en"
 
-                let flag :: Seq Full 
+                let flag :: Seq Ready 
                     opt_as :: [Maybe w]
 
                     (flag, res') = shallowMailBoxBridge (c,d) (packEnabled res_en res,flag')

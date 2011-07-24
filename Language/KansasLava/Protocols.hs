@@ -25,11 +25,11 @@ import Language.KansasLava.Seq
 -- This is efficent; internally an 'and' and  a 'not' gate.
 
 bridge :: (Rep a, Clock c, sig ~ CSeq c)
-	=> (sig (Enabled a),sig Full) 
+	=> (sig (Enabled a),sig Ready) 
         -> (sig Ack, sig (Enabled a))
-bridge (inp,full) = (toAck ack,out)
+bridge (inp,ready) = (toAck ack,out)
    where
-	ack = isEnabled inp `and2` bitNot (fromFull full)
+	ack = isEnabled inp `and2` fromReady ready
 	out = packEnabled ack (enabledVal inp)
 
 -- | A (shallow only) infinite FIFO, for connecting
@@ -38,7 +38,7 @@ bridge (inp,full) = (toAck ack,out)
 
 shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
 	=> (sig (Enabled a),sig Ack) 
-        -> (sig Full, sig (Enabled a))
+        -> (sig Ready, sig (Enabled a))
 shallowFIFO (inp,ack) = (full,toHandShake (Nothing:vals) ack)
    where
 	(full,vals) = fromMailBox inp 
