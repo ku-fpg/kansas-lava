@@ -7,7 +7,6 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
-import Language.KansasLava.Protocols.HandShake
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
@@ -90,11 +89,13 @@ toMailBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
                  (Nothing:_)              -> error "toMailBox: bad protocol state (1)"
                  (Just (Full False) : fs') -> 
 			case (xs,ps) of
-			   (x:xs',0:ps') -> x : fn xs' fs' ps'     -- write it (it may be Nothing)
-			   (_:_,p:ps')   -> Nothing : fn xs fs (pred p : ps')
-			   (_,_)     	 -> Nothing : fn xs fs ps  -- nothing to write
-                 (Just (Full True):rs)   -> Nothing : fn xs rs ps -- not ready yet
-		 [] 			 -> error "toMailBox: Full seq should never end"
+			   (x:xs',0:ps')       -> x : fn xs' fs' ps'     -- write it (it may be Nothing)
+			   (Nothing:xs',p:ps') -> Nothing : fn xs' fs (pred p : ps')
+			   (_:_,p:ps')         -> Nothing : fn xs fs (pred p : ps')
+			   (_:_,[])            -> fn xs fs (repeat 0)
+			   (_,_)               -> Nothing : fn xs fs ps  -- nothing to write
+                 (Just (Full True):rs)         -> Nothing : fn xs rs ps -- not ready yet
+		 [] 			       -> error "toMailBox: Full seq should never end"
 
 
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
@@ -123,7 +124,7 @@ fromMailBox' ps inp = (toSeq (map fst internal), map snd internal)
 			(Just v':xs')        -> (v',fn xs' ps')
 			[]                   -> error "fromMailBox: Full sequences should never end"
         fn xs (p:ps') = (Full True,Nothing) : fn (Prelude.tail xs) (pred p:ps')
-	fn _ []       = error "list of pauses should be infinite"
+	fn xs []      = fn xs (repeat 0)
 {-
 test1 xs = xs'
     where
@@ -133,16 +134,6 @@ test1 xs = xs'
 
 ---------------------------------------------------------------------------
 
--- Connect a HandShake to an MailBox. The other way round requires a FIFO.
-handShakeMailBox :: (Rep a, Clock c, sig ~ CSeq c)
-	=> (sig (Enabled a),sig Full) 
-        -> (sig Ack, sig (Enabled a))
-handShakeMailBox (inp,full) = (toAck ack,out)
-   where
-	ack = isEnabled inp `and2` bitNot (fromFull full)
-	out = packEnabled ack (enabledVal inp)
-
----------------------------------------------------------------------------
 
 
 test2 :: [Maybe Int] -> [Maybe Int]
@@ -165,30 +156,6 @@ shallowMailBoxBridge (lhsF,rhsF) (inp,back) = (full,res)
    where
 	(full,xs) = fromMailBox' lhsF inp
 	res       = toMailBox' rhsF xs back
-
-{-
-        (lhs_r,rhs_r) = split stdGen
-
-        lhs_rs = [ c < lhsF t | (c,t) <- zip (randoms lhs_r) [0..] ] 
-        rhs_rs = [ c < rhsF t | (c,t) <- zip (randoms rhs_r) [0..] ] 
-
-        fn :: [Bool] -> [Bool] -> [Maybe (Enabled a)] -> [Maybe Full] -> [a] -> [(Enabled a,Full)]
---        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
-
-        fn (True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) (Full True)
-        fn (_:lhss)    rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        (Full False)
-        fn _ _ _ _ _ = error "failure in shallowMailBoxnBridge (fn)"
-
---        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
-        fn2 lhss (True:rhss) as bs (s:ss) bk = (Just s,bk) :
-                                                 case bs of
-                                                   (Just (Full True) : bs')  -> fn lhss rhss as bs' ss
-                                                   (Just (Full False) : bs') -> fn lhss rhss as bs' (s:ss)
-                                                   _ -> error "failure in shallowMailBoxnBridge (fn2/case)"
-
-        fn2 lhss (_:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
-        fn2 _ _ _ _ _ _ = error "failure in shallowMailBoxnBridge (fn2)"
--}
 
 ----------------------------------------------------------------------------------------------------
 -- These are functions that are used to thread together Hand shaking and FIFO.

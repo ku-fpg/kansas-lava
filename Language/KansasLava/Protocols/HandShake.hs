@@ -14,11 +14,26 @@ import Control.Concurrent
 import System.IO
 import Control.Monad
 import System.IO.Unsafe (unsafeInterleaveIO)
-import System.Random
+--import System.Random
 
 import qualified Prelude
 import Prelude hiding (tail, lookup)
 
+
+------------------------------------------------------------------------------------
+
+
+{- The convention with handshaken signals is
+  ...
+ -> (lhs_inp, rhs_inp) 
+ -> (lhs_out, rhs_out)
+
+OR
+
+ -> (lhs_inp, control_in, rhs_inp) 
+ -> (lhs_out, control_out, rhs_out)
+
+-}
 
 ------------------------------------------------------------------------------------
 -- An Ack is always in response to an incoming packet or message
@@ -52,23 +67,37 @@ fromAck = coerce unAck
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toHandShake :: (Rep a, Clock c, sig ~ CSeq c)
-             => [Maybe a]           -- ^ shallow values we want to send into the FIFO
+	     => [Maybe a]           -- ^ shallow values we want to send into the FIFO
              -> sig Ack				-- ^ takes a flag back from FIFO that indicates successful write
                                     --   to a stream of values sent to FIFO
              -> sig (Enabled a)     
+toHandShake = toHandShake' []
 
-toHandShake ys ack = toSeq (fn ys (fromSeq ack))
+toHandShake' :: (Rep a, Clock c, sig ~ CSeq c)
+             => [Int]		    -- ^ pauses between offering values
+             -> [Maybe a]           -- ^ shallow values we want to send into the FIFO
+             -> sig Ack				-- ^ takes a flag back from FIFO that indicates successful write
+                                    --   to a stream of values sent to FIFO
+             -> sig (Enabled a)     
+toHandShake' pauses ys ack = toSeq (fn ys (fromSeq ack) pauses)
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   -- send the value *before* checking the Ack
-           fn (x:xs) ys' = x :
+
+           fn xs ys' [] = fn xs ys' (repeat 0)
+           fn (x:xs) ys' (0:ps) = x :
                 case (x,ys') of
                  (_,Nothing:_)          -> error "toHandShake: bad protocol state (1)"
-                 (Just _,Just (Ack True) :rs) -> fn xs rs      -- has been written
-                 (Just _,Just (Ack False):rs) -> fn (x:xs) rs   -- not written yet
-                 (Nothing,Just _:rs)    -> fn xs rs     	-- nothing to write
+                 (Just _,Just (Ack True) :rs) -> fn xs rs ps          -- has been written
+                 (Just _,Just (Ack False):rs) -> fn (x:xs) rs (0:ps)  -- not written yet
+                 (Nothing,Just _:rs)    -> fn xs rs ps    	      -- nothing to write (choose to use pause, though)
                  (_,[])                 -> error "toHandShake: can't handle empty list of values to receive"
-           fn [] ys' = fn (Prelude.repeat Nothing) ys'
+           fn (x:xs) rs (p:ps) = Nothing : 
+		case x of
+				-- Allow extra Nothings to be consumed in the gaps
+		   Nothing -> fn xs (Prelude.tail rs) (pred p:ps)
+		   Just {} -> fn (x:xs) (Prelude.tail rs) (pred p:ps)
+           fn [] ys' ps = fn (Prelude.repeat Nothing) ys' ps
 
 
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
@@ -77,17 +106,24 @@ toHandShake ys ack = toSeq (fn ys (fromSeq ack))
 fromHandShake :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
                => sig (Enabled a)       -- ^ fifo output sequence
                -> (sig Ack, [Maybe a]) -- ^ ack flag sent back to FIFO and shallow list of values
-fromHandShake inp = (toSeq (map fst internal), map snd internal)
+fromHandShake = fromHandShake' []
+
+fromHandShake' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+               => [Int]
+	       -> sig (Enabled a)       -- ^ fifo output sequence
+               -> (sig Ack, [Maybe a]) -- ^ ack flag sent back to FIFO and shallow list of values
+fromHandShake' pauses inp = (toSeq (map fst internal), map snd internal)
    where
-        internal = fn (fromSeq inp)
+        internal = fn (fromSeq inp) pauses
 
 	-- pretty simple API
-	fn :: [Maybe (Enabled a)] -> [(Ack,Maybe a)]
-        fn (Nothing:_)         = error "found an unknown value in HandShake input"
-        fn (Just Nothing:xs)   = (Ack False,Nothing) : fn xs
-	fn ((Just v):xs)       = (Ack True,v)        : fn xs
-	fn []                  = error "fromHandShake: ack sequences should never end"
-
+	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ack,Maybe a)]
+	fn xs                 []     = fn xs (repeat 0)
+        fn (Nothing:_)        _      = error "found an unknown value in HandShake input"
+        fn (Just Nothing:xs)  ps     = (Ack False,Nothing) : fn xs ps
+	fn (Just (Just v):xs) (0:ps) = (Ack True,Just v)   : fn xs ps
+	fn (_:xs)             (p:ps) = (Ack False,Nothing) : fn xs (pred p:ps)
+	fn []                 _      = error "fromHandShake: ack sequences should never end"
 
 ---------------------------------------------------------------------------
 
@@ -98,42 +134,26 @@ test1 xs = res
 	hs :: CSeq () (Enabled Int)
 	hs = toHandShake xs ack
 
-	(hs', ack) = shallowHandShakeBridge (mkStdGen 1000) (const 1.5,const 1.5) (hs,ack')
+	(ack, hs') = shallowHandShakeBridge (lhs_rs,rhs_rs) (hs,ack')
+
+        (lhs_r,rhs_r) = split (mkStdGen 0)
+
+        lhs_rs = [ floor (c * 10) | c <- randoms lhs_r :: [Float] ]
+        rhs_rs = [ floor (c * 10) | c <- randoms rhs_r :: [Float] ]
 
 	(ack',res) = fromHandShake hs'
--- -}
+-}
 
 -- introduce protocol-compliant delays (in the shallow embedding)
 
 shallowHandShakeBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
-                       => StdGen
-                       -> (Integer -> Float,Integer -> Float)
+                       => ([Int],[Int])
                        -> (sig (Enabled a),sig Ack) 
-                       -> (sig (Enabled a),sig Ack)
-shallowHandShakeBridge stdGen (lhsF,rhsF) (inp,back)
-        = unpack (toSeq $ fn lhs_rs rhs_rs (fromSeq inp) (fromSeq back) [])
+                       -> (sig Ack, sig (Enabled a))
+shallowHandShakeBridge (lhsF,rhsF) (inp,back) = (ack,res)
    where
-        (lhs_r,rhs_r) = split stdGen
-
-        lhs_rs = [ c < lhsF t | (c,t) <- zip (randoms lhs_r) [0..] ] 
-        rhs_rs = [ c < rhsF t | (c,t) <- zip (randoms rhs_r) [0..] ] 
-
-        fn :: [Bool] -> [Bool] -> [Maybe (Enabled a)] -> [Maybe Ack] -> [a] -> [(Enabled a,Ack)]
---        fn _ _ (x:_) _ store | trace (show ("fn",x,store)) False = undefined
-        fn (True:lhss) rhss (Just (Just a):as) bs store = fn2 lhss rhss as bs (store ++ [a]) (Ack True)
-        fn (_:lhss)    rhss (Just _:as)        bs store = fn2 lhss rhss as bs (store)        (Ack False)
-        fn _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn)"
-
---        fn2 _ _ _ _ store bk | trace (show ("fn2",store,bk)) False = undefined
-        fn2 lhss (True:rhss) as bs (s:ss) bk = (Just s,bk) :
-                                                 case bs of
-                                                   (Just (Ack True) : bs')  -> fn lhss rhss as bs' ss
-                                                   (Just (Ack False) : bs') -> fn lhss rhss as bs' (s:ss)
-                                                   _ -> error "failure in shallowHandShakenBridge (fn2/case)"
-
-        fn2 lhss (_:rhss)    as bs store bk  = (Nothing,bk)   : fn lhss rhss as (Prelude.tail bs) store
-        fn2 _ _ _ _ _ _ = error "failure in shallowHandShakenBridge (fn2)"
-
+	(ack,xs)  = fromHandShake' lhsF inp
+	res       = toHandShake' rhsF xs back
 
 ----------------------------------------------------------------------------------------------------
 -- These are functions that are used to thread together Hand shaking and FIFO.
