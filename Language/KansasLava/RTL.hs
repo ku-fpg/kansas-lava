@@ -109,8 +109,10 @@ unRTL (CASE alts) = \ c u -> do
 	let assignments = L.nub $ concat [ xs | (_,xs) <- res ]
 --	() <- trace (show res) $ return ()
 	return ((),assignments)
-unRTL (DEBUG msg (Reg _ _ _ debugSt _)) = \ c u -> do
+unRTL (DEBUG msg (Reg _ _ _ debugSt _)) = \ _c _u -> do
 	writeSTRef debugSt (Just msg)
+	return ((),[])
+unRTL (DEBUG _msg _) = \ _c _u -> do
 	return ((),[])
 unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
