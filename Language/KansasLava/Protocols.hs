@@ -4,9 +4,8 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Memory,
 	module Language.KansasLava.Protocols.HandShake,
 	module Language.KansasLava.Protocols.MailBox,
-	handShakeMailBox,
+	bridge,
 	shallowFIFO,
-	connect
 	) where
 
 import Language.KansasLava.Protocols.Enabled
@@ -22,19 +21,20 @@ import Language.KansasLava.Seq
 
 ---------------------------------------------------------------------------
 
--- | A way of connecting a HandShake to a MailBox.
--- This is efficent; a single 'and' gate.
+-- | A 'bridge' is way of connecting a HandShake to a MailBox.
+-- This is efficent; internally an 'and' and  a 'not' gate.
 
-handShakeMailBox :: (Rep a, Clock c, sig ~ CSeq c)
+bridge :: (Rep a, Clock c, sig ~ CSeq c)
 	=> (sig (Enabled a),sig Full) 
         -> (sig Ack, sig (Enabled a))
-handShakeMailBox (inp,full) = (toAck ack,out)
+bridge (inp,full) = (toAck ack,out)
    where
 	ack = isEnabled inp `and2` bitNot (fromFull full)
 	out = packEnabled ack (enabledVal inp)
 
 -- | A (shallow only) infinite FIFO, for connecting
 -- MailBox's on the left to HandShake's on the right.
+-- If you need a synthesizable FIFO, you can find one in the kansas-lava-cores package.
 
 shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
 	=> (sig (Enabled a),sig Ack) 
@@ -42,21 +42,4 @@ shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
 shallowFIFO (inp,ack) = (full,toHandShake (Nothing:vals) ack)
    where
 	(full,vals) = fromMailBox inp 
-
-
-connect
-  :: (	   (t, t1) 
-	-> (t4, t2)
-     )
-  -> (	    (t2, t3) 
-	-> (t1, t5)
-     )
-  -> (     (t, t3) 
-  	-> (t4, t5)
-     )
-connect lhs rhs (a,f) = (d,c)
-  where
-	(d,b) = lhs (a,e)
-	(e,c) = rhs (b,f)
-	
 

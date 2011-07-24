@@ -32,14 +32,14 @@ tests test = do
 			count = 100
 
 {-
-	let handShakeMailBox' :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
+	let bridge' :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
 		      	=> (Seq (Enabled w), Seq Full) -> (Seq Ack, Seq (Enabled w))
-	    handShakeMailBox' =  handShakeMailBox `connect` shallowFIFO `connect` handShakeMailBox
+	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
-	testStream test "U5"   (fifoTest "handShakeMailBox" handShakeMailBox) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "handShakeMailBox" handShakeMailBox) (arbitrary :: Gen (Maybe Bool))
---	testStream test "U5"   (fifoTest "shallow/handShakeMailBox2" handShakeMailBox') (arbitrary :: Gen (Maybe U5))
---	testStream test "Bool" (fifoTest  "shallow/handShakeMailBox2" handShakeMailBox') (arbitrary :: Gen (Maybe Bool))
+	testStream test "U5"   (fifoTest "bridge" bridge) (arbitrary :: Gen (Maybe U5))
+	testStream test "Bool" (fifoTest "bridge" bridge) (arbitrary :: Gen (Maybe Bool))
+--	testStream test "U5"   (fifoTest "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe U5))
+--	testStream test "Bool" (fifoTest  "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe Bool))
 
 	return ()
