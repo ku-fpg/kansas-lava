@@ -9,7 +9,7 @@ simulate:
 	$(DIR)/runsims
 
 report:
-	../dist/build/kansas-lava-testreport/kansas-lava-testreport $(DIR)
+	$(RUN) ../dist/build/kansas-lava-testreport/kansas-lava-testreport $(DIR)
 
 clean:
 	mv sims sims.X
