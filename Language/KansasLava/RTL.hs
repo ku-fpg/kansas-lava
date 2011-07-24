@@ -9,6 +9,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
+import Language.KansasLava.Probes
 import Data.Sized.Matrix
 import Control.Monad.ST
 import Data.STRef
@@ -21,6 +22,7 @@ import Data.List as L
 data Reg s c a  = Reg (CSeq c a) 		-- output of register
 		      (CSeq c a)		-- input to register
 		      (STRef s [CSeq c a -> CSeq c a])
+		      (STRef s (Maybe String))	-- name for debug message
 		      Int
 	      | forall ix . (Rep ix) =>
 		  Arr (CSeq c a)
@@ -31,14 +33,14 @@ data Reg s c a  = Reg (CSeq c a) 		-- output of register
 
 -- | reg is the value of a register, as set by the start of the cycle.
 reg :: Reg s c a -> CSeq c a
-reg (Reg iseq _ _ _) = iseq
+reg (Reg iseq _ _ _ _) = iseq
 reg (Arr iseq _ _ _) = iseq
 
 -- | var is the value of a register, as will be set in the next cycle,
 -- so intra-cycle changes are observed. The is simular to a *variable*
 -- in VHDL.
 var :: Reg s c a -> CSeq c a
-var (Reg _ iseq _ _) = iseq
+var (Reg _ iseq _ _ _) = iseq
 var (Arr _ _ _ _) = error "can not take the var of an array"
 
 -------------------------------------------------------------------------------
@@ -57,11 +59,14 @@ muxPred (Pred (Just p)) (t,f) = mux2 p (t,f)
 
 -------------------------------------------------------------------------------
 
+-- | RTL Monad; s == the runST state; c is governing clock, and a is the result
+
 data RTL s c a where
 	RTL :: (Pred c -> STRef s Int -> ST s (a,[Int])) -> RTL s c a
 	(:=) :: forall c b s . (Rep b) => Reg s c b -> CSeq c b -> RTL s c ()
 	CASE :: [Cond s c] -> RTL s c ()
 	WHEN :: CSeq c Bool -> RTL s c () -> RTL s c ()
+	DEBUG :: forall c b s . (Rep b) => String -> Reg s c b -> RTL s c ()
 
 -- everything except ($) bids tighter
 infixr 0 :=
@@ -81,7 +86,7 @@ runRTL rtl = runST (do
 -- This is where our fixed (constant) names get handled.
 unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
-unRTL ((Reg _ _ varSt uq) := ss) = \ c _u -> do
+unRTL ((Reg _ _ varSt _ uq) := ss) = \ c _u -> do
 	modifySTRef varSt ((:) (\ r -> muxPred c (ss,r)))
 	return ((), [uq])
 unRTL ((Arr _ ix varSt uq) := ss) = \ c _u -> do
@@ -104,6 +109,9 @@ unRTL (CASE alts) = \ c u -> do
 	let assignments = L.nub $ concat [ xs | (_,xs) <- res ]
 --	() <- trace (show res) $ return ()
 	return ((),assignments)
+unRTL (DEBUG msg (Reg _ _ _ debugSt _)) = \ c u -> do
+	writeSTRef debugSt (Just msg)
+	return ((),[])
 unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
 -------------------------------------------------------------------------------
@@ -123,13 +131,17 @@ newReg def = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
 	varSt <- newSTRef []
+	debugSt <- newSTRef Nothing
 	~(regRes,variable) <- unsafeInterleaveST $ do
 		assigns <- readSTRef varSt
+		debugs <- readSTRef debugSt
 		let v_old = register def v_new
 		    v_new = foldr (.) id (reverse assigns) v_old
---		    v_new' = debugWith debugs v_new'
-		return $ (v_old,v_new)
-	return (Reg regRes variable varSt uq,[])
+	    	    v_old' = case debugs of
+			       Nothing -> v_old
+			       Just msg -> probe msg v_old
+		return $ (v_old',v_new)
+	return (Reg regRes variable varSt debugSt uq,[])
 
 -- Arrays support partual updates.
 newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (CSeq c ix -> Reg s c a)
@@ -155,3 +167,6 @@ newArr Witness = RTL $ \ _ u -> do
 match :: (Rep a) => CSeq c (Enabled a) -> (CSeq c a -> RTL s c ()) -> Cond s c
 match inp fn = IF (isEnabled inp) (fn (enabledVal inp))
 -- To consider: This is almost a bind operator?
+
+
+-- debug :: (Rep a,Clock c) => String -> Reg s c a -> RTL 
