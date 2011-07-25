@@ -4,6 +4,8 @@ module Language.KansasLava.Protocols.MailBox where
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
+import Language.KansasLava.Stream (Stream(..))
+import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
@@ -247,4 +249,46 @@ liftMailBox seq' (Seq s_Full d_Full) = enabledS res
                                  (XFullRep _               `Cons` _) -> Stream.repeat unknownX 
 
 -}
+
+liftMailBox0 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
+              => (forall c' . (Clock c') => CSeq c' a)
+              -> sig Ready
+              -> sig (Enabled a)
+liftMailBox0 seq' (Seq s_Ready d_Ready) = res
+   where
+        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick, we can use *any* clock
+
+	ty = bitTypeOf (undefined :: Seq a)
+
+	e = Entity (External "flux")
+                   [("o_en",B)
+                   ,("o_val",ty)
+		   ,("o_clk_en",B)
+		   ]
+                   [("i0",ty, unD d_seq)
+                   ,("ready",B, unD d_Ready)
+                   ]
+
+	res :: sig (Enabled a)
+        res = Seq (fn0 s_seq s_Ready) 
+                  (D $ Port "o0" $ E $
+			Entity (Prim "pair") 
+				[("o0",bitTypeOf res)]
+				[("i0",B,Port "o_en" $ E $ e)
+				,("i1",ty,Port "o_val" $ E $ e)
+				]
+                  )                
+
+	-- ignore the first ready.
+        fn0 ss (XReadyRep _ `Cons` readys) = 
+		XMaybe (pureX False, unknownX) `Cons` fn ss readys
+
+        fn ss (XReadyRep (XBool (WireVal True)) `Cons` readys) 
+		= case ss of
+		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` fn ss' readys
+        fn ss (XReadyRep (XBool (WireVal False)) `Cons` readys) 
+		= XMaybe (pureX False, unknownX) `Cons` fn ss readys
+        fn _ (XReadyRep _ `Cons` _) = Stream.repeat unknownX
+
+
 

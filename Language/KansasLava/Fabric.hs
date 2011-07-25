@@ -236,14 +236,13 @@ reifyFabric (Fabric circuit) = do
                      , Set.fromList [ u | (_,_,Port _ u) <- theSinks rCit ]
                      ) ]
 
-
         let theCircuitFM = Map.fromList (theCircuit rCit)
 
         let follow :: EntityClock -> Unique -> [(EntityClock, Driver Unique)]
             follow clk u = case Map.lookup u theCircuitFM of
                         Nothing -> []
-                        Just (Entity (Prim "retime") _outs [("i0",_,i0), ("pulse",_,p)]) -> 
-                                        [ (EntityClock p,i0)
+                        Just (Entity (External "flux") _outs [("i0",_,i0), ("ready",_,p)]) -> 
+                                        [ (EntityClock $ Port "o_clk_en" u,i0)
                                         , (clk,p)
                                         ]
                         Just (Entity _nm _outs ins) -> [ (clk,dr) | (_,_,dr) <- ins ]
@@ -308,6 +307,8 @@ reifyFabric (Fabric circuit) = do
                                | (clk,uqs) <- clocks
                                , uq <- Set.toList uqs
                                ]
+
+--	print uqToClk
 
         return $ rCit { theCircuit =
                                 [  (u,case e of
