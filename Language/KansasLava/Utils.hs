@@ -135,6 +135,20 @@ instance (Eq a, Show a, Fractional a, Rep a) => Fractional (CSeq c a) where
     recip = liftS1 recip
     fromRational = liftS0 . fromRational
 
+instance (Rep a, Enum a) => Enum (Comb a) where
+	toEnum   = error "toEnum not supported for Comb"
+	fromEnum = error "fromEnum not supported for Comb"
+	
+instance (Rep a, Real a) => Real (Comb a) where
+	toRational = error "toRational not supported for Comb"
+
+instance (Rep a, Integral a) => Integral (Comb a) where
+	div num dom = fun2 "div" quot num dom
+	mod num dom = fun2 "mod" mod num dom
+
+	quotRem = error "quotRem not supported for Comb"
+	toInteger = error "toInteger not supported for Comb"
+
 -----------------------------------------------------------------------------------------------
 -- Matrix ops
 
