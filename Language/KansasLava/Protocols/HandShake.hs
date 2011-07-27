@@ -6,6 +6,7 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
+import Language.KansasLava.Utils
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
@@ -95,6 +96,21 @@ fromHandShake' pauses inp = (toSeq (map fst internal), map snd internal)
 	fn (Just (Just v):xs) (0:ps) = (Ack True,Just v)   : fn xs ps
 	fn (_:xs)             (p:ps) = (Ack False,Nothing) : fn xs (pred p:ps)
 	fn []                 _      = error "fromHandShake: ack sequences should never end"
+
+---------------------------------------------------------------------------
+-- 'enableToHandShake' turns an Enabled signal into a (1-sided) Patch.
+
+enableToHandShake :: (Rep a, Clock c, sig ~ CSeq c)
+		  => sig (Enabled a)
+		  -> Patch ()    (sig (Enabled a))
+		           () () (sig Ack)
+
+enableToHandShake inp ~(_,ack) = ((),(),res)
+	where
+		res = register Nothing 
+		    $ cASE [ (isEnabled inp,inp)
+			   , (fromAck ack, disabledS)
+			   ] res
 
 ---------------------------------------------------------------------------
 
