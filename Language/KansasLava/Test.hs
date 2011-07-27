@@ -663,9 +663,8 @@ matchExpected out_name ref = do
 ----------------------------------------------------------------------------
 
 data StreamTest w1 w2 = StreamTest
-            { theStream            :: Patch (Seq (Enabled w1))
-					    (Seq Ack)  ()	(Seq (Enabled w2))
-								(Seq Ready)
+            { theStream            :: Patch (Seq (Enabled w1))		(Seq (Enabled w2))
+					    (Seq Ack)  		()	(Seq Ready)
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
 	    , theStreamTestCount   :: Int
 	    , theStreamTestCycles  :: Int

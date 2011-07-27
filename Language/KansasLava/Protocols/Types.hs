@@ -71,7 +71,8 @@ data a :> b = a :> b
 
 -------------------------------------------------------------------------
 
-type Patch lhs_in 			-- the lhs input
-	   lhs_out bot_out rhs_out 	-- the outputs, from l to r
-			   rhs_in	-- the rhs input
+-- Numonic for the Patch.
+
+type Patch lhs_in 	   rhs_out	
+	   lhs_out bot_out rhs_in 	
 	= (lhs_in,rhs_in) -> (lhs_out,bot_out,rhs_out)
