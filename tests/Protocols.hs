@@ -14,9 +14,9 @@ tests test = do
 
         let fifoTest :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
 		      => String
-		      -> ((Seq (Enabled w), Seq Ready) -> (Seq Ack, Seq (Enabled w))) -> StreamTest w w
+		      -> ((Seq (Enabled w), Seq Ready) -> (Seq Ack, (), Seq (Enabled w))) -> StreamTest w w
             fifoTest n f = StreamTest
-                        { theStream = f :: (Seq (Enabled w), Seq Ready) -> (Seq Ack, Seq (Enabled w))
+                        { theStream = f :: (Seq (Enabled w), Seq Ready) -> (Seq Ack, (), Seq (Enabled w))
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
                                 case () of
                                   () | outs /= take (length outs) ins -> return "in/out differences"
