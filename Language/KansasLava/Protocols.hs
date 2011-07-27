@@ -4,6 +4,7 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Memory,
 	module Language.KansasLava.Protocols.HandShake,
 	module Language.KansasLava.Protocols.MailBox,
+	module Language.KansasLava.Protocols.Types,
 	bridge,
 	shallowFIFO,
 	) where
@@ -12,12 +13,12 @@ import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Protocols.HandShake
 import Language.KansasLava.Protocols.MailBox
+import Language.KansasLava.Protocols.Types
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
-
 
 ---------------------------------------------------------------------------
 
@@ -42,4 +43,6 @@ shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
 shallowFIFO (inp,ack) = (full,toHandShake (Nothing:vals) ack)
    where
 	(full,vals) = fromMailBox inp 
+
+
 

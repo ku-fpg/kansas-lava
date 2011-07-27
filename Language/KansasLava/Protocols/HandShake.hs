@@ -3,10 +3,9 @@ module Language.KansasLava.Protocols.HandShake where
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Signal
 import Language.KansasLava.Types
-import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Protocols.Types
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
@@ -34,34 +33,6 @@ OR
  -> (lhs_out, control_out, rhs_out)
 
 -}
-
-------------------------------------------------------------------------------------
--- An Ack is always in response to an incoming packet or message
-newtype Ack = Ack { unAck :: Bool }
-	deriving (Eq,Ord)
-	
-instance Show Ack where
-	show (Ack True)  = "A"
-	show (Ack False) = "~"
-	
-	
-
-instance Rep Ack where
-  data X Ack = XAckRep { unXAckRep :: (X Bool) }
-  type W Ack = W Bool
-  -- The template for using representations
-  unX             = liftM Ack   . unX  . unXAckRep
-  optX            = XAckRep     . optX . liftM unAck 
-  toRep           = toRep       . unXAckRep
-  fromRep         = XAckRep     . fromRep
-  repType Witness = repType (Witness :: Witness Bool)
-  showRep         = showRepDefault
-
-toAck :: (Signal sig) => sig Bool -> sig Ack
-toAck = coerce Ack
-
-fromAck :: (Signal sig) => sig Ack -> sig Bool
-fromAck = coerce unAck
 
 
 -- | Take a list of shallow values and create a stream which can be sent into

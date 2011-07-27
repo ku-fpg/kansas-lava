@@ -7,8 +7,8 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Stream (Stream(..))
 import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
-import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Protocols.Types
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
@@ -36,33 +36,6 @@ OR
  -> (lhs_out, control_out, rhs_out)
 
 -}
-
-------------------------------------------------------------------------------------
--- An Ready is always in response to an incoming packet or message
-newtype Ready = Ready { unReady :: Bool }
-	deriving (Eq,Ord)
-	
-instance Show Ready where
-	show (Ready True)  = "R"
-	show (Ready False) = "~"
-	
-
-instance Rep Ready where
-  data X Ready = XReadyRep { unXReadyRep :: (X Bool) }
-  type W Ready = W Bool
-  -- The template for using representations
-  unX             = liftM Ready   . unX  . unXReadyRep
-  optX            = XReadyRep     . optX . liftM unReady 
-  toRep           = toRep        . unXReadyRep
-  fromRep         = XReadyRep     . fromRep
-  repType Witness = repType (Witness :: Witness Bool)
-  showRep         = showRepDefault
-
-toReady :: (Signal sig) => sig Bool -> sig Ready
-toReady = coerce Ready
-
-fromReady :: (Signal sig) => sig Ready -> sig Bool
-fromReady = coerce unReady
 
 
 -- | Take a list of shallow values and create a stream which can be sent into

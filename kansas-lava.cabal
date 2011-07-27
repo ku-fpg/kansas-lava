@@ -58,6 +58,8 @@ Library
        Language.KansasLava.Protocols.Memory
        Language.KansasLava.Protocols.HandShake
        Language.KansasLava.Protocols.MailBox
+       Language.KansasLava.Protocols.Types
+
        
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
