@@ -18,7 +18,6 @@ import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Protocols.HandShake
 import Language.KansasLava.Protocols.MailBox
-import Language.KansasLava.Signal
 import Language.KansasLava.Protocols.Types
 
 import Language.KansasLava.Rep
@@ -61,11 +60,10 @@ shallowFIFO (inp,ack) = (full,(),toHandShake (Nothing:vals) ack)
 ------------------------------------------------------------------------
 
 infixr 5 `bus`
-bus :: (Signal sig) 
-      => Patch li1 		o 
-	       lo1  	s1	(sig i) 
+bus ::   Patch li1 		o
+	       lo1  	s1	i
       -> Patch o 		ro2
-	       (sig i) 	s2  	ri2 
+	       i 	s2  	ri2 
       -> Patch li1 			ro2	
 	       lo1 (s1 :>        s2) 	ri2
 (p1 `bus` p2) inp = (lhs_out1,(bot_out1 :> bot_out2),rhs_out2)
