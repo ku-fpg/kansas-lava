@@ -711,9 +711,9 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 ack <- inStdLogic "ack" :: Fabric (Seq Ack)
 
                 let vals' :: Seq (Enabled w)
-                    vals' = toHandShake (vals ++ Prelude.repeat Nothing) ack'
+                    vals' = toAckBox (vals ++ Prelude.repeat Nothing) ack'
 
-                    (ack', vals2) = shallowHandShakeBridge (a,b) (vals',ack)
+                    (ack', vals2) = shallowAckBoxBridge (a,b) (vals',ack)
 
                 -- sent to DUT
                 outStdLogicVector "vals"        (enabledVal vals2)
@@ -728,9 +728,9 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 let flag :: Seq Ready 
                     opt_as :: [Maybe w]
 
-                    (flag, res') = shallowMailBoxBridge (c,d) (packEnabled res_en res,flag')
+                    (flag, res') = shallowReadyBoxBridge (c,d) (packEnabled res_en res,flag')
 
-                    (flag', opt_as) = fromMailBox res'
+                    (flag', opt_as) = fromReadyBox res'
 
                 outStdLogic "flag" flag
 

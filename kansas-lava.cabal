@@ -56,8 +56,8 @@ Library
        Language.KansasLava.Netlist.Utils
        Language.KansasLava.Protocols.Enabled
        Language.KansasLava.Protocols.Memory
-       Language.KansasLava.Protocols.HandShake
-       Language.KansasLava.Protocols.MailBox
+       Language.KansasLava.Protocols.AckBox
+       Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
 
        
