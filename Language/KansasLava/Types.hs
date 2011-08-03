@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs, TypeOperators #-}
 
 -- | This module contains the key internal types for Kansas Lava,
 -- and some basic utilities (like Show instances) for these types.
@@ -48,6 +48,8 @@ module Language.KansasLava.Types (
         , O
         -- *Dual shallow/deep
         , Dual(..)
+	-- *Our version of tuples
+	, (:>)(..)
         ) where
 
 import Control.Applicative
@@ -628,3 +630,13 @@ instance (Dual a, Dual b,Dual c) => Dual (a,b,c) where
 
 instance (Dual b) => Dual (a -> b) where
 	dual f1 f2 x = dual (f1 x) (f2 x)
+
+
+----------------------------------------------------------------------------
+-- Our version of tuples, with a right leaning (aka lists).
+
+
+infixr 5 :>
+
+data a :> b = a :> b deriving (Eq, Ord, Show, Read)
+

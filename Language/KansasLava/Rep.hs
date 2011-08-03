@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances, TypeOperators  #-}
 
 module Language.KansasLava.Rep where
 
@@ -201,6 +201,30 @@ instance Rep Integer where
 
 -------------------------------------------------------------------------------------
 -- Now the containers
+
+-- TODO: fix this to use :> as the basic internal type.
+
+instance (Rep a, Rep b) => Rep (a :> b) where
+    type W (a :> b)  = ADD (W a) (W b)
+    data X (a :> b)     = XCell (X a, X b)
+    optX (Just (a :> b))   = XCell (pureX a, pureX b)
+    optX Nothing        = XCell (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
+    unX (XCell (a,b)) = do x <- unX a
+                           y <- unX b
+                           return (x :> y)
+--  wireName _ = "Cell_2"
+
+    repType Witness = TupleTy [repType (Witness :: Witness a), repType (Witness :: Witness b)]
+
+    toRep (XCell (a,b)) = RepValue (avals ++ bvals)
+        where (RepValue avals) = toRep a
+              (RepValue bvals) = toRep b
+    fromRep (RepValue vs) = XCell ( fromRep (RepValue (take size_a vs))
+                  , fromRep (RepValue (drop size_a vs))
+                  )
+        where size_a = typeWidth (repType (Witness :: Witness a))
+    showRep (XCell (a,b)) = showRep a ++ " :> " ++ showRep b 
+
 
 instance (Rep a, Rep b) => Rep (a,b) where
     type W (a,b)  = ADD (W a) (W b)
