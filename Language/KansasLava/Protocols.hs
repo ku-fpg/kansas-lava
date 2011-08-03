@@ -11,7 +11,8 @@ module Language.KansasLava.Protocols (
 	bus,
 	(>==>),
 	(>~~>),
-	(>~=>)
+	(>~=>),
+	beat
 	) where
 
 import Language.KansasLava.Protocols.Enabled
@@ -24,6 +25,10 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
+import Language.KansasLava.Signal
+
+--import Language.KansasLava.Stream (Stream(..))
+--import qualified Language.KansasLava.Stream as Stream
 
 ---------------------------------------------------------------------------
 
@@ -108,10 +113,74 @@ p1 >~=> p2 = mapPatch (\ (a :> () :> b) -> (a :> b)) patch
 
 --------------------------------------------------------------------------------
 
-
 mapPatch :: (a -> b) -> Patch lhs_in rhs_out lhs_out a rhs_in
  		     -> Patch lhs_in rhs_out lhs_out b rhs_in
 mapPatch f p inp = let (lhs_out,bot_out,rhs_out) = p inp
 		   in (lhs_out,f bot_out,rhs_out)
 
+--------------------------------------------------
+{-
+- an idea
+packPatch :: (Clock c, sig ~ CSeq c, Rep in1, Rep in2)
+	Patch (sig in1 :> sig in2)			(sig (in1 :> in2))
+	      (sig Ready :> sig Ready)		()	(sig Ack)
+-}
 
+--------------------------------------------------
+
+beat :: (Clock c, sig ~ CSeq c) => 
+	Patch ()		(sig (Enabled ()))
+	      ()	()	(sig Ack)
+beat ~(_,_) = ((),(),enabledS (pureS ()))
+
+{-
+liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
+              => (forall c' . (Clock c', sig' ~ CSeq c') => sig' a -> sig' (Enabled b))
+	      -> Patch (sig (Enabled a))		(sig (Enabled b))
+		       (sig (Ready))		()	(sig (Ack))
+liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
+  where
+	-- input
+	(en_
+
+	Seq s_seq _ = fn 
+
+ (Seq s_Ready d_Ready) = res
+   where
+        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick, we can use *any* clock
+
+	ty = bitTypeOf (undefined :: Seq a)
+
+	e = Entity (External "flux")
+                   [("o_en",B)
+                   ,("o_val",ty)
+		   ,("o_clk_en",B)
+		   ]
+                   [("i0",ty, unD d_seq)
+                   ,("ready",B, unD d_Ready)
+                   ]
+
+	res :: sig (Enabled a)
+        res = Seq (fn0 s_seq s_Ready) 
+                  (D $ Port "o0" $ E $
+			Entity (Prim "pair") 
+				[("o0",bitTypeOf res)]
+				[("i0",B,Port "o_en" $ E $ e)
+				,("i1",ty,Port "o_val" $ E $ e)
+				]
+                  )                
+
+	-- ignore the first ready.
+        fn0 ss (XReadyRep _ `Cons` readys) = 
+		XMaybe (pureX False, unknownX) `Cons` fn ss readys
+
+        fn ss (XReadyRep (XBool (WireVal True)) `Cons` readys) 
+		= case ss of
+		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` fn ss' readys
+        fn ss (XReadyRep (XBool (WireVal False)) `Cons` readys) 
+		= XMaybe (pureX False, unknownX) `Cons` fn ss readys
+        fn _ (XReadyRep _ `Cons` _) = Stream.repeat unknownX
+
+
+
+-}
