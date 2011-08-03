@@ -58,7 +58,7 @@ use std.textio.all;
 library work;
 
 -- A 'src' generator is a Master or Writer, the consumer is a Slave or Reader.
-entity lava_src_tube is
+entity lava_src_pipe is
   generic (
     src_file_name : string
   ); 
