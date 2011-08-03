@@ -131,7 +131,7 @@ readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Re
 readMemory mem addr = unpack mem addr
 -}
 
--- This is an alias
+-- This is an alias (TODO: remove)
 readMemory :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
