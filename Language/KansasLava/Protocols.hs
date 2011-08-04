@@ -12,8 +12,10 @@ module Language.KansasLava.Protocols (
 	(>==>),
 	(>~~>),
 	(>~=>),
-	beat,
-	mapStatus
+	beat
+	, mapStatus
+	, stack
+	
 	) where
 
 import Language.KansasLava.Protocols.Enabled
@@ -120,6 +122,22 @@ mapStatus f p inp = let (lhs_out,bot_out,rhs_out) = p inp
 		    in (lhs_out,f bot_out,rhs_out)
 
 --------------------------------------------------
+
+stack :: Patch li1		ro1
+               lo1    s1	ri1
+      -> Patch li2		ro2
+               lo2    s2	ri2
+      -> Patch (li1 :> li2)			(ro1 :> ro2)
+               (lo1 :> lo2)    (s1 :> s2)	(ri1 :> ri2)
+stack p1 p2 inp = (lo1 :> lo2,s1 :> s2,ro1 :> ro2)
+   where
+	(li1 :> li2,ri1 :> ri2)	     = inp
+	(lo1,s1,ro1)		     = p1 (li1,ri1)
+	(lo2,s2,ro2)		     = p2 (li2,ri2)
+	
+--------------------------------------------------
+
+
 {-
 - an idea
 packPatch :: (Clock c, sig ~ CSeq c, Rep in1, Rep in2)
