@@ -12,7 +12,8 @@ module Language.KansasLava.Protocols (
 	(>==>),
 	(>~~>),
 	(>~=>),
-	beat
+	beat,
+	mapStatus
 	) where
 
 import Language.KansasLava.Protocols.Enabled
@@ -108,15 +109,15 @@ infixr 5 >~=>
 	       (sig Ready) s2  	ri2 
       -> Patch li1 			ro2	
 	       lo1 (s1 :>        s2) 	ri2
-p1 >~=> p2 = mapPatch (\ (a :> () :> b) -> (a :> b)) patch 
+p1 >~=> p2 = mapStatus (\ (a :> () :> b) -> (a :> b)) patch 
    where patch = p1 `bus` bridge `bus` p2
 
 --------------------------------------------------------------------------------
 
-mapPatch :: (a -> b) -> Patch lhs_in rhs_out lhs_out a rhs_in
+mapStatus :: (a -> b) -> Patch lhs_in rhs_out lhs_out a rhs_in
  		     -> Patch lhs_in rhs_out lhs_out b rhs_in
-mapPatch f p inp = let (lhs_out,bot_out,rhs_out) = p inp
-		   in (lhs_out,f bot_out,rhs_out)
+mapStatus f p inp = let (lhs_out,bot_out,rhs_out) = p inp
+		    in (lhs_out,f bot_out,rhs_out)
 
 --------------------------------------------------
 {-
