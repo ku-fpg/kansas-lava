@@ -6,6 +6,8 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.ReadyBox,
 	module Language.KansasLava.Protocols.Types,
 	nullPatch,
+	forwardPatch,
+	backwardPatch,
 	bridge,
 	shallowFIFO,
 	bus,
@@ -14,6 +16,7 @@ module Language.KansasLava.Protocols (
 	(>~=>),
 	beat
 	, mapStatus
+	, noStatus
 	, stack
 	
 	) where
@@ -44,6 +47,23 @@ import Language.KansasLava.Signal
 nullPatch :: Patch a 	a
 		   b () b
 nullPatch ~(a,b) = (b,(),a)
+
+simplePatch :: (li -> ro,ri -> lo) 
+	    -> Patch li    ro
+	             lo () ri
+simplePatch (f1,f2) ~(li,ri) = (f2 ri,(),f1 li)
+
+
+forwardPatch :: (li -> ro)
+	    -> Patch li    ro
+	             b  () b
+forwardPatch f1 ~(li,ri) = (ri,(),f1 li)
+
+backwardPatch :: (ri -> lo) 
+	    -> Patch a     a
+	             lo () ri
+backwardPatch f2 ~(li,ri) = (f2 ri,(),li)
+
 
 
 bridge :: (Rep a, Clock c, sig ~ CSeq c)
@@ -120,6 +140,10 @@ mapStatus :: (a -> b) -> Patch lhs_in rhs_out lhs_out a rhs_in
  		     -> Patch lhs_in rhs_out lhs_out b rhs_in
 mapStatus f p inp = let (lhs_out,bot_out,rhs_out) = p inp
 		    in (lhs_out,f bot_out,rhs_out)
+
+noStatus :: Patch lhs_in rhs_out lhs_out a  rhs_in
+         -> Patch lhs_in rhs_out lhs_out () rhs_in
+noStatus = mapStatus (const ())
 
 --------------------------------------------------
 
