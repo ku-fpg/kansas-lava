@@ -48,12 +48,6 @@ nullPatch :: Patch a 	a
 		   b () b
 nullPatch ~(a,b) = (b,(),a)
 
-simplePatch :: (li -> ro,ri -> lo) 
-	    -> Patch li    ro
-	             lo () ri
-simplePatch (f1,f2) ~(li,ri) = (f2 ri,(),f1 li)
-
-
 forwardPatch :: (li -> ro)
 	    -> Patch li    ro
 	             b  () b
