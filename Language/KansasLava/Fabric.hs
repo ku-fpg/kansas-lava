@@ -231,39 +231,44 @@ reifyFabric (Fabric circuit) = do
 
         -- find the clock domains
         
-        let start :: [(EntityClock,Set Unique)]
+        let start :: [(EntityClock,Set (Driver Unique))]
             start = [( EntityClock $ Pad $ OVar 0 "clk_en"
-                     , Set.fromList [ u | (_,_,Port _ u) <- theSinks rCit ]
+                     , Set.fromList [ p | (_,_,p) <- theSinks rCit ]
                      ) ]
 
         let theCircuitFM = Map.fromList (theCircuit rCit)
 
-        let follow :: EntityClock -> Unique -> [(EntityClock, Driver Unique)]
-            follow clk u = case Map.lookup u theCircuitFM of
+        let follow :: EntityClock -> String -> Unique -> [(EntityClock, Driver Unique)]
+            follow clk nm u = case Map.lookup u theCircuitFM of
                         Nothing -> []
-                        Just (Entity (External "flux") _outs [("i0",_,i0), ("ready",_,p)]) -> 
+                        Just (Entity (External "upflux") _outs [("i0",_,i0), ("go",_,p)]) ->
                                         [ (EntityClock $ Port "o_clk_en" u,i0)
                                         , (clk,p)
                                         ]
-                        Just (Entity _nm _outs ins) -> [ (clk,dr) | (_,_,dr) <- ins ]
+			Just (Entity (External "downflux") _ _)
+				| nm == "o0" -> -- do not follow into downflux
+                                        [ ]
 
-        let normalize :: [(EntityClock, Driver Unique)] -> [(EntityClock, Set Unique)]
-            normalize = map (\ xss -> (fst (head xss),Set.fromList [ u | (_,Port _ u) <- xss ]))
+			Just (Entity _nm _outs ins) -> [ (clk,dr) | (_,_,dr) <- ins ]
+
+        let normalize :: [(EntityClock, Driver Unique)] -> [(EntityClock, Set (Driver Unique))]
+            normalize = map (\ xss -> (fst (head xss),Set.fromList [ p | (_,p) <- xss ]))
                       . L.groupBy (\ a b -> fst a == fst b)
                       . L.sortBy (\ a b -> fst a `compare` fst b)
 
 
         -- given a working set, find the next working set.
-        let step :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+        let step :: [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))]
             step val = normalize 
                         [ (c,d)
-                        | (clk,xs) <- val 
-                        , s <- Set.toList xs
-                        , (c,d) <- follow clk s
+                        | (clk,xs) <- val
+                        , Port n s <- Set.toList xs
+                        , (c,d) <- follow clk n s
                         ]
 
+
         -- given a previous result, and a new result, figure out the new Uniques (the front)
-        let front :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+        let front :: [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))]
             front old new = concat
                 [ case (lookup clk old, lookup clk new) of
                     (Just o',Just n) -> [(clk,n `Set.difference` o')]
@@ -273,19 +278,19 @@ reifyFabric (Fabric circuit) = do
                 | (clk,_) <- new
                 ]
 
-        let join :: [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)] -> [(EntityClock,Set Unique)]
+        let join :: [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))]
             join old new = 
                 [ case (lookup clk old, lookup clk new) of
-                    (Just o',Just n) -> (clk,n `Set.union` o')
-                    (Nothing,Just n) -> (clk,n)
+                    (Just o',Just n)  -> (clk,n `Set.union` o')
+                    (Nothing,Just n)  -> (clk,n)
                     (Just o',Nothing) -> (clk,o')
-                    _                -> error "internal error"
+                    _                 -> error "internal error"
                 | clk <- Set.toList (Set.fromList (map fst old) `Set.union` Set.fromList (map fst new))
                 ]
 
-        let interp :: [(EntityClock,Set Unique)]  -- working set
-                   -> [(EntityClock,Set Unique)]  -- new set
-                   -> IO [(EntityClock,Set Unique)]  -- result
+        let interp :: [(EntityClock,Set (Driver Unique))]  -- working set
+                   -> [(EntityClock,Set (Driver Unique))]  -- new set
+                   -> IO [(EntityClock,Set (Driver Unique))]  -- result
             interp working [] = return working
             interp working new = do
 --                print ("working",working)
@@ -300,32 +305,48 @@ reifyFabric (Fabric circuit) = do
 
         clocks <- interp start start
 
+--	let clocks = undefined
 
-        let uqToClk :: Map Unique (EntityClock)
-            uqToClk = Map.fromList
-                               [ (uq,clk)
+
+        let uqToClk :: Map (Driver Unique) [EntityClock]
+            uqToClk = Map.fromListWith (++)
+                               [ (port,[clk])
                                | (clk,uqs) <- clocks
-                               , uq <- Set.toList uqs
+                               , port <- Set.toList uqs
                                ]
 
 --	print uqToClk
 
         return $ rCit { theCircuit =
-                                [  (u,case e of
-                                        Entity nm outs ins -> Entity
-                                                nm
-                                                outs
-                                                [ case p of
-                                                   ("clk_en",B,ClkDom _) ->
-                                                     case Map.lookup u uqToClk of
-                                                       Nothing -> error $ "can not find port: " ++ show u
-                                                       Just (EntityClock dr) -> ("clk_en",B,dr)
-                                                   _ -> p
-                                                | p <- ins ]
+                       [  (u,case e of
+                              Entity nm outs ins ->
+			 	case clkEnPort nm of
+				   Nothing -> e
+			           Just port_nm -> 
+					  let (_,p) = entityFind port_nm e
+					  in Entity nm outs $
+					      ins ++
+					      [ case Map.lookup p uqToClk of
+                                                       Nothing -> error $ "can not find port: " ++ show p
+                                                       Just [EntityClock dr] -> ("clk_en",B,dr)
+						       Just xs -> error $ "node " ++ show u ++
+								   " has multiple clocks domains " ++
+								   show xs
+					      ]
+
                                     )
                                 | (u,e) <- theCircuit rCit ]
                           } 
 
+-- Each one needs a i0 to look at
+
+clkEnPort :: Id -> Maybe String
+clkEnPort (Prim "register")     = return "i0"
+clkEnPort (Prim "delay")        = return "i0"
+clkEnPort (Prim "write")	= return "wData"
+clkEnPort (External "upflux")   = return "go"
+clkEnPort (External "downflux") = return "i0"
+clkEnPort _ = Nothing
 
 
 -------------------------------------------------------------------------------

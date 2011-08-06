@@ -538,13 +538,13 @@ genInst env i (Entity (Prim "delay")
 -}
 
 genInst _ i (Entity (Prim "write") [ ("o0",_) ]
-                                     [ ("clk_en",B,clk_en)
-                                     , ("clk",ClkTy,clk)
+                                     [ ("clk",ClkTy,clk)
                                      , ("rst",B,_)
                                      , ("wEn",B,wEn)
                                      , ("wAddr",wAddrTy,wAddr)
                                      , ("wData",wDataTy,wData)
-                                      ,("element_count",GenericTy,_)            -- now ignored?
+                                     , ("element_count",GenericTy,_)            -- now ignored?
+				     , ("clk_en",B,clk_en)
                                       ]) =
         [ mkProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
@@ -564,9 +564,9 @@ genInst _ i (Entity (Prim "write") [ ("o0",_) ]
 
 -- assumes single clock
 genInst _ i (Entity (Prim "delay") [("o0",_)]    [ ("i0",tI,d)
-                                                  , ("clk_en",B,clk_en)
                                                   , ("clk",ClkTy,clk)
                                                   , ("rst",B,_)
+                                                  , ("clk_en",B,clk_en)
                                                   ]) =
         [ mkProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
@@ -579,9 +579,9 @@ genInst _ i (Entity (Prim "delay") [("o0",_)]    [ ("i0",tI,d)
 
 genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                                                   , ("def",GenericTy,n)
-                                                  , ("clk_en",B,clk_en)
                                                   , ("clk",ClkTy,clk)
                                                   , ("rst",B,rst)
+                                                  , ("clk_en",B,clk_en)
                                                   ]) =
         [ ProcessDecl
            (Event (toStdLogicExpr B clk) PosEdge)

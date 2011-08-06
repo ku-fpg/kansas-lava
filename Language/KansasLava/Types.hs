@@ -19,6 +19,7 @@ module Language.KansasLava.Types (
         -- * Entity
         , Entity(..)
         , E(..)
+	, entityFind
         -- * Driver
         , Driver(..)
         , D(..)
@@ -287,6 +288,15 @@ instance Ord (Box a) where { compare _ _ = EQ }
 
 data Entity s = Entity Id [(String,Type)] [(String,Type,Driver s)]
               deriving (Show, Eq, Ord)
+
+-- | findIn finds an input in a list, avoiding the need to have ordering.
+entityFind :: (Show a) => String -> Entity a -> (Type, Driver a)
+entityFind nm e@(Entity _ _ ins) =
+	case [ (t,p) | (nm',t,p) <- ins, nm == nm' ] of
+	  [] -> error $ "can not find : " ++ show nm ++ " in " ++ show e
+	  [x] -> x
+	  _ ->  error $ "found multiple : " ++ show nm ++ " in " ++ show e
+
 
 instance T.Traversable Entity where
   traverse f (Entity v vs ss) =

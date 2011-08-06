@@ -431,7 +431,6 @@ delay ~(Seq line eline) = res
         entity = Entity (Prim "delay")
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
-		     ("clk_en",B,  ClkDom "domain"),
 		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
@@ -451,7 +450,6 @@ register first  ~(Seq line eline) = res
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
                      ("def",GenericTy,Generic (fromRepToInteger rep)),
-		     ("clk_en",B,  ClkDom "domain"),
 		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
