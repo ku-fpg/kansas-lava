@@ -86,6 +86,16 @@ tests test = do
         t4 "Int" (loop 10 (arbitrary :: Gen Int))
         t4 "Bool" (loop 10 (arbitrary :: Gen Bool))
 
+
+	-- Test the flux capacitor
+        let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
+	       => String -> Gen (Maybe a) -> (forall c. CSeq c a -> CSeq c a) -> IO ()
+            t5 str arb op = testFluxCapacitor test str arb op
+
+        t5 "U5" (loop 10 (arbitrary :: Gen (Maybe U5)))
+	   	$ \ x -> x + 1
+
+
 -- This only tests at the *value* level, and ignores testing unknowns.
 
 testUniOp :: forall a b .
@@ -318,3 +328,23 @@ testDelay  (TestSeq test toL) tyName ws = do
 
         test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
+
+testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1)) 
+	  => TestSeq -> String -> Gen (Maybe a)  -> (forall c . (Clock c) => CSeq c a -> CSeq c a) -> IO ()
+testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
+      let xs = toL ws
+      
+          driver = do
+      	    outStdLogicVector "i0" (toSeq xs :: Seq (Maybe a))
+          dut = do
+      	    i0 <- inStdLogicVector "i0" :: Fabric (Seq (Maybe a))
+	    let o0 = fluxCapacitor seqOp i0 :: Seq (Maybe a)
+	    outStdLogicVector "o0" o0
+
+	  res :: Seq (Maybe U5)
+          res = shallowSeq (S.repeat unknownX)
+
+      test ("flux-capacitor/" ++ tyName ++ "/") (length xs)
+      	   		       dut (driver >> matchExpected "o0" res)
+
+      return ()
