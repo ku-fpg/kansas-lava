@@ -341,3 +341,78 @@ begin
 
 end Behavioral;
 
+-------------------------------------------------------------------------------
+-- Flux stuff
+-------------------------------------------------------------------------------
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity upflux is
+  port(i0 : in std_logic_vector;
+       go : in std_logic;
+       clk_en : in std_logic;
+       clk : in std_logic;
+       rst : in std_logic;
+       o_en : out std_logic;
+       o0 : out std_logic_vector;
+       o_clk_en : out std_logic);
+end entity upflux;
+
+architecture Behavioral of upflux is
+  signal reg : std_logic := '0';
+begin
+  o_en <= reg;
+  o0 <= i0;                             -- Flowthrough
+  o_clk_en <= go and clk_en;            -- go, based on your clock enable
+  
+  proc : process(rst, clk, clk_en) is
+  begin
+    if rising_edge(clk) then
+      if (clk_en = '1') then
+        reg <= go;
+      end if;
+    end if;
+  end process proc;
+
+end Behavioral;
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity downflux is
+  generic(
+    width : natural
+    );
+  port (i0 : in std_logic_vector(width-1 downto 0);
+        en : in std_logic;
+        clk : in std_logic;
+        rst : in std_logic;
+        clk_en : in std_logic;
+        go : out std_logic;
+        o0 : out std_logic_vector(width-1 downto 0)); 
+end entity downflux;
+
+architecture Behavioral of downflux is
+  signal reg : std_logic_vector(width-1 downto 0);
+begin
+  go <= en;    -- this signal becomes the clock enable.
+  o0 <= reg;   -- this is a lava delay
+
+  proc : process(rst, clk, clk_en) is
+  begin
+    if rising_edge(clk) then
+      if (clk_en = '1') then
+        reg <= i0;         
+      end if;
+    end if;
+  end process proc;
+        
+        
+end Behavioral;
+

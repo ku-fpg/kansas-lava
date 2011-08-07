@@ -246,6 +246,8 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 		   ]
                    [("i0",ty, unD d_a)
                    ,("go",B, unD d_b)
+		   , ("clk",ClkTy, Pad $ OVar (-2) "clk")
+		   , ("rst",B,     Pad $ OVar (-1) "rst")
                    ]
 
 	-- first value is unknown, because this is a clock enable
@@ -282,6 +284,10 @@ downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
 		   ]
                    [("i0",ty, unD d_in_a)
                    ,("en",B, unD d_in_b)
+		   ,("width", GenericTy
+                            , Generic (fromIntegral (repWidth (Witness :: Witness a))))
+		   , ("clk",ClkTy, Pad $ OVar (-2) "clk")
+		   , ("rst",B,     Pad $ OVar (-1) "rst")
                    ]
 
 	downsample :: Rep a => Stream (X Bool) -> Stream (X a) -> Stream (X a)
