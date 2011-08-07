@@ -89,11 +89,20 @@ tests test = do
 
 	-- Test the flux capacitor
         let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
-	       => String -> Gen (Maybe a) -> (forall c. CSeq c a -> CSeq c a) -> IO ()
+	       => String -> Gen (Maybe a) -> (forall c. (Clock c) => CSeq c a -> CSeq c a) -> IO ()
             t5 str arb op = testFluxCapacitor test str arb op
 
-        t5 "U5" (loop 10 (arbitrary :: Gen (Maybe U5)))
+        t5 "U5/add" (loop 10 (arbitrary :: Gen (Maybe U5)))
 	   	$ \ x -> x + 1
+
+        t5 "U5/delay" (loop 10 (arbitrary :: Gen (Maybe U5)))
+	   	$ delay
+
+        t5 "U5/register" (loop 10 (arbitrary :: Gen (Maybe U5)))
+	   	$ register 0
+
+        t5 "U5/accum" (loop 10 (arbitrary :: Gen (Maybe U5)))
+	   	$ \ x -> let r = register 0 (x + r) in r
 
 
 -- This only tests at the *value* level, and ignores testing unknowns.
@@ -341,8 +350,22 @@ testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
 	    let o0 = fluxCapacitor seqOp i0 :: Seq (Maybe a)
 	    outStdLogicVector "o0" o0
 
-	  res :: Seq (Maybe U5)
-          res = shallowSeq (S.repeat unknownX)
+
+	  -- just the results from the internal function
+	  ys :: [Maybe a]
+	  ys = fromSeq (seqOp (toSeq [ x | Just x <- xs ]) :: Seq a)
+
+	  -- The xs0 Nothing => not enabled, for ys0 Nothing => Unknown.
+	  fn :: [Maybe a] -> [Maybe a] -> Stream (X (Maybe a))
+	  fn (Nothing:xs0) ys0          = Cons (pureX Nothing) (fn xs0 ys0)
+	  fn (Just {}:xs0) (Just y:ys0) = Cons (pureX (Just y)) (fn xs0 ys0)
+	  fn _ _                        = S.repeat unknownX
+
+	  res :: Seq (Maybe a)
+          res = shallowSeq (Cons (pureX Nothing) (fn xs ys))
+	
+	
+
 
       test ("flux-capacitor/" ++ tyName ++ "/") (length xs)
       	   		       dut (driver >> matchExpected "o0" res)
