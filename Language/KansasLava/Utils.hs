@@ -345,6 +345,9 @@ infix 4 .==., .>=., .<=., .<., .>.
 (.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
 
+(./=.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
+(./=.) xs ys = bitNot (xs .==. ys) -- TODO: consider making this a primitive
+
 (.>=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 

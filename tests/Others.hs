@@ -201,7 +201,7 @@ testOpsEq test tyName ws = do
           [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
           | (name,opr,lavaOp) <-
                 [ ("double-equal",(==),(.==.))
---              , ("not-equal",(/=),(./=.))
+                , ("not-equal",(/=),(./=.))
                 ]
           ]
 
