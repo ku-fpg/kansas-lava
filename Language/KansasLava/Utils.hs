@@ -438,6 +438,10 @@ delay ~(Seq line eline) = res
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
 
+delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
+delays n ss = iterate delay ss !! n
+
+
 register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
 register first  ~(Seq line eline) = res
    where
@@ -457,6 +461,8 @@ register first  ~(Seq line eline) = res
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
 
+registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a
+registers n def ss = iterate (register def) ss !! n
 
 -- hack
 --ans = delay sysEnv 99 ((shallowSeq $ S.fromList $ map (optX . Just) [(1::Int)..100]) :: Seq Int)
