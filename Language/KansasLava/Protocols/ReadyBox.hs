@@ -9,13 +9,14 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
+import Language.KansasLava.Protocols.Patch
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
-import Control.Concurrent
-import System.IO
-import Control.Monad
-import System.IO.Unsafe (unsafeInterleaveIO)
+--import Control.Concurrent
+--import System.IO
+--import Control.Monad
+--import System.IO.Unsafe (unsafeInterleaveIO)
 
 import qualified Prelude
 import Prelude hiding (tail, lookup)
@@ -41,20 +42,16 @@ OR
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toReadyBox :: (Rep a, Clock c, sig ~ CSeq c)
-             => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Ready				-- ^ takes a flag back from FIFO that indicates successful write
-                                    --   to a stream of values sent to FIFO
-             -> sig (Enabled a)     
-toReadyBox = toReadyBox' (repeat 0)
+         =>  Patch [Maybe a]  			(sig (Enabled a))
+	           ()		()		(sig Ready)
+toReadyBox = toReadyBox' []
 
 toReadyBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
-             -> [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Ready	    -- ^ takes a flag back from FIFO that indicates successful write
-                                    --   to a stream of values sent to FIFO
-             -> sig (Enabled a)     
+             -> Patch [Maybe a]  			(sig (Enabled a))
+		      ()		()		(sig Ready)
 
-toReadyBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
+toReadyBox' pauses ~(ys,full) = ((),(),toSeq (fn ys (fromSeq full) pauses))
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
 	   -- send the value *before* checking the Ready
@@ -68,7 +65,7 @@ toReadyBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
 			   (_:_,p:ps')         -> Nothing : fn xs fs (pred p : ps')
 			   (_:_,[])            -> fn xs fs (repeat 0)
 			   (_,_)               -> Nothing : fn xs fs ps  -- nothing to write
-                 (Just (Ready False):rs)         -> Nothing : fn xs rs ps -- not ready yet
+                 (Just (Ready False):rs)       -> Nothing : fn xs rs ps -- not ready yet
 		 [] 			       -> error "toReadyBox: Ready seq should never end"
 
 
@@ -76,15 +73,15 @@ toReadyBox' pauses ys full = toSeq (fn ys (fromSeq full) pauses)
 --   is given back to the FIFO, and a shallow list of values.
 -- I'm sure this space-leaks.
 fromReadyBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
-               => sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Ready, [Maybe a]) -- ^ Ready flag sent back to FIFO and shallow list of values
+           => Patch (sig (Enabled a))		[Maybe a]
+		    (sig Ready)		()	()
 fromReadyBox = fromReadyBox' (repeat 0)
 
 fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
-               => [Int]			-- ^ list of wait counts before reading
-               -> sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Ready, [Maybe a]) -- ^ Ready flag sent back to FIFO and shallow list of values
-fromReadyBox' ps inp = (toSeq (map fst internal), map snd internal)
+           => [Int]
+           -> Patch (sig (Enabled a))		[Maybe a]
+		    (sig Ready)		()	()
+fromReadyBox' ps ~(inp,_) = (toSeq (map fst internal), (), map snd internal)
    where
         internal = fn (fromSeq inp) ps
 
@@ -109,7 +106,7 @@ test1 xs = xs'
 ---------------------------------------------------------------------------
 
 
-
+{-
 test2 :: [Maybe Int] -> [Maybe Int]
 test2 xs = res
   where
@@ -119,24 +116,25 @@ test2 xs = res
 	(full, hs') = shallowReadyBoxBridge ([0..],[0..]) (hs,full')
 
 	(full',res) = fromReadyBox hs'
+-}
 
 -- introduce protocol-compliant delays (in the shallow embedding)
 
 shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => ([Int],[Int])
-                       -> (sig (Enabled a),sig Ready) 
-                       -> (sig Ready, sig (Enabled a))
-shallowReadyBoxBridge (lhsF,rhsF) (inp,back) = (full,res)
-   where
-	(full,xs) = fromReadyBox' lhsF inp
-	res       = toReadyBox' rhsF xs back
+                       -> Patch (sig (Enabled a))		(sig (Enabled a))
+				(sig Ready)		() 	(sig Ready)
+shallowReadyBoxBridge (lhsF,rhsF) = noStatus patch
+  where
+	patch = fromReadyBox' lhsF `bus` toReadyBox' rhsF
+
 
 ----------------------------------------------------------------------------------------------------
 -- These are functions that are used to thread together Hand shaking and FIFO.
 
 -- | This function takes a MVar, and gives back a ReadyBox signal that represents
 -- the continuous sequence of contents of the MVar.
-
+{-
 mVarToReadyBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Ready -> (CSeq c (Enabled a)))
 mVarToReadyBox sfifo = do
         xs <- getFIFOContents sfifo
@@ -155,6 +153,7 @@ mailBoxToMVar sfifo sink = do
                 $ Maybe.catMaybes
                 $ (let (back,res) = fromReadyBox $ sink back in res)
         return ()
+-}
 
 {-
 -- interactMVar

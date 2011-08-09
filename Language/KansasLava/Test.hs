@@ -710,10 +710,8 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 -- backedge output from DUT
                 ack <- inStdLogic "ack" :: Fabric (Seq Ack)
 
-                let vals' :: Seq (Enabled w)
-                    vals' = toAckBox (vals ++ Prelude.repeat Nothing) ack'
-
-                    (ack', vals2) = shallowAckBoxBridge (a,b) (vals',ack)
+                let vals2 :: Seq (Enabled w)
+                    (_,_,vals2) = toAckBox' a (vals ++ Prelude.repeat Nothing,ack)
 
                 -- sent to DUT
                 outStdLogicVector "vals"        (enabledVal vals2)
@@ -728,9 +726,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 let flag :: Seq Ready 
                     opt_as :: [Maybe w]
 
-                    (flag, res') = shallowReadyBoxBridge (c,d) (packEnabled res_en res,flag')
-
-                    (flag', opt_as) = fromReadyBox res'
+                    (flag, (), opt_as) = fromReadyBox' d (packEnabled res_en res,())
 
                 outStdLogic "flag" flag
 
@@ -758,10 +754,8 @@ let ans = [ a | Just a <- take n opt_as ]
                 outStdLogic "ack"        ack
 
 
-            a = cycle [0..16] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
-            b = cycle [0..22] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
-            c = cycle [0..18] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
-            d = cycle [0..26] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)  
+            a = cycle [0..2] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
+            d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)  
 
         test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
 

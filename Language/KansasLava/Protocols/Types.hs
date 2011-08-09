@@ -65,8 +65,3 @@ fromReady = coerce unReady
 
 ------------------------------------------------------------------------------------------------------------------------------------------------
 
--- Numonic for the Patch.
-
-type Patch lhs_in 	   rhs_out	
-	   lhs_out bot_out rhs_in 	
-	= (lhs_in,rhs_in) -> (lhs_out,bot_out,rhs_out)

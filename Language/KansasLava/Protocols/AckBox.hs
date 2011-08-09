@@ -6,14 +6,15 @@ import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
+import Language.KansasLava.Protocols.Patch
 import Language.KansasLava.Utils
 
 import Data.Maybe  as Maybe
 -- import Language.KansasLava.Radix as Radix
-import Control.Concurrent
-import System.IO
-import Control.Monad
-import System.IO.Unsafe (unsafeInterleaveIO)
+--import Control.Concurrent
+--import System.IO
+--import Control.Monad
+--import System.IO.Unsafe (unsafeInterleaveIO)
 --import System.Random
 
 import qualified Prelude
@@ -39,19 +40,17 @@ OR
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toAckBox :: (Rep a, Clock c, sig ~ CSeq c)
-	     => [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Ack				-- ^ takes a flag back from FIFO that indicates successful write
-                                    --   to a stream of values sent to FIFO
-             -> sig (Enabled a)     
+         =>  Patch [Maybe a]  			(sig (Enabled a))
+	           ()		()		(sig Ack)
+		
 toAckBox = toAckBox' []
 
 toAckBox' :: (Rep a, Clock c, sig ~ CSeq c)
-             => [Int]		    -- ^ pauses between offering values
-             -> [Maybe a]           -- ^ shallow values we want to send into the FIFO
-             -> sig Ack				-- ^ takes a flag back from FIFO that indicates successful write
-                                    --   to a stream of values sent to FIFO
-             -> sig (Enabled a)     
-toAckBox' pauses ys ack = toSeq (fn ys (fromSeq ack) pauses)
+             => [Int]		    -- ^ list wait states after every succesful post
+             -> Patch [Maybe a]  			(sig (Enabled a))
+		      ()		()		(sig Ack)
+
+toAckBox' pauses ~(ys,ack) = ((),(),toSeq (fn ys (fromSeq ack) pauses))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   -- send the value *before* checking the Ack
@@ -76,15 +75,15 @@ toAckBox' pauses ys ack = toSeq (fn ys (fromSeq ack) pauses)
 --   is given back to the FIFO, and a shallow list of values.
 -- I'm sure this space-leaks.
 fromAckBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
-               => sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Ack, [Maybe a]) -- ^ ack flag sent back to FIFO and shallow list of values
+           => Patch (sig (Enabled a))		[Maybe a]
+		    (sig Ack)		()	()
 fromAckBox = fromAckBox' []
 
 fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
-               => [Int]
-	       -> sig (Enabled a)       -- ^ fifo output sequence
-               -> (sig Ack, [Maybe a]) -- ^ ack flag sent back to FIFO and shallow list of values
-fromAckBox' pauses inp = (toSeq (map fst internal), map snd internal)
+           => [Int]
+           -> Patch (sig (Enabled a))		[Maybe a]
+		    (sig Ack)		()	()
+fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), (), map snd internal)
    where
         internal = fn (fromSeq inp) pauses
 
@@ -112,6 +111,12 @@ enableToAckBox inp ~(_,ack) = ((),(),res)
 			   , (fromAck ack, disabledS)
 			   ] res
 
+{-
+beat :: (Clock c, sig ~ CSeq c) => 
+	Patch ()		(sig (Enabled ()))
+	      ()	()	(sig Ack)
+beat ~(_,_) = ((),(),enabledS (pureS ()))
+-}
 ---------------------------------------------------------------------------
 
 {-
@@ -135,19 +140,18 @@ test1 xs = res
 
 shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => ([Int],[Int])
-                       -> (sig (Enabled a),sig Ack) 
-                       -> (sig Ack, sig (Enabled a))
-shallowAckBoxBridge (lhsF,rhsF) (inp,back) = (ack,res)
-   where
-	(ack,xs)  = fromAckBox' lhsF inp
-	res       = toAckBox' rhsF xs back
+                       -> Patch (sig (Enabled a))		(sig (Enabled a))
+				(sig Ack)		() 	(sig Ack)
+shallowAckBoxBridge (lhsF,rhsF) = noStatus patch
+  where
+	patch = fromAckBox' lhsF `bus` toAckBox' rhsF
 
 ----------------------------------------------------------------------------------------------------
 -- These are functions that are used to thread together Hand shaking and FIFO.
 
 -- | This function takes a MVar, and gives back a Handshaken signal that represents
 -- the continuous sequence of contents of the MVar.
-
+{-
 mVarToAckBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Ack -> (CSeq c (Enabled a)))
 mVarToAckBox sfifo = do
         xs <- getFIFOContents sfifo
@@ -166,6 +170,10 @@ handShakeToMVar sfifo sink = do
                 $ Maybe.catMaybes
                 $ (let (back,res) = fromAckBox $ sink back in res)
         return ()
+
+-}
+
+
 
 {-
 -- interactMVar
