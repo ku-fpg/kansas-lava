@@ -59,6 +59,7 @@ Library
        Language.KansasLava.Protocols.AckBox
        Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
+       Language.KansasLava.Protocols.Patch
 
        
 -- hack for now
