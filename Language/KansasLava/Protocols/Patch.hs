@@ -184,7 +184,17 @@ readPatch :: FilePath -> IO (Patch ()			[Maybe U8]
 			           ()		()	())
 readPatch fileName = do
      fileContents <- B.readFile fileName
-     return $ \ ~(_,_) -> ((),(),map (Just . fromIntegral) (B.unpack fileContents))
+     return $ unitPatch $ map (Just . fromIntegral) $ B.unpack fileContents
+
+
+-- never terminates unless the list is finite.
+writePatch :: FilePath 
+	   -> Int
+	   -> Patch () 		[Maybe U8] 
+	 	    ()	a 	()
+	   -> IO ()
+writePatch fileName n patch = do
+  B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
 
 {-
 liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
