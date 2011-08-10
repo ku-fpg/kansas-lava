@@ -198,7 +198,6 @@ readPatch :: (Read a)
 	  		                  ()		()	())
 readPatch fileName = do
      fileContents <- readFile fileName
-     print $ words $ fileContents
      return $ unitPatch $ map (Just . read) $ words $ fileContents
 
 -- | 'writePatch' runs a complete circuit for the given 
