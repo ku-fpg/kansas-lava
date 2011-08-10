@@ -187,19 +187,35 @@ beat ~(_,_) = ((),(),enabledS (pureS ()))
 
 -- | 'readPatch' reads a file into Patch, which will become the
 -- lefthand side of a chain of patches.
-readPatch :: FilePath -> IO (Patch ()			[Maybe U8]
+rawReadPatch :: FilePath -> IO (Patch ()			[Maybe U8]
 			           ()		()	())
-readPatch fileName = do
+rawReadPatch fileName = do
      fileContents <- B.readFile fileName
      return $ unitPatch $ map (Just . fromIntegral) $ B.unpack fileContents
 
+readPatch :: (Read a)
+		  => FilePath -> IO (Patch ()			[Maybe a]
+	  		                  ()		()	())
+readPatch fileName = do
+     fileContents <- readFile fileName
+     print $ words $ fileContents
+     return $ unitPatch $ map (Just . read) $ words $ fileContents
 
 -- | 'writePatch' runs a complete circuit for the given 
 -- number of cycles, writing the result to a given file.
-writePatch :: FilePath 
+rawWritePatch :: FilePath 
 	   -> Int
 	   -> Patch () 		[Maybe U8] 
-	 	    ()	a 	()
+	 	    ()	st 	()
+	   -> IO ()
+rawWritePatch fileName n patch = do
+  B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
+
+writePatch :: (Show a)
+	   => FilePath 
+	   -> Int
+	   -> Patch () 		[Maybe a]
+	 	    ()	st 	()
 	   -> IO ()
 writePatch fileName n patch = do
-  B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
+  writeFile fileName $ unlines [ show x | Just x <- take n $ runPatch patch ]
