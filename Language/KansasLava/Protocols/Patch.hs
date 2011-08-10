@@ -80,6 +80,13 @@ shallowFIFO (inp,ack) = (full,(),toAckBox (Nothing:vals) ack)
 	(full,vals) = fromReadyBox inp 
 -}
 
+
+unitClockPatch :: (sig ~ CSeq ()) =>
+	Patch (sig a)		(sig a)
+	      bk        ()      bk
+unitClockPatch ~(li,ri) = (ri,(),li)
+
+
 ------------------------------------------------------------------------
 
 infixr 5 `bus`
