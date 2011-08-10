@@ -11,6 +11,10 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
 
+import Data.Sized.Unsigned (U8)
+
+import qualified Data.ByteString.Lazy as B
+
 ---------------------------------------------------------------------------
 -- Numonic for the Patch.
 
@@ -153,6 +157,14 @@ beat :: (Clock c, sig ~ CSeq c) =>
 	Patch ()		(sig (Enabled ()))
 	      ()	()	(sig Ack)
 beat ~(_,_) = ((),(),enabledS (pureS ()))
+
+------------------------------------------------
+
+readPatch :: FilePath -> IO (Patch ()			[Maybe U8]
+			           ()		()	())
+readPatch fileName = do
+     fileContents <- B.readFile fileName
+     return $ \ ~(_,_) -> ((),(),map (Just . fromIntegral) (B.unpack fileContents))
 
 {-
 liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
