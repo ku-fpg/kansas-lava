@@ -24,7 +24,7 @@ type Patch lhs_in 	   rhs_out
 
 -- A common pattern, a single immutable structure on the output.
 unitPatch :: a -> Patch ()      a
-		    ()  ()  ()
+		        ()  ()  ()
 unitPatch a = \ _ -> ((),(),a)
 
 runPatch :: Patch ()     a
@@ -59,6 +59,9 @@ backwardPatch f2 ~(li,ri) = (f2 ri,(),li)
 -- both side can play master, and try initiate the transfer at the same time, 
 -- improving possible clock speeds.
 
+
+-- This does feel like the correct place for this
+
 bridge :: (Rep a, Clock c, sig ~ CSeq c)
 	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
 		 (sig Ack) 		() 	(sig Ready) 
@@ -80,10 +83,11 @@ shallowFIFO (inp,ack) = (full,(),toAckBox (Nothing:vals) ack)
 	(full,vals) = fromReadyBox inp 
 -}
 
+-- | 'unitClockPatch' forces a handshake to use the unit clock.
 
 unitClockPatch :: (sig ~ CSeq ()) =>
 	Patch (sig a)		(sig a)
-	      bk        ()      bk
+	      (sig b)       ()  (sig b)
 unitClockPatch ~(li,ri) = (ri,(),li)
 
 
@@ -173,6 +177,7 @@ packPatch :: (Clock c, sig ~ CSeq c, Rep in1, Rep in2)
 
 --------------------------------------------------
 
+-- WRONG place
 beat :: (Clock c, sig ~ CSeq c) => 
 	Patch ()		(sig (Enabled ()))
 	      ()	()	(sig Ack)
@@ -180,6 +185,8 @@ beat ~(_,_) = ((),(),enabledS (pureS ()))
 
 ------------------------------------------------
 
+-- | 'readPatch' reads a file into Patch, which will become the
+-- lefthand side of a chain of patches.
 readPatch :: FilePath -> IO (Patch ()			[Maybe U8]
 			           ()		()	())
 readPatch fileName = do
@@ -187,7 +194,8 @@ readPatch fileName = do
      return $ unitPatch $ map (Just . fromIntegral) $ B.unpack fileContents
 
 
--- never terminates unless the list is finite.
+-- | 'writePatch' runs a complete circuit for the given 
+-- number of cycles, writing the result to a given file.
 writePatch :: FilePath 
 	   -> Int
 	   -> Patch () 		[Maybe U8] 
@@ -195,56 +203,3 @@ writePatch :: FilePath
 	   -> IO ()
 writePatch fileName n patch = do
   B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
-
-{-
-liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
-              => (forall c' . (Clock c', sig' ~ CSeq c') => sig' a -> sig' (Enabled b))
-	      -> Patch (sig (Enabled a))		(sig (Enabled b))
-		       (sig (Ready))		()	(sig (Ack))
-liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
-  where
-	-- input
-	(en_
-
-	Seq s_seq _ = fn 
-
- (Seq s_Ready d_Ready) = res
-   where
-        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick, we can use *any* clock
-
-	ty = bitTypeOf (undefined :: Seq a)
-
-	e = Entity (External "flux")
-                   [("o_en",B)
-                   ,("o_val",ty)
-		   ,("o_clk_en",B)
-		   ]
-                   [("i0",ty, unD d_seq)
-                   ,("ready",B, unD d_Ready)
-                   ]
-
-	res :: sig (Enabled a)
-        res = Seq (fn0 s_seq s_Ready) 
-                  (D $ Port "o0" $ E $
-			Entity (Prim "pair") 
-				[("o0",bitTypeOf res)]
-				[("i0",B,Port "o_en" $ E $ e)
-				,("i1",ty,Port "o_val" $ E $ e)
-				]
-                  )                
-
-	-- ignore the first ready.
-        fn0 ss (XReadyRep _ `Cons` readys) = 
-		XMaybe (pureX False, unknownX) `Cons` fn ss readys
-
-        fn ss (XReadyRep (XBool (WireVal True)) `Cons` readys) 
-		= case ss of
-		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` fn ss' readys
-        fn ss (XReadyRep (XBool (WireVal False)) `Cons` readys) 
-		= XMaybe (pureX False, unknownX) `Cons` fn ss readys
-        fn _ (XReadyRep _ `Cons` _) = Stream.repeat unknownX
-
-
-
--}
-
