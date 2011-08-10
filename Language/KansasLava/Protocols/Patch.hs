@@ -22,6 +22,19 @@ type Patch lhs_in 	   rhs_out
 	   lhs_out bot_out rhs_in 	
 	= (lhs_in,rhs_in) -> (lhs_out,bot_out,rhs_out)
 
+-- A common pattern, a single immutable structure on the output.
+unitPatch :: a -> Patch ()      a
+		    ()  ()  ()
+unitPatch a = \ _ -> ((),(),a)
+
+runPatch :: Patch ()     a
+	 	  ()  b  () -> a
+runPatch p = a
+ where
+   (_,_,a) = p ((),())
+
+------------------------------------------------
+
 
 nullPatch :: Patch a 	a
 		   b () b
