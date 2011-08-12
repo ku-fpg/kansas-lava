@@ -7,6 +7,7 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Types,
 	module Language.KansasLava.Protocols.Patch,
 	-- for now
+	shallowFIFO,
 	upFlux, downFlux, fluxCapacitor
 	) where
 
@@ -25,6 +26,15 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Stream (Stream(..))
 import qualified Language.KansasLava.Stream as Stream
 
+
+-- | A (shallow only) infinite FIFO, for connecting
+-- MailBox's on the left to HandShake's on the right.
+-- If you need a synthesizable FIFO, you can find one in the kansas-lava-cores package.
+
+shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
+	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
+		 (sig Ready) 		() 	(sig Ack) 
+shallowFIFO = noStatus $ fromReadyBox `bus` toAckBox
 
 
 {-
