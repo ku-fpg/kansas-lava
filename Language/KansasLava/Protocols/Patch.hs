@@ -10,6 +10,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.Signal
+import Language.KansasLava.Probes
 
 import Data.Sized.Unsigned (U8)
 
@@ -50,6 +51,18 @@ backwardPatch :: (ri -> lo)
 	             lo () ri
 backwardPatch f2 ~(li,ri) = (f2 ri,(),li)
 
+
+---------------------------------------------------------------------------
+
+probePatch :: (Probe a, Probe b)
+   => String      
+   -> Patch    a        a
+               b   ()   b
+probePatch probeName ~(inp1, inp2) = (out2, (), out1)
+   where
+       (out1, out2) = id
+                    $ probe probeName
+                    $ (inp1, inp2)
 
 ---------------------------------------------------------------------------
 
