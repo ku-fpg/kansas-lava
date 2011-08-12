@@ -35,8 +35,15 @@ runPatch p = a
  where
    (_,_,a) = p ((),())
 
+
 ------------------------------------------------
 
+fstPatch :: Patch a   b
+		  c d e -> Patch (a :> f)   (b :> f)
+				 (c :> g) d (e :> g)
+fstPatch p ~(a :> f,e :> g) = (c :> g,d,b :> f)
+   where
+	(c,d,b) = p (a,e)
 
 nullPatch :: Patch a 	a
 		   b () b
