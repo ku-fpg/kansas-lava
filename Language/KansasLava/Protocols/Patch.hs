@@ -91,7 +91,8 @@ bridge (inp,ready) = (toAck ack,(),out)
 	ack = isEnabled inp `and2` fromReady ready
 	out = packEnabled ack (enabledVal inp)
 
--- | This has the behavior that neither branch sees the value
+-- | This duplicates the incomming datum.
+-- This has the behavior that neither branch sees the value
 -- until both can recieve it.
 dupPatch :: (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
@@ -161,6 +162,14 @@ unitClockPatch ~(li,ri) = (ri,(),li)
 
 ------------------------------------------------------------------------
 
+{-
+ - TODO: Change to 
+   bus    --> >==>
+   bridge --> 
+   >==>, >~~> goes away (use >==>)
+ -}
+
+
 infixr 5 `bus`
 bus ::   Patch li1 		o
 	       lo1  	s1	i
@@ -221,6 +230,7 @@ noStatus = mapStatus (const ())
 
 --------------------------------------------------
 
+-- TODO: above or $4
 infixr 3 `stack`
 stack :: Patch li1		ro1
                lo1    s1	ri1
