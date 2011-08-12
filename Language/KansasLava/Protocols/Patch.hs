@@ -13,6 +13,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Probes
 
 import Data.Sized.Unsigned (U8)
+import Data.Sized.Matrix as M
 
 import qualified Data.ByteString.Lazy as B
 
@@ -83,21 +84,68 @@ bridge (inp,ready) = (toAck ack,(),out)
 	ack = isEnabled inp `and2` fromReady ready
 	out = packEnabled ack (enabledVal inp)
 
-{-
--- | A (shallow only) infinite FIFO, for connecting
--- MailBox's on the left to HandShake's on the right.
--- If you need a synthesizable FIFO, you can find one in the kansas-lava-cores package.
+-- | This has the behavior that neither branch sees the value
+-- until both can recieve it.
+dupPatch :: (Clock c, sig ~ CSeq c, Rep a)
+         => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
+	          (sig Ready)        () (sig Ready         :> sig Ready) 
+dupPatch ~(inp,rA :> rB) = (toReady go, (), (out :> out))
+  where
+	go = fromReady rA .&&. fromReady rB
+	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
-shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
-	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
-		 (sig Ready) 		() 	(sig Ack) 
-shallowFIFO (inp,ack) = (full,(),toAckBox (Nothing:vals) ack)
+-- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
+muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
+  => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
+	   (sig Ack            :> sig Ack          :> sig Ack)	  ()	(sig Ready)
+
+muxPatch = noStatus $ fe `bus` matrixMuxPatch
    where
-	(full,vals) = fromReadyBox inp 
+	fe = forwardPatch (\ ~(a :> b :> c) -> ((unsigned) a :> matrix [c,b])) `bus`
+	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
+
+{-
+ OLD CODE
+muxPatch ~((cond :> sA :> sB),ack) = ((toAck ackCond :> toAck ackA :> toAck ackB),(),out)
+   where
+	-- set when conditional value on cond port
+	go = fromReady ack .&&. isEnabled cond
+	
+	-- when are you ack'd the input?
+	ackA = go .&&. enabledVal cond          .&&. isEnabled sA		
+	ackB = go .&&. bitNot (enabledVal cond) .&&. isEnabled sB
+
+	-- ack the conditional if *either* A or B are accepted.
+	ackCond = ackA .||. ackB
+
+	-- output depending on what is accepted.
+	out = cASE [ (ackA, sA)
+		   , (ackB, sB)
+		   ] disabledS
 -}
 
--- | 'unitClockPatch' forces a handshake to use the unit clock.
+-- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
+matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+  => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
+	   (sig Ack            :> Matrix x (sig Ack))		  ()	(sig Ready)
+matrixMuxPatch ((cond :> m),ack) = ((toAck ackCond :> m_acks),(),out)
+   where
+	-- set when conditional value on cond port
+	go = fromReady ack .&&. isEnabled cond
 
+	-- only respond/ack when you are ready to go, the correct lane, and have input
+	acks :: Matrix x (sig Bool)
+	acks = forEach m $ \ x inp -> go 
+				.&&. (enabledVal cond .==. pureS x) 
+				.&&. isEnabled inp
+
+	-- TODO: make this balanced
+	ackCond = foldr1 (.||.) $ M.toList acks
+	m_acks = fmap toAck acks
+
+	out = cASE (zip (M.toList acks) (M.toList m))
+		   disabledS
+		
 unitClockPatch :: (sig ~ CSeq ()) =>
 	Patch (sig a)		(sig a)
 	      (sig b)       ()  (sig b)
