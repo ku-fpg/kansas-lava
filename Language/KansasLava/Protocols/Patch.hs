@@ -103,6 +103,17 @@ dupPatch ~(inp,rA :> rB) = (toReady go, (), (out :> out))
 	go = fromReady rA .&&. fromReady rB
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
+zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
+  => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
+	   (sig Ack          :> sig Ack)	  ()	(sig Ready)
+zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, (), out)
+   where
+	go = fromReady outReady .&&. isEnabled in1 .&&. isEnabled in2
+	ack1 = go
+	ack2 = go
+
+	out = packEnabled go (pack (enabledVal in1, enabledVal in2))
+
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
 muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
   => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
