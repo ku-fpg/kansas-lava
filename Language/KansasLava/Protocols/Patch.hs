@@ -16,6 +16,7 @@ import Data.Sized.Unsigned (U8)
 import Data.Sized.Matrix as M
 
 import qualified Data.ByteString.Lazy as B
+import Control.Applicative
 
 ---------------------------------------------------------------------------
 -- Numonic for the Patch.
@@ -256,7 +257,20 @@ stack p1 p2 inp = (lo1 :> lo2,s1 :> s2,ro1 :> ro2)
 	(li1 :> li2,ri1 :> ri2)	     = inp
 	(lo1,s1,ro1)		     = p1 (li1,ri1)
 	(lo2,s2,ro2)		     = p2 (li2,ri2)
-	
+
+matrixStack :: (m ~ (Matrix x), Size x)
+ 	=> m (Patch li   ro
+	   	    lo s ri)
+	-> Patch (m li)		(m ro)
+		 (m lo)  (m s)  (m ri)
+matrixStack m inp = ( fmap (\ (l,_,_) -> l) m'
+		    , fmap (\ (_,s,_) -> s) m'
+		    , fmap (\ (_,_,r) -> r) m'
+		    )
+   where
+	(m_li,m_ri)	= inp
+	m' = (\ p li ri -> p (li,ri)) <$> m <*> m_li <*> m_ri
+
 --------------------------------------------------
 
 
