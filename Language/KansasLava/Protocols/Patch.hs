@@ -132,11 +132,11 @@ muxPatch ~((cond :> sA :> sB),ack) = ((toAck ackCond :> toAck ackA :> toAck ackB
 		   ] disabledS
 -}
 
--- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
+-- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  ()	(sig Ready)
-matrixMuxPatch ((cond :> m),ack) = ((toAck ackCond :> m_acks),(),out)
+matrixMuxPatch ~((cond :> m),ack) = ((toAck ackCond :> m_acks),(),out)
    where
 	-- set when conditional value on cond port
 	go = fromReady ack .&&. isEnabled cond
@@ -153,7 +153,20 @@ matrixMuxPatch ((cond :> m),ack) = ((toAck ackCond :> m_acks),(),out)
 
 	out = cASE (zip (M.toList acks) (M.toList m))
 		   disabledS
-		
+
+matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+  => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
+	   (sig Ack            :> sig Ack)		()        (Matrix x (sig Ready))
+matrixDeMuxPatch ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,(),out)
+   where
+	-- set when ready to try go
+	go = isEnabled ix .&&. isEnabled inp .&&. fromReady (pack m_ready .!. enabledVal ix)
+
+	-- outputs
+	ackCond = go
+	ackIn   = go
+	out     = forAll $ \ x -> packEnabled (go .&&. enabledVal ix .==. pureS x) (enabledVal inp)
+
 unitClockPatch :: (sig ~ CSeq ()) =>
 	Patch (sig a)		(sig a)
 	      (sig b)       ()  (sig b)
