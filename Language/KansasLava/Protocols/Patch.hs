@@ -214,6 +214,7 @@ noStatus = mapStatus (const ())
 
 --------------------------------------------------
 
+infixr 3 `stack`
 stack :: Patch li1		ro1
                lo1    s1	ri1
       -> Patch li2		ro2
