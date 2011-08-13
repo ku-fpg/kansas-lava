@@ -194,15 +194,18 @@ unitClockPatch ~(li,ri) = (ri,(),li)
    >==>, >~~> goes away (use >==>)
  -}
 
+infixr 5 $$
+bus = ($$)
 
 infixr 5 `bus`
-bus ::   Patch li1 		o
+($$), bus :: 
+  	 Patch li1 		o
 	       lo1  	s1	i
       -> Patch o 		ro2
 	       i 	s2  	ri2 
       -> Patch li1 			ro2	
 	       lo1 (s1 :>        s2) 	ri2
-(p1 `bus` p2) inp = (lhs_out1,(bot_out1 :> bot_out2),rhs_out2)
+(p1 $$ p2) inp = (lhs_out1,(bot_out1 :> bot_out2),rhs_out2)
    where
 	(lhs_in,rhs_in) 	     = inp
 	(lhs_out1,bot_out1,rhs_out1) = p1 (lhs_in,lhs_out2)
