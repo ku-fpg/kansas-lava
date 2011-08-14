@@ -315,6 +315,22 @@ fifo1 ~(inp,ack) = (toReady ready, out)
 	ready = state .==. 0
 
 	out = packEnabled (state .==. 1) store
+
+---------------------------------------------------------------------------------
+-- Retiming
+---------------------------------------------------------------------------------
+
+matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+         => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a)) 
+	          (sig Ack)			(sig Ready)
+matrixExpandPatch =
+	   forwardPatch (\ a -> (() :> a))
+	$$ backwardPatch (\ (_ :> b) -> b)
+	$$ stack 
+		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
+		 (bridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
+	$$ matrixMuxPatch
+
 ---------------------------------------------------------------------------------
 -- Other stuff
 ---------------------------------------------------------------------------------
