@@ -201,6 +201,14 @@ matrixDupPatch ~(inp,readys) = (toReady go, (), pure out)
 	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
+{-	
+matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a)
+         => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
+	          (sig Ready)        ()     (sig Ready       :> sig Ready)
+matrixUnzipPatch = dupPatch $$ 
+		stack (forwardPatch fst)
+		      (forwardPatch snd)
+-}
 matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
 	   (sig Ack            :> sig Ack)		()        (Matrix x (sig Ready))
