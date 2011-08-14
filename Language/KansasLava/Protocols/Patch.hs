@@ -198,14 +198,20 @@ matrixDupPatch ~(inp,readys) = (toReady go, pure out)
 	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
-{-	
-matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a)
+unzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
          => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
-	          (sig Ready)        ()     (sig Ready       :> sig Ready)
-matrixUnzipPatch = dupPatch $$ 
-		stack (forwardPatch fst)
-		      (forwardPatch snd)
--}
+	          (sig Ready)               (sig Ready       :> sig Ready)
+unzipPatch = dupPatch $$ 
+		stack (forwardPatch $ mapEnabled (fst . unpack))
+		      (forwardPatch $ mapEnabled (snd . unpack))
+
+matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+         => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
+	          (sig Ready)          		  (Matrix x (sig Ready))
+matrixUnzipPatch = 
+	matrixDupPatch $$
+	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
+
 matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
 	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ready))
@@ -223,6 +229,8 @@ matrixDeMuxPatch ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
 -- Functions that combine streams
 ---------------------------------------------------------------------------------
 
+-- no unDup (requires some function / operation, use zipPatch).
+
 zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ready)
@@ -233,7 +241,17 @@ zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out)
 	ack2 = go
 
 	out = packEnabled go (pack (enabledVal in1, enabledVal in2))
+
+matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+         => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))   
+	          (Matrix x (sig Ack))		(sig Ready)          		  
+matrixZipPatch ~(mIn, outReady) = (mAcks, out)
+   where
+	go    = fromReady outReady .&&. foldr1 (.&&.) (map isEnabled $ M.toList mIn)
 	
+	mAcks = fmap toAck $ pure go
+	mIn'  = fmap enabledVal mIn 
+	out   = packEnabled go (pack mIn' :: sig (Matrix x a))
 
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
 muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
@@ -244,7 +262,6 @@ muxPatch = fe `bus` matrixMuxPatch
    where
 	fe = forwardPatch (\ ~(a :> b :> c) -> ((unsigned) a :> matrix [c,b])) `bus`
 	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
-
 
 -- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
