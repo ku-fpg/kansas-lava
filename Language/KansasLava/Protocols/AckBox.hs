@@ -41,16 +41,16 @@ OR
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toAckBox :: (Rep a, Clock c, sig ~ CSeq c)
          =>  Patch [Maybe a]  			(sig (Enabled a))
-	           ()		()		(sig Ack)
+	           ()				(sig Ack)
 		
 toAckBox = toAckBox' []
 
 toAckBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
-             -> Patch [Maybe a]  			(sig (Enabled a))
-		      ()		()		(sig Ack)
+             -> Patch [Maybe a] 		(sig (Enabled a))
+		      ()			(sig Ack)
 
-toAckBox' pauses ~(ys,ack) = ((),(),toSeq (fn ys (fromSeq ack) pauses))
+toAckBox' pauses ~(ys,ack) = ((),toSeq (fn ys (fromSeq ack) pauses))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   -- send the value *before* checking the Ack
@@ -76,14 +76,14 @@ toAckBox' pauses ~(ys,ack) = ((),(),toSeq (fn ys (fromSeq ack) pauses))
 -- I'm sure this space-leaks.
 fromAckBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => Patch (sig (Enabled a))		[Maybe a]
-		    (sig Ack)		()	()
+		    (sig Ack)			()
 fromAckBox = fromAckBox' []
 
 fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
-		    (sig Ack)		()	()
-fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), (), map snd internal)
+		    (sig Ack)			()
+fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), map snd internal)
    where
         internal = fn (fromSeq inp) pauses
 
@@ -100,11 +100,10 @@ fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), (), map snd internal)
 -- 'enableToAckBox' turns an Enabled signal into a (1-sided) Patch.
 
 enableToAckBox :: (Rep a, Clock c, sig ~ CSeq c)
-		  => sig (Enabled a)
-		  -> Patch ()    (sig (Enabled a))
-		           () () (sig Ack)
+	       => Patch (sig (Enabled a))    (sig (Enabled a))
+		        ()  		     (sig Ack)
 
-enableToAckBox inp ~(_,ack) = ((),(),res)
+enableToAckBox ~(inp,ack) = ((),res)
 	where
 		res = register Nothing 
 		    $ cASE [ (isEnabled inp,inp)
@@ -141,8 +140,8 @@ test1 xs = res
 shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
-				(sig Ack)		() 	(sig Ack)
-shallowAckBoxBridge (lhsF,rhsF) = noStatus patch
+				(sig Ack)		 	(sig Ack)
+shallowAckBoxBridge (lhsF,rhsF) = patch
   where
 	patch = fromAckBox' lhsF `bus` toAckBox' rhsF
 

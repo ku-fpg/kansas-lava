@@ -33,8 +33,8 @@ import qualified Language.KansasLava.Stream as Stream
 
 shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
 	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
-		 (sig Ready) 		() 	(sig Ack) 
-shallowFIFO = noStatus $ fromReadyBox `bus` toAckBox
+		 (sig Ready) 			(sig Ack) 
+shallowFIFO = fromReadyBox `bus` toAckBox
 
 
 {-

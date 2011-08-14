@@ -43,15 +43,15 @@ OR
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
 toReadyBox :: (Rep a, Clock c, sig ~ CSeq c)
          =>  Patch [Maybe a]  			(sig (Enabled a))
-	           ()		()		(sig Ready)
+	           ()				(sig Ready)
 toReadyBox = toReadyBox' []
 
 toReadyBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a]  			(sig (Enabled a))
-		      ()		()		(sig Ready)
+		      ()				(sig Ready)
 
-toReadyBox' pauses ~(ys,full) = ((),(),toSeq (fn ys (fromSeq full) pauses))
+toReadyBox' pauses ~(ys,full) = ((),toSeq (fn ys (fromSeq full) pauses))
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
 	   -- send the value *before* checking the Ready
@@ -74,14 +74,14 @@ toReadyBox' pauses ~(ys,full) = ((),(),toSeq (fn ys (fromSeq full) pauses))
 -- I'm sure this space-leaks.
 fromReadyBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => Patch (sig (Enabled a))		[Maybe a]
-		    (sig Ready)		()	()
+		    (sig Ready)			()
 fromReadyBox = fromReadyBox' (repeat 0)
 
 fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
-		    (sig Ready)		()	()
-fromReadyBox' ps ~(inp,_) = (toSeq (map fst internal), (), map snd internal)
+		    (sig Ready)			()
+fromReadyBox' ps ~(inp,_) = (toSeq (map fst internal), map snd internal)
    where
         internal = fn (fromSeq inp) ps
 
@@ -123,8 +123,8 @@ test2 xs = res
 shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
-				(sig Ready)		() 	(sig Ready)
-shallowReadyBoxBridge (lhsF,rhsF) = noStatus patch
+				(sig Ready)		 	(sig Ready)
+shallowReadyBoxBridge (lhsF,rhsF) = patch
   where
 	patch = fromReadyBox' lhsF `bus` toReadyBox' rhsF
 

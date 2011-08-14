@@ -664,7 +664,7 @@ matchExpected out_name ref = do
 
 data StreamTest w1 w2 = StreamTest
             { theStream            :: Patch (Seq (Enabled w1))		(Seq (Enabled w2))
-					    (Seq Ack)  		()	(Seq Ready)
+					    (Seq Ack)  			(Seq Ready)
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
 	    , theStreamTestCount   :: Int
 	    , theStreamTestCycles  :: Int
@@ -711,7 +711,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 ack <- inStdLogic "ack" :: Fabric (Seq Ack)
 
                 let vals2 :: Seq (Enabled w)
-                    (_,_,vals2) = toAckBox' a (vals ++ Prelude.repeat Nothing,ack)
+                    (_,vals2) = toAckBox' a (vals ++ Prelude.repeat Nothing,ack)
 
                 -- sent to DUT
                 outStdLogicVector "vals"        (enabledVal vals2)
@@ -726,7 +726,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 let flag :: Seq Ready 
                     opt_as :: [Maybe w]
 
-                    (flag, (), opt_as) = fromReadyBox' d (packEnabled res_en res,())
+                    (flag, opt_as) = fromReadyBox' d (packEnabled res_en res,())
 
                 outStdLogic "flag" flag
 
@@ -748,7 +748,7 @@ let ans = [ a | Just a <- take n opt_as ]
                 flag    <- inStdLogic "flag"
                 vls     <- inStdLogicVector "vals"
                 vals_en <- inStdLogic "vals_en"
-                let (ack,_,res') = cir (packEnabled vals_en vls, flag)
+                let (ack,res') = cir (packEnabled vals_en vls, flag)
                 outStdLogicVector "res"  (enabledVal res')
                 outStdLogic "res_en"     (isEnabled res')
                 outStdLogic "ack"        ack
