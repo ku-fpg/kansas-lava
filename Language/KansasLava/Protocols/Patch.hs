@@ -285,6 +285,36 @@ matrixMuxPatch ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
 	out = cASE (zip (M.toList acks) (M.toList m))
 		   disabledS
 
+
+---------------------------------------------------------------------------------
+-- Trivial FIFO
+---------------------------------------------------------------------------------
+
+-- (There are larger FIFO's in the Kansas Lava Cores package.)
+
+fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+      => Patch (sig (Enabled a)) 	(sig (Enabled a))
+	       (sig Ready)		(sig Ack)
+fifo1 ~(inp,ack) = (toReady ready, out)
+   where
+	read = (state .==. 0)    .&&. isEnabled inp
+
+	written = (state .==. 1) .&&. fromAck ack
+
+	state :: sig X2
+	state = register 0
+	      $ cASE [ (read,		pureS 1)
+		     , (written,	pureS 0)
+		     ] state
+
+	store :: sig a
+	store = cASE [ (read,	enabledVal inp)
+		     ]
+	      $ delay store
+
+	ready = state .==. 0
+
+	out = packEnabled (state .==. 1) store
 ---------------------------------------------------------------------------------
 -- Other stuff
 ---------------------------------------------------------------------------------
