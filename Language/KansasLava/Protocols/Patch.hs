@@ -295,7 +295,32 @@ unitClockPatch :: (sig ~ CSeq ()) =>
 	      (sig b)           (sig b)
 unitClockPatch ~(li,ri) = (ri,li)
 
-------------------------------------------------------------------------
+
+-- | cyclePatch cycles through a constant list (actually a matrix) of values.
+cyclePatch :: forall a c ix sig .
+        ( Size ix
+        , Rep a
+        , Rep ix
+        , Num ix
+        , Clock c
+	, sig ~ CSeq c
+        )
+	=> Patch (Matrix ix a)	(sig (Enabled a))
+	         ()		(sig Ack)
+cyclePatch ~(m,ack) = ((),out)
+  where
+	ix :: sig ix
+	ix = register 0
+	   $ cASE [ (fromAck ack, ix + 1) ]
+		  ix
+
+	out = packEnabled high
+            $ funMap (\ x -> return (m M.! x))
+		     ix
+	
+
+
+-----------------------------------------------------------------------
 
 {-
  - TODO: Change to 
