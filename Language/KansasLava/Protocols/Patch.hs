@@ -331,6 +331,17 @@ matrixExpandPatch =
 		 (bridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
 	$$ matrixMuxPatch
 
+matrixSquashPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+         => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))	
+	          (sig Ack)	    (sig Ready)
+matrixSquashPatch =
+	   forwardPatch (\ a -> (() :> a))
+	$$ backwardPatch (\ (_ :> b) -> b)
+	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
+	$$ matrixDeMuxPatch
+	$$ matrixStack (pure fifo1)
+	$$ matrixZipPatch
+
 ---------------------------------------------------------------------------------
 -- Other stuff
 ---------------------------------------------------------------------------------
