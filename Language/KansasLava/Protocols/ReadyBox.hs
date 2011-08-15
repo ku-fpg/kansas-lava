@@ -61,11 +61,11 @@ toReadyBox' pauses ~(ys,full) = ((),toSeq (fn ys (fromSeq full) pauses))
                  (Just (Ready True) : fs') -> 
 			case (xs,ps) of
 			   (x:xs',0:ps')       -> x : fn xs' fs' ps'     -- write it (it may be Nothing)
-			   (Nothing:xs',p:ps') -> Nothing : fn xs' fs (pred p : ps')
-			   (_:_,p:ps')         -> Nothing : fn xs fs (pred p : ps')
+			   (Nothing:xs',p:ps') -> Nothing : fn xs' fs' (pred p : ps')
+			   (_:_,p:ps')         -> Nothing : fn xs fs' (pred p : ps')
 			   (_:_,[])            -> fn xs fs (repeat 0)
-			   (_,_)               -> Nothing : fn xs fs ps  -- nothing to write
-                 (Just (Ready False):rs)       -> Nothing : fn xs rs ps -- not ready yet
+			   (_,_)               -> Nothing : fn xs fs' ps  -- nothing to write
+                 (Just (Ready False) : fs')    -> Nothing : fn xs fs' ps -- not ready yet
 		 [] 			       -> error "toReadyBox: Ready seq should never end"
 
 
