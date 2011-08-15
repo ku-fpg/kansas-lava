@@ -297,18 +297,18 @@ fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
 	       (sig Ready)		(sig Ack)
 fifo1 ~(inp,ack) = (toReady ready, out)
    where
-	read = (state .==. 0)    .&&. isEnabled inp
+	have_read = (state .==. 0)    .&&. isEnabled inp
 
 	written = (state .==. 1) .&&. fromAck ack
 
 	state :: sig X2
 	state = register 0
-	      $ cASE [ (read,		pureS 1)
+	      $ cASE [ (have_read,	pureS 1)
 		     , (written,	pureS 0)
 		     ] state
 
 	store :: sig a
-	store = cASE [ (read,	enabledVal inp)
+	store = cASE [ (have_read,enabledVal inp)
 		     ]
 	      $ delay store
 
