@@ -30,27 +30,33 @@ type Patch lhs_in 	   rhs_out
 -- Executing the Patch, monadic style.
 ---------------------------------------------------------------------------
 
--- A common pattern, a single immutable structure on the output.
+-- | A common pattern, a single immutable structure on the output.
 unitPatch :: a -> Patch () a
 		        () ()
 unitPatch a = \ _ -> ((),a)
 
-runPatch :: Patch ()   a
-	 	  ()  () -> a
+runPatch :: (Unit u1, Unit u2)
+ 	 => Patch u1   a
+	 	  u2  () -> a
 runPatch p = a
  where
-   (_,a) = p ((),())
-
-fstPatch :: Patch a   b
-		  c   e -> Patch (a :> f) (b :> f)
-				 (c :> g) (e :> g)
-fstPatch p ~(a :> f,e :> g) = (c :> g,b :> f)
-   where
-	(c,b) = p (a,e)
+   (_,a) = p (unit,unit)
 
 nullPatch :: Patch a  a
 		   b  b
 nullPatch ~(a,b) = (b,a)
+
+fstPatch :: Patch a   b
+		  c   e -> Patch (a :> f) (b :> f)
+				 (c :> g) (e :> g)
+fstPatch p = p `stack` nullPatch
+
+sndPatch :: Patch a   b
+		  c   d -> Patch (f :> a) (f :> b)
+				 (g :> c) (g :> d)
+sndPatch p = nullPatch `stack` p
+
+data Iso a b = Iso (a -> b) (b -> a)
 
 forwardPatch :: (li -> ro)
 	    -> Patch li ro
@@ -87,6 +93,17 @@ matrixStack m inp = ( fmap (\ (l,_) -> l) m'
    where
 	(m_li,m_ri)	= inp
 	m' = (\ p li ri -> p (li,ri)) <$> m <*> m_li <*> m_ri
+
+------------------------------------------------
+-- Unit
+------------------------------------------------
+
+class Unit unit where
+	unit :: unit
+
+instance Unit () where unit = ()
+instance (Unit a,Unit b) => Unit (a,b) where unit = (unit,unit)
+instance (Unit a,Unit b) => Unit (a :> b) where unit = (unit :> unit)
 
 ------------------------------------------------
 -- File I/O for Patches
@@ -211,6 +228,17 @@ matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
 matrixUnzipPatch = 
 	matrixDupPatch $$
 	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
+
+
+deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+  => Patch (sig (Enabled Bool)    :> sig (Enabled a)) 		  (sig (Enabled a) :> sig (Enabled a))
+	   (sig Ack               :> sig Ack)		          (sig Ready	   :> sig Ready)
+deMuxPatch = fe $$ matrixDeMuxPatch $$ be
+  where
+	fe = fstPatch (forwardPatch ((unsigned)))
+	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) `bus`
+	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
+	
 
 matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
@@ -354,6 +382,7 @@ unitClockPatch ~(li,ri) = (ri,li)
 
 
 -- | cyclePatch cycles through a constant list (actually a matrix) of values.
+-- Generates an async ROM on hardware.
 cyclePatch :: forall a c ix sig .
         ( Size ix
         , Rep a
