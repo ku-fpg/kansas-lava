@@ -37,8 +37,8 @@ tests test = do
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
-	testStream test "U5"   (fifoTest "bridge" bridge) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "bridge" bridge) (arbitrary :: Gen (Maybe Bool))
+	testStream test "U5"   (fifoTest "ackToReadyBridge" ackToReadyBridge) (arbitrary :: Gen (Maybe U5))
+	testStream test "Bool" (fifoTest "ackToReadyBridge" ackToReadyBridge) (arbitrary :: Gen (Maybe Bool))
 --	testStream test "U5"   (fifoTest "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe U5))
 --	testStream test "Bool" (fifoTest  "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe Bool))
 

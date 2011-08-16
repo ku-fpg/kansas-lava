@@ -183,14 +183,14 @@ listComparePatch :: (Read a, Show a, Eq a)
 listComparePatch expectedVals n patch = do
      let inp = runPatch patch
      let incomingVals = [ x | Just x <- take n $ inp ]
-     putStr $ compare 0 expectedVals incomingVals
+     putStr $ checkAgainstList 0 expectedVals incomingVals
      return $ unitPatch inp
   where
-     compare :: (Show a, Eq a) => Int -> [a] -> [a] -> String
-     compare elemNum []      _                = "Passed, quantity compared:  " ++ (show elemNum)
-     compare elemNum _       []               = "Passed, but some data in file was not reached, quantity compared:  " ++ (show elemNum)
-     compare elemNum (e:exs) (i:ins) | (e==i) = compare (elemNum+1) exs ins
-     compare elemNum (e:exs) (i:ins)          = "Failed:  Element " ++ (show (elemNum+1)) ++ ": \tExpected:  " ++ (show e) ++ " \tActual:  " ++ (show i)
+     checkAgainstList :: (Show a, Eq a) => Int -> [a] -> [a] -> String
+     checkAgainstList elemNum []      _                = "Passed, quantity compared:  " ++ (show elemNum)
+     checkAgainstList elemNum _       []               = "Passed, but some data in file was not reached, quantity compared:  " ++ (show elemNum)
+     checkAgainstList elemNum (e:exs) (i:ins) | (e==i) = checkAgainstList (elemNum+1) exs ins
+     checkAgainstList elemNum (e:_)   (i:_)            = "Failed:  Element " ++ (show (elemNum+1)) ++ ": \tExpected:  " ++ (show e) ++ " \tActual:  " ++ (show i)
 
 ---------------------------------------------------------------------------
 -- Functions that connect streams
@@ -248,7 +248,7 @@ readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
 -- enable from the sending component.  This may not be necessary at times 
 -- if the sending component ignores ACKs when no data is sent. This bridge 
 -- is fine for deep embedding (can be represented in hardware).
-ackToReadyBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+ackToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ack)                 (sig Ready)
 ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
@@ -261,7 +261,7 @@ ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
 -- the sending component.  This may unsafe if the sending component does not 
 -- ignore Acks when no data is sent.  Otherwise, this should be safe.  This 
 -- bridge is fine for deep embedding (can be represented in hardware).
-unsafeAckToReadyBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+unsafeAckToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ack)                 (sig Ready)
 unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
@@ -509,7 +509,7 @@ matrixExpandPatch =
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ stack 
 		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
-		 (bridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
+		 (ackToReadyBridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
 	$$ matrixMuxPatch
 
 matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
