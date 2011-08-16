@@ -155,6 +155,43 @@ writePatch :: (Show a)
 writePatch fileName n patch = do
   writeFile fileName $ unlines [ show x | Just x <- take n $ runPatch patch ]
 
+-- | 'comparePatch' compares the input to the contents of a file, if there
+-- there a mismatch, it will print a message giving the element number that 
+-- failed.  If everything matches, it prints out a "Passed" message
+comparePatch :: (Read a, Show a, Eq a)
+             => FilePath
+             -> Int
+             -> Patch ()     [Maybe a]
+                      ()     ()
+             -> IO (Patch ()     [Maybe a]
+                          ()     () )
+comparePatch fileName n patch = do
+     fileContents <- readFile fileName
+     let expectedVals = map read $ words $ fileContents
+     listComparePatch expectedVals n patch
+
+-- | 'listComparePatch' compares the input to the contents of a list, if 
+-- there is a mismatch, it will print a message giving the element number 
+-- that failed.  If everything matches, it prints out a "Passed" message
+listComparePatch :: (Read a, Show a, Eq a)
+             => [a]
+             -> Int
+             -> Patch ()     [Maybe a]
+                      ()     ()
+             -> IO (Patch ()     [Maybe a]
+                          ()     () )
+listComparePatch expectedVals n patch = do
+     let inp = runPatch patch
+     let incomingVals = [ x | Just x <- take n $ inp ]
+     putStr $ compare 0 expectedVals incomingVals
+     return $ unitPatch inp
+  where
+     compare :: (Show a, Eq a) => Int -> [a] -> [a] -> String
+     compare elemNum []      _                = "Passed, quantity compared:  " ++ (show elemNum)
+     compare elemNum _       []               = "Passed, but some data in file was not reached, quantity compared:  " ++ (show elemNum)
+     compare elemNum (e:exs) (i:ins) | (e==i) = compare (elemNum+1) exs ins
+     compare elemNum (e:exs) (i:ins)          = "Failed:  Element " ++ (show (elemNum+1)) ++ ": \tExpected:  " ++ (show e) ++ " \tActual:  " ++ (show i)
+
 ---------------------------------------------------------------------------
 -- Functions that connect streams
 ---------------------------------------------------------------------------
