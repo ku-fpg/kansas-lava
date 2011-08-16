@@ -422,7 +422,7 @@ matrixMuxPatch ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
 
 
 ---------------------------------------------------------------------------------
--- Trivial FIFO
+-- Trivial FIFOs
 ---------------------------------------------------------------------------------
 
 -- (There are larger FIFO's in the Kansas Lava Cores package.)
@@ -450,6 +450,52 @@ fifo1 ~(inp,ack) = (toReady ready, out)
 	ready = state .==. 0
 
 	out = packEnabled (state .==. 1) store
+
+
+fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+    => Patch (sig (Enabled a)) 	 (sig (Enabled a))
+             (sig Ready)         (sig Ack)
+fifo2 ~(inp,ack) = (toReady ready, out)
+    where
+        dataIncoming = isEnabled inp
+
+        dataOutRead = (state ./=. 0) .&&. fromAck ack
+
+        -- State:
+        --   0 = First empty, second empty
+        --   1 = First full, second empty
+        --   2 = First empty, second full
+        --   3 = First full, second full, read second store
+        --   4 = First full, second full, read first store
+        state :: sig X5
+        state = register 0
+              $ cASE [ ((state.==.0) .&&. dataIncoming,                  1)
+                     , ((state.==.1) .&&. dataIncoming .&&. dataOutRead, 2)
+                     , ((state.==.1) .&&. dataIncoming,                  4)
+                     , ((state.==.1) .&&. dataOutRead,                   0)
+                     , ((state.==.2) .&&. dataIncoming .&&. dataOutRead, 1)
+                     , ((state.==.2) .&&. dataIncoming,                  3)
+                     , ((state.==.2) .&&. dataOutRead,                   0)
+                     , ((state.==.3) .&&. dataOutRead,                   1)
+                     , ((state.==.4) .&&. dataOutRead,                   2)
+                     ] state
+
+        fstStore :: sig a
+        fstStore = cASE [ (((state.==.0) .||. (state.==.2)) .&&. dataIncoming, enabledVal inp)
+                        ]
+                 $ delay fstStore
+
+        sndStore :: sig a
+        sndStore = cASE [ ((state.==.1) .&&. dataIncoming, enabledVal inp)
+                        ]
+                 $ delay sndStore
+
+        ready = (state ./=. 3) .&&. (state ./=. 4)
+
+        outval = cASE [ (((state.==.2) .||. (state.==.3)), sndStore)
+                      ] fstStore
+
+        out = packEnabled (state ./=. 0) outval
 
 ---------------------------------------------------------------------------------
 -- Retiming
