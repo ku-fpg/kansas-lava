@@ -11,7 +11,9 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 
 ----------------------------------------------------------------------------------------------------
--- | An observable Combinatorial value. Not a functor, applicative functor, or monad.
+-- | An observable Combinatorial value. The first field is the shallow
+-- embedding, the second is the deep embedding.  Not a functor, applicative
+-- functor, or monad.
 data Comb a = Comb !(X a) (D a)
 
 -- | Extract the shallow value from a combinational circuit.
@@ -46,12 +48,11 @@ undefinedComb = Comb (optX Nothing)
 
 
 -- Hmm, not the same deep side as toSeq; why?
--- | Convert a value to a combinational circuit.
+-- | Convert a value to a combinational circuit. The value must be a valid Literal.
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
 
 instance Dual (Comb a) where
---    dual c d = Comb (combValue c) (combDriver d)
     dual (Comb c _) (Comb _ d) = Comb c d
 
 
