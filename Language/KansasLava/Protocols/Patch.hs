@@ -94,6 +94,18 @@ matrixStack m inp = ( fmap (\ (l,_) -> l) m'
 	(m_li,m_ri)	= inp
 	m' = (\ p li ri -> p (li,ri)) <$> m <*> m_li <*> m_ri
 
+
+-- | loopPatch is a fixpoint style combinator, for backedges.
+
+loopPatch :: Patch (a :> b) (a :> c)
+		   (d :> e) (d :> f) 
+	  -> Patch b c
+		   e f
+
+loopPatch g ~(b,f) = (e,c)
+  where
+    (d:>e,a:>c) = g (a:>b,d:>f)
+
 ------------------------------------------------
 -- Unit
 ------------------------------------------------
@@ -359,10 +371,10 @@ matrixExpandPatch =
 		 (bridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
 	$$ matrixMuxPatch
 
-matrixSquashPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))	
 	          (sig Ack)	    (sig Ready)
-matrixSquashPatch =
+matrixContractPatch =
 	   forwardPatch (\ a -> (() :> a))
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
