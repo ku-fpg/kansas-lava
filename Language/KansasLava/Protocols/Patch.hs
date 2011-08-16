@@ -213,11 +213,68 @@ infixr 5 `bus`
 	(lhs_out1,rhs_out1) = p1 (lhs_in,lhs_out2)
 	(lhs_out2,rhs_out2) = p2 (rhs_out1,rhs_in)
 
+-- | 'readyToAckBridge' converts from a ready interface to an ACK interface 
+-- by preemptively giving the ready signal, and holding the resulting data 
+-- from the device on the input side if no ACK is received by the device on 
+-- the output side.  If data is currently being held, then the ready signal 
+-- will not be given.  This bridge is fine for deep embedding (can be 
+-- represented in hardware).
+readyToAckBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => Patch    (sig (Enabled a))           (sig (Enabled a))
+                (sig Ready)                 (sig Ack)
+readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
+    where
+        (in_en, in_val) = unpack inp
+        ack_in = fromAck ack_in0
+
+        captureData = in_en .&&. bitNot dataHeld .&&. bitNot ack_in
+
+        dataHolder  = register 0
+                    $ cASE [ (captureData, in_val)
+                           ] dataHolder
+
+        dataHeld    = register False
+                    $ cASE [ (captureData, high)
+                           , (ack_in, low)
+                           ] dataHeld
+
+        out         = cASE [ (dataHeld, packEnabled dataHeld dataHolder)
+                           ] inp
+
+        ready       = bitNot dataHeld
+
+-- | 'ackToReadyBridge' converts from a Ack interface to an Ready interface 
+-- by ANDing the ready signal from the receiving component with the input 
+-- enable from the sending component.  This may not be necessary at times 
+-- if the sending component ignores ACKs when no data is sent. This bridge 
+-- is fine for deep embedding (can be represented in hardware).
+ackToReadyBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => Patch    (sig (Enabled a))           (sig (Enabled a))
+                (sig Ack)                 (sig Ready)
+ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
+    where
+        out = inp
+        ack = (fromReady ready_in) .&&. (isEnabled inp)
+
+-- | 'unsafeAckToReadyBridge' converts from a Ack interface to an Ready interface
+-- by running the ready signal from the receiving component to the Ack input for 
+-- the sending component.  This may unsafe if the sending component does not 
+-- ignore Acks when no data is sent.  Otherwise, this should be safe.  This 
+-- bridge is fine for deep embedding (can be represented in hardware).
+unsafeAckToReadyBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => Patch    (sig (Enabled a))           (sig (Enabled a))
+                (sig Ack)                 (sig Ready)
+unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
+    where
+        out = inp
+        ack = fromReady ready_in
+
+{-
 -- | A 'bridge' is way of connecting a HandShake to a MailBox.
--- This is efficent; internally an 'and' and  a 'not' gate,
--- and represents a good 'bridging' interface, because
--- both side can play master, and try initiate the transfer at the same time, 
--- improving possible clock speeds.
+-- This is efficent; internally an 'and' gate, and represents a 
+-- good 'bridging' interface, because both side can play master, 
+-- and try initiate the transfer at the same time, possibly 
+-- improving clock speeds.
 
 -- This does feel like the correct place for this
 
@@ -228,6 +285,7 @@ bridge (inp,ready) = (toAck ack,out)
    where
 	ack = isEnabled inp `and2` fromReady ready
 	out = packEnabled ack (enabledVal inp)
+-}
 
 probePatch :: (Probe a, Probe b)
    => String      
