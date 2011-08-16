@@ -297,6 +297,27 @@ probePatch probeName ~(inp1, inp2) = (out2, out1)
                     $ probe probeName
                     $ (inp1, inp2)
 
+probeDataPatch :: (Probe a)
+    => String      
+    -> Patch    a        a
+                b        b
+probeDataPatch probeName ~(inp1, inp2) = (out2, out1)
+    where
+        out1 = id
+             $ probe probeName
+             $ inp1
+        out2 = inp2
+
+probeHandshakePatch :: (Probe b)
+    => String      
+    -> Patch    a        a
+                b        b
+probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
+    where
+        out1 = inp1
+        out2 = id
+             $ probe probeName
+             $ inp2
 
 ---------------------------------------------------------------------------------
 -- Functions that fork streams.
