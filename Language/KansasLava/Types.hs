@@ -2,7 +2,6 @@
 
 -- | This module contains the key internal types for Kansas Lava,
 -- and some basic utilities (like Show instances) for these types.
-
 module Language.KansasLava.Types (
         -- * Types
           Type(..)
@@ -145,8 +144,8 @@ instance Read Type where
         where hasSizePrefix = isJust . parseSize
               parseSize str = let (ds,cs) = span isDigit str
                               in case cs of
-                                   (c:rest) | (not $ null ds) && c `elem` ['U', 'S', 'V','R']
-                                            -> Just ((con c) (read ds :: Int), rest)
+                                   (c:rest) | not (null ds) && c `elem` ['U', 'S', 'V','R']
+                                            -> Just (con c (read ds :: Int), rest)
                                    ('[':rest) | (not $ null ds) ->
                                         case [ (MatrixTy (read ds :: Int) ty,rest')
                                              | (ty,']':rest') <- reads rest
@@ -161,7 +160,7 @@ instance Read Type where
                         'R' -> RomTy
                         ty   -> error $ "Can't read type" ++ show ty
     readsPrec _ xs | "Sampled" `isPrefixOf` xs = [(SampledTy (read m :: Int) (read n :: Int),rest)]
-        where ("Sampled ",r1) = span (not . isDigit) xs
+        where ("Sampled ",r1) = break isDigit xs
               (m,' ':r2) = span isDigit r1
               (n,rest) = span isDigit r2
     readsPrec _ xs | foldr (\s b -> b || s `isPrefixOf` xs) False strs =
@@ -175,7 +174,6 @@ instance Read Type where
 -------------------------------------------------------------------------
 -- | 'StdLogicType' is the type for std_logic things,
 -- typically input/output arguments to VHDL entities.
-
 data StdLogicType
         = SL            -- ^ std_logic
         | SLV Int       -- ^ std_logic_vector (n-1 downto 0)
@@ -189,7 +187,7 @@ instance Show StdLogicType where
         show (SLVA n m) = "std_logic_array_" ++ show n ++ "_" ++ show m
         show (G)        = "generic"
 
--- These encode how we translate from std_logic to regular Lava types
+-- | toStdLogic maps Lava Types to a StdLogicType
 toStdLogicType :: Type -> StdLogicType
 toStdLogicType B               = SL
 toStdLogicType ClkTy           = SL
@@ -200,6 +198,7 @@ toStdLogicType (MatrixTy i ty) = SLVA i (fromIntegral size)
 toStdLogicType ty              = SLV $ fromIntegral size
   where size = typeWidth ty
 
+-- | fromStdLogic maps StdLogicTypes to Lava types.
 fromStdLogicType :: StdLogicType -> Type
 fromStdLogicType SL         = B
 fromStdLogicType (SLV n)    = V n
@@ -210,11 +209,9 @@ fromStdLogicType G          = GenericTy
 -- | 'OVar' is an order Var, with a number that is used for sorting purposes.
 -- This is used for names of arguments in VHDL, and other places, so
 -- that arguments can preserve order through transformation.
-
 data OVar = OVar Int String             -- The # is used purely for sorting order.
                                         -- Idea: there can be several with the same #;
                                         -- its about ordering.
-
         deriving (Eq, Ord)
 
 instance Show OVar where
@@ -229,7 +226,6 @@ instance Read OVar where
 
 -------------------------------------------------------------------------
 -- | Id is the name/tag of a block of compuation.
-
 data Id = Prim String                           -- ^ built in thing
         | External String                       -- ^ VHDL entity
         | Function [(RepValue,RepValue)]        -- ^ anonymous function
@@ -263,18 +259,17 @@ data Id = Prim String                           -- ^ built in thing
 -}
 
 instance Show Id where
-    show (External nm) = "$" ++ nm
+    show (External nm) = '$':nm
     show (Prim nm)     = nm
     show (Label nm)    = show nm ++ ":"
-    show (TraceVal ovar _) = "^" ++ show ovar
-    show (ClockId nm)    = "@" ++ nm
+    show (TraceVal ovar _) = '^':show ovar
+    show (ClockId nm)    = '@':nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
     show (BlackBox _) = "<bb>"
     show (Comment' xs) = "{- " ++ show xs ++ " -}"
 
--- | The type indirection to to allow the Eq/Ord to be provided without
--- crashing the Dynamic Eq/Ord space.
+-- | Box wraps a dynamic, so that we can define custom Eq/Ord instances.
 newtype Box a = Box a
 
 -- I do not like this, but at least it is defined.
@@ -283,15 +278,15 @@ instance Eq (Box a) where { (==) _ _ = True }
 instance Ord (Box a) where { compare _ _ = EQ }
 
 -------------------------------------------------------------------------
--- | An 'Entity' Entity is our central "BOX" of compuation, round an 'Id'.
+
 
 -- We tie the knot at the 'Entity' level, for observable sharing.
--- TODO, remove annotations; specialize to Type (because we always do).
 
+-- | An 'Entity' Entity is our central "BOX" of computation, round an 'Id'.
 data Entity s = Entity Id [(String,Type)] [(String,Type,Driver s)]
               deriving (Show, Eq, Ord)
 
--- | findIn finds an input in a list, avoiding the need to have ordering.
+-- | entityFind finds an input in a list, avoiding the need to have ordering.
 entityFind :: (Show a) => String -> Entity a -> (Type, Driver a)
 entityFind nm e@(Entity _ _ ins) =
 	case [ (t,p) | (nm',t,p) <- ins, nm == nm' ] of
@@ -302,7 +297,7 @@ entityFind nm e@(Entity _ _ ins) =
 
 instance T.Traversable Entity where
   traverse f (Entity v vs ss) =
-    Entity v vs <$> (T.traverse (\ (val,ty,a) -> ((,,) val ty) `fmap` T.traverse f a) ss)
+    Entity v vs <$> T.traverse (\ (val,ty,a) -> (,,) val ty `fmap` T.traverse f a) ss
 
 instance F.Foldable Entity where
   foldMap f (Entity _ _ ss) = mconcat [ F.foldMap f d | (_,_,d) <- ss ]
@@ -311,11 +306,9 @@ instance Functor Entity where
     fmap f (Entity v vs ss) = Entity v vs (fmap (\ (var,ty,a) -> (var,ty,fmap f a)) ss)
 
 
--- 'E' is our knot tieing version of Entity.
+-- | 'E' is the knot-tyed version of Entity.
 newtype E = E (Entity E)
 
--- TODO: Remove after specialization
---type Entity u = Entity Type Annotation u
 
 -- You want to observe
 instance MuRef E where
@@ -332,7 +325,6 @@ instance Eq E where
 -------------------------------------------------------------------------
 -- | A 'Driver' is a specific driven 'wire' (signal in VHDL),
 -- which types contains a value that changes over time.
-
 data Driver s = Port String s   -- ^ a specific port on the entity
               | Pad OVar        -- ^ an input pad
               | ClkDom String   -- ^ the clock domain (the clock enable, resolved via context)
@@ -345,9 +337,9 @@ data Driver s = Port String s   -- ^ a specific port on the entity
 instance Show i => Show (Driver i) where
   show (Port v i) = "(" ++ show i ++ ")." ++ v
   show (Pad v) = show v
-  show (ClkDom d) = "@" ++ d
+  show (ClkDom d) = '@':d
   show (Lit x) = "'" ++ show x ++ "'"
-  show (Lits xs) = (show $ take 16 xs) ++ "..."
+  show (Lits xs) = show (take 16 xs) ++ "..."
   show (Generic x) = show x
   show (Error msg) = show $ "Error: " ++ msg
 --  show (Env' env) = "<env>"
@@ -385,12 +377,11 @@ instance Functor Driver where
 
 
 -- A 'D' is a "Deep", phantom-typed driver into an Entity or Entity
-newtype D a = D { unD :: Driver E }
-        deriving Show
+-- | The 'D' type adds a phantom type to a driver.
+newtype D a = D { unD :: Driver E } deriving Show
 
 ---------------------------------------------------------------------------------------------------------
 -- | class 'Clock' is a type that can be be used to represent a clock.
-
 class Clock clk where
         clock :: D clk
 
@@ -399,11 +390,10 @@ instance Clock () where
         clock = D $ ClkDom "unit"
 
 ---------------------------------------------------------------------------------------------------------
--- | 'WireVal' is a value over a wire, either known or representing unknown.
--- The 'Show' class is overloaded to 'show' "?" for unknowns.
 
--- TODO: replace WireVal with Maybe, because it is Maybe.
 
+-- | 'WireVal' is a value over a wire, either known or representing
+-- unknown. Equivalent to Maybe, but with a Show instance that prints "?" for WireUnknown values.
 data WireVal a = WireUnknown | WireVal a
     deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
 
@@ -427,9 +417,8 @@ instance Show a => Show (WireVal a) where
         show (WireVal a) = show a
 
 ---------------------------------------------------------------------------------------------------------
----- | Our bitwise representation value is a list of 'WireVal'.
--- The least significant bit is at the front of the list.
-
+-- | A RepValue is a value that can be represented using a bit encoding.  The
+-- least significant bit is at the front of the list.
 newtype RepValue = RepValue { unRepValue :: [WireVal Bool] }
         deriving (Eq, Ord)
 
@@ -460,13 +449,13 @@ appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
 
 -- | 'isValidRepValue' checks to see is a 'RepValue' is completely valid.
 isValidRepValue :: RepValue -> Bool
-isValidRepValue (RepValue m) = and $ fmap isGood $ m
+isValidRepValue (RepValue m) = and $ fmap isGood m
    where
         isGood :: WireVal Bool -> Bool
         isGood WireUnknown  = False
         isGood (WireVal {}) = True
 
--- | 'getValidRepValue' Rreturns a binary rep, or Nothing is *any* bits are 'X'.
+-- | 'getValidRepValue' Returns a binary rep, or Nothing is *any* bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
 getValidRepValue r@(RepValue m)
         | isValidRepValue r = Just $ fmap f m
@@ -489,7 +478,9 @@ cmpRepValue (RepValue gs) (RepValue vs)
 cmpRepValue _ _ = False
 
 ---------------------------------------------------------------------------------------------------------
--- 'TraceStream' is a typed stream,
+-- | The TraceStream is used for capturing traces of shallow-embedded
+-- streams. It combines the bitwise representation of a stream along with the
+-- type of the stream.
 data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
     deriving (Eq, Ord, Read)
 
@@ -515,7 +506,7 @@ instance Show KLEG where
      where
         showDriver d t = show d ++ " : " ++ show t
 
-        bar = (replicate 78 '-') ++ "\n"
+        bar = replicate 78 '-' ++ "\n"
 
         circInputs = unlines
                 [ show var ++ " : " ++ show ty
@@ -556,7 +547,7 @@ instance Show KLEG where
                 ++ circuit
                 ++ bar
 
-
+-- | Map a function across all of the entities in a KLEG, accumulating the results in a list.
 visitEntities :: KLEG -> (Unique -> Entity Unique -> Maybe a) -> [a]
 visitEntities cir fn =
         [ a
@@ -564,6 +555,9 @@ visitEntities cir fn =
         , Just a <- [fn u m]
         ]
 
+-- | Map a function across a KLEG, modifying each Entity for which the function
+-- returns a Just. Any entities that the function returns Nothing for will be
+-- removed from the resulting KLEG.
 mapEntities :: KLEG -> (Unique -> Entity Unique -> Maybe (Entity Unique)) -> KLEG
 mapEntities cir fn = cir { theCircuit =
                                 [ (u,a)
@@ -571,11 +565,12 @@ mapEntities cir fn = cir { theCircuit =
                                 , Just a <- [fn u m]
                                 ] }
 
-
+-- | Generate a list of Unique ids that are guaranteed not to conflict with any
+-- ids already in the KLEG.
 allocEntities :: KLEG -> [Unique]
 allocEntities cir = [ highest + i | i <- [1..]]
    where
-        highest = maximum (0 : (visitEntities cir $ \ u _ -> return u))
+        highest = maximum (0 : visitEntities cir (\ u _ -> return u))
 
 -- | A 'Signature' is the structure-level type of a KLEG.
 data Signature = Signature
@@ -585,6 +580,7 @@ data Signature = Signature
         }
         deriving (Show, Read, Eq)
 
+-- | Calculate a signature from a KLEG.
 circuitSignature :: KLEG -> Signature
 circuitSignature cir = Signature
         { sigInputs   = theSrcs cir
@@ -596,14 +592,9 @@ circuitSignature cir = Signature
 -- | Create a type witness, to help resolve some of the type issues.
 -- Really, we are using this in a system-F style.
 -- (As suggested by an anonymous TFP referee, as a better alternative to using 'error "witness"').
-
+data Witness w = Witness
 -- TODO: Move into sized types.
 
-data Witness w = Witness
-
--- | TODO: change to Witness a Not a type, but used as a first class type.
---witness :: a
---witness = error "witness"
 
 --------------------------------------------------------------------------------------
 -- We sometimes talk about bytes, which are unsigned 8-bit values.
@@ -623,7 +614,10 @@ data Witness w = Witness
 --       writeflag :: CSeq c Bool = write successful
 --
 -- eventually, these may become datatypes.
+
+-- | An alias for the pairing of an input value and read flag.
 type I input     readflag = (input    ,readflag)
+-- | An alias for the pairing of an output value and read flag.
 type O writeflag output   = (writeflag,output  )
 
 
@@ -646,10 +640,8 @@ instance (Dual b) => Dual (a -> b) where
 
 ----------------------------------------------------------------------------
 -- Our version of tuples, with a right leaning (aka lists).
-
-
 infixr 5 :>
-
+-- | Alternative definition for (,). Constructor is right-associative.
 data a :> b = a :> b deriving (Eq, Ord, Show, Read)
 
 
