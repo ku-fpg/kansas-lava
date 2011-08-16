@@ -1,6 +1,11 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances, TypeOperators  #-}
-
+-- | KansasLava is designed for generating hardware circuits. This module
+-- provides a 'Rep' class that allows us to model, in the shallow embedding of
+-- KL, two important features of hardware signals. First, all signals must have
+-- some static width, as they will be synthsized to a collection of hardware
+-- wires. Second, a value represented by a signal may be unknown, in part or in
+-- whole.
 module Language.KansasLava.Rep where
 
 import Language.KansasLava.Types
@@ -17,9 +22,14 @@ import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
 
 
--- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a wire.
+-- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
+-- wire. The general idea is that instances of Rep should have a width (for the
+-- corresponding bitvector representation) and that Rep instances should be able
+-- to represent the "unknown" -- X -- value. For example, Bools can be
+-- represented with one bit, and the inclusion of the unknown X value
+-- corresponds to three-valued logic.
 class {- (Size (W w)) => -} Rep w where
-    -- | the width of the represented value.
+    -- | the width of the represented value, as a type-level number.
     type W w
 
     -- | X are lifted inputs to this wire.
@@ -44,7 +54,7 @@ class {- (Size (W w)) => -} Rep w where
     showRep :: X w -> String
     showRep x = show (toRep x)
 
--- Give me all possible (non-X) representations (2^n of them).
+-- | Given a witness of a representable type, generate all (2^n) possible values of that type.
 allReps :: (Rep w) => Witness w -> [RepValue]
 allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
    where
@@ -54,7 +64,6 @@ allReps w = [ RepValue (fmap WireVal count) | count <- counts n ]
     counts num = [ x : xs |  xs <- counts (num-1), x <- [False,True] ]
 
 -- | Figure out the width in bits of a type.
-
 repWidth :: (Rep w) => Witness w -> Int
 repWidth w = typeWidth (repType w)
 
@@ -63,38 +72,45 @@ repWidth w = typeWidth (repType w)
 unknownRepValue :: (Rep w) => Witness w -> RepValue
 unknownRepValue w = RepValue [ WireUnknown | _ <- [1..repWidth w]]
 
+-- | Check to see if all bits in a bitvector (represented as a Matrix) are
+-- valid. Returns Nothing if any of the bits are unknown.
 allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
 allOkayRep m = sequenceA $ fmap prj m
   where prj (XBool WireUnknown) = Nothing
         prj (XBool (WireVal v)) = Just v
 
--- | return a 'w' inside X.
+-- | pureX lifts a value to a (known) representable value.
 pureX :: (Rep w) => w -> X w
 pureX = optX . Just
 
+-- | unknownX is an unknown value of every representable type.
 unknownX :: forall w . (Rep w) => X w
 unknownX = optX (Nothing :: Maybe w)
 
+-- | liftX converts a function over values to a function over possibly unknown values.
 liftX :: (Rep a, Rep b) => (a -> b) -> X a -> X b
 liftX f = optX . liftM f . unX
 
--- This is not wired into the class because of the extra 'Show' requirement.
 
+
+-- | showRepDefault will print a Representable value, with "?" for unknown.
+-- This is not wired into the class because of the extra 'Show' requirement.
 showRepDefault :: forall w. (Show w, Rep w) => X w -> String
 showRepDefault v = case unX v :: Maybe w of
             Nothing -> "?"
             Just v' -> show v'
 
+-- | Convert an integral value to a RepValue -- its bitvector representation.
 toRepFromIntegral :: forall v . (Rep v, Integral v) => X v -> RepValue
 toRepFromIntegral v = case unX v :: Maybe v of
                  Nothing -> unknownRepValue (Witness :: Witness v)
                  Just v' -> RepValue
                     $ take (repWidth (Witness :: Witness v))
-                    $ map WireVal
-                    $ map odd
+                    $ map (WireVal . odd)
                     $ iterate (`div` (2::Int))
                     $ fromIntegral v'
-
+-- | Convert a RepValue representing an integral value to a representable value
+-- of that integral type.
 fromRepToIntegral :: forall v . (Rep v, Integral v) => RepValue -> X v
 fromRepToIntegral r =
     optX (fmap (\ xs ->
@@ -104,7 +120,8 @@ fromRepToIntegral r =
                 , b
                 ])
           (getValidRepValue r) :: Maybe v)
--- always a +ve number, unknowns defin
+
+-- | fromRepToInteger always a positve number, unknowns defin
 fromRepToInteger :: RepValue -> Integer
 fromRepToInteger (RepValue xs) =
         sum [ n
@@ -117,7 +134,7 @@ fromRepToInteger (RepValue xs) =
                 ]
 
 
--- | compare a golden value with a generated value.
+-- | Compare a golden value with a generated value.
 cmpRep :: (Rep a) => X a -> X a -> Bool
 cmpRep g v = toRep g `cmpRepValue` toRep v
 
@@ -133,7 +150,7 @@ instance Rep Bool where
     repType _  = B
     toRep (XBool v)   = RepValue [v]
     fromRep (RepValue [v]) = XBool v
-    fromRep rep    = error ("size error for Bool : " ++ (show $ Prelude.length $ unRepValue rep) ++ " " ++ show rep)
+    fromRep rep    = error ("size error for Bool : " ++ show (Prelude.length $ unRepValue rep) ++ " " ++ show rep)
 
 instance Rep Int where
     type W Int     = X32
@@ -186,6 +203,8 @@ instance Rep () where
     fromRep _ = XUnit $ return ()
     showRep _ = "()"
 
+-- | Integers are unbounded in size. We use the type 'IntegerWidth' as the
+-- associated type representing this size in the instance of Rep for Integers.
 data IntegerWidth = IntegerWidth
 
 instance Rep Integer where
@@ -223,7 +242,7 @@ instance (Rep a, Rep b) => Rep (a :> b) where
                   , fromRep (RepValue (drop size_a vs))
                   )
         where size_a = typeWidth (repType (Witness :: Witness a))
-    showRep (XCell (a,b)) = showRep a ++ " :> " ++ showRep b 
+    showRep (XCell (a,b)) = showRep a ++ " :> " ++ showRep b
 
 
 instance (Rep a, Rep b) => Rep (a,b) where
@@ -310,7 +329,7 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     data X (Matrix ix a) = XMatrix (Matrix ix (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
-    unX (XMatrix m) = liftM matrix $ sequence (map (\ i -> unX (m ! i)) (indices m))
+    unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)
 --  wireName _  = "Matrix"
     repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
@@ -371,6 +390,7 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
 
 -----------------------------------------------------------------------------
 
+-- | Calculate the base-2 logrithim of a integral value.
 log2 :: (Integral a) => a -> a
 log2 0 = 0
 log2 1 = 1
@@ -395,7 +415,7 @@ instance (Integral x, Size x) => Rep (X0_ x) where
     unX (XX0 (WireVal a)) = return a
     unX (XX0 WireUnknown) = fail "X0_"
 --  wireName _  = "X" ++ show (size (error "wireName" :: X0_ x))
-    repType _  = U (log2 $ (size (error "repType" :: X0_ x) - 1))
+    repType _  = U (log2 (size (error "repType" :: X0_ x) - 1))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
@@ -408,14 +428,13 @@ instance (Integral x, Size x) => Rep (X1_ x) where
     unX (XX1 (WireVal a)) = return a
     unX (XX1 WireUnknown) = fail "X1_"
 --  wireName _  = "X" ++ show (size (error "wireName" :: X1_ x))
-    repType _  = U (log2 $ (size (error "repType" :: X1_ x) - 1))
+    repType _  = U (log2 (size (error "repType" :: X1_ x) - 1))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
--- This is a version of fromRepToIntegral that
+-- | This is a version of fromRepToIntegral that
 -- check to see if the result is inside the size bounds.
-
 sizedFromRepToIntegral :: forall w . (Rep w, Integral w, Size w) => RepValue -> X w
 sizedFromRepToIntegral w
         | val_integer >= toInteger (size (error "witness" :: w)) = unknownX
