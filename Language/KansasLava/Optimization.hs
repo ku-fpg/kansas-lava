@@ -1,3 +1,7 @@
+-- | The Optimization module performs a number of safe optimizations, such as
+--  copy elimination, CSE, and combinatorial identity artifacts:
+--  e.g. fst(x,y)-->x. The optimizer is *supposed* to be timing invariant;
+--  however, it may change circuit properties such as fanout.
 module Language.KansasLava.Optimization
 	( optimizeCircuit
 	, OptimizationOpts(..)
@@ -9,6 +13,7 @@ import Control.Monad
 
 import Data.List
 import Data.Default
+import Data.Maybe(fromMaybe)
 
 
 -- NOTES:
@@ -16,7 +21,9 @@ import Data.Default
 
 -- A very simple optimizer.
 
--- This returns an optimized version of the Entity, or fails to optimize.
+-- | This returns an optimized version of the Entity, or fails to optimize.  |
+-- Remove trivial overhead, such a direct projection from a product, pairing
+-- after projection, and multiplexers with duplicated data input.
 optimizeEntity :: (Unique -> Entity Unique) -> Entity Unique -> Maybe (Entity Unique)
 optimizeEntity env (Entity (Prim "fst") [(o0,_)] [(_,_,Port o0' u)]) =
 	case env u of
@@ -50,6 +57,8 @@ replaceWith o (i,t,other) = Entity (Prim "id") [(o,t)] [(i,t,other)]
 
 ----------------------------------------------------------------------
 
+-- | A optimization result will return the result along with an Int representing
+-- some metric based on the optimization...
 data Opt a = Opt a Int -- [String]
 
 instance Monad Opt where
@@ -60,7 +69,7 @@ instance Monad Opt where
 
 ----------------------------------------------------------------------
 
--- copy elimination
+-- | Copy elimination. Eliminate 'id' entities by propagating inputs to outputs.
 copyElimCircuit :: KLEG -> Opt KLEG
 copyElimCircuit rCir =  Opt rCir' (length renamings)
     where
@@ -70,9 +79,7 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 	      { theSinks =
 		  [ ( v,t,
 		      case d of
-		        Port p u -> case lookup (u,p) renamings of
-				      Just other -> other
-				      Nothing    -> Port p u
+		        Port p u -> fromMaybe (Port p u) (lookup (u, p) renamings)
 			Pad v' -> Pad v'
 			Lit i -> Lit i
 			Error i -> error $ "Found Error : " ++ show (i,v,t,d)
@@ -94,14 +101,13 @@ copyElimCircuit rCir =  Opt rCir' (length renamings)
 		    ]
 
 	fixInPort (i,t,Port p u) =
-			    (i,t, case lookup (u,p) renamings of
-				     Just other -> other
-				     Nothing    -> Port p u)
+			    (i,t,fromMaybe (Port p u) (lookup (u, p) renamings))
 	fixInPort (i,t,o) = (i,t,o)
 
 
 --
 -- Starting CSE.
+-- | Common subexpression eliminatation.
 cseCircuit :: KLEG -> Opt KLEG
 cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
    where
@@ -153,6 +159,9 @@ cseCircuit rCir = Opt  (rCir { theCircuit = concat rCirX }) cseCount
 			  | (uX,Entity _ outs' _) <- rest, length outs == length outs'
 			  ]
 
+-- | Dead code elimination. Although reifyGraph will only reify the part of the
+-- circuit that is reachable, it is possible that additional optimizations will
+-- make code unreachable. This pass eliminates those graph nodes.
 dceCircuit :: KLEG -> Opt KLEG
 dceCircuit rCir = if optCount == 0
 			 then return rCir
@@ -178,27 +187,26 @@ dceCircuit rCir = if optCount == 0
 	rCir' = rCir { theCircuit = optCir }
 
 -- return Nothing *if* no optimization can be found.
+-- | Apply the optimizeEntity optimization.
 patternMatchCircuit :: KLEG -> Opt KLEG
 patternMatchCircuit rCir = if optCount == 0
 			      then return rCir	-- no changes
 			      else Opt rCir' optCount
   where
 	env0 = theCircuit rCir
-	env1 v = case lookup v env0 of
-		   Nothing -> error $ "oops, can not find " ++ show v
-		   Just e -> e
-
+	env1 v = fromMaybe (error $ "oops, can not find " ++ show v) (lookup v env0)
 	attemptOpt = [ optimizeEntity env1 e | (_,e) <- theCircuit rCir ]
 	optCount = length [ () | (Just _) <- attemptOpt ]
 
-	optCir = [ (uq,case mOpt of
-			 Nothing -> orig
-			 Just opt -> opt)
+	optCir = [ (uq,fromMaybe orig mOpt)
 		 | ((uq,orig),mOpt) <- zip (theCircuit rCir) attemptOpt
 		 ]
 
 	rCir' = rCir { theCircuit = optCir }
 
+-- | Apply a number of named optimizations (the first argument) to the
+-- input. Optimizations are applied sequentially, but the intermediate results
+-- are returned in the resulting list.
 optimizeCircuits :: [(String,KLEG -> Opt KLEG)] -> KLEG -> [(String,Opt KLEG)]
 optimizeCircuits [] _ = []
 optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
@@ -207,7 +215,7 @@ optimizeCircuits ((nm,fn):fns) c = (nm,opt) : optimizeCircuits fns c'
 				 res@(Opt _ _) -> res
 
 
-
+-- | Data structure for passing optimization parameters.
 data OptimizationOpts = OptimizationOpts
 	{ optDebugLevel :: Int
 	}
@@ -220,12 +228,11 @@ instance Default OptimizationOpts
 
 
 -- | Basic optimizations, and assumes reaching a fixpoint.
--- Cleans things up, but does not work to hard, because 
+-- Cleans things up, but does not work too hard, because
 -- the VHDL compiler get many of the combinatorial optimizations anyway.
 optimizeCircuit :: OptimizationOpts -> KLEG -> IO KLEG
 optimizeCircuit options rCir = do
-	when debug $ do
-		print rCir
+	when debug $ print rCir
 	loop (optimizeCircuits (cycle opts) rCir)
    where
 	debug = optDebugLevel options > 0
@@ -233,8 +240,7 @@ optimizeCircuit options rCir = do
 	loop cs@((nm,Opt code n):_) = do
 		when debug $ do
 		  putStrLn $ "##[" ++ nm ++ "](" ++ show n ++ ")###################################"
-		  when (n > 0) $ do
-			print code
+		  when (n > 0) $ print code
 		case cs of
 		    ((_,Opt c _):_) | and [ num == 0 | (_,Opt _ num) <- take (length opts) cs ] -> return c
 		    ((_,Opt _ _):rest) -> loop rest
