@@ -328,7 +328,7 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- until both can recieve it.
 dupPatch :: (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
-	          (sig Ready)           (sig Ready         :> sig Ready) 
+	          (sig Ready)             (sig Ready      :> sig Ready) 
 dupPatch ~(inp,rA :> rB) = (toReady go, (out :> out))
   where
 	go = fromReady rA .&&. fromReady rB
@@ -448,10 +448,10 @@ matrixMuxPatch ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
 
 -- (There are larger FIFO's in the Kansas Lava Cores package.)
 
-fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+fifo1' :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
       => Patch (sig (Enabled a)) 	(sig (Enabled a))
 	       (sig Ready)		(sig Ack)
-fifo1 ~(inp,ack) = (toReady ready, out)
+fifo1' ~(inp,ack) = (toReady ready, out)
    where
 	have_read = (state .==. 0)    .&&. isEnabled inp
 
@@ -471,7 +471,6 @@ fifo1 ~(inp,ack) = (toReady ready, out)
 	ready = state .==. 0
 
 	out = packEnabled (state .==. 1) store
-
 
 fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
     => Patch (sig (Enabled a)) 	 (sig (Enabled a))
@@ -518,6 +517,27 @@ fifo2 ~(inp,ack) = (toReady ready, out)
 
         out = packEnabled (state ./=. 0) outval
 
+fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+      => Patch (sig (Enabled a)) 	(sig (Enabled a))
+	       (sig Ack)		(sig Ack)
+fifo1 ~(inp,ack) = (toAck have_read, out)
+   where
+	have_read = (state .==. 0) .&&. isEnabled inp
+	written   = (state .==. 1) .&&. fromAck ack
+
+	state :: sig X2
+	state = register 0
+	      $ cASE [ (have_read,	pureS 1)
+		     , (written,	pureS 0)
+		     ] state
+
+	store :: sig a
+	store = cASE [ (have_read,enabledVal inp)
+		     ]
+	      $ delay store
+
+	out = packEnabled (state .==. 1) store
+
 ---------------------------------------------------------------------------------
 -- Retiming
 ---------------------------------------------------------------------------------
@@ -541,7 +561,7 @@ matrixContractPatch =
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
 	$$ matrixDeMuxPatch
-	$$ matrixStack (pure fifo1)
+	$$ matrixStack (pure fifo1')
 	$$ matrixZipPatch
 
 ---------------------------------------------------------------------------------
