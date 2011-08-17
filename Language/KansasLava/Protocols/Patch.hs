@@ -42,9 +42,14 @@ runPatch p = a
  where
    (_,a) = p (unit,unit)
 
+-- TODO: rm
 nullPatch :: Patch a  a
 		   b  b
 nullPatch ~(a,b) = (b,a)
+
+idPatch :: Patch a  a
+	         b  b
+idPatch ~(a,b) = (b,a)
 
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
