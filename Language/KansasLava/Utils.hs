@@ -511,15 +511,6 @@ registers n def ss = iterate (register def) ss !! n
 -- If the error flag is never examined, no extra hardware will be generated to
 -- compute or represent the value.
 
--- | coerceSized converts a value that can be enumerated into a different type
--- (that can also be enumerated). If the integer value in the new type doesn't
--- match that of the old type, the Bool element of the result will be True..
-coerceSized ::  (Enum a, Enum b) => a -> (b, Bool)
-coerceSized a  = (b, err)
- where valA = fromEnum a
-       b = toEnum valA
-       valB = fromEnum b
-       err = not (valA == valB)
 
 {-
 ---------------------------------------------------------------------------------------------

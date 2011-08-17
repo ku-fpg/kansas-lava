@@ -28,9 +28,6 @@ import Language.KansasLava.Types
 -- Right now, it is global, but we think we can support multiple clocks with a bit of work.
 data CSeq c a = Seq (S.Stream (X a)) (D a)
 
--- | Type alias for CSeq
-type Clocked c a = CSeq c a	-- new name, start using
-
 -- | CSeq in some implicit clock domain.
 type Seq a = CSeq () a
 
@@ -122,17 +119,6 @@ takeThenSeq :: Int -> CSeq c a -> CSeq c a -> CSeq c a
 takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++
                                                 S.toList (seqValue sq2)))
 
--- | Apply a function from characters to a given type across a String, then lift
--- it into a CSeq padded by an infinite list of X unknowns.
-encSeq :: (Rep a) =>  (Char -> Maybe a) -> String -> CSeq c a
-encSeq enc xs = shallowSeq (S.fromList (map optX (map enc xs ++ repeat Nothing)))
-
--- | Convert a string, with 'H' representing True, 'L' representing False, into a CSeq.
-encSeqBool :: String -> CSeq c Bool
-encSeqBool = encSeq enc
-	where enc 'H' = return True
-	      enc 'L' = return False
-	      enc  _   = Nothing
 
 -- | Convert a CSeq into a list of Strings, one string for each time step.
 showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
@@ -157,50 +143,6 @@ cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 
 -----------------------------------------------------------------------------------
 
--- Do we use this any more?
--- | Monomorphic box round wires.
-data IsRepWire = forall a c . (Rep a) => IsRepWire (CSeq c a)
-
--- | The raw data from a representable wire.
-showBitfile :: [IsRepWire] -> [String]
-showBitfile streams =
-	      [ concat bits
-	      | bits <- bitss
-	      ]
-	where	bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
-
--- | Show a list of representable wires, along with metainfo.
-showBitfileInfo :: [IsRepWire] -> [String]
-showBitfileInfo streams =
-	      [  "(" ++ show n ++ ") " ++ joinWith " -> "
-		 [ v ++ "/" ++ b
-	         | (b,v) <- zip bits vals
-	         ]
-	      | (n::Integer,bits,vals) <- zip3 [0..] bitss valss
-	      ]
-	where
-		joinWith _ [] = []
-		joinWith sep xs = foldr1 (\ a b -> a ++ sep ++ b) xs
-		bitss = transpose $ map (\ (IsRepWire a) -> showSeqBits a) streams
-		valss = transpose $ map (\ (IsRepWire a) -> showSeqVals a) streams
-
--- | Convert a CSeq to a list of bitvectors, then print them out.
-showSeqBits :: forall a c . (Rep a) => CSeq c a -> [String]
-showSeqBits ss = [ show $ toRep (i :: X a)
-		 | i <- fromSeqX (ss :: CSeq c a)
-       	         ]
-       -- where showX b = case unX b of
-       --  		Nothing -> 'X'
-       --  		Just True -> '1'
-       --  		Just False -> '0'
-       --       witness = error "witness" :: a
--- | Convert a CSeq to a list of values, using the showRep for the type contained in the CSeq.
-showSeqVals :: forall a c . (Rep a) => CSeq c a -> [String]
-showSeqVals ss = [ showRep i
-	 	 | i <- fromSeqX (ss :: CSeq c a)
-       	         ]
-
-----------------------------------------------------------------------------------
 
 instance Dual (CSeq c a) where
     dual c d = Seq (seqValue c) (seqDriver d)
