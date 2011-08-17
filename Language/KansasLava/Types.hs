@@ -47,10 +47,12 @@ module Language.KansasLava.Types (
         -- I and O
         , I
         , O
-        -- *Dual shallow/deep
+        -- * Dual shallow/deep
         , Dual(..)
-	-- *Our version of tuples
+	-- * Our version of tuples
 	, (:>)(..)
+	-- * Synthesis control
+	, Synthesis(..)
         ) where
 
 import Control.Applicative
@@ -649,4 +651,12 @@ instance (Dual b) => Dual (a -> b) where
 infixr 5 :>
 
 data a :> b = a :> b deriving (Eq, Ord, Show, Read)
+
+
+----------------------------------------------------------------------------
+-- | How to balance our circuits. Typically use 'Sweet'(spot), but 
+-- 'Small' has permission to take longer, and 'Fast' has permission
+-- use extra gates.
+
+data Synthesis = Small | Sweet | Fast
 
