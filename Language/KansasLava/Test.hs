@@ -671,11 +671,13 @@ data StreamTest w1 w2 = StreamTest
             , theStreamName        :: String
             }
 
-testStream :: forall w . (Eq w, Rep w, Show w, Size (W w))
-        => TestSeq -> String -> StreamTest w w -> Gen (Maybe w) -> IO ()
+testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, Size (W w1)
+			     , Eq w2, Rep w2, Show w2, Size (W w2)
+			     )
+        => TestSeq -> String -> StreamTest w1 w2 -> Gen (Maybe w1) -> IO ()
 testStream (TestSeq test _) tyName streamTest ws = do
 
-        let vals0 :: [Maybe w]
+        let vals0 :: [Maybe w1]
 	    vals0 = take (fromIntegral (theStreamTestCycles streamTest))
 			 (cycle (genToRandom $ loop 10 $ ws))
 
@@ -685,7 +687,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
 	  	    | (Just _,n) <- zip vals0 [0..]
 	            ]
 
-	    vals :: [Maybe w]
+	    vals :: [Maybe w1]
 	    vals = case vals1 of
 		     [] -> vals0
 		     (n:_) -> [ if i < n then v else Nothing
@@ -710,7 +712,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 -- backedge output from DUT
                 ack <- inStdLogic "ack" :: Fabric (Seq Ack)
 
-                let vals2 :: Seq (Enabled w)
+                let vals2 :: Seq (Enabled w1)
                     (_,vals2) = toAckBox' a (vals ++ Prelude.repeat Nothing,ack)
 
                 -- sent to DUT
@@ -724,7 +726,7 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 res_en  <- inStdLogic       "res_en"
 
                 let flag :: Seq Ack 
-                    opt_as :: [Maybe w]
+                    opt_as :: [Maybe w2]
 
                     (flag, opt_as) = fromAckBox' d (packEnabled res_en res,())
 
