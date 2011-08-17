@@ -459,29 +459,6 @@ matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
 
 -- (There are larger FIFO's in the Kansas Lava Cores package.)
 
-fifo1' :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
-      => Patch (sig (Enabled a)) 	(sig (Enabled a))
-	       (sig Ready)		(sig Ack)
-fifo1' ~(inp,ack) = (toReady ready, out)
-   where
-	have_read = (state .==. 0)    .&&. isEnabled inp
-
-	written = (state .==. 1) .&&. fromAck ack
-
-	state :: sig X2
-	state = register 0
-	      $ cASE [ (have_read,	pureS 1)
-		     , (written,	pureS 0)
-		     ] state
-
-	store :: sig a
-	store = cASE [ (have_read,enabledVal inp)
-		     ]
-	      $ delay store
-
-	ready = state .==. 0
-
-	out = packEnabled (state .==. 1) store
 
 fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
     => Patch (sig (Enabled a)) 	 (sig (Enabled a))
