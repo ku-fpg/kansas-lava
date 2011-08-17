@@ -480,8 +480,9 @@ fifo1' ~(inp,ack) = (toReady ready, out)
 
 fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
     => Patch (sig (Enabled a)) 	 (sig (Enabled a))
-             (sig Ready)         (sig Ack)
-fifo2 ~(inp,ack) = (toReady ready, out)
+             (sig Ack)         (sig Ack)
+fifo2 = ackToReadyBridge $$ fifo2' where
+ fifo2' ~(inp,ack) = (toReady ready, out)
     where
         dataIncoming = isEnabled inp
 
