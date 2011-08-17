@@ -111,6 +111,44 @@ loopPatch g ~(b,f) = (e,c)
   where
     (d:>e,a:>c) = g (a:>b,d:>f)
 
+-------------------------------------------------------------------------------
+-- Sink Patches - throw away (ignore) data
+-------------------------------------------------------------------------------
+
+sinkReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => Patch    (sig (Enabled a))           ()
+                (sig Ready)                 ()
+sinkReadyPatch ~(_, ()) = (toReady ready, ())
+  where
+        ready = high
+
+sinkAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => Patch    (sig (Enabled a))           ()
+                (sig Ack)                   ()
+sinkAckPatch ~(inp, ()) = (toAck ack, ())
+  where
+        (ack,_) = unpack inp
+
+-------------------------------------------------------------------------------
+-- Source Patches - generate a stream of constant values
+-------------------------------------------------------------------------------
+
+sourceReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => a
+    -> Patch    ()           (sig (Enabled a))
+                ()           (sig Ready)
+sourceReadyPatch baseVal ~((), ready_in) = ((), out)
+  where
+        out = packEnabled (fromReady ready_in) (toSeq $ Prelude.repeat baseVal)
+
+sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+    => a
+    -> Patch    ()           (sig (Enabled a))
+                ()           (sig Ack)
+sourceAckPatch baseVal ~((), _) = ((), out)
+  where
+        out = packEnabled high (toSeq $ Prelude.repeat baseVal)
+
 ------------------------------------------------
 -- Unit
 ------------------------------------------------
