@@ -124,11 +124,6 @@ fun2 :: forall a b c sig . (Signal sig, Rep a, Rep b, Rep c) => String -> (a -> 
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b))
 	  $ entity2 (Prim nm) ae be
 
--- TODO: Hack for now, remove
--- | Given a wire, extract its name.
-wireName :: (Rep a) => a -> String
-wireName _ = "Lava"
-
 
 
 -----------------------------------------------------------------------------------------------

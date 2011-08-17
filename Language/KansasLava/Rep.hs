@@ -159,7 +159,6 @@ instance Rep Int where
     optX Nothing    = XInt $ fail "Wire Int"
     unX (XInt (WireVal v))  = return v
     unX (XInt WireUnknown) = fail "Wire Int"
---  wireName _  = "Int"
     repType _  = S 32      -- hmm. Not really on 64 bit machines.
 
     toRep = toRepFromIntegral
@@ -197,7 +196,6 @@ instance Rep () where
     optX Nothing    = XUnit $ fail "Wire ()"
     unX (XUnit (WireVal v))  = return v
     unX (XUnit WireUnknown) = fail "Wire ()"
---  wireName _  = "Unit"
     repType _  = V 1   -- should really be V 0 TODO
     toRep _ = RepValue []
     fromRep _ = XUnit $ return ()
@@ -231,7 +229,6 @@ instance (Rep a, Rep b) => Rep (a :> b) where
     unX (XCell (a,b)) = do x <- unX a
                            y <- unX b
                            return (x :> y)
---  wireName _ = "Cell_2"
 
     repType Witness = TupleTy [repType (Witness :: Witness a), repType (Witness :: Witness b)]
 
@@ -253,7 +250,6 @@ instance (Rep a, Rep b) => Rep (a,b) where
     unX (XTuple (a,b)) = do x <- unX a
                             y <- unX b
                             return (x,y)
---  wireName _ = "Tuple_2"
 
     repType Witness = TupleTy [repType (Witness :: Witness a), repType (Witness :: Witness b)]
 
@@ -311,7 +307,6 @@ instance (Rep a) => Rep (Maybe a) where
                 Nothing    -> Nothing
                 Just True  -> Just $ unX b
                 Just False -> Just Nothing
---  wireName _  = "Maybe<" ++ wireName (error "witness" :: a) ++ ">"
     repType _  = TupleTy [ B, repType (Witness :: Witness a)]
 
     toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)
@@ -330,7 +325,6 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)
---  wireName _  = "Matrix"
     repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
@@ -359,7 +353,6 @@ instance (Size ix) => Rep (Signed ix) where
     optX Nothing        = XSigned $ fail "Wire Int"
     unX (XSigned (WireVal a))     = return a
     unX (XSigned WireUnknown)   = fail "Wire Int"
---  wireName _      = "Signed"
     repType _          = S (size (error "Wire/Signed" :: ix))
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
@@ -414,7 +407,6 @@ instance (Integral x, Size x) => Rep (X0_ x) where
     optX Nothing    = XX0 $ fail "X0_"
     unX (XX0 (WireVal a)) = return a
     unX (XX0 WireUnknown) = fail "X0_"
---  wireName _  = "X" ++ show (size (error "wireName" :: X0_ x))
     repType _  = U (log2 (size (error "repType" :: X0_ x) - 1))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
@@ -427,7 +419,6 @@ instance (Integral x, Size x) => Rep (X1_ x) where
     optX Nothing    = XX1 $ fail "X1_"
     unX (XX1 (WireVal a)) = return a
     unX (XX1 WireUnknown) = fail "X1_"
---  wireName _  = "X" ++ show (size (error "wireName" :: X1_ x))
     repType _  = U (log2 (size (error "repType" :: X1_ x) - 1))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
