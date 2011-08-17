@@ -219,7 +219,7 @@ infixr 5 `bus`
 -- the output side.  If data is currently being held, then the ready signal 
 -- will not be given.  This bridge is fine for deep embedding (can be 
 -- represented in hardware).
-readyToAckBridge :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+readyToAckBridge :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ready)                 (sig Ack)
 readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
@@ -229,7 +229,7 @@ readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
 
         captureData = in_en .&&. bitNot dataHeld .&&. bitNot ack_in
 
-        dataHolder  = register 0
+        dataHolder  = delay
                     $ cASE [ (captureData, in_val)
                            ] dataHolder
 
