@@ -550,7 +550,7 @@ matrixExpandPatch =
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ stack 
 		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
-		 (ackToReadyBridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1))
+		 (ackToReadyBridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1'))
 	$$ matrixMuxPatch
 
 matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
