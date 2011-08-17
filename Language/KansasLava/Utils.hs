@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ParallelListComp, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses  #-}
-
+-- | This module contains a number of primitive circuits, and instance
+-- definitions for standard type classes for circuits.
 module Language.KansasLava.Utils where
 
 import Control.Applicative
@@ -19,15 +20,24 @@ import Data.Sized.Signed	as SI
 
 -----------------------------------------------------------------------------------------------
 
-high, low :: forall (sig :: * -> *) . (Signal sig) => sig Bool
+-- | The 'Signal' representing True.
+high :: forall (sig :: * -> *) . (Signal sig) => sig Bool
 high = pureS True
+
+-- | The 'Signal' representing False.
+low :: forall (sig :: * -> *) . (Signal sig) => sig Bool
 low  = pureS False
 
-true, false :: Comb Bool
+-- | The constant combinational values for True.
+true :: Comb Bool
 true = pureS True
+
+-- | The constant combinational values for False.
+false :: Comb Bool
 false = pureS False
 
 -----------------------------------------------------------------------------------------------
+-- | 1-bit and gate.
 and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just True,Just True) -> optX $ Just True
@@ -36,6 +46,7 @@ and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     _                     -> optX $ Nothing)
 					 $ entity2 (Prim "and2") ae be
 
+-- | 1 bit or gate.
 or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just False,Just False) -> optX $ Just False
@@ -43,18 +54,21 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 					     	     (_,Just True)           -> optX $ Just True
 						     _                       -> optX $ Nothing )
 					 $ entity2 (Prim "or2") ae be
+-- | 1 bit xor gate.
 xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Prim "xor2") ae be
 
+-- | 1 bit inverter.
 bitNot :: (Signal sig) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Prim "not") ae
 
+-- | Extract the n'th bit of a signal that can be represented as Bits.
 testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a))
                                       $ entity2 (Prim "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
 		      ) x
 
-
+-- | Predicate to see if a Signed value is positive.
 isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
@@ -64,12 +78,15 @@ infixr 3 .&&.
 infixr 2 .||.
 infixr 2 .^.
 
+-- | Alias for 'and2'.
 (.&&.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 (.&&.) = and2
 
+-- | Alias for 'or2'.
 (.||.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 (.||.) = or2
 
+-- | Alias for 'xor2'.
 (.^.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
 (.^.)  = xor2
 
@@ -138,7 +155,7 @@ instance (Eq a, Show a, Fractional a, Rep a) => Fractional (CSeq c a) where
 instance (Rep a, Enum a) => Enum (Comb a) where
 	toEnum   = error "toEnum not supported for Comb"
 	fromEnum = error "fromEnum not supported for Comb"
-	
+
 instance (Rep a, Real a) => Real (Comb a) where
 	toRational = error "toRational not supported for Comb"
 
@@ -185,6 +202,9 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 
 -- Assumping that the domain is finite (beacause of Rep), and *small* (say, < ~256 values).
 
+-- | Given a function over a finite domain, generate a ROM representing the
+-- function. To make this feasible to implement, we assume that the domain is
+-- small (< 2^8 values).
 funMap :: forall sig a b . (Signal sig, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
 funMap fn = liftS1 $ \ (Comb a (D ae))
 			-> Comb (case unX a of
@@ -221,6 +241,7 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 		    ]
 
 -- TODO: move this to somewhere else
+-- | Convert a RepValue to a Haskell Integer.
 repValueToInteger :: RepValue -> Integer
 repValueToInteger (RepValue []) = 0
 repValueToInteger (RepValue (WireVal True:xs)) = 1 + repValueToInteger (RepValue xs) * 2
@@ -233,6 +254,7 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 -- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
 -- the use of liftS3. This is safe, because we know the kind of node that we're building.
+-- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
 mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig)
 	= liftS3 (\ (Comb i ei)
@@ -242,7 +264,7 @@ mux2 iSig (tSig,eSig)
                                 (entity3 (Prim "mux2") ei et ee)
 	         ) iSig tSig eSig
 
-
+-- | Shallow definition of a multiplexer. Deals with 3-value logic.
 mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
 mux2shallow i t e =
    case unX i of
@@ -251,6 +273,7 @@ mux2shallow i t e =
        Just False -> e
 
 -------------------------------------------------------------------------------------------------
+-- | TODO: Document this.
 eval :: forall a . (Rep a) => a -> ()
 eval a = count $ unRepValue $ toRep (optX (Just a))
   where count (WireVal True:rest) = count rest
@@ -258,6 +281,7 @@ eval a = count $ unRepValue $ toRep (optX (Just a))
 	count (WireUnknown:rest) = count rest
 	count [] = ()
 
+-- | TODO: Document this.
 evalX :: forall a . (Rep a) => X a -> ()
 evalX a = count $ unRepValue $ toRep a
   where count (WireVal True:rest) = count rest
@@ -267,6 +291,7 @@ evalX a = count $ unRepValue $ toRep a
 
 -------------------------------------------------------------------------------------------------
 
+-- | Alias for '.!.'
 muxMatrix
 	:: forall sig x a
 	 . (Signal sig, Size x, Rep x, Rep a)
@@ -274,6 +299,8 @@ muxMatrix
 	-> sig x
 	-> sig a
 muxMatrix = (.!.)
+
+-- | Extract the n'th element of a vector.
 (.!.)	:: forall sig x a
 	 . (Signal sig, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
@@ -333,6 +360,7 @@ instance (Bounded a, Rep a) => Bounded (CSeq c a) where
     minBound = liftS0 minBound
     maxBound = liftS0 maxBound
 
+-- | Lift a (named) binary function over bools to be over 'Signal's.
 boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
 	liftS2 $ \ (Comb a ea) (Comb b eb) ->
@@ -342,21 +370,28 @@ boolOp nm fn =
 		      (entity2 (Prim nm) ea eb)
 
 infix 4 .==., .>=., .<=., .<., .>.
+
+-- | N-bit equality.
 (.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
 
+-- | N-bit not-equals.
 (./=.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
 (./=.) xs ys = bitNot (xs .==. ys) -- TODO: consider making this a primitive
 
+-- | N-bit greater-than-or-equals.
 (.>=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 
+-- | N-bit less-than-or-equals.
 (.<=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<=.) = boolOp ".<=." (<=)
 
+-- | N-bit less-than.
 (.<.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
 
+-- | N-bit greater-than.
 (.>.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
 (.>.) = boolOp ".>." (>)
 
@@ -380,8 +415,10 @@ data Rst = Rst Bool
 --    deriving (Show)
 
 -- For now, till other codes get fixed
+-- | An Env represents a clock domain.
 type Env c = ()
 
+-- | The shallow representation of a clock.
 shallowEnv :: ()
 shallowEnv = ()
 
@@ -420,6 +457,7 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 
 -- a delay is a register with no defined default / initial value.
 
+-- | a delay is a register with no defined default / initial value.
 delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
 delay ~(Seq line eline) = res
    where
@@ -437,11 +475,12 @@ delay ~(Seq line eline) = res
 		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
-
+-- | delays generates a serial sequence of n delays.
 delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
 delays n ss = iterate delay ss !! n
 
 
+-- | A register is a state element with a reset. The reset is supplied by the clock domain in the CSeq.
 register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
 register first  ~(Seq line eline) = res
    where
@@ -460,7 +499,7 @@ register first  ~(Seq line eline) = res
 		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
 		     ("rst",B,     Pad $ OVar (-1) "rst")
 		    ]
-
+-- | registers generates a serial sequence of n registers, all with the same initial value.
 registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a
 registers n def ss = iterate (register def) ss !! n
 
@@ -471,6 +510,10 @@ registers n def ss = iterate (register def) ss !! n
 -- causes a loss of information (an error?)
 -- If the error flag is never examined, no extra hardware will be generated to
 -- compute or represent the value.
+
+-- | coerceSized converts a value that can be enumerated into a different type
+-- (that can also be enumerated). If the integer value in the new type doesn't
+-- match that of the old type, the Bool element of the result will be True..
 coerceSized ::  (Enum a, Enum b) => a -> (b, Bool)
 coerceSized a  = (b, err)
  where valA = fromEnum a
@@ -608,47 +651,47 @@ factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 
 -------------------------------------------------------------------------------------
 
-
+-- | The identity function, lifted to 'Signal's.
 lavaId :: (Signal sig, Rep a) => sig a -> sig a
 lavaId = fun1 "id" id
 
 -------------------------------------------------------------------------------------
 
 -- | 'ignoring' is used to make sure a value is reified.
-
 ignoring :: (Signal sig, Rep a, Rep b) => sig a -> sig b -> sig a
 ignoring = fun2 "const" const
 
 -------------------------------------------------------------------------------------
 
+-- | Given a representable value for a discirminant and a list of input signals, generate a n-ary mux.
 cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 
 -------------------------------------------------------------------------------------
 --
--- if Nothing, take whole list, otherwise, normal take with the Int inside the Just
+-- | if the first argument is Nothing, take whole list, otherwise, normal take with the Int inside the Just
 takeMaybe :: Maybe Int -> [a] -> [a]
 takeMaybe = maybe id take
 
 -------------------------------------------------------------------------------------
 
 -- | translate using raw underlying bits, Width *must* be the same.
-
 bitwise :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
 bitwise = liftS1 $ \ (Comb a ae) -> Comb (fromRep (toRep a)) $ entity1 (Prim "coerce") ae
 
 
--- ^ translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
+-- | translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
 coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
-coerce f = liftS1 $ \ (Comb a ae) -> 
+coerce f = liftS1 $ \ (Comb a ae) ->
 	let
 	    b = liftX f a
 	    b' | toRep a == toRep b = b
 	       | otherwise          = error "coerce fails to preserve bit pattern"
 	in Comb b' $ entity1 (Prim "coerce") ae
 
-
+-- | Coerce a value from on type to another, interpreting the bits as a signed
+-- value. Do not sign extend.
 signedX :: forall a b . (Rep a, Rep b) => X a -> X b
 signedX = id
        . fromRep
@@ -661,6 +704,7 @@ signedX = id
 signed :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
 signed = liftS1 $ \ (Comb a ae) -> Comb (signedX a) $ entity1 (Prim "signed") ae
 
+-- | Consider the value as an unsigned value.
 unsignedX :: forall a b . (Rep a, Rep b) => X a -> X b
 unsignedX = id
        . fromRep
@@ -680,9 +724,11 @@ unsafeId = liftS1 $ \ (Comb a (D ae)) -> Comb (fromRep $ toRep a) $ (D ae)
 
 ----------------------------------------------------------------------------
 
+-- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
 factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
 factor a = unpack (bitwise a :: sig (a1,a2))
 
+-- | given two signals of a1 and a2 width, respectively, pack them into a signal of a1 + a2 width.
 append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = bitwise (pack (x,y) :: sig (a,b))
 
@@ -692,9 +738,8 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- the second is our reference value.
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
-
 refinesFrom :: forall sig a . (Signal sig, Rep a) => sig a -> sig a -> sig Bool
-refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) -> 
+refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) ->
                         Comb (let res = and
                                       [ case (vut,ref) of
                                            (_,WireUnknown)       -> True
@@ -707,7 +752,8 @@ refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) ->
                              (D $ Error "no deep entity for refinesFrom")
 
 --------------------------------------------------------------------------------
-
+-- | Create a register, pass the output of the register through some
+-- combinational logic, then pass the result back into the register input.
 iterateS :: (Rep a, Clock c, seq ~ CSeq c) => (Comb a -> Comb a) -> a -> seq a
 iterateS f start = out where
         out = register start (liftS1 f out)
