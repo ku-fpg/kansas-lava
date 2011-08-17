@@ -664,7 +664,7 @@ matchExpected out_name ref = do
 
 data StreamTest w1 w2 = StreamTest
             { theStream            :: Patch (Seq (Enabled w1))		(Seq (Enabled w2))
-					    (Seq Ack)  			(Seq Ready)
+					    (Seq Ack)  			(Seq Ack)
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
 	    , theStreamTestCount   :: Int
 	    , theStreamTestCycles  :: Int
@@ -723,10 +723,10 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 res     <- inStdLogicVector "res" 
                 res_en  <- inStdLogic       "res_en"
 
-                let flag :: Seq Ready 
+                let flag :: Seq Ack 
                     opt_as :: [Maybe w]
 
-                    (flag, opt_as) = fromReadyBox' d (packEnabled res_en res,())
+                    (flag, opt_as) = fromAckBox' d (packEnabled res_en res,())
 
                 outStdLogic "flag" flag
 

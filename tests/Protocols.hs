@@ -14,9 +14,9 @@ tests test = do
 
         let fifoTest :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
 		      => String
-		      -> ((Seq (Enabled w), Seq Ready) -> (Seq Ack, Seq (Enabled w))) -> StreamTest w w
+		      -> Patch (Seq (Enabled w)) (Seq (Enabled w)) (Seq Ack) (Seq Ack) -> StreamTest w w
             fifoTest n f = StreamTest
-                        { theStream = f :: (Seq (Enabled w), Seq Ready) -> (Seq Ack, Seq (Enabled w))
+                        { theStream = f
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
                                 case () of
                                   () | outs /= take (length outs) ins -> return "in/out differences"
@@ -37,9 +37,9 @@ tests test = do
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
-	testStream test "U5"   (fifoTest "ackToReadyBridge" ackToReadyBridge) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "ackToReadyBridge" ackToReadyBridge) (arbitrary :: Gen (Maybe Bool))
---	testStream test "U5"   (fifoTest "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe U5))
---	testStream test "Bool" (fifoTest  "shallow/bridge2" bridge') (arbitrary :: Gen (Maybe Bool))
+	testStream test "U5"   (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe U5))
+	testStream test "Bool" (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe Bool))
+	testStream test "U5"   (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe U5))
+	testStream test "Bool" (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe Bool))
 
 	return ()
