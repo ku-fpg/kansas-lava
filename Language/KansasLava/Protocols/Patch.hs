@@ -370,14 +370,13 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- | This duplicates the incomming datum.
 -- This has the behavior that neither branch sees the value
 -- until both can recieve it.
-dupPatch :: (Clock c, sig ~ CSeq c, Rep a)
+dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
 	          (sig Ack)             (sig Ack      :> sig Ack) 
-dupPatch = ackToReadyBridge $$ dupPatch' $$ stack readyToAckBridge readyToAckBridge where
- dupPatch' ~(inp,rA :> rB) = (toReady go, (out :> out)) 
-    where
-	go = fromReady rA .&&. fromReady rB
-	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
+dupPatch = 
+	matrixDupPatch $$
+	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
+	backwardPatch (\ (a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
 
 -- | This duplicate the incoming datam over many handshaken streams.
 matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
