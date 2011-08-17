@@ -328,31 +328,33 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- until both can recieve it.
 dupPatch :: (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
-	          (sig Ready)             (sig Ready      :> sig Ready) 
-dupPatch ~(inp,rA :> rB) = (toReady go, (out :> out))
-  where
+	          (sig Ack)             (sig Ack      :> sig Ack) 
+dupPatch = ackToReadyBridge $$ dupPatch' $$ stack readyToAckBridge readyToAckBridge where
+ dupPatch' ~(inp,rA :> rB) = (toReady go, (out :> out)) 
+    where
 	go = fromReady rA .&&. fromReady rB
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
 -- | This duplicate the incoming datam over many handshaken streams.
 matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
          => Patch (sig (Enabled a))     (Matrix x (sig (Enabled a)))
-	          (sig Ready)           (Matrix x (sig Ready))
-matrixDupPatch ~(inp,readys) = (toReady go, pure out)
-  where
+	          (sig Ack)             (Matrix x (sig Ack))
+matrixDupPatch = ackToReadyBridge $$ matrixDupPatch' $$ matrixStack (pure readyToAckBridge) where
+ matrixDupPatch' ~(inp,readys) = (toReady go, pure out) 
+    where
 	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
 unzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
          => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
-	          (sig Ready)               (sig Ready       :> sig Ready)
+	          (sig Ack)                 (sig Ack       :> sig Ack)
 unzipPatch = dupPatch $$ 
 		stack (forwardPatch $ mapEnabled (fst . unpack))
 		      (forwardPatch $ mapEnabled (snd . unpack))
 
 matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
          => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
-	          (sig Ready)          		  (Matrix x (sig Ready))
+	          (sig Ack)          		  (Matrix x (sig Ack))
 matrixUnzipPatch = 
 	matrixDupPatch $$
 	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
@@ -360,7 +362,7 @@ matrixUnzipPatch =
 
 deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
   => Patch (sig (Enabled Bool)    :> sig (Enabled a)) 		  (sig (Enabled a) :> sig (Enabled a))
-	   (sig Ack               :> sig Ack)		          (sig Ready	   :> sig Ready)
+	   (sig Ack               :> sig Ack)		          (sig Ack	   :> sig Ack)
 deMuxPatch = fe $$ matrixDeMuxPatch $$ be
   where
 	fe = fstPatch (forwardPatch ((unsigned)))
@@ -370,9 +372,10 @@ deMuxPatch = fe $$ matrixDeMuxPatch $$ be
 
 matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
-	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ready))
-matrixDeMuxPatch ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
-   where
+	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ack))
+matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) where
+ matrixDeMuxPatch' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out) 
+    where
 	-- set when ready to try go
 	go = isEnabled ix .&&. isEnabled inp .&&. fromReady (pack m_ready .!. enabledVal ix)
 
@@ -389,9 +392,10 @@ matrixDeMuxPatch ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
 
 zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
-	   (sig Ack          :> sig Ack)	  	(sig Ready)
-zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out)
-   where
+	   (sig Ack          :> sig Ack)	  	(sig Ack)
+zipPatch = zipPatch' $$ readyToAckBridge where
+ zipPatch' ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out) 
+    where
 	go = fromReady outReady .&&. isEnabled in1 .&&. isEnabled in2
 	ack1 = go
 	ack2 = go
@@ -400,8 +404,9 @@ zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out)
 
 matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
          => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))   
-	          (Matrix x (sig Ack))		(sig Ready)          		  
-matrixZipPatch ~(mIn, outReady) = (mAcks, out)
+	          (Matrix x (sig Ack))		(sig Ack)          		  
+matrixZipPatch = matrixZipPatch' $$ readyToAckBridge where
+ matrixZipPatch' ~(mIn, outReady) = (mAcks, out)
    where
 	go    = fromReady outReady .&&. foldr1 (.&&.) (map isEnabled $ M.toList mIn)
 	
@@ -412,7 +417,7 @@ matrixZipPatch ~(mIn, outReady) = (mAcks, out)
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
 muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
   => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
-	   (sig Ack            :> sig Ack          :> sig Ack)	  	(sig Ready)
+	   (sig Ack            :> sig Ack          :> sig Ack)	  	(sig Ack)
 
 muxPatch = fe `bus` matrixMuxPatch
    where
@@ -422,8 +427,9 @@ muxPatch = fe `bus` matrixMuxPatch
 -- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
-	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ready)
-matrixMuxPatch ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
+	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
+matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
+ matrixMuxPatch' ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
    where
 	-- set when conditional value on cond port
 	go = fromReady ack .&&. isEnabled cond
@@ -544,24 +550,23 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 
 matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a)) 
-	          (sig Ack)			(sig Ready)
+	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
 	   forwardPatch (\ a -> (() :> a))
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ stack 
 		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
-		 (ackToReadyBridge $$ matrixUnzipPatch $$ matrixStack (pure fifo1'))
+		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
 
 matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))	
-	          (sig Ack)	    (sig Ready)
+	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
 	   forwardPatch (\ a -> (() :> a))
 	$$ backwardPatch (\ (_ :> b) -> b)
 	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
 	$$ matrixDeMuxPatch
-	$$ matrixStack (pure fifo1')
 	$$ matrixZipPatch
 
 ---------------------------------------------------------------------------------
