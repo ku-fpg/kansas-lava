@@ -456,10 +456,7 @@ muxPatch = fe `bus` matrixMuxPatch
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
-matrixMuxPatch = undefined
-{-
-matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
- matrixMuxPatch' ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
+matrixMuxPatch  ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
    where
 	-- set when conditional value on cond port
  	try = isEnabled cond
@@ -477,7 +474,6 @@ matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
 
 	out = cASE (zip (M.toList acks) (M.toList m))
 		   disabledS
--}
 
 ---------------------------------------------------------------------------------
 -- Trivial FIFOs
