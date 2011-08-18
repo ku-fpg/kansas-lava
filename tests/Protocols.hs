@@ -6,6 +6,7 @@ import Language.KansasLava
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned
+import Data.Sized.Matrix ((!), matrix, Matrix)
 --import Debug.Trace
 
 tests :: TestSeq -> IO ()
@@ -60,11 +61,39 @@ tests test = do
 
 	    		, theStreamTestCount  = count
 	    		, theStreamTestCycles = 10000
-                        , theStreamName = "dupPatch-matrixZipPatch"
+                        , theStreamName = "dupPatch-zipPatch"
                         }
 	   	where
 			count = 100
 
 	testStream test "U5" (patchTest1) (arbitrary :: Gen (Maybe U5))
+
+
+	-- This tests matrixDupPatch and matrixZipPatch
+        let patchTest2 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
+		      => StreamTest w (Matrix X3 w)
+            patchTest2 = StreamTest
+                        { theStream = matrixDupPatch $$ matrixStack (matrix [ 
+								forwardPatch $ mapEnabled (+0),
+								forwardPatch $ mapEnabled (+1),
+								forwardPatch $ mapEnabled (+2)]								
+								) $$ matrixZipPatch
+                        , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
+--				trace (show (ins,outs)) $ 
+                                case () of
+				  () | length outs /= length ins -> return "in/out differences"
+				     | any (\ m -> m ! 0 /= (m ! 1) - 1) outs -> return "bad result value 0,1"
+				     | any (\ m -> m ! 0 /= (m ! 1) - 2) outs -> return "bad result value 0,2"
+				     | ins /= map (! 0) outs -> return "result not as expected"
+                                     | otherwise -> Nothing
+
+	    		, theStreamTestCount  = count
+	    		, theStreamTestCycles = 10000
+                        , theStreamName = "matrixDupPatch-matrixZipPatch"
+                        }
+	   	where
+			count = 100
+
+	testStream test "U5" (patchTest2) (arbitrary :: Gen (Maybe U5))
 
 	return ()
