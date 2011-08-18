@@ -1,5 +1,10 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies, ParallelListComp, ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, UndecidableInstances, GADTs
- #-}
+{-# LANGUAGE ExistentialQuantification, TypeFamilies,
+    ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
+    FlexibleContexts, UndecidableInstances, GADTs #-}
+
+
+-- | The Fabric module is used for generating a top-level VHDL entity for a Lava
+-- circuit, with inputs and outputs.
 module Language.KansasLava.Fabric
         ( Fabric(..)
         , Pad(..)
@@ -25,6 +30,7 @@ import qualified Data.Set as Set
 import Data.Set(Set)
 import qualified Data.Map as Map
 import Data.Map(Map)
+import Data.Ord(comparing)
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
@@ -34,13 +40,14 @@ import Language.KansasLava.Comb
 import Language.KansasLava.Signal
 
 -- The '_' will disappear soon from these names.
-
+-- | A Pad represents the type of a top-level input/output port.
 data Pad = StdLogic (Seq Bool)
          | forall a x . (Size (W a), Show a, Rep a)
                 => StdLogicVector (Seq a)
 --         | TypedPad (...)
          | GenericPad Integer
 
+-- | Get the type of a pad.
 padStdLogicType :: Pad -> StdLogicType
 padStdLogicType (StdLogic _)       = SL
 padStdLogicType (StdLogicVector s) = SLV $ size (untype s)
@@ -71,7 +78,8 @@ instance Show Pad where
 >                      sum_  = xor2 a b
 
 -}
-
+-- | A Fabric consists of a list of input ports, and yields a list of output
+-- ports and generics.
 data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
 
 instance Functor Fabric where
@@ -89,7 +97,7 @@ instance MonadFix Fabric where
                                    in (a,in_names,outs)
 
 
-
+-- | Generate a named input port.
 input :: String -> Pad -> Fabric Pad
 input nm deepPad = Fabric $ \ ins ->
         let p = case lookup nm ins of
@@ -97,10 +105,11 @@ input nm deepPad = Fabric $ \ ins ->
                    _ -> error $ "input internal error finding : " ++ show nm
         in (p,[(nm,deepPad)],[])
 
-
+-- | Generate a named output port.
 output :: String -> Pad -> Fabric ()
 output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
+-- | Generate a named std_logic input port.
 inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ deepSeq $ D $ Pad (OVar 0 nm))
@@ -108,6 +117,7 @@ inStdLogic nm = do
           StdLogic sq -> bitwise sq
           _           -> error "internal type error in inStdLogic"
 
+-- | Generate a named generic.
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
         pad <- input nm (GenericPad $ error "Fix Generic")
@@ -115,17 +125,18 @@ inGeneric nm = do
           GenericPad g -> g
           _            -> error "internal type error in inGeneric"
 
+-- | Generate a named std_logic_vector port input.
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
 	let seq' = deepSeq $ D $ Pad (OVar 0 nm) :: Seq a
-        pad <- input nm (StdLogicVector $ seq')
+        pad <- input nm (StdLogicVector seq')
         return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
           StdLogicVector sq -> case toStdLogicType ty of
 					     SLV _ -> unsafeId sq
-					     G -> error $ "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
-					     _     -> liftS1 (\ (Comb a (D ae)) -> Comb (fromRep $ toRep a) 
-					     	      	 $ D $ Port ("o0") $ E $ Entity (Prim "coerce")
+					     G -> error "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
+					     _     -> liftS1 (\ (Comb a (D ae)) -> Comb (fromRep $ toRep a)
+					     	      	 $ D $ Port "o0" $ E $ Entity (Prim "coerce")
 							   	    	            [("o0",ty)]
 									            [("i0",V $ typeWidth ty,ae)]) sq
           _                  -> error "internal type error in inStdLogic"
@@ -135,45 +146,47 @@ inStdLogicVector nm = do
 
 -------------------------------------------------------------------------------
 
-outStdLogic :: 
+-- | Generate a named std_logic output port, given a Lava circuit.
+outStdLogic ::
 	(Rep a, Show a, W a ~ X1) => String -> Seq a -> Fabric ()
 outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
+-- | Generate a named std_logic_vector output port, given a Lava circuit.
 outStdLogicVector
   :: forall a .
      (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
-outStdLogicVector nm sq = 
+outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfSeq sq) of
 		    SLV _ -> output nm (StdLogicVector sq)
-		    G -> error $ "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
+		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 		    _     -> output nm $ StdLogicVector
 		    	     	       $ liftS1 (\ (Comb a (D ae)) -> Comb a
-				                      $ D $ Port ("o0") $ E $ Entity (Prim "coerce")
+				                      $ D $ Port "o0" $ E $ Entity (Prim "coerce")
 							   	    	            [("o0",V $ typeWidth ty)]
-									            [("i0",ty,ae)]) 
-				       $ sq					    		
+									            [("i0",ty,ae)])
+				       sq
   where
 	ty = repType (Witness :: Witness a)
 
 -------------------------------------------------------------------------------
 
--- 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
+-- | 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
 runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
 runFabric (Fabric f) args = result
         where ((),_arg_types,result) = f args
 
+-- | Reify a fabric, returning the output ports and the result of the Fabric monad.
 runFabric' :: Fabric a -> [(String,Pad)] -> (a,[(String,Pad)])
 runFabric' (Fabric f) args = (a,result)
         where (a,_arg_types,result) = f args
 
--- 'runFabric'  runs a Fabric a with arguments, and gives a value result.
+-- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.
 -- must have no (monadic) outputs.
 runFabricWithResult :: Fabric a -> [(String,Pad)] -> a
 runFabricWithResult (Fabric f) args = a
         where (a,_arg_types,[]) = f args
 
--- 'runFabricWithDriver' runs a Fabric () using a driver Fabric,
--- returning 
+-- | 'runFabricWithDriver' runs a Fabric () using a driver Fabric.
 runFabricWithDriver :: Fabric () -> Fabric a -> a
 runFabricWithDriver (Fabric f) (Fabric g) = a
         where ((),_,f_result) = f g_result
@@ -192,7 +205,7 @@ reifyFabric (Fabric circuit) = do
 		      G      -> error $ "reifyFabric, outputing a non stdlogic[vector]: " ++ show ty
 	    	      SLV {} -> ty
 		      _      -> V $ typeWidth ty
-	       where 
+	       where
 	       	     ty = repType (Witness :: Witness a)
 
         let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,StdLogic s) <- outs0 ] ++
@@ -220,7 +233,7 @@ reifyFabric (Fabric circuit) = do
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
         let rCit = KLEG { theCircuit = gr
-                        , theSrcs = 
+                        , theSrcs =
                                 [ (OVar 0 "clk",ClkTy)
                                 , (OVar 0 "clk_en",B)
                                 , (OVar 0 "rst", B)             -- Reset Ty?
@@ -230,7 +243,7 @@ reifyFabric (Fabric circuit) = do
                         }
 
         -- find the clock domains
-        
+
         let start :: [(EntityClock,Set (Driver Unique))]
             start = [( EntityClock $ Pad $ OVar 0 "clk_en"
                      , Set.fromList [ p | (_,_,p) <- theSinks rCit ]
@@ -254,12 +267,12 @@ reifyFabric (Fabric circuit) = do
         let normalize :: [(EntityClock, Driver Unique)] -> [(EntityClock, Set (Driver Unique))]
             normalize = map (\ xss -> (fst (head xss),Set.fromList [ p | (_,p) <- xss ]))
                       . L.groupBy (\ a b -> fst a == fst b)
-                      . L.sortBy (\ a b -> fst a `compare` fst b)
+                      . L.sortBy (comparing fst)
 
 
         -- given a working set, find the next working set.
         let step :: [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))]
-            step val = normalize 
+            step val = normalize
                         [ (c,d)
                         | (clk,xs) <- val
                         , Port n s <- Set.toList xs
@@ -279,7 +292,7 @@ reifyFabric (Fabric circuit) = do
                 ]
 
         let join :: [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))] -> [(EntityClock,Set (Driver Unique))]
-            join old new = 
+            join old new =
                 [ case (lookup clk old, lookup clk new) of
                     (Just o',Just n)  -> (clk,n `Set.union` o')
                     (Nothing,Just n)  -> (clk,n)
@@ -322,7 +335,7 @@ reifyFabric (Fabric circuit) = do
                               Entity nm outs ins ->
 			 	case clkEnPort nm of
 				   Nothing -> e
-			           Just port_nm -> 
+			           Just port_nm ->
 					  let (_,p) = entityFind port_nm e
 					  in Entity nm outs $
 					      ins ++
@@ -336,10 +349,11 @@ reifyFabric (Fabric circuit) = do
 
                                     )
                                 | (u,e) <- theCircuit rCit ]
-                          } 
+                          }
 
 -- Each one needs a i0 to look at
 
+-- | Return the name of the clock-enable port, given an Id.
 clkEnPort :: Id -> Maybe String
 clkEnPort (Prim "register")     = return "i0"
 clkEnPort (Prim "delay")        = return "i0"
@@ -350,6 +364,6 @@ clkEnPort _ = Nothing
 
 
 -------------------------------------------------------------------------------
--- A clock is represented using its 'clock enable'.
+-- | A clock is represented using its 'clock enable'.
 data EntityClock = EntityClock (Driver Unique)
         deriving (Eq,Ord,Show)
