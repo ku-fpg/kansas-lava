@@ -352,7 +352,7 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- until both can recieve it.
 dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
-	          (sig Ack)             (sig Ack      :> sig Ack) 
+	          (sig Ack)             (sig Ack          :> sig Ack) 
 dupPatch = 
 	matrixDupPatch $$
 	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
@@ -416,14 +416,13 @@ matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) wher
 zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ack)
-zipPatch = zipPatch' $$ readyToAckBridge where
- zipPatch' ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out) 
+zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out) 
     where
-	go = fromReady outReady .&&. isEnabled in1 .&&. isEnabled in2
-	ack1 = go
-	ack2 = go
+	try = isEnabled in1 .&&. isEnabled in2
+	ack1 = try .&&. fromAck outReady
+	ack2 = try .&&. fromAck outReady
 
-	out = packEnabled go (pack (enabledVal in1, enabledVal in2))
+	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
 matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
          => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))   
