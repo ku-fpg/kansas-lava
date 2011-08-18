@@ -416,25 +416,23 @@ matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) wher
 zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ack)
-zipPatch ~(in1 :> in2, outReady) = (toAck ack1 :> toAck ack2, out) 
+zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out) 
     where
 	try = isEnabled in1 .&&. isEnabled in2
-	ack1 = try .&&. fromAck outReady
-	ack2 = try .&&. fromAck outReady
+	ack = try .&&. fromAck outReady
 
 	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
 matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
          => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))   
 	          (Matrix x (sig Ack))		(sig Ack)          		  
-matrixZipPatch = matrixZipPatch' $$ readyToAckBridge where
- matrixZipPatch' ~(mIn, outReady) = (mAcks, out)
+matrixZipPatch ~(mIn, outReady) = (mAcks, out)
    where
-	go    = fromReady outReady .&&. foldr1 (.&&.) (map isEnabled $ M.toList mIn)
+	try    = foldr1 (.&&.) (map isEnabled $ M.toList mIn)
 	
-	mAcks = fmap toAck $ pure go
+	mAcks = fmap toAck $ pure (try .&&. fromAck outReady)
 	mIn'  = fmap enabledVal mIn 
-	out   = packEnabled go (pack mIn' :: sig (Matrix x a))
+	out   = packEnabled try (pack mIn' :: sig (Matrix x a))
 
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
 muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
