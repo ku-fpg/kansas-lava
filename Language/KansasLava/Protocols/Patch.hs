@@ -157,6 +157,7 @@ class Unit unit where
 instance Unit () where unit = ()
 instance (Unit a,Unit b) => Unit (a,b) where unit = (unit,unit)
 instance (Unit a,Unit b) => Unit (a :> b) where unit = (unit :> unit)
+instance (Unit a,Size x) => Unit (Matrix x a) where unit = pure unit
 
 ------------------------------------------------
 -- File I/O for Patches
@@ -444,19 +445,23 @@ muxPatch = fe `bus` matrixMuxPatch
 	fe = forwardPatch (\ ~(a :> b :> c) -> ((unsigned) a :> matrix [c,b])) `bus`
 	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
 
+
 -- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
+matrixMuxPatch = undefined
+{-
 matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
  matrixMuxPatch' ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
    where
 	-- set when conditional value on cond port
-	go = fromReady ack .&&. isEnabled cond
+ 	try = isEnabled cond
 
 	-- only respond/ack when you are ready to go, the correct lane, and have input
 	acks :: Matrix x (sig Bool)
-	acks = forEach m $ \ x inp -> go 
+	acks = forEach m $ \ x inp -> try
+	 			.&&. fromAck ack
 				.&&. (enabledVal cond .==. pureS x) 
 				.&&. isEnabled inp
 
@@ -466,7 +471,7 @@ matrixMuxPatch = matrixMuxPatch' $$ readyToAckBridge where
 
 	out = cASE (zip (M.toList acks) (M.toList m))
 		   disabledS
-
+-}
 
 ---------------------------------------------------------------------------------
 -- Trivial FIFOs
