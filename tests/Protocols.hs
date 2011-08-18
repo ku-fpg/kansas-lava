@@ -6,7 +6,7 @@ import Language.KansasLava
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned
-
+--import Debug.Trace
 
 tests :: TestSeq -> IO ()
 tests test = do
@@ -37,9 +37,34 @@ tests test = do
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
+	testStream test "U5"   (fifoTest "idPatch" idPatch) (arbitrary :: Gen (Maybe U5))
+	testStream test "Bool" (fifoTest "idPatch" idPatch) (arbitrary :: Gen (Maybe Bool))
 	testStream test "U5"   (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe U5))
 	testStream test "Bool" (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe Bool))
 	testStream test "U5"   (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe U5))
 	testStream test "Bool" (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe Bool))
+
+
+	-- This tests dupPatch and zipPatch
+        let patchTest1 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
+		      => StreamTest w (w,w)
+            patchTest1 = StreamTest
+                        { theStream = dupPatch $$ fstPatch (forwardPatch $ mapEnabled (+1)) $$ zipPatch
+                        , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
+--				trace (show (ins,outs)) $ 
+                                case () of
+				  () | length outs /= length ins -> return "in/out differences"
+				     | any (\ (x,y) -> x - 1 /= y) outs -> return "bad result value"
+				     | ins /= map snd outs -> return "result not as expected"
+                                     | otherwise -> Nothing
+
+	    		, theStreamTestCount  = count
+	    		, theStreamTestCycles = 10000
+                        , theStreamName = "dupPatch-matrixZipPatch"
+                        }
+	   	where
+			count = 100
+
+	testStream test "U5" (patchTest1) (arbitrary :: Gen (Maybe U5))
 
 	return ()
