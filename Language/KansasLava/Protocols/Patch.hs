@@ -181,19 +181,20 @@ readPatch fileName = do
 
 -- | 'writePatch' runs a complete circuit for the given 
 -- number of cycles, writing the result to a given file.
-rawWritePatch :: FilePath 
+rawWritePatch :: (Unit u1, Unit u2) 
+           => FilePath 
 	   -> Int
-	   -> Patch () 		[Maybe U8] 
-	 	    ()		()
+	   -> Patch u1 		[Maybe U8] 
+	 	    u2		()
 	   -> IO ()
 rawWritePatch fileName n patch = do
   B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
 
-writePatch :: (Show a)
+writePatch :: (Show a, Unit u1, Unit u2)
 	   => FilePath 
 	   -> Int
-	   -> Patch () 		[Maybe a]
-	 	    ()	 	()
+	   -> Patch u1 		[Maybe a]
+	 	    u2	 	()
 	   -> IO ()
 writePatch fileName n patch = do
   writeFile fileName $ unlines [ show x | Just x <- take n $ runPatch patch ]
@@ -201,11 +202,11 @@ writePatch fileName n patch = do
 -- | 'comparePatch' compares the input to the contents of a file, if there
 -- there a mismatch, it will print a message giving the element number that 
 -- failed.  If everything matches, it prints out a "Passed" message
-comparePatch :: (Read a, Show a, Eq a)
+comparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => FilePath
              -> Int
-             -> Patch ()     [Maybe a]
-                      ()     ()
+             -> Patch u1     [Maybe a]
+                      u2     ()
              -> IO (Patch ()     [Maybe a]
                           ()     () )
 comparePatch fileName n patch = do
@@ -216,11 +217,11 @@ comparePatch fileName n patch = do
 -- | 'listComparePatch' compares the input to the contents of a list, if 
 -- there is a mismatch, it will print a message giving the element number 
 -- that failed.  If everything matches, it prints out a "Passed" message
-listComparePatch :: (Read a, Show a, Eq a)
+listComparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => [a]
              -> Int
-             -> Patch ()     [Maybe a]
-                      ()     ()
+             -> Patch u1     [Maybe a]
+                      u2     ()
              -> IO (Patch ()     [Maybe a]
                           ()     () )
 listComparePatch expectedVals n patch = do
