@@ -7,6 +7,7 @@ import Language.KansasLava
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Data.Sized.Matrix ((!), matrix, Matrix)
+--import qualified Data.Sized.Matrix as M
 --import Debug.Trace
 
 tests :: TestSeq -> IO ()
@@ -95,5 +96,37 @@ tests test = do
 			count = 100
 
 	testStream test "U5" (patchTest2) (arbitrary :: Gen (Maybe U5))
+
+	-- This tests muxPatch (and matrixMuxPatch)
+        let patchTest3 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
+		      => StreamTest w w
+            patchTest3 = StreamTest
+                        { theStream = 
+				fifo1 $$
+				dupPatch $$ 
+				stack (forwardPatch (mapEnabled (*2)) $$ fifo1)
+				      (forwardPatch (mapEnabled (*3)) $$ fifo1) $$
+				openPatch $$
+				fstPatch (unitPatch (matrix [True,False] :: Matrix X2 Bool) $$ cyclePatch $$ fifo1) $$
+				muxPatch
+
+
+                        , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
+--				trace (show (ins,outs)) $ 
+                                case () of
+				  () | length outs /= length ins * 2 -> return "in/out size issues"
+			             | outs /= concat [ [n * 2,n * 3] | n <- ins ]
+								     -> return "value out distored"
+                                     | otherwise -> Nothing
+
+	    		, theStreamTestCount  = count
+	    		, theStreamTestCycles = 10000
+                        , theStreamName = "muxPatch"
+                        }
+	   	where
+			count = 100
+
+	testStream test "U5" (patchTest3) (arbitrary :: Gen (Maybe U5))
+
 
 	return ()
