@@ -109,6 +109,12 @@ loopPatch g ~(b,f) = (e,c)
   where
     (d:>e,a:>c) = g (a:>b,d:>f)
 
+
+openPatch :: Patch c (() :> c)
+	           d (() :> d)
+openPatch = forwardPatch (\ a -> (() :> a)) $$
+	    backwardPatch (\ (_ :> a) -> a)
+
 -------------------------------------------------------------------------------
 -- Sink Patches - throw away (ignore) data
 -------------------------------------------------------------------------------
