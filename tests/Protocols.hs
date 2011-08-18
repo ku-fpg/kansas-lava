@@ -83,7 +83,7 @@ tests test = do
                                 case () of
 				  () | length outs /= length ins -> return "in/out differences"
 				     | any (\ m -> m ! 0 /= (m ! 1) - 1) outs -> return "bad result value 0,1"
-				     | any (\ m -> m ! 0 /= (m ! 1) - 2) outs -> return "bad result value 0,2"
+				     | any (\ m -> m ! 0 /= (m ! 2) - 2) outs -> return $ "bad result value 0,2"
 				     | ins /= map (! 0) outs -> return "result not as expected"
                                      | otherwise -> Nothing
 
