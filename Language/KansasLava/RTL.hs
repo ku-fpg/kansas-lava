@@ -1,6 +1,7 @@
-{-# LANGUAGE RankNTypes,GADTs, ExistentialQuantification, KindSignatures, ScopedTypeVariables	, TypeFamilies, TypeSynonymInstances
- #-}
+{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification,
+  ScopedTypeVariables, TypeFamilies, TypeSynonymInstances #-}
 
+-- | The RTL module provides a small DSL that's useful for control-oriented -- stateful -- computations.
 module Language.KansasLava.RTL where
 
 import Language.KansasLava.Protocols
@@ -18,11 +19,11 @@ import Data.List as L
 --import Debug.Trace
 
 -------------------------------------------------------------------------------
-
-data Reg s c a  = Reg (CSeq c a) 		-- output of register
-		      (CSeq c a)		-- input to register
+-- | A register is used internally to represent a register or memory element.
+data Reg s c a  = Reg (CSeq c a) 		--  output of register
+		      (CSeq c a)		--  input to register
 		      (STRef s [CSeq c a -> CSeq c a])
-		      (STRef s (Maybe String))	-- name for debug message
+		      (STRef s (Maybe String))	--  name for debug message
 		      Int
 	      | forall ix . (Rep ix) =>
 		  Arr (CSeq c a)
@@ -44,15 +45,21 @@ var (Reg _ iseq _ _ _) = iseq
 var (Arr _ _ _ _) = error "can not take the var of an array"
 
 -------------------------------------------------------------------------------
+
+-- | A predicate (boolean) circuit. If the argument is Nothing, treat it as true.
 data Pred c = Pred (Maybe (CSeq c Bool))
 
+-- | A predicate that's always true.
 truePred :: Pred c
 truePred = Pred Nothing
 
+-- | Conjunction of predicates.
 andPred :: Pred c -> CSeq c Bool -> Pred c
 andPred (Pred Nothing) c    = Pred (Just c)
 andPred (Pred (Just c1)) c2 = Pred (Just (c1 .&&. c2))
 
+-- | If the first predicate is true, then return the first element of the
+-- predicate. Otherwise, return the second element.
 muxPred :: (Rep a) => Pred c -> (CSeq c a, CSeq c a) -> CSeq c a
 muxPred (Pred Nothing) (t,_) = t
 muxPred (Pred (Just p)) (t,f) = mux2 p (t,f)
@@ -60,7 +67,6 @@ muxPred (Pred (Just p)) (t,f) = mux2 p (t,f)
 -------------------------------------------------------------------------------
 
 -- | RTL Monad; s == the runST state; c is governing clock, and a is the result
-
 data RTL s c a where
 	RTL :: (Pred c -> STRef s Int -> ST s (a,[Int])) -> RTL s c a
 	(:=) :: forall c b s . (Rep b) => Reg s c b -> CSeq c b -> RTL s c ()
@@ -77,6 +83,7 @@ instance Monad (RTL s c) where
 			  	    (r2,f2) <- unRTL (k r1) c u
 				    return (r2,f1 ++ f2)
 
+-- | Run the RTL monad.
 runRTL :: forall c a . (Clock c) => (forall s . RTL s c a) -> a
 runRTL rtl = runST (do
 	u <- newSTRef 0
@@ -84,12 +91,13 @@ runRTL rtl = runST (do
 	return r)
 
 -- This is where our fixed (constant) names get handled.
+-- | 'Execute' a RTL computation, building a circuit.
 unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
-unRTL ((Reg _ _ varSt _ uq) := ss) = \ c _u -> do
+unRTL (Reg _ _ varSt _ uq := ss) = \ c _u -> do
 	modifySTRef varSt ((:) (\ r -> muxPred c (ss,r)))
 	return ((), [uq])
-unRTL ((Arr _ ix varSt uq) := ss) = \ c _u -> do
+unRTL (Arr _ ix varSt uq := ss) = \ c _u -> do
 	modifySTRef varSt ((:) (\ r -> muxPred c (enabledS (pack (ix,ss)),r)))
 	return ((), [uq])
 
@@ -100,10 +108,8 @@ unRTL (CASE alts) = \ c u -> do
 	    other_p = bitNot $ foldr (.||.) low conds
 	res <- sequence
 	   [ case alt of
-		IF p m -> do
-		 unRTL m (andPred c p) u
-		OTHERWISE m -> do
-		 unRTL m (andPred c other_p) u
+		IF p m -> unRTL m (andPred c p) u
+		OTHERWISE m -> unRTL m (andPred c other_p) u
 	   | alt <- alts
 	   ]
 	let assignments = L.nub $ concat [ xs | (_,xs) <- res ]
@@ -112,12 +118,12 @@ unRTL (CASE alts) = \ c u -> do
 unRTL (DEBUG msg (Reg _ _ _ debugSt _)) = \ _c _u -> do
 	writeSTRef debugSt (Just msg)
 	return ((),[])
-unRTL (DEBUG _msg _) = \ _c _u -> do
-	return ((),[])
+unRTL (DEBUG _msg _) = \ _c _u -> return ((),[])
 unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
 -------------------------------------------------------------------------------
 
+-- | A conditional statement.
 data Cond s c
 	= IF (CSeq c Bool) (RTL s c ())
 	| OTHERWISE (RTL s c ())
@@ -128,6 +134,7 @@ data Cond s c
 -- Not quite sure why we need the NewReg indirection;
 -- something to do with a limitation of ImpredicativeTypes.
 
+-- |Declare a new register.
 newReg :: forall a c s . (Clock c, Rep a) => a -> RTL s c (Reg s c a)
 newReg def = RTL $ \ _ u -> do
 	uq <- readSTRef u
@@ -142,10 +149,10 @@ newReg def = RTL $ \ _ u -> do
 	    	    v_old' = case debugs of
 			       Nothing -> v_old
 			       Just msg -> probe msg v_old
-		return $ (v_old',v_new)
+		return (v_old',v_new)
 	return (Reg regRes variable varSt debugSt uq,[])
 
--- Arrays support partual updates.
+-- | Declare an array. Arrays support partual updates.
 newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (CSeq c ix -> Reg s c a)
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
@@ -156,7 +163,7 @@ newArr Witness = RTL $ \ _ u -> do
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
 		let look ix = writeMemory (ass :: CSeq c (Maybe (ix,a)))
 					`readMemory` ix
-		return $ look
+		return look
 	return (\ ix -> Arr (proj ix) ix varSt uq, [])
 
 --assign :: Reg s c (Matrix ix a) -> CSeq c ix -> Reg s c a
@@ -171,4 +178,4 @@ match inp fn = IF (isEnabled inp) (fn (enabledVal inp))
 -- To consider: This is almost a bind operator?
 
 
--- debug :: (Rep a,Clock c) => String -> Reg s c a -> RTL 
+-- debug :: (Rep a,Clock c) => String -> Reg s c a -> RTL
