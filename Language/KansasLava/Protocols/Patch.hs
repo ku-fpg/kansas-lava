@@ -1,6 +1,110 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
+-- |
+-- When writing interacting sub-components for hardware,  some form of handshaking or intra-component cooperation is required. One common solution is using central control logic. This allows for maximizing global throughpu-- t, but at the cost of composability of the sub-components. Another solution is to allow components to act independently, and throttle the communicate between components using bus protocols.
+--
+-- A simple bus protocol is using validity and acknowledge signals beside a data signal.
+--
+-- [ABOUT]
+--    inwardcomponent :: (sig Bool,sig a) -> sig Ack
+--    outwardcomponent ::  sig Ack -> (sig Bool,sig a)
+--
+-- [In Kansas Lava]
+--
+--    outcomponent :: sig Ack  ->  sig (Maybe a)
+--    ..
+--
+-- If we consider a component that is part of a computation pipeline, such as a stream processor from type A to type B, we have the type.
+--
+-- 	:: ... -> (sig (Maybe A), sig Ack) -> (sig Ack, sig (Maybe B))
+--
+--
+--                  +-----------+
+-- sig (Maybe a) -->|           |--> sig (Maybe B)
+--                  | component |
+-- sig Ack       <--|           |<-- sig Ack
+--                  +-----------+
+--
+-- That is we have a signal A in, with its Ack back, and a signal B out, with the Ack in from the right hand side.
+--
+-- If we label the ports
+--
+--      +-----------+
+-- A -->|           |--> B
+--      | component |
+-- C <--|           |<-- D
+--      +-----------+
+--
+-- We have
+--
+--   component :: ... -> (A,D) -> (C,B)
+--
+-- So the left hand of each tuple is the left hand side connections, and right hand side of the tuple is the right hand side connections.
+--
+--
+-- This form, A,D -> C,B is hard to read, we invent an abstraction to help us.
+--
+-- data Patch a b c d = (a,d) (c,b)
+--
+-- In this way, our "Patch" can be written
+--
+--   Patch (sig (Maybe a)) (sig (Maybe b))
+--         (sig Ack)       (sig Ack)
+--
+-- This style allows the type synonym to pictorially represent the patch directly.
+--
+-- Once we have settled on the datatype Patch, the next question is can we build
+-- combinators to help us thread together these patches.
+--
+-- ($$) ::
+--   	 Patch li1 	o
+-- 	       lo1  	i
+--       -> Patch o 	ro2
+-- 	       i 	ri2
+--       -> Patch li1	ro2
+-- 	       lo1 	ri2
+--
+-- This composes two patches left to right, in a pipeline.
+--
+-- Using this patch idiom, we can represent fifos, stream processors,
+-- and various protocols between Patches, all in a type save manner.
+--
+-- 			---------------
+--
+-- How do we represent two handshaken signals going into a signal
+-- processor?
+--
+-- zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
+--   => Patch (sig (Enabled a)  :> sig (Enabled b))  (sig (Enabled (a,b)))
+-- 	   (sig Ack          :> sig Ack)	  (sig Ack)
+--
+-- :> is an infix tuple, with a right associativity.
+--
+-- zipPatch takes two streams, and merges them, aka zip. We line up the sig (Enabled ..) above the corresponding Ack.
+--
+-- As a final example, consider
+--
+-- matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+--          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
+-- 	          (sig Ack)	    (sig Ack)
+-- matrixContractPatch =
+-- 	   forwardPatch (\ a -> (() :> a))
+-- 	$$ backwardPatch (\ (_ :> b) -> b)
+-- 	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
+-- 	$$ matrixDeMuxPatch
+-- 	$$ matrixZipPatch
+--
+-- What happens here? forward/backwards create a new channel, fstPatch creates a stream of values. matrixDeMuxPatch takes the stream to bits, and matrixZipPatch builds a single Matrix.
+--
+--
+--                             |       |-->|     |
+--   ()-> (coords --> cycle) ->| DeMux |-->| zip |
+-- -->--> -------------------->|       |-->|     |-->
 module Language.KansasLava.Protocols.Patch
-	where
+  -- (Patch, bus, ($$),
+  -- idPatch,forwardPatch, backwardPatch,dupPatch,zipPatch,
+  -- fstPatch,matrixDupPatch,matrixStack,matrixZipPatch,
+  -- fifo1, fifo2)
+  where
 
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
@@ -22,18 +126,25 @@ import Control.Applicative
 -- The Patch.
 ---------------------------------------------------------------------------
 
-type Patch lhs_in 	   rhs_out	
-	   lhs_out         rhs_in 	
+-- | A Patch is a data signal with an associated control signal. The 'lhs_in'
+-- type parameter is the type of the data input, the 'rhs_out' type parameter is
+-- the type of the data output. The 'rhs_in' is the type of the control input
+-- (e.g. a 'ready' signal), and the 'rhs_out' is the type of the control output
+-- (e.g. 'ack').
+type Patch lhs_in 	   rhs_out
+	   lhs_out         rhs_in
 	= (lhs_in,rhs_in) -> (lhs_out,rhs_out)
 
 ---------------------------------------------------------------------------
 -- Executing the Patch, monadic style.
 ---------------------------------------------------------------------------
 
--- | A common pattern, a single immutable structure on the output.
+-- | Unitpatch produces a constant data output. The control inputs/outputs are
+-- unit, so they contain no data.
 unitPatch :: a -> Patch () a
 		        () ()
 unitPatch a = \ _ -> ((),a)
+
 
 runPatch :: (Unit u1, Unit u2)
  	 => Patch u1   a
@@ -44,35 +155,46 @@ runPatch p = a
 
 -- TODO: rm
 nullPatch :: Patch a  a
-		   b  b
-nullPatch ~(a,b) = (b,a)
+	         b  b
+nullPatch = idPatch -- ~(a,b) = (b,a)
 
+-- | A patch that passes through data and control.
 idPatch :: Patch a  a
 	         b  b
 idPatch ~(a,b) = (b,a)
 
+-- | Given a patch, add add to the data and control inputs/outputs a second set
+-- of signal that are passed-through. The signals of the argument patch o fstPatch will
+-- appear as the first element of the pair in the resulting patch.
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
 fstPatch p = p `stack` nullPatch
 
+-- | Given a patch, add add to the data and control inputs/outputs a second set
+-- of signal that are passed-through. The signals of the argument patch o fstPatch will
+-- appear as the second element of the pair in the resulting patch.
 sndPatch :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
 
+-- | Lift a function to a patch, applying the function to the data input.
 forwardPatch :: (li -> ro)
 	    -> Patch li ro
 	             b  b
 forwardPatch f1 ~(li,ri) = (ri,f1 li)
 
-backwardPatch :: (ri -> lo) 
+-- | Lift a function to a patch, applying the function to the control input.
+backwardPatch :: (ri -> lo)
 	    -> Patch a  a
 	             lo ri
 backwardPatch f2 ~(li,ri) = (f2 ri,li)
 
 -- TODO: above or ??
+
 infixr 3 `stack`
+-- | Given two patches, tuple their data/control inputs and outputs.
 stack :: Patch li1		ro1
                lo1    		ri1
       -> Patch li2		ro2
@@ -85,6 +207,8 @@ stack p1 p2 inp = (lo1 :> lo2,ro1 :> ro2)
 	(lo1,ro1)		     = p1 (li1,ri1)
 	(lo2,ro2)		     = p2 (li2,ri2)
 
+-- | Given a homogeneous list (Matrix) of patches, combine them into a single
+-- patch, collecting the data/control inputs/outputs into matrices.
 matrixStack :: (m ~ (Matrix x), Size x)
  	=> m (Patch li   ro
 	   	    lo   ri)
@@ -99,12 +223,10 @@ matrixStack m inp = ( fmap (\ (l,_) -> l) m'
 
 
 -- | loopPatch is a fixpoint style combinator, for backedges.
-
 loopPatch :: Patch (a :> b) (a :> c)
-		   (d :> e) (d :> f) 
+		   (d :> e) (d :> f)
 	  -> Patch b c
 		   e f
-
 loopPatch g ~(b,f) = (e,c)
   where
     (d:>e,a:>c) = g (a:>b,d:>f)
@@ -119,13 +241,16 @@ openPatch = forwardPatch (\ a -> (() :> a)) $$
 -- Sink Patches - throw away (ignore) data
 -------------------------------------------------------------------------------
 
+-- | A sink patch throws away its data input (generating a () data
+-- output). sinkReadyPatch uses an enabled/ready protocol.
 sinkReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ready)                 ()
 sinkReadyPatch ~(_, ()) = (toReady ready, ())
   where
         ready = high
-
+-- | A sink patch throws away its data input (generating a () data
+-- output). sinkReadyPatch uses an enabled/ack protocol.
 sinkAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ack)                   ()
@@ -137,6 +262,9 @@ sinkAckPatch ~(inp, ()) = (toAck ack, ())
 -- Source Patches - generate a stream of constant values
 -------------------------------------------------------------------------------
 
+-- | A source patch takes no input and generates a stream of values. It
+-- corresponds to a top-level input port. sourceReadyPatch uses the
+-- ready/enabled protocol.
 sourceReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
@@ -145,6 +273,9 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
   where
         out = packEnabled (fromReady ready_in) (pureS baseVal)
 
+-- | A source patch takes no input and generates a stream of values. It
+-- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
+-- protocol.
 sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
@@ -157,8 +288,10 @@ sourceAckPatch baseVal ~((), _) = ((), out)
 -- Unit
 ------------------------------------------------
 
+-- | An instance of the Unit type contains a value that carries no information.
 class Unit unit where
-	unit :: unit
+  -- | The name of the specific value.
+  unit :: unit
 
 instance Unit () where unit = ()
 instance (Unit a,Unit b) => Unit (a,b) where unit = (unit,unit)
@@ -169,7 +302,7 @@ instance (Unit a,Size x) => Unit (Matrix x a) where unit = pure unit
 -- File I/O for Patches
 ------------------------------------------------
 
--- | 'readPatch' reads a file into Patch, which will become the
+-- | 'rawReadPatch' reads a binary file into Patch, which will become the
 -- lefthand side of a chain of patches.
 rawReadPatch :: FilePath -> IO (Patch ()			[Maybe U8]
 			              ()			())
@@ -177,6 +310,8 @@ rawReadPatch fileName = do
      fileContents <- B.readFile fileName
      return $ unitPatch $ map (Just . fromIntegral) $ B.unpack fileContents
 
+-- | 'readPatch' reads an encoded file into Patch, which will become the
+-- lefthand side of a chain of patches.
 readPatch :: (Read a)
 		  => FilePath -> IO (Patch ()	[Maybe a]
 	  		                   ()	())
@@ -184,19 +319,21 @@ readPatch fileName = do
      fileContents <- readFile fileName
      return $ unitPatch $ map (Just . read) $ words $ fileContents
 
--- | 'writePatch' runs a complete circuit for the given 
--- number of cycles, writing the result to a given file.
-rawWritePatch :: (Unit u1, Unit u2) 
-           => FilePath 
+-- | 'rawWritePatch' runs a complete circuit for the given
+-- number of cycles, writing the result to a given file in binary format.
+rawWritePatch :: (Unit u1, Unit u2)
+           => FilePath
 	   -> Int
-	   -> Patch u1 		[Maybe U8] 
+	   -> Patch u1 		[Maybe U8]
 	 	    u2		()
 	   -> IO ()
 rawWritePatch fileName n patch = do
   B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
 
+-- | 'writePatch' runs a complete circuit for the given
+-- number of cycles, writing the result to a given file in string format.
 writePatch :: (Show a, Unit u1, Unit u2)
-	   => FilePath 
+	   => FilePath
 	   -> Int
 	   -> Patch u1 		[Maybe a]
 	 	    u2	 	()
@@ -205,7 +342,7 @@ writePatch fileName n patch = do
   writeFile fileName $ unlines [ show x | Just x <- take n $ runPatch patch ]
 
 -- | 'comparePatch' compares the input to the contents of a file, if there
--- there a mismatch, it will print a message giving the element number that 
+-- there a mismatch, it will print a message giving the element number that
 -- failed.  If everything matches, it prints out a "Passed" message
 comparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => FilePath
@@ -219,8 +356,8 @@ comparePatch fileName n patch = do
      let expectedVals = map read $ words $ fileContents
      listComparePatch expectedVals n patch
 
--- | 'listComparePatch' compares the input to the contents of a list, if 
--- there is a mismatch, it will print a message giving the element number 
+-- | 'listComparePatch' compares the input to the contents of a list, if
+-- there is a mismatch, it will print a message giving the element number
 -- that failed.  If everything matches, it prints out a "Passed" message
 listComparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => [a]
@@ -245,16 +382,31 @@ listComparePatch expectedVals n patch = do
 -- Functions that connect streams
 ---------------------------------------------------------------------------
 
-infixr 5 $$
-bus = ($$)
 
 infixr 5 `bus`
-($$), bus :: 
+
+-- | bus is a synonym for ($$). TODO: Remove this alias.
+bus  ::
   	 Patch li1 	o
 	       lo1  	i
       -> Patch o 	ro2
-	       i 	ri2 
-      -> Patch li1	ro2	
+	       i 	ri2
+      -> Patch li1	ro2
+	       lo1 	ri2
+bus = ($$)
+
+-- | ($$) composes two patches serially, sharing a common control protocol. The
+-- data output of the first patch is fed to the data input of the second
+-- patch. The control output of the second patch is fed to the control input of
+-- the first patch, and the control output of the first patch is fed to the
+-- control input of the second patch.
+infixr 5 $$
+($$)  ::
+  	 Patch li1 	o
+	       lo1  	i
+      -> Patch o 	ro2
+	       i 	ri2
+      -> Patch li1	ro2
 	       lo1 	ri2
 (p1 $$ p2) inp = (lhs_out1,rhs_out2)
    where
@@ -262,11 +414,11 @@ infixr 5 `bus`
 	(lhs_out1,rhs_out1) = p1 (lhs_in,lhs_out2)
 	(lhs_out2,rhs_out2) = p2 (rhs_out1,rhs_in)
 
--- | 'readyToAckBridge' converts from a ready interface to an ACK interface 
--- by preemptively giving the ready signal, and holding the resulting data 
--- from the device on the input side if no ACK is received by the device on 
--- the output side.  If data is currently being held, then the ready signal 
--- will not be given.  This bridge is fine for deep embedding (can be 
+-- | 'readyToAckBridge' converts from a ready interface to an ACK interface
+-- by preemptively giving the ready signal, and holding the resulting data
+-- from the device on the input side if no ACK is received by the device on
+-- the output side.  If data is currently being held, then the ready signal
+-- will not be given.  This bridge is fine for deep embedding (can be
 -- represented in hardware).
 readyToAckBridge :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
@@ -292,10 +444,10 @@ readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
 
         ready       = bitNot dataHeld
 
--- | 'ackToReadyBridge' converts from a Ack interface to an Ready interface 
--- by ANDing the ready signal from the receiving component with the input 
--- enable from the sending component.  This may not be necessary at times 
--- if the sending component ignores ACKs when no data is sent. This bridge 
+-- | 'ackToReadyBridge' converts from a Ack interface to an Ready interface
+-- by ANDing the ready signal from the receiving component with the input
+-- enable from the sending component.  This may not be necessary at times
+-- if the sending component ignores ACKs when no data is sent. This bridge
 -- is fine for deep embedding (can be represented in hardware).
 ackToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
@@ -306,9 +458,9 @@ ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         ack = (fromReady ready_in) .&&. (isEnabled inp)
 
 -- | 'unsafeAckToReadyBridge' converts from a Ack interface to an Ready interface
--- by running the ready signal from the receiving component to the Ack input for 
--- the sending component.  This may unsafe if the sending component does not 
--- ignore Acks when no data is sent.  Otherwise, this should be safe.  This 
+-- by running the ready signal from the receiving component to the Ack input for
+-- the sending component.  This may unsafe if the sending component does not
+-- ignore Acks when no data is sent.  Otherwise, this should be safe.  This
 -- bridge is fine for deep embedding (can be represented in hardware).
 unsafeAckToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
@@ -318,8 +470,10 @@ unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = fromReady ready_in
 
+-- | probePatch creates a patch with a named probe, probing both data and control
+-- outputs.
 probePatch :: (Probe a, Probe b)
-   => String      
+   => String
    -> Patch    a   a
                b   b
 probePatch probeName ~(inp1, inp2) = (out2, out1)
@@ -328,8 +482,9 @@ probePatch probeName ~(inp1, inp2) = (out2, out1)
                     $ probe probeName
                     $ (inp1, inp2)
 
+-- | probeDataPatch creates a patch with a named probe, probing the data input.
 probeDataPatch :: (Probe a)
-    => String      
+    => String
     -> Patch    a        a
                 b        b
 probeDataPatch probeName ~(inp1, inp2) = (out2, out1)
@@ -339,8 +494,9 @@ probeDataPatch probeName ~(inp1, inp2) = (out2, out1)
              $ inp1
         out2 = inp2
 
+-- | probeDataPatch creates a patch with a named probe, probing the control input.
 probeHandshakePatch :: (Probe b)
-    => String      
+    => String
     -> Patch    a        a
                 b        b
 probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
@@ -358,9 +514,9 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- This has the behavior that neither branch sees the value
 -- until both can recieve it.
 dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
-         => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))	
-	          (sig Ack)             (sig Ack          :> sig Ack) 
-dupPatch = 
+         => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))
+	          (sig Ack)             (sig Ack          :> sig Ack)
+dupPatch =
 	matrixDupPatch $$
 	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
 	backwardPatch (\ ~(a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
@@ -370,26 +526,29 @@ matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
          => Patch (sig (Enabled a))     (Matrix x (sig (Enabled a)))
 	          (sig Ack)             (Matrix x (sig Ack))
 matrixDupPatch = ackToReadyBridge $$ matrixDupPatch' $$ matrixStack (pure readyToAckBridge) where
- matrixDupPatch' ~(inp,readys) = (toReady go, pure out) 
+ matrixDupPatch' ~(inp,readys) = (toReady go, pure out)
     where
 	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
+-- | unzipPatch creates a patch that takes in an Enabled data pair, and produces a
+-- pair of Enabled data outputs.
 unzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
          => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
 	          (sig Ack)                 (sig Ack       :> sig Ack)
-unzipPatch = dupPatch $$ 
+unzipPatch = dupPatch $$
 		stack (forwardPatch $ mapEnabled (fst . unpack))
 		      (forwardPatch $ mapEnabled (snd . unpack))
 
+-- | matrixUnzipPatch is the generalization of unzipPatch to homogeneous matrices.
 matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
          => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
 	          (sig Ack)          		  (Matrix x (sig Ack))
-matrixUnzipPatch = 
+matrixUnzipPatch =
 	matrixDupPatch $$
 	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
 
-
+-- | TODO: Andy write docs for this.
 deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
   => Patch (sig (Enabled Bool)    :> sig (Enabled a)) 		  (sig (Enabled a) :> sig (Enabled a))
 	   (sig Ack               :> sig Ack)		          (sig Ack	   :> sig Ack)
@@ -398,13 +557,13 @@ deMuxPatch = fe $$ matrixDeMuxPatch $$ be
 	fe = fstPatch (forwardPatch ((unsigned)))
 	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) `bus`
 	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
-	
 
+-- | matrixDeMuxPatch is the generalization of deMuxPatch to a matrix of signals.
 matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
 	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ack))
 matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) where
- matrixDeMuxPatch' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out) 
+ matrixDeMuxPatch' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
     where
 	-- set when ready to try go
 	go = isEnabled ix .&&. isEnabled inp .&&. fromReady (pack m_ready .!. enabledVal ix)
@@ -420,25 +579,27 @@ matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) wher
 
 -- no unDup (requires some function / operation, use zipPatch).
 
+-- | Combine two enabled data inputs into a single Enabled tupled data input.
 zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ack)
-zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out) 
+zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
     where
 	try = isEnabled in1 .&&. isEnabled in2
 	ack = try .&&. fromAck outReady
 
 	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
+-- | Extension of zipPatch to homogeneous matrices.
 matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
-         => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))   
-	          (Matrix x (sig Ack))		(sig Ack)          		  
+         => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))
+	          (Matrix x (sig Ack))		(sig Ack)
 matrixZipPatch ~(mIn, outReady) = (mAcks, out)
    where
 	try    = foldr1 (.&&.) (map isEnabled $ M.toList mIn)
-	
+
 	mAcks = fmap toAck $ pure (try .&&. fromAck outReady)
-	mIn'  = fmap enabledVal mIn 
+	mIn'  = fmap enabledVal mIn
 	out   = packEnabled try (pack mIn' :: sig (Matrix x a))
 
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
@@ -464,7 +625,7 @@ matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
 	-- only respond/ack when you are ready to go, the correct lane, and have input
 	gos :: Matrix x (sig Bool)
 	gos = forEach m $ \ x inp -> try
-				.&&. (enabledVal cond .==. pureS x) 
+				.&&. (enabledVal cond .==. pureS x)
 				.&&. isEnabled inp
 
 	ackCond = foldr1 (.||.) $ M.toList m_acks
@@ -479,7 +640,8 @@ matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
 
 -- (There are larger FIFO's in the Kansas Lava Cores package.)
 
-fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+-- | FIFO with depth 1.
+fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
       => Patch (sig (Enabled a)) 	(sig (Enabled a))
 	       (sig Ack)		(sig Ack)
 fifo1 ~(inp,ack) = (toAck have_read, out)
@@ -500,7 +662,8 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 
 	out = packEnabled (state .==. 1) store
 
-fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a) 
+-- | FIFO with depth 2.
+fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
     => Patch (sig (Enabled a)) 	 (sig (Enabled a))
              (sig Ack)         (sig Ack)
 fifo2 = ackToReadyBridge $$ fifo2' where
@@ -552,18 +715,18 @@ fifo2 = ackToReadyBridge $$ fifo2' where
 ---------------------------------------------------------------------------------
 
 matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
-         => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a)) 
+         => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
 	   forwardPatch (\ a -> (() :> a))
 	$$ backwardPatch (\ (_ :> b) -> b)
-	$$ stack 
+	$$ stack
 		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
 		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
 
 matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
-         => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))	
+         => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
 	   forwardPatch (\ a -> (() :> a))
