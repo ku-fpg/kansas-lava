@@ -311,24 +311,6 @@ unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = fromReady ready_in
 
-{-
--- | A 'bridge' is way of connecting a HandShake to a MailBox.
--- This is efficent; internally an 'and' gate, and represents a 
--- good 'bridging' interface, because both side can play master, 
--- and try initiate the transfer at the same time, possibly 
--- improving clock speeds.
-
--- This does feel like the correct place for this
-
-bridge :: (Rep a, Clock c, sig ~ CSeq c)
-	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
-		 (sig Ack) 			(sig Ready) 
-bridge (inp,ready) = (toAck ack,out)
-   where
-	ack = isEnabled inp `and2` fromReady ready
-	out = packEnabled ack (enabledVal inp)
--}
-
 probePatch :: (Probe a, Probe b)
    => String      
    -> Patch    a   a
