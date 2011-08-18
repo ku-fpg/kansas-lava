@@ -8,6 +8,7 @@ import Language.KansasLava.Types
 import Data.Char
 import Data.List
 
+-- | Convert a 'Trace' to a VCD representation of the trace.
 toVCD :: Trace -> String
 toVCD (Trace Nothing _ _ _)  = error "can't turn infinite trace into vcd"
 toVCD (Trace (Just n) i o p) = unlines
@@ -21,13 +22,13 @@ toVCD (Trace (Just n) i o p) = unlines
     ++ "$enddefinitions $end\n"
     ++ values n signals
 
-    where signals = zip vcd_ids $ foldr union [] [i,o,p]
+    where signals = zip vcdIds $ foldr union [] [i,o,p]
 
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
-vcd_ids :: [String]
-vcd_ids = res
+vcdIds :: [String]
+vcdIds = res
     where chars = [(chr 33)..(chr 126)]
-          ids@(_:res) = [[]]  ++ concatMap (\i -> [c:i | c <- chars]) ids
+          ids@(_:res) = [] : concatMap (\i -> [c:i | c <- chars]) ids
 
 vcdVal :: RepValue -> String -> String
 vcdVal r@(RepValue bs) ident | length bs == 1 = show r ++ ident
