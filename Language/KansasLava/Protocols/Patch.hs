@@ -113,7 +113,7 @@ loopPatch g ~(b,f) = (e,c)
 openPatch :: Patch c (() :> c)
 	           d (() :> d)
 openPatch = forwardPatch (\ a -> (() :> a)) $$
-	    backwardPatch (\ (_ :> a) -> a)
+	    backwardPatch (\ ~(_ :> a) -> a)
 
 -------------------------------------------------------------------------------
 -- Sink Patches - throw away (ignore) data
@@ -363,7 +363,7 @@ dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
 dupPatch = 
 	matrixDupPatch $$
 	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
-	backwardPatch (\ (a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
+	backwardPatch (\ ~(a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
 
 -- | This duplicate the incoming datam over many handshaken streams.
 matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
@@ -456,23 +456,21 @@ muxPatch = fe `bus` matrixMuxPatch
 matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
-matrixMuxPatch  ~((cond :> m),ack) = ((toAck ackCond :> m_acks),out)
+matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
    where
 	-- set when conditional value on cond port
  	try = isEnabled cond
 
 	-- only respond/ack when you are ready to go, the correct lane, and have input
-	acks :: Matrix x (sig Bool)
-	acks = forEach m $ \ x inp -> try
-	 			.&&. fromAck ack
+	gos :: Matrix x (sig Bool)
+	gos = forEach m $ \ x inp -> try
 				.&&. (enabledVal cond .==. pureS x) 
 				.&&. isEnabled inp
 
-	-- TODO: make this balanced
-	ackCond = foldr1 (.||.) $ M.toList acks
-	m_acks = fmap toAck acks
+	ackCond = foldr1 (.||.) $ M.toList m_acks
+	m_acks = fmap (\ g -> g .&&. fromAck ack) gos
 
-	out = cASE (zip (M.toList acks) (M.toList m))
+	out = cASE (zip (M.toList gos) (M.toList m))	-- only one can ever be true
 		   disabledS
 
 ---------------------------------------------------------------------------------
