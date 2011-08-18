@@ -137,7 +137,7 @@ sourceReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
                 ()           (sig Ready)
 sourceReadyPatch baseVal ~((), ready_in) = ((), out)
   where
-        out = packEnabled (fromReady ready_in) (toSeq $ Prelude.repeat baseVal)
+        out = packEnabled (fromReady ready_in) (pureS baseVal)
 
 sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
     => a
@@ -145,7 +145,7 @@ sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
                 ()           (sig Ack)
 sourceAckPatch baseVal ~((), _) = ((), out)
   where
-        out = packEnabled high (toSeq $ Prelude.repeat baseVal)
+        out = packEnabled high (pureS baseVal)
 
 ------------------------------------------------
 -- Unit
