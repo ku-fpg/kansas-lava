@@ -29,9 +29,11 @@ import System.IO.Unsafe
 import Debug.Trace
 
 -- basic conversion to trace representation
+-- | Convert a Stream to a TraceStream.
 toTrace :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
 toTrace stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- S.toList stream ]
 
+-- | Convert a TraceStream to a Stream.
 fromTrace :: (Rep w) => TraceStream -> S.Stream (X w)
 fromTrace (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
@@ -57,7 +59,7 @@ printProbes :: [(OVar, TraceStream)] -> IO ()
 printProbes strms = do
     let maxlen = maximum $ map (length . show . fst) strms
     sequence_ [ putStrLn $ replicate p ' ' ++ show nm ++ ": " ++ show strm
-              | (nm,strm) <- strms, let p = maxlen - (length $ show nm) ]
+              | (nm,strm) <- strms, let p = maxlen - length (show nm) ]
 
 -- | Print the output of 'probeCircuit' in a tabular format on stdout, one stream per column
 printProbeTable :: [(OVar, TraceStream)] -> IO ()
@@ -66,8 +68,8 @@ printProbeTable strms = do
         strms'' = [map show s | TraceStream _ s <- strms']
         (ticks, _) = unzip $ zip (map show [(0::Int)..]) $ case strms'' of [] -> [""]; (x:_) -> x
         table = ("clk" : map show headers) : transpose (ticks : strms'')
-        clkwidth = 1 + (max 3 $ maximum $ map length ticks)
-        widths = clkwidth : [1 + (max hl sl) | (h,TraceStream _ (v:_)) <- strms
+        clkwidth = 1 + max 3 (maximum $ map length ticks)
+        widths = clkwidth : [1 + max hl sl | (h,TraceStream _ (v:_)) <- strms
                                       , let hl = length (show h)
                                       , let sl = length (unRepValue v)]
         pr :: [Int] -> [String] -> IO ()
@@ -186,14 +188,14 @@ remProbes circuit = go (probeList circuit) circuit
 
 -- | The 'exposeProbes' function lifted into the 'IO' monad.
 exposeProbesIO :: [String] -> KLEG -> IO KLEG
-exposeProbesIO names = return . (exposeProbes names)
+exposeProbesIO names = return . exposeProbes names
 
 -- | Takes a list of prefixes and exposes any probe whose name
 -- contains that prefix as an output pad.
 exposeProbes :: [String] -> KLEG -> KLEG
 exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
-          n = succ $ head $ sortBy (\x y -> compare y x) $ [ i | (OVar i _, _, _) <- oldSinks ]
+          n = succ $ head $ sortBy (flip compare) [ i | (OVar i _, _, _) <- oldSinks ]
           allProbes = sort [ (pname, nm, outs)
                         | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
                         , pname <- pnames ]
@@ -250,5 +252,5 @@ probeState = unsafePerformIO $ do
           "trace"   -> TraceProbe
           "capture" -> CaptureProbe
           _         -> NoProbe
-           
+
 
