@@ -61,8 +61,6 @@ sndPatch :: Patch a   b
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
 
-data Iso a b = Iso (a -> b) (b -> a)
-
 forwardPatch :: (li -> ro)
 	    -> Patch li ro
 	             b  b
