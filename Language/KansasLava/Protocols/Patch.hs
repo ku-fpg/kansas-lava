@@ -718,9 +718,8 @@ matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Si
          => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
-	   forwardPatch (\ a -> (() :> a))
-	$$ backwardPatch (\ (_ :> b) -> b)
-	$$ stack
+	   openPatch
+	$$ stack 
 		 (unitPatch (coord :: Matrix x x) $$ cyclePatch)
 		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
@@ -729,8 +728,7 @@ matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, 
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
-	   forwardPatch (\ a -> (() :> a))
-	$$ backwardPatch (\ (_ :> b) -> b)
+	   openPatch 
 	$$ fstPatch (unitPatch (coord :: Matrix x x) $$ cyclePatch)
 	$$ matrixDeMuxPatch
 	$$ matrixZipPatch
