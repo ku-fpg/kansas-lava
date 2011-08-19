@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
+-- | This module provides abstractions for working with RAMs and ROMs.
 module Language.KansasLava.Protocols.Memory where
 
 import Language.KansasLava.Comb
@@ -18,17 +19,21 @@ import Control.Monad
 
 import Prelude hiding (tail, lookup)
 
+-- | A Pipe combines an address, data, and an Enabled control line.
 type Pipe a d = Enabled (a,d)
 
--- TODO: remove
+-- | A Memory takes in a sequence of addresses, and returns a sequence of data at that address.
 type Memory clk a d = CSeq clk a -> CSeq clk d
 
+-- | Given a Seq of addresses for reads and a memory structure, this produces a Pipe that's the memory output.
 memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clock clk) =>  CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
 memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
    where
 	(en,a) = unpack enA
 
-
+-- | Given a Seq of address/data pairs as a pipe, write the data to the memory
+-- at the corresponding address, and return the value at the address that is the
+-- second argument.
 pipeToMemory :: forall a d clk1 . (Size a, Clock clk1, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> Memory clk1 a d
@@ -38,6 +43,7 @@ pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
 
 -- Does not work for two clocks, *YET*
 -- call writeMemory
+-- | Write the input pipe to memory, return a circuit that does reads.
 writeMemory :: forall a d clk1 . (Clock clk1, Size a, Rep a, Rep d)
 	=> CSeq clk1 (Pipe a d)
 	-> CSeq clk1 (a -> d)
@@ -45,11 +51,11 @@ writeMemory pipe = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
 	-- TODO: figure this out, and fix it properly
-	(wEn,pipe') = unpack $ {- register (pureS Nothing) $ -} pipe
+	(wEn,pipe') = unpack  {- register (pureS Nothing) $ -} pipe
 	(addr,dat) = unpack pipe'
 
     	res :: CSeq clk1 (a -> d)
-    	res = Seq shallowRes (D $ Port ("o0") $ E $ entity)
+    	res = Seq shallowRes (D $ Port "o0" $ E entity)
 
 	shallowRes :: Stream (X (a -> d))
 	shallowRes = pure (\ m -> XFunction $ \ ix ->
@@ -131,19 +137,21 @@ readMemory mem addr = unpack mem addr
 -}
 
 -- This is an alias (TODO: remove)
+-- | Read a series of addresses.
 readMemory :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
 
-
+-- | Read a series of addresses. Respect the latency of Xilinx BRAMs.
 syncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
 
+-- | Read a series of addresses.
 asyncRead :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
-				Comb (case (unX x) of
+				Comb (case unX x of
 				    	Just x' -> f x'
 				    	Nothing -> optX Nothing
 			     	     )
@@ -152,14 +160,13 @@ asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
 -- | memoryToMatrix should be used with caution/simulation  only,
 -- because this actually clones the memory to allow this to work,
 -- generating lots of LUTs and BRAMS.
-
 memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
 	=> sig (a -> d) -> sig (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
-
+-- | Apply a function to the Enabled input signal producing a Pipe.
 enabledToPipe :: (Rep x, Rep y, Rep z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
-enabledToPipe f se = pack (en, (liftS1 f x))
+enabledToPipe f se = pack (en, liftS1 f x)
    where (en,x) = unpack se
 
 
@@ -182,6 +189,7 @@ cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> CSeq clk a -> CSeq clk b
 cmp env f inp = liftS2 f (delay env inp) inp
 
 -}
+-- | Apply a function to the data output of a Pipe.
 mapPipe :: (Signal sig, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
@@ -202,13 +210,14 @@ zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 --
 --  res = rom inp $ \ a -> ....
 --
+-- | Generate a read-only memory.
 rom :: (Rep a, Rep b, Clock clk) => CSeq clk a -> (a -> Maybe b) -> CSeq clk b
 rom inp fn = delay $ funMap fn inp
 
 ---------------------------------
 
 
-
+-- | Stepify allows us to make a stream element-strict.
 class Stepify a where
   stepify :: a -> a
 
@@ -220,7 +229,7 @@ class Stepify a where
 -- one step behind, to allow knot tying.
 --instance (Rep a) => Stepify (Stream a) where
 --  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
-
+-- | Strictly apply a function to each element of a Stream.
 stepifyStream :: (a -> ()) -> Stream a -> Stream a
 stepifyStream f (Cons a r) = Cons a (f a `seq` stepifyStream f r)
 
