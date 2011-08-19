@@ -1,4 +1,14 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies,
+  TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes,
+  UndecidableInstances #-}
+
+
+-- | This module implements an Ack protocol. In this producer/consumer model,
+-- the producer drives the data input of the consumer, using an enable to
+-- indicate that data is present. The producer will then keep the data value
+-- steady until it receives an Ack from the consumer, at which point it's free
+-- to drive the data input with a different value. This assumes that consumer
+-- latches the input, as it may change.
 module Language.KansasLava.Protocols.AckBox where
 
 import Language.KansasLava.Rep
@@ -26,12 +36,12 @@ import Prelude hiding (tail, lookup)
 
 {- The convention with handshaken signals is
   ...
- -> (lhs_inp, rhs_inp) 
+ -> (lhs_inp, rhs_inp)
  -> (lhs_out, rhs_out)
 
 OR
 
- -> (lhs_inp, control_in, rhs_inp) 
+ -> (lhs_inp, control_in, rhs_inp)
  -> (lhs_out, control_out, rhs_out)
 
 -}
@@ -42,9 +52,11 @@ OR
 toAckBox :: (Rep a, Clock c, sig ~ CSeq c)
          =>  Patch [Maybe a]  			(sig (Enabled a))
 	           ()				(sig Ack)
-		
+
 toAckBox = toAckBox' []
 
+-- | An AckBox producer that will go through a series of wait states after each
+-- time it drives the data output.
 toAckBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a] 		(sig (Enabled a))
@@ -63,7 +75,7 @@ toAckBox' pauses ~(ys,ack) = ((),toSeq (fn ys (fromSeq ack) pauses))
                  (Just _,Just (Ack False):rs) -> fn (x:xs) rs (0:ps)  -- not written yet
                  (Nothing,Just _:rs)    -> fn xs rs ps    	      -- nothing to write (choose to use pause, though)
                  (_,[])                 -> error "toAckBox: can't handle empty list of values to receive"
-           fn (x:xs) rs (p:ps) = Nothing : 
+           fn (x:xs) rs (p:ps) = Nothing :
 		case x of
 				-- Allow extra Nothings to be consumed in the gaps
 		   Nothing -> fn xs (Prelude.tail rs) (pred p:ps)
@@ -79,6 +91,8 @@ fromAckBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
 		    (sig Ack)			()
 fromAckBox = fromAckBox' []
 
+-- | An ackBox that goes through a series of intermediate states each time
+-- consumes a value from the input stream and then issues an Ack.
 fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
@@ -97,21 +111,19 @@ fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), map snd internal)
 	fn []                 _      = error "fromAckBox: ack sequences should never end"
 
 ---------------------------------------------------------------------------
--- 'enableToAckBox' turns an Enabled signal into a (1-sided) Patch.
-
+-- | 'enableToAckBox' turns an Enabled signal into a (1-sided) Patch.
 enableToAckBox :: (Rep a, Clock c, sig ~ CSeq c)
 	       => Patch (sig (Enabled a))    (sig (Enabled a))
 		        ()  		     (sig Ack)
-
 enableToAckBox ~(inp,ack) = ((),res)
 	where
-		res = register Nothing 
+		res = register Nothing
 		    $ cASE [ (isEnabled inp,inp)
 			   , (fromAck ack, disabledS)
 			   ] res
 
 {-
-beat :: (Clock c, sig ~ CSeq c) => 
+beat :: (Clock c, sig ~ CSeq c) =>
 	Patch ()		(sig (Enabled ()))
 	      ()	()	(sig Ack)
 beat ~(_,_) = ((),(),enabledS (pureS ()))
@@ -135,9 +147,8 @@ test1 xs = res
 	(ack',res) = fromAckBox hs'
 -}
 
--- introduce protocol-compliant delays (in the shallow embedding)
-
-shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
+-- | This introduces protocol-compliant delays (in the shallow embedding)
+shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a)
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
 				(sig Ack)		 	(sig Ack)
@@ -225,19 +236,19 @@ liftAckBox seq' (Seq s_ack d_ack) = enabledS res
    where
         Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick
 
-        res = Seq (fn s_seq s_ack) 
+        res = Seq (fn s_seq s_ack)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
                                         [("o0",bitTypeOf res)]
                                         [("i0",bitTypeOf res, unD d_seq)
                                         ,("pulse",B, unD d_ack)
                                         ]
-                  )                
+                  )
 
         -- drop the head, when the ack comes back.
         fn (s `Cons` ss) ack = s `Cons` case ack of
-                                 (XAckRep (XBool (WireVal True))  `Cons` acks) -> fn ss acks 
-                                 (XAckRep (XBool (WireVal False)) `Cons` acks) -> fn (s `Cons` ss) acks 
-                                 (XAckRep _               `Cons` _) -> Stream.repeat unknownX 
+                                 (XAckRep (XBool (WireVal True))  `Cons` acks) -> fn ss acks
+                                 (XAckRep (XBool (WireVal False)) `Cons` acks) -> fn (s `Cons` ss) acks
+                                 (XAckRep _               `Cons` _) -> Stream.repeat unknownX
 
 -}
 
