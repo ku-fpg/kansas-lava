@@ -1,4 +1,12 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies,
+  TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes,
+  UndecidableInstances #-}
+
+-- | This module implements an Ready protocol. In this producer/consumer model,
+-- the consumer issues a Ready signal to the producer, at which time the
+-- producer can drive the data input to the consumer, signaling data valid with
+-- an Enable. The producer will hold the consumer data input steady until it
+-- receives another Ready.
 module Language.KansasLava.Protocols.ReadyBox where
 
 import Language.KansasLava.Rep
@@ -28,12 +36,12 @@ import Prelude hiding (tail, lookup)
 
 {- The convention with ReadyBoxn signals is
   ...
- -> (lhs_inp, rhs_inp) 
+ -> (lhs_inp, rhs_inp)
  -> (lhs_out, rhs_out)
 
 OR
 
- -> (lhs_inp, control_in, rhs_inp) 
+ -> (lhs_inp, control_in, rhs_inp)
  -> (lhs_out, control_out, rhs_out)
 
 -}
@@ -46,19 +54,20 @@ toReadyBox :: (Rep a, Clock c, sig ~ CSeq c)
 	           ()				(sig Ready)
 toReadyBox = toReadyBox' []
 
+-- | A readybox that goes through a sequence of intermediate states after
+-- issuing each enable, and before it looks for the next Ready.
 toReadyBox' :: (Rep a, Clock c, sig ~ CSeq c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a]  			(sig (Enabled a))
 		      ()				(sig Ready)
-
 toReadyBox' pauses ~(ys,full) = ((),toSeq (fn ys (fromSeq full) pauses))
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
 	   -- send the value *before* checking the Ready
-           fn xs fs ps = 
+           fn xs fs ps =
                 case fs of
                  (Nothing:_)              -> error "toReadyBox: bad protocol state (1)"
-                 (Just (Ready True) : fs') -> 
+                 (Just (Ready True) : fs') ->
 			case (xs,ps) of
 			   (x:xs',0:ps')       -> x : fn xs' fs' ps'     -- write it (it may be Nothing)
 			   (Nothing:xs',p:ps') -> Nothing : fn xs' fs' (pred p : ps')
@@ -77,6 +86,8 @@ fromReadyBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
 		    (sig Ready)			()
 fromReadyBox = fromReadyBox' (repeat 0)
 
+-- | Like fromReadyBox, but which goes through a series of intermediate states
+-- after receiving an enable before issuing another Ready.
 fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
@@ -118,9 +129,8 @@ test2 xs = res
 	(full',res) = fromReadyBox hs'
 -}
 
--- introduce protocol-compliant delays (in the shallow embedding)
-
-shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a) 
+-- | Introduces protocol-compliant delays (in the shallow embedding)
+shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a)
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
 				(sig Ready)		 	(sig Ready)
@@ -206,19 +216,19 @@ liftReadyBox seq' (Seq s_Full d_Full) = enabledS res
    where
         Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick
 
-        res = Seq (fn s_seq s_Full) 
+        res = Seq (fn s_seq s_Full)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
                                         [("o0",bitTypeOf res)]
                                         [("i0",bitTypeOf res, unD d_seq)
                                         ,("pulse",B, unD d_Full)
                                         ]
-                  )                
+                  )
 
         -- drop the head, when the Full comes back.
         fn (s `Cons` ss) Full = s `Cons` case Full of
-                                 (XFullRep (XBool (WireVal True))  `Cons` Fulls) -> fn ss Fulls 
-                                 (XFullRep (XBool (WireVal False)) `Cons` Fulls) -> fn (s `Cons` ss) Fulls 
-                                 (XFullRep _               `Cons` _) -> Stream.repeat unknownX 
+                                 (XFullRep (XBool (WireVal True))  `Cons` Fulls) -> fn ss Fulls
+                                 (XFullRep (XBool (WireVal False)) `Cons` Fulls) -> fn (s `Cons` ss) Fulls
+                                 (XFullRep _               `Cons` _) -> Stream.repeat unknownX
 
 -}
 
