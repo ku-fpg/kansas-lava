@@ -107,7 +107,7 @@ tests test = do
 				stack (forwardPatch (mapEnabled (*2)) $$ fifo1)
 				      (forwardPatch (mapEnabled (*3)) $$ fifo1) $$
 				openPatch $$
-				fstPatch (unitPatch (matrix [True,False] :: Matrix X2 Bool) $$ cyclePatch $$ fifo1) $$
+				fstPatch (cyclePatch (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
 				muxPatch
 
 
