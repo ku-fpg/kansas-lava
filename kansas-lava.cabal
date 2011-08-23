@@ -38,6 +38,8 @@ Library
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Rep
+       Language.KansasLava.Rep.TH
+       Language.KansasLava.Rep.Class
        Language.KansasLava.RTL
        Language.KansasLava.Seq
        Language.KansasLava.Signal
