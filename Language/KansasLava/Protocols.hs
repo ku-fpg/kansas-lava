@@ -87,10 +87,10 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
         fn0 ss (XReadyRep _ `Cons` readys) = 
 		XMaybe (pureX False, unknownX) `Cons` fn ss readys
 
-        fn ss (XReadyRep (XBool (WireVal True)) `Cons` readys) 
+        fn ss (XReadyRep (XBool (Just True)) `Cons` readys) 
 		= case ss of
 		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` fn ss' readys
-        fn ss (XReadyRep (XBool (WireVal False)) `Cons` readys) 
+        fn ss (XReadyRep (XBool (Just False)) `Cons` readys) 
 		= XMaybe (pureX False, unknownX) `Cons` fn ss readys
         fn _ (XReadyRep _ `Cons` _) = Stream.repeat unknownX
 
@@ -131,10 +131,10 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 
 	-- Only steps when you have a Boolean yes
 	upsample :: Rep a => Stream (X a) -> Stream (X Bool) -> Stream (X (Maybe a))
-        upsample ss (XBool ((WireVal True)) `Cons` readys) 
+        upsample ss (XBool ((Just True)) `Cons` readys) 
 		= case ss of
 		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` upsample ss' readys
-        upsample ss (XBool ((WireVal False)) `Cons` readys) 
+        upsample ss (XBool ((Just False)) `Cons` readys) 
 		= XMaybe (pureX False, unknownX) `Cons` upsample ss readys
         upsample _ (XBool _ `Cons` _) = Stream.repeat unknownX
 
@@ -166,9 +166,9 @@ downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
                    ]
 
 	downsample :: Rep a => Stream (X Bool) -> Stream (X a) -> Stream (X a)
-	downsample (XBool (WireVal True) `Cons` ens) (s `Cons` ss) 
+	downsample (XBool (Just True) `Cons` ens) (s `Cons` ss) 
 		= s `Cons` downsample ens ss
-	downsample (XBool (WireVal False) `Cons` ens) (_ `Cons` ss) 
+	downsample (XBool (Just False) `Cons` ens) (_ `Cons` ss) 
 		= downsample ens ss
 	downsample (XBool _ `Cons` _) _
 		= Stream.repeat unknownX

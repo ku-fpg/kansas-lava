@@ -237,9 +237,9 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 -}
 
 -- Muxes
-genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [WireVal True])),("i1",tTy,t),("i2",_,_)])
+genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [Just True])),("i1",tTy,t),("i2",_,_)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [WireVal False])),("i1",_,_),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [Just False])),("i1",_,_),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
 genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
 	= [NetAssign (sigName "o0" i)
@@ -648,7 +648,7 @@ genInst env i (Entity (Prim "RAM") outputs@[("o0",data_ty)] inputs) | goodAddrTy
 			       ])
         zeroArg (Entity nm outs ins) =
                         Entity nm outs $
-                               [ (n,V 1,Lit $ RepValue [WireVal False])
+                               [ (n,V 1,Lit $ RepValue [Just False])
                                | n <- ["wAddr","rAddr"]
                                ] ++
                                [ (n,t,d) | (n,t,d) <- ins, n /= "wAddr"

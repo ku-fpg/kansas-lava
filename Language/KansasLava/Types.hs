@@ -24,8 +24,6 @@ module Language.KansasLava.Types (
         , D(..)
         -- * Clock
         , Clock(..)     -- type class
-        -- * WireVal
-        , WireVal(..)
         -- * RepValue
         , RepValue(..)
         , appendRepValue
@@ -390,52 +388,25 @@ instance Clock () where
         clock = D $ ClkDom "unit"
 
 ---------------------------------------------------------------------------------------------------------
-
-
--- | 'WireVal' is a value over a wire, either known or representing
--- unknown. Equivalent to Maybe, but with a Show instance that prints "?" for WireUnknown values.
-data WireVal a = WireUnknown | WireVal a
-    deriving (Eq,Ord) -- Useful for comparing [X a] lists in Trace.hs
-
-instance Monad WireVal where
-        return = WireVal
-        fail _ = WireUnknown
-        WireUnknown >>= _ = WireUnknown
-        WireVal a >>= f = f a
-
-instance Functor WireVal where
-        fmap _ WireUnknown = WireUnknown
-        fmap f (WireVal a) = WireVal (f a)
-
-instance Applicative WireVal where
-        pure = WireVal
-        WireVal f <*> WireVal a = WireVal $ f a
-        _ <*> _ = WireUnknown
-
-instance Show a => Show (WireVal a) where
-        show WireUnknown = "?"
-        show (WireVal a) = show a
-
----------------------------------------------------------------------------------------------------------
 -- | A RepValue is a value that can be represented using a bit encoding.  The
 -- least significant bit is at the front of the list.
-newtype RepValue = RepValue { unRepValue :: [WireVal Bool] }
+newtype RepValue = RepValue { unRepValue :: [Maybe Bool] }
         deriving (Eq, Ord)
 
 instance Show RepValue where
         show (RepValue vals) = [ case v of
-                                   WireUnknown   -> 'X'
-                                   WireVal True  -> '1'
-                                   WireVal False -> '0'
+                                   Nothing   -> 'X'
+                                   Just True  -> '1'
+                                   Just False -> '0'
                                | v <- vals
                                ]
 
 instance Read RepValue where
         readsPrec _ xs = [(RepValue [ case c of
-                                        'X' -> WireUnknown
-                                        'U' -> WireUnknown
-                                        '0' -> WireVal False
-                                        '1' -> WireVal True
+                                        'X' -> Nothing
+                                        'U' -> Nothing
+                                        '0' -> Just False
+                                        '1' -> Just True
                                         v -> error $ "Can't read repvalue " ++ show v
                                     | c <- cs
                                     ]
@@ -451,17 +422,17 @@ appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
 isValidRepValue :: RepValue -> Bool
 isValidRepValue (RepValue m) = and $ fmap isGood m
    where
-        isGood :: WireVal Bool -> Bool
-        isGood WireUnknown  = False
-        isGood (WireVal {}) = True
+        isGood :: Maybe Bool -> Bool
+        isGood Nothing  = False
+        isGood (Just {}) = True
 
 -- | 'getValidRepValue' Returns a binary rep, or Nothing is *any* bits are 'X'.
 getValidRepValue :: RepValue -> Maybe [Bool]
 getValidRepValue r@(RepValue m)
         | isValidRepValue r = Just $ fmap f m
         | otherwise         = Nothing
-  where f (WireVal v) = v
-        f WireUnknown = error "Can't get the value of an unknown wire."
+  where f (Just v) = v
+        f Nothing = error "Can't get the value of an unknown wire."
 
 -- | 'cmpRepValue' compares a golden value with another value, returning the bits that are different.
 -- The first value may contain 'X', in which case *any* value in that bit location will
@@ -471,9 +442,9 @@ cmpRepValue (RepValue gs) (RepValue vs)
         | length gs == length vs
                 = and $ zipWith (\ g v ->
                              case (g,v) of
-                                (WireUnknown,_)               -> True
-                                (WireVal True,WireVal True)   -> True
-                                (WireVal False,WireVal False) -> True
+                                (Nothing,_)               -> True
+                                (Just True,Just True)   -> True
+                                (Just False,Just False) -> True
                                 _ -> False) gs vs
 cmpRepValue _ _ = False
 

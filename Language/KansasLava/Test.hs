@@ -353,7 +353,7 @@ arbitrary = Gen sz integer2rep
                 $ fromRep
                 $ RepValue
                 $ take (repWidth (Witness :: Witness w))
-                $ map WireVal
+                $ map Just
                 $ map odd
                 $ iterate (`div` 2)
                 $ (fromIntegral v :: Int)

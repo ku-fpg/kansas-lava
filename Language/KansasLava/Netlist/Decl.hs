@@ -58,7 +58,7 @@ genDecl (i,e@(Entity _ outputs _))
                           -- This is reversed because we defined from (n-1) downto 0
                           -> Just $ reverse $ map (toTypedExpr (V y))
                                             $ take x'
-                                              (lits ++ repeat (RepValue $ replicate y $ WireVal False))
+                                              (lits ++ repeat (RepValue $ replicate y $ Just False))
                         _ -> Nothing
                     )
 	      _ -> NetDecl

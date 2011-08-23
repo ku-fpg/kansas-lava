@@ -244,8 +244,8 @@ funMap fn = liftS1 $ \ (Comb a (D ae))
 -- | Convert a RepValue to a Haskell Integer.
 repValueToInteger :: RepValue -> Integer
 repValueToInteger (RepValue []) = 0
-repValueToInteger (RepValue (WireVal True:xs)) = 1 + repValueToInteger (RepValue xs) * 2
-repValueToInteger (RepValue (WireVal False:xs)) = 0 + repValueToInteger (RepValue xs) * 2
+repValueToInteger (RepValue (Just True:xs)) = 1 + repValueToInteger (RepValue xs) * 2
+repValueToInteger (RepValue (Just False:xs)) = 0 + repValueToInteger (RepValue xs) * 2
 repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 
@@ -276,17 +276,17 @@ mux2shallow i t e =
 -- | TODO: Document this.
 eval :: forall a . (Rep a) => a -> ()
 eval a = count $ unRepValue $ toRep (optX (Just a))
-  where count (WireVal True:rest) = count rest
-	count (WireVal False:rest) = count rest
-	count (WireUnknown:rest) = count rest
+  where count (Just True:rest) = count rest
+	count (Just False:rest) = count rest
+	count (Nothing:rest) = count rest
 	count [] = ()
 
 -- | TODO: Document this.
 evalX :: forall a . (Rep a) => X a -> ()
 evalX a = count $ unRepValue $ toRep a
-  where count (WireVal True:rest) = count rest
-	count (WireVal False:rest) = count rest
-	count (WireUnknown:rest) = count rest
+  where count (Just True:rest) = count rest
+	count (Just False:rest) = count rest
+	count (Nothing:rest) = count rest
 	count [] = ()
 
 -------------------------------------------------------------------------------------------------
@@ -558,7 +558,7 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (Witness :: Witness w) (RepValue (M.
 {-
 instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
-	pack m = liftSL (\ ms -> let sh :: Matrix ix (WireVal Bool)
+	pack m = liftSL (\ ms -> let sh :: Matrix ix (Just Bool)
 				     sh = M.fromList [ m | Comb (XBool m) _ <- ms ]
 				     de = entityN (Prim "concat") [ d | Comb _ d <- ms ]
 				 in Comb (XSV (StdLogicVector sh)) de) (M.toList m)
@@ -700,7 +700,7 @@ unsignedX :: forall a b . (Rep a, Rep b) => X a -> X b
 unsignedX = id
        . fromRep
        . RepValue
-       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (WireVal False)))  -- not signed extended!
+       . (\ m -> take (repWidth (Witness :: Witness b)) (m ++ repeat (Just False)))  -- not signed extended!
        . unRepValue
        . toRep
 
@@ -733,8 +733,8 @@ refinesFrom :: forall sig a . (Signal sig, Rep a) => sig a -> sig a -> sig Bool
 refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) ->
                         Comb (let res = and
                                       [ case (vut,ref) of
-                                           (_,WireUnknown)       -> True
-                                           (WireVal x,WireVal y) -> x == y
+                                           (_,Nothing)       -> True
+                                           (Just x,Just y) -> x == y
                                            _                     -> False
                                       | (vut,ref) <- zip (unRepValue (toRep a))
                                                          (unRepValue (toRep b))
