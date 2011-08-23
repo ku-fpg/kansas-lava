@@ -51,31 +51,10 @@ instance Rep Bool where
     fromRep (RepValue [v]) = XBool v
     fromRep rep    = error ("size error for Bool : " ++ show (Prelude.length $ unRepValue rep) ++ " " ++ show rep)
 
-$(repIntegral ''Int (S 32))
+$(repIntegral ''Int     (S 32)) -- a lie on 64-bit machines??
 
-instance Rep Word8 where
-    type W Word8     = X8
-    data X Word8    = XWord8 (Maybe Word8)
-    optX (Just b)   = XWord8 $ return b
-    optX Nothing    = XWord8 $ fail "Wire Word8"
-    unX (XWord8 (Just v))  = return v
-    unX (XWord8 Nothing) = fail "Wire Word8"
-    repType _  = U 8
-    toRep = toRepFromIntegral
-    fromRep = fromRepToIntegral
-    showRep = showRepDefault
-
-instance Rep Word32 where
-    type W Word32     = X32
-    data X Word32   = XWord32 (Maybe Word32)
-    optX (Just b)   = XWord32 $ return b
-    optX Nothing    = XWord32 $ fail "Wire Word32"
-    unX (XWord32 (Just v)) = return v
-    unX (XWord32 Nothing) = fail "Wire Word32"
-    repType _  = U 32
-    toRep = toRepFromIntegral
-    fromRep = fromRepToIntegral
-    showRep = showRepDefault
+$(repIntegral ''Word8   (U  8))
+$(repIntegral ''Word32  (U 32))
 
 instance Rep () where
     type W ()     = X0
