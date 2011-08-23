@@ -52,7 +52,6 @@ Library
   Other-modules:
        Language.KansasLava.Netlist.Decl
        Language.KansasLava.Netlist.Inst
-       Language.KansasLava.Netlist.Sync
        Language.KansasLava.Netlist.Utils
        Language.KansasLava.Protocols.Enabled
        Language.KansasLava.Protocols.Memory
