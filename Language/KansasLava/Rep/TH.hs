@@ -54,8 +54,8 @@ repIntegral tyName tyType = do
 		] 
 	]
   where
---	strName	  = nameBase tyName
-	xConsName = mkName "XInt"
+	strName	  = nameBase tyName
+	xConsName = mkName ("X" ++ strName)
 	xSize     = "X" ++ show (typeWidth tyType)
 
 instance S.Lift KLT.Type where
