@@ -8,7 +8,7 @@
 -- data signal is valid.
 module Language.KansasLava.Protocols.Enabled
   (Enabled,
-  packEnabled,
+  packEnabled, unpackEnabled,
   enabledVal, isEnabled,
   mapEnabled,
   enabledS, disabledS,
