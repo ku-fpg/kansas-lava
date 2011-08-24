@@ -113,6 +113,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
+import Language.KansasLava.Comb
 import Language.KansasLava.Signal
 import Language.KansasLava.Probes
 
@@ -236,6 +237,17 @@ openPatch :: Patch c (() :> c)
 	           d (() :> d)
 openPatch = forwardPatch (\ a -> (() :> a)) $$
 	    backwardPatch (\ ~(_ :> a) -> a)
+
+-------------------------------------------------------------------------------
+-- Sink Patches - throw away (ignore) data
+-------------------------------------------------------------------------------
+
+mapPatch :: forall a b c sig . (Num a, Rep a, Rep b, Clock c, sig ~ CSeq c)
+	 => (Comb a -> Comb b)
+	 -> Patch (sig (Enabled a)) (sig (Enabled b))
+	   	  (sig Ack)	    (sig Ack)
+mapPatch = forwardPatch . mapEnabled
+	
 
 -------------------------------------------------------------------------------
 -- Sink Patches - throw away (ignore) data
