@@ -779,3 +779,40 @@ cyclePatch m ~(_,ack) = ((),out)
 	out = packEnabled high
             $ funMap (\ x -> return (m M.! x))
 		     ix
+
+-- appendPatch appends constant list (matrix) before
+-- a stream of handshaken values.
+
+appendPatch :: forall a c ix sig .
+        ( Size ix
+        , Rep a
+        , Rep ix
+        , Num ix
+        , Clock c
+	, sig ~ CSeq c
+        )
+	=> Matrix ix a
+	-> Patch (sig (Enabled a))	(sig (Enabled a))
+	         (sig Ack)		(sig Ack)
+appendPatch m ~(inp,ackOut) = (ackIn,out)
+  where
+	ix :: sig ix
+	ix = register 0
+	   $ cASE [ (fromAck ackOut, ix + 1) ]
+		  ix
+
+	st :: sig Bool
+	st = register False
+	   $ cASE [ (fromAck ackOut .&&. ix .==. (-1::sig ix), high) ]
+		  st
+
+	ackIn :: sig Ack
+	ackIn = mux2 st
+		( ackOut
+		, toAck low -- do not acccept anything until header has been sent
+		)
+	out :: sig (Enabled a)
+	out = mux2 st 
+		( inp
+		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+		)
