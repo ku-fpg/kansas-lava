@@ -252,3 +252,12 @@ liftAckBox seq' (Seq s_ack d_ack) = enabledS res
 
 -}
 
+-- A simple way of running a patch
+runAckBoxPatch :: forall sig c a b . (Clock c, sig ~ CSeq c, c ~ (), Rep a, Rep b)
+	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
+		 (sig Ack)		(sig Ack)
+	-> [a] -> [b]
+runAckBoxPatch p as = [ b | Just b <- bs' ]
+  where
+	as' = map Just as
+	bs' = runPatch (unitPatch as' $$ toAckBox $$ unitClockPatch $$ p $$ fromAckBox)
