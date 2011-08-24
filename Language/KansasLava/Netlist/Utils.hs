@@ -43,7 +43,7 @@ instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr ty (Lit n)           = toTypedExpr ty n
 	toTypedExpr ty (Generic n)       = toTypedExpr ty n
-	toTypedExpr ty (Port v n)      = toTypedExpr ty (sigName v (fromIntegral n))
+	toTypedExpr ty (Port v n)        = toTypedExpr ty (sigName v (fromIntegral n))
 	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
         toTypedExpr _ other = error $ "toTypedExpr(Driver a): " ++ show other
 
@@ -54,7 +54,7 @@ instance ToTypedExpr String where
 	toTypedExpr (V _)  nm = 	   	       ExprVar nm
 	toTypedExpr (S _)  nm = 	signed $       ExprVar nm
 	toTypedExpr (U _)  nm = 	unsigned $     ExprVar nm
-	toTypedExpr (TupleTy _) nm =		       ExprVar nm
+	toTypedExpr (TupleTy _) nm =                   ExprVar nm
 	toTypedExpr (MatrixTy _ _) nm =		       ExprVar nm
 	toTypedExpr (SampledTy {}) nm =		       ExprVar nm
 	toTypedExpr _other nm = error $ show ("toTypedExpr",_other,nm)
@@ -92,7 +92,15 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
           | typeWidth ty == 0        = ExprVar "\"\""
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
-	toStdLogicExpr _ (Port v n)     = ExprVar $ sigName v (fromIntegral n)
+	toStdLogicExpr (MatrixTy w ty') (Port v n)        
+					   = ExprConcat 
+			[ memToStdLogic ty' $
+			      ExprIndex (sigName v (fromIntegral n))
+			                (ExprLit Nothing $ ExprNum $ fromIntegral i)
+			| i <- reverse [0..(w-1)]
+			]
+
+	toStdLogicExpr _ (Port v n)        = ExprVar (sigName v (fromIntegral n))
 	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar v
 	toStdLogicExpr _ other		   = error $ show other
 
@@ -105,12 +113,16 @@ instance ToStdLogicExpr RepValue where
 
 instance ToStdLogicExpr Expr where
 	-- Convert from a typed expression (as noted by the type) back into a std_logic*
-	--
 	toStdLogicExpr B      e =      		     e
 	toStdLogicExpr ClkTy  e = 		     e
 	toStdLogicExpr (V _)  e = 	   	     e
 	toStdLogicExpr (TupleTy _) e = 		     e
-	toStdLogicExpr (MatrixTy _ _) e =	     e
+	toStdLogicExpr (MatrixTy n _) (ExprVar nm) = error "BBB" $
+		ExprConcat
+		[ ExprIndex nm
+		           (ExprLit Nothing $ ExprNum $ fromIntegral i)
+		| i <- [0..(n-1)]
+		]
 	toStdLogicExpr (S _)  e = std_logic_vector  e
 	toStdLogicExpr (U _)  e = std_logic_vector  e
 	toStdLogicExpr(SampledTy {}) e =	     e

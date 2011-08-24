@@ -22,7 +22,8 @@ genInst' :: M.Map Unique (Entity Unique)
          -> Entity Unique
          -> [Decl]
 genInst' env i e =
-	(CommentDecl $ show (i,e)): genInst env i e
+	(CommentDecl $ show (i,e)): 
+	genInst env i e
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
 -- (Commented out) debugging hook
@@ -77,21 +78,21 @@ genInst env i (Entity (Prim "const") outputs [in0,_])
 	= genInst env i (Entity (Prim "id") outputs [in0])
 
 genInst env i (Entity (Prim "pair") outputs inputs)
-	= genInst env i (Entity (Prim "concat") outputs inputs)
+	= genInst' env i (Entity (Prim "concat") outputs inputs)
 genInst env i (Entity (Prim "triple") outputs inputs)
-	= genInst env i (Entity (Prim "concat") outputs inputs)
+	= genInst' env i (Entity (Prim "concat") outputs inputs)
 
 
 genInst env i (Entity (Prim "fst") outputs inputs)
-	= genInst env i (Entity (Prim "index") outputs (addNum 0 inputs))
+	= genInst env i (Entity (Prim "project") outputs (addNum 0 inputs))
 genInst env i (Entity (Prim "snd") outputs inputs)
-	= genInst env i (Entity (Prim "index") outputs (addNum 1 inputs))
+	= genInst' env i (Entity (Prim "project") outputs (addNum 1 inputs))
 genInst env i (Entity (Prim "fst3") outputs inputs)
-	= genInst env i (Entity (Prim "index") outputs (addNum 0 inputs))
+	= genInst env i (Entity (Prim "project") outputs (addNum 0 inputs))
 genInst env i (Entity (Prim "snd3") outputs inputs)
-	= genInst env i (Entity (Prim "index") outputs (addNum 1 inputs))
+	= genInst env i (Entity (Prim "project") outputs (addNum 1 inputs))
 genInst env i (Entity (Prim "thd3") outputs inputs)
-	= genInst env i (Entity (Prim "index") outputs (addNum 2 inputs))
+	= genInst env i (Entity (Prim "project") outputs (addNum 2 inputs))
 
 
 -- identity
@@ -135,7 +136,8 @@ genInst env i (Entity (Prim "concat") outs ins@[(_,B,_)]) =
                               (ins ++ [("_",V 0,Lit (RepValue []))]))
 
 genInst _ i (Entity (Prim "concat") [("o0",_)] inps) =
-                  [NetAssign (sigName "o0" i) val]
+                  [ CommentDecl (show inps)
+		 ,  NetAssign (sigName "o0" i) val]
   where val = ExprConcat
                 -- Note the the layout is reversed, because the 0 bit is on the right hand size
                 [ toStdLogicExpr ty s | (_,ty, s) <- reverse inps ]
@@ -146,12 +148,11 @@ genInst _ i (Entity (Prim "index")
 		   ("i1",ty@MatrixTy {},dr)
 		  ]) =
     [ NetAssign (sigName "o0" i)
-                (ExprIndex varname
-                  (ExprLit Nothing
-                   $ ExprNum idx))]
+		(vs !! (fromIntegral idx))	
+    ]
    where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
-           (ExprVar varname) =  toStdLogicExpr ty dr
+	   ExprConcat vs = toStdLogicExpr ty dr
 
 genInst _ i (Entity (Prim "index")
 		  [("o0",t)]
@@ -180,18 +181,39 @@ genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
            (ExprVar varname) = toStdLogicExpr ty dr
 
-genInst _ i (Entity (Prim "index")
-		  [("o0",_)]
+genInst _ i e@(Entity (Prim "project")
+		  [("o0",tyOut)]
 		  [("i0", GenericTy, Generic ix),
-		   ("i1",eleTy,input)]) =
-	[ NetAssign (sigName "o0" i)
-                (case eleTy of
-                    -- Not sure about way this works over two different types.
-		    TupleTy tys -> prodSlices input tys !! fromIntegral ix
-		    other -> error $ show ("genInst/index",other)
-		)
+		   ("i1",TupleTy tys,input)]) =
+  case toStdLogicType tyOut of
+     SL -> 
+        [ NetAssign (sigName "o0" i)
+                    (prodSlices input tys !! fromIntegral ix)
 	]
+     SLV _n -> 
+        [ NetAssign (sigName "o0" i)
+                    (prodSlices input tys !! fromIntegral ix)
+	]
+     SLVA n _ -> 
+	    -- The trick here is to expand out the matrix to be
+	    -- imbeaded in the tuple, then to project from there.
+	    -- So (B,2[U4]) ==> (B,U4,U4)
+	let tys' = concat
+		   [ case ty of
+		       MatrixTy n' ty' | j == ix -> replicate n' ty'
+		       _               | j == ix -> error "found a non-Matrix project to a Matrix"
+		       _ -> [ ty ]
+		   | (ty,j) <- zip tys [0..] ]
+	    slices = prodSlices input tys'
+	in 
+	    [ MemAssign (sigName "o0" i) 
+			(ExprLit Nothing $ ExprNum $ j)
+			slice
+    	   | (j,slice) <- zip [0..] (take n (drop (fromIntegral ix) slices))
+    	   ]
+     _ -> error $ show ("project",e)
 
+{-
 genInst _ i (Entity (Prim "index")
 		  [("o0",outTy)]
 		  [("i0", ixTy, ix),
@@ -209,7 +231,7 @@ genInst _ i (Entity (Prim "index")
 		MatrixTy sz eleTy' -> replicate sz eleTy'
 		TupleTy tys' -> tys'
 		other -> error $ show ("genInst/index",other)
-
+-}
 
 {-
 genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
@@ -287,7 +309,7 @@ genInst _ i (Entity (Prim "/") [("o0",SampledTy m n)] [ ("i0",iTy,v), ("i1",_,Li
         frac_width = n - log2 m
 
 -- Logic assignments
-
+{-
 genInst _ i (Entity (Prim "fromStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 	case (t_in,t_out) of
 	   (V n,U m) | n == m ->
@@ -327,7 +349,7 @@ genInst _ i (Entity (Prim "toStdLogicVector") [("o0",t_out)] [("i0",t_in,w)]) =
 		[ NetAssign  (sigName "o0" i ++ "(0)") $ toStdLogicExpr t_in w -- complete hack
 		]
 	   _ -> error $ "fatal : converting from " ++ show t_in ++ " to " ++ show t_out ++ " using toStdLogicVector failed"
-
+-}
 
 -- <= x(7 downto 2)
 
@@ -381,25 +403,13 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (a,b) | a == b -> genInst env i (Entity (Prim "id") [("o0",tO)] [("i0",tI,w)])
           (MatrixTy 1 (V 1),B) ->
 		[ NetAssign  (sigName "o0" i)
-		   (memToStdLogic B
-                    (ExprIndex (case toStdLogicExpr tI w of
-                                  ExprVar varname -> varname
-                                  _ -> error "Can't index non-named, non-literal signal"
-                               )
-                     (ExprLit Nothing $ ExprNum 0)
-
-                    )
-                   )
+		             (toStdLogicExpr tI w)
 		]
-          (MatrixTy n0 n1,V _) ->
+          (MatrixTy _ _,V _) -> 
 		[ NetAssign  (sigName "o0" i)
-		$ ExprConcat [ memToStdLogic n1
-                                (ExprIndex (slvVarName tI w)
-                                             (ExprLit Nothing $ ExprNum $ fromIntegral j)
-                                )
-                             | j <- reverse [0..(n0-1)]
-                             ]
+			     (toStdLogicExpr tI w)
 		]
+
           (B,MatrixTy 1 (V 1)) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum 0)
                         $ stdLogicToMem B
@@ -410,6 +420,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
                         $ stdLogicToMem B
                         $ toStdLogicExpr tI w
                 ]
+
           (V _,MatrixTy n0 (V n1)) ->
                 [  MemAssign (sigName "o0" i) (ExprLit Nothing $ ExprNum $ fromIntegral $j)
                         -- This is 'B' because a V is split into an array of B.
@@ -869,6 +880,7 @@ specials =
         , ("rotateL", "rotate_left")
         , ("rotateR", "rotate_right")
         ]
+
 
 
 slvVarName :: (Show v, ToStdLogicExpr v) => Type -> v -> Ident
