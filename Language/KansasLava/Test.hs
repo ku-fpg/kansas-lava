@@ -266,7 +266,7 @@ testRunner = [
  "echo \"Using $LAVA_MODELSIM_HOSTS for simulation\"",
  "",
  "find . -iname \"*.do\" | parallel dirname | \\",
- "\tparallel --eta -W /tmp --sshlogin $LAVA_MODELSIM_HOSTS \\",
+ "\tparallel -j 300% --eta -W /tmp --sshlogin $LAVA_MODELSIM_HOSTS \\",
  "\t--transfer --return {} \"cd {} && $CMD > /dev/null\"",
  "else",
  "\t\tcurdir=`pwd`",
