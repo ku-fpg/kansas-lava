@@ -93,10 +93,10 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
 	toStdLogicExpr (MatrixTy w ty') (Port v n)        
-					   = ExprConcat 
-			[ memToStdLogic ty' $
+					   = mkExprConcat 
+			[ (ty', memToStdLogic ty' $
 			      ExprIndex (sigName v (fromIntegral n))
-			                (ExprLit Nothing $ ExprNum $ fromIntegral i)
+			                (ExprLit Nothing $ ExprNum $ fromIntegral (i)))
 			| i <- reverse [0..(w-1)]
 			]
 
@@ -117,12 +117,14 @@ instance ToStdLogicExpr Expr where
 	toStdLogicExpr ClkTy  e = 		     e
 	toStdLogicExpr (V _)  e = 	   	     e
 	toStdLogicExpr (TupleTy _) e = 		     e
-	toStdLogicExpr (MatrixTy n _) (ExprVar nm) = error "BBB" $
+	toStdLogicExpr (MatrixTy _n _) (ExprVar _nm) = error "BBB" 
+{-
 		ExprConcat
 		[ ExprIndex nm
 		           (ExprLit Nothing $ ExprNum $ fromIntegral i)
 		| i <- [0..(n-1)]
 		]
+-}
 	toStdLogicExpr (S _)  e = std_logic_vector  e
 	toStdLogicExpr (U _)  e = std_logic_vector  e
 	toStdLogicExpr(SampledTy {}) e =	     e
@@ -217,6 +219,12 @@ stdLogicToMem :: Type -> Expr -> Expr
 stdLogicToMem B e = ExprConcat [ExprLit Nothing $ ExprBitVector [],e]
 stdLogicToMem _ e = e
 
+-- mkExprConcat always returns a std_logic_vector
+-- If there is only one thing, and it is B, then we
+-- coerce into a std_logic_vector
+mkExprConcat :: [(Type,Expr)] -> Expr
+mkExprConcat [(B,e)] = ExprConcat [ExprVar "\"\"",e]
+mkExprConcat xs = ExprConcat $ map snd xs
 
 ---------------------------------------------------------------------------------------------------
 -- Other utils

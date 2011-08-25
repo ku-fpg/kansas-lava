@@ -205,11 +205,13 @@ genInst _ i e@(Entity (Prim "project")
 		       _ -> [ ty ]
 		   | (ty,j) <- zip tys [0..] ]
 	    slices = prodSlices input tys'
+	    select = take n . drop (fromIntegral ix)
 	in 
 	    [ MemAssign (sigName "o0" i) 
 			(ExprLit Nothing $ ExprNum $ j)
-			slice
-    	   | (j,slice) <- zip [0..] (take n (drop (fromIntegral ix) slices))
+			(stdLogicToMem ty' slice)
+    	   | (j,(ty',slice)) <- zip [0..] 
+			      (select (zip tys' slices))
     	   ]
      _ -> error $ show ("project",e)
 
