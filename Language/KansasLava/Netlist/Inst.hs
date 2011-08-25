@@ -148,7 +148,7 @@ genInst _ i (Entity (Prim "index")
 		   ("i1",ty@MatrixTy {},dr)
 		  ]) =
     [ NetAssign (sigName "o0" i)
-		(vs !! (fromIntegral idx))	
+		(reverse vs !! (fromIntegral idx))
     ]
    where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
