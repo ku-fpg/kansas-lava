@@ -85,6 +85,8 @@ instance ToTypedExpr RepValue where
 class ToStdLogicExpr v where
 	-- | Turn a value into a std_logic[_vector] Expr, given the appropriate type.
 	toStdLogicExpr :: Type -> v -> Expr
+	toStdLogicExpr' :: Type -> v -> Expr
+	toStdLogicExpr' = toStdLogicExpr
 
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
@@ -104,6 +106,12 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar v
 	toStdLogicExpr _ other		   = error $ show other
 
+	toStdLogicExpr' (MatrixTy 1 _) (Port v n) =
+		memToStdLogic B $
+			      ExprIndex (sigName v (fromIntegral n))
+			                (ExprLit Nothing $ ExprNum $ 0)
+	toStdLogicExpr' _ _ = error "missing pattern in toStdLogicExpr'"
+		
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
 	toStdLogicExpr = fromIntegerToExpr
