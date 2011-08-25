@@ -21,7 +21,7 @@ main = do
                       , testNever = ["max","min","abs","signum"] -- for now
                       , testData = 1000
                       }
-        testDriver opt 
+        testDriver opt $ take 5 $ drop 0
                 [ Matrix.tests
                 , Memory.tests
                 , Coerce.tests 
