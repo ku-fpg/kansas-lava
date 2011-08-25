@@ -12,8 +12,11 @@ report:
 	$(RUN) ../dist/build/kansas-lava-testreport/kansas-lava-testreport $(DIR)
 
 clean:
-	mv sims sims.X
-	rm -Rf sims.X
+	mv sims XX.sims
+	rm -Rf XX.sims &
+
+locks:
+	find sims -name _lock -print
 
 init:
 # 	Create a symbolic link to the Prelude directory
