@@ -405,7 +405,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
           (a,b) | a == b -> genInst env i (Entity (Prim "id") [("o0",tO)] [("i0",tI,w)])
           (MatrixTy 1 (V 1),B) ->
 		[ NetAssign  (sigName "o0" i)
-		             (toStdLogicExpr tI w)
+		             (toStdLogicExpr' tI w)
 		]
           (MatrixTy _ _,V _) -> 
 		[ NetAssign  (sigName "o0" i)
