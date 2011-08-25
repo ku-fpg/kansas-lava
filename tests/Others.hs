@@ -87,6 +87,7 @@ tests test = do
         t4 "Bool" (loop 10 (arbitrary :: Gen Bool))
 
 
+{- We are not ready for this yet
 	-- Test the flux capacitor
         let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
 	       => String -> Gen (Maybe a) -> (forall c. (Clock c) => CSeq c a -> CSeq c a) -> IO ()
@@ -104,6 +105,7 @@ tests test = do
         t5 "U5/accum" (loop 10 (arbitrary :: Gen (Maybe U5)))
 	   	$ \ x -> let r = register 0 (x + r) in r
 
+-}
 
 -- This only tests at the *value* level, and ignores testing unknowns.
 
@@ -338,6 +340,7 @@ testDelay  (TestSeq test toL) tyName ws = do
         test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
+{-
 testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1)) 
 	  => TestSeq -> String -> Gen (Maybe a)  -> (forall c . (Clock c) => CSeq c a -> CSeq c a) -> IO ()
 testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
@@ -371,3 +374,4 @@ testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       	   		       dut (driver >> matchExpected "o0" res)
 
       return ()
+-}
