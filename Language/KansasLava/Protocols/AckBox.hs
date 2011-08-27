@@ -112,15 +112,26 @@ fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), map snd internal)
 
 ---------------------------------------------------------------------------
 -- | 'enableToAckBox' turns an Enabled signal into a (1-sided) Patch.
-enableToAckBox :: (Rep a, Clock c, sig ~ CSeq c)
+enabledToAckBox :: (Rep a, Clock c, sig ~ CSeq c)
 	       => Patch (sig (Enabled a))    (sig (Enabled a))
 		        ()  		     (sig Ack)
-enableToAckBox ~(inp,ack) = ((),res)
+enabledToAckBox ~(inp,ack) = ((),res)
 	where
 		res = register Nothing
 		    $ cASE [ (isEnabled inp,inp)
 			   , (fromAck ack, disabledS)
 			   ] res
+
+-- | 'ackBoxToEnabled' turns the AckBox protocol into the Enabled protocol.
+-- The assumptions is the circuit on the right is fast enough to handle the
+-- streamed data.
+ackBoxToEnabled :: (Rep a, Clock c, sig ~ CSeq c)
+	       => Patch (sig (Enabled a))    (sig (Enabled a))
+		        (sig Ack) 	     ()
+ackBoxToEnabled ~(inp,_) = (toAck ack,out)
+   where
+	out = inp
+	ack = isEnabled inp
 
 {-
 beat :: (Clock c, sig ~ CSeq c) =>
