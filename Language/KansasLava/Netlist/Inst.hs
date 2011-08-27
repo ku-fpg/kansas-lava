@@ -154,7 +154,7 @@ genInst _ i (Entity (Prim "index")
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
 	   ExprConcat vs = toStdLogicExpr ty dr
 
-genInst _ i (Entity (Prim "index")
+genInst _ i e@(Entity (Prim "index")
 		  [("o0",t)]
 		  [("i0",  ixTy, ix),
 		   ("i1",ty@MatrixTy {},dr)
@@ -166,8 +166,11 @@ genInst _ i (Entity (Prim "index")
     ]
    where
            -- we assume the expression is a var name (no constants here, initiaized at startup instead).
-           (ExprVar varname) =  toStdLogicExpr ty dr
-
+	   varname = case toStdLogicExpr ty dr of
+		        ExprVar v -> v
+			other -> case dr of
+				   Port v n -> sigName v (fromIntegral n)
+				   _ -> error (show ("genInst/index",e,other))
 
 genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
    | length outs == n =
