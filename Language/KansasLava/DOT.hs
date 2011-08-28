@@ -10,9 +10,9 @@ import Data.Maybe(fromMaybe)
 
 -- | The 'writeDotCircuit' function converts a Lava circuit into a graphviz output.
 writeDotCircuit :: FilePath  -- ^ Name of output dot file, can be relative or absolute path.
-                -> KLEG   -- ^ The reified Lava circuit.
-                -> IO KLEG
-writeDotCircuit filename circuit@(KLEG nodes circInputs circOutputs) = do
+                -> KLEG      -- ^ The reified Lava circuit.
+                -> IO ()
+writeDotCircuit filename (KLEG nodes circInputs circOutputs) = do
 
    let showP :: (String,Type) -> String
        showP (v,ty) = "<" ++ v ++ ">" ++ v ++ "::" ++ show ty
@@ -91,7 +91,7 @@ writeDotCircuit filename circuit@(KLEG nodes circInputs circOutputs) = do
 
         return ()
 
-   return circuit -- for chaining purposes
+   return () -- for chaining purposes
 
 
 
