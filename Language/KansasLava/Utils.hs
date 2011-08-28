@@ -749,3 +749,13 @@ iterateS :: (Rep a, Clock c, seq ~ CSeq c) => (Comb a -> Comb a) -> a -> seq a
 iterateS f start = out where
         out = register start (liftS1 f out)
 
+---------------------------------------------------------------------
+
+-- These varients of succ/pred can handle bounded values and do proper looping.
+loopingInc :: (Bounded a, Num a, Rep a, Signal sig) => sig a -> sig a
+loopingInc a = mux2 (a .==. pureS maxBound) (pureS 0,liftS2 (+) a (pureS 1))
+
+loopingDec :: (Bounded a, Num a, Rep a, Signal sig) => sig a -> sig a
+loopingDec a = mux2 (a .==. pureS 0) (pureS maxBound,liftS2 (-) a (pureS 1))
+
+
