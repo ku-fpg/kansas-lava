@@ -773,7 +773,7 @@ cyclePatch m ~(_,ack) = ((),out)
   where
 	ix :: sig ix
 	ix = register 0
-	   $ cASE [ (fromAck ack, ix + 1) ]
+	   $ cASE [ (fromAck ack, loopingInc ix) ]
 		  ix
 
 	out = packEnabled high
@@ -798,12 +798,12 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
   where
 	ix :: sig ix
 	ix = register 0
-	   $ cASE [ (fromAck ackOut, ix + 1) ]
+	   $ cASE [ (fromAck ackOut, loopingInc ix) ]
 		  ix
 
 	st :: sig Bool
 	st = register False
-	   $ cASE [ (fromAck ackOut .&&. ix .==. (-1::sig ix), high) ]
+	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig ix), high) ]
 		  st
 
 	ackIn :: sig Ack
