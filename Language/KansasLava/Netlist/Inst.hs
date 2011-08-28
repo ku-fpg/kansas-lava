@@ -446,6 +446,9 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStdLogicTy tI = error "input of unsigned uses matrix representation"
         | isMatrixStdLogicTy tO = error "output of unsigned uses matrix representation"
+        | tI == B && isStdLogicVectorTy tO =
+	[ NetAssign  (sigName "o0" i) $ mkExprConcat $ [(tI,ExprVar nm)]
+	]
         | typeWidth tI == typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $ ExprVar nm
 	]
@@ -469,6 +472,9 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
 genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStdLogicTy tI = error "input of signed uses matrix representation"
         | isMatrixStdLogicTy tO = error "output of signed uses matrix representation"
+        | tI == B && isStdLogicVectorTy tO =
+	[ NetAssign  (sigName "o0" i) $ mkExprConcat $ [(tI,ExprVar nm)]
+	]
         | typeWidth tI == typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $ ExprVar nm 
 	]
