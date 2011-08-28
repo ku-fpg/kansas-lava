@@ -2,7 +2,7 @@
 -- | Data types and functions for representing and manipulating with
 -- combinational logic.
 module Language.KansasLava.Comb(
- Comb(..),toComb,
+ Comb(..),toComb, fromComb,
  undefinedComb,deepComb,shallowComb,
  combValue, combDriver
  ) where
@@ -28,11 +28,12 @@ instance (Rep a) => Show (Comb a) where
 	show (Comb x _) = showRep x
 
 
--- This is required for Arithmetic to be overloaded.
 instance (Rep a, Eq a) => Eq (Comb a) where
+	-- | (his is required for Arithmetic to be overloaded. [Shallow only]
 	(Comb x _) == (Comb y _) = unX x == unX y
 
--- | Generate a circuit with a the given deep embedding. The shallow value is a stream of 'Nothing's, representing unknown values.
+-- | Generate a circuit with a given deep embedding. 
+--  The shallow value is a stream of 'Nothing's, representing unknown values.
 deepComb :: forall a. (Rep a) => D a -> Comb a
 deepComb = Comb (optX Nothing)
 
@@ -46,11 +47,14 @@ undefinedComb ::  forall a . (Rep a) => Comb a
 undefinedComb = Comb (optX Nothing)
 		     (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
-
--- Hmm, not the same deep side as toSeq; why?
 -- | Convert a value to a combinational circuit. The value must be a valid Literal.
+-- Unlike toSeq, this works for shallow and deep.
 toComb :: forall a . (Rep a) => a -> Comb a
 toComb a = Comb (pureX a) $ D $ Lit $ toRep (pureX a)
+
+-- | Convert a 'Comb' value into an (optional) Haskell value. [Shallow only]
+fromComb :: forall a . (Rep a) => Comb a -> Maybe a
+fromComb = unX . combValue
 
 instance Dual (Comb a) where
     dual (Comb c _) (Comb _ d) = Comb c d
