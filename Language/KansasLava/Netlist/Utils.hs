@@ -11,10 +11,11 @@ module Language.KansasLava.Netlist.Utils
    isHigh,
    lookupInput, lookupInputType,
    -- Needed for Inst
-   isMatrixStdLogicTy,
+   isMatrixStdLogicTy, isStdLogicTy, isStdLogicVectorTy,
    sanitizeName,
    active_high, stdLogicToMem, memToStdLogic,
-   addNum, prodSlices, toMemIndex
+   addNum, prodSlices, toMemIndex,
+   mkExprConcat
   ) where
 
 import Language.KansasLava.Types
@@ -149,6 +150,7 @@ instance (Integral i) => ToIntegerExpr (Driver i) where
   toIntegerExpr GenericTy other = toTypedExpr GenericTy other -- HACK
   toIntegerExpr ty other        = to_integer (toTypedExpr ty other)
 
+-- TOOD: remove, and replace with toStdLogicType.
 -- | Turn a Kansas Lava type into its std_logic[_vector] type (in KL format)
 -- There are three possible results (V n, B, MatrixTy n (V m))
 -- This function does not have an inverse.
@@ -165,10 +167,20 @@ toStdLogicTy ty              = V $ fromIntegral size
 
 -- | Does this type have a *matrix* representation?
 isMatrixStdLogicTy :: Type -> Bool
-isMatrixStdLogicTy ty = case toStdLogicTy ty of
-                         MatrixTy {} -> True
+isMatrixStdLogicTy ty = case toStdLogicType ty of
+                         SLVA {} -> True
                          _ -> False
 
+
+isStdLogicTy :: Type -> Bool
+isStdLogicTy ty = case toStdLogicType ty of
+                         SL {} -> True
+                         _ -> False
+
+isStdLogicVectorTy :: Type -> Bool
+isStdLogicVectorTy ty = case toStdLogicType ty of
+                         SLV {} -> True
+                         _ -> False
 
 -- | Create a name for a signal.
 sigName :: String -> Unique -> String
