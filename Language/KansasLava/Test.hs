@@ -148,7 +148,7 @@ testFabrics opts name count f_dut f_expected
                                                 E.catch (Just <$> action)
                                                         (\e -> do vrb 3 "vhdl generation failed"
                                                                   vrb 4 $ show (e :: E.SomeException)
-                                                                  rep $ CodeGenFail (show (e :: E.SomeException))
+                                                                  rep $ CodeGenFail -- (show (e :: E.SomeException))
                                                                   return Nothing)
                                            | (modname, action) <- sims
                                            , let rep = report (name </> modname)
@@ -171,14 +171,14 @@ testFabrics opts name count f_dut f_expected
                     else report name ShallowPass
           Just msg -> do
                   verb 1 $ "shallow FAILED"
-                  t_dut <- mkTrace (return count) f_dut inp
-                  verb 4 "DUT:"
-                  verb 4 $ show t_dut
-                  verb 4 "EXPECT IN:"
-                  verb 4 $ show $ take count shallow
-                  verb 4 "EXPECT OUT MESSAGE:"
+--                  t_dut <- mkTrace (return count) f_dut inp
+--                  verb 4 "DUT:"
+--                  verb 4 $ show t_dut
+--                  verb 4 "EXPECT IN:"
+--                  verb 4 $ show $ take count shallow
+--                  verb 4 "EXPECT OUT MESSAGE:"
                   verb 4 $ msg
-                  report name $ ShallowFail t_dut msg
+                  report name $ ShallowFail -- t_dut msg
   | otherwise = return ()
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
@@ -187,7 +187,7 @@ simCompare path report verb = do
 
     ran <- doesFileExist $ path </> "transcript"
     if ran
-        then do transcript <- Strict.readFile (path </> "transcript")
+        then do -- transcript <- Strict.readFile (path </> "transcript")
                 success <- doesFileExist $ path </> localname <.> "deep"
                 if success
                     then do shallow <- lines <$> Strict.readFile (path </> localname <.> "shallow")
@@ -198,15 +198,15 @@ simCompare path report verb = do
                                 t2 = fromASCII deep sig
                             if cmpTraceIO t1 t2
                                 then do verb 3 "simulation passed"
-                                        report $ Pass t1 t2 transcript
+                                        report $ Pass -- t1 t2 transcript
                                 else do verb 3 "simulation failed"
-                                        verb 4 $ show ("shallow",t1)
-                                        verb 4 $ show ("deep",t2)
-                                        report $ CompareFail t1 t2 transcript
+--                                        verb 4 $ show ("shallow",t1)
+--                                        verb 4 $ show ("deep",t2)
+                                        report $ CompareFail 
 
                     else do verb 3 "VHDL compilation failed"
-                            verb 4 transcript
-                            report $ CompileFail transcript
+--                            verb 4 transcript
+                            report $ CompileFail -- transcript
         else verb 1 "Simulation hasn't been run, transcript file missing."
 
 postSimulation :: FilePath -> IO ()
@@ -469,14 +469,14 @@ buildResults spath = go "" spath
             return $ res ++ subresults
 
 addtoSummary :: Result -> Summary -> Summary
-addtoSummary (ShallowFail _ _) s = s { sfail = 1 + (sfail s) }
-addtoSummary ShallowPass       s = s { spass = 1 + (spass s) }
-addtoSummary SimGenerated      s = s { generated = 1 + (generated s) }
-addtoSummary (CodeGenFail _)   s = s { codegenfail = 1 + (codegenfail s) }
-addtoSummary (CompileFail _)   s = s { vhdlfail = 1 + (vhdlfail s) }
-addtoSummary (SimFail _)       s = s { simfail = 1 + (simfail s) }
-addtoSummary (CompareFail _ _ _) s = s { compfail = 1 + (compfail s) }
-addtoSummary (Pass _ _ _)        s = s { passed = 1 + (passed s) }
+addtoSummary (ShallowFail {}) s = s { sfail = 1 + (sfail s) }
+addtoSummary ShallowPass      s = s { spass = 1 + (spass s) }
+addtoSummary SimGenerated     s = s { generated = 1 + (generated s) }
+addtoSummary (CodeGenFail {}) s = s { codegenfail = 1 + (codegenfail s) }
+addtoSummary (CompileFail {}) s = s { vhdlfail = 1 + (vhdlfail s) }
+addtoSummary (SimFail {})     s = s { simfail = 1 + (simfail s) }
+addtoSummary (CompareFail {}) s = s { compfail = 1 + (compfail s) }
+addtoSummary (Pass {})        s = s { passed = 1 + (passed s) }
 
 buildReport :: [TestCase] -> Report
 buildReport rs = Report summary rs
@@ -524,27 +524,27 @@ reportToHtml (Report summary results) = do
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
                                ,"<span class=\"status\">", s, "</span></div>\n<div class=\"additional\">"
-                               , a, "</div>"]
+                               , "</div>"]
                       | (name, r) <- results
-                      , let (sc, s, a) = case r of
-                                           ShallowFail t ts -> ("shallowfail", "Shallow Failed", unDiv [show t, show ts])
-                                           ShallowPass -> ("shallowpass", "Shallow Passed", unDiv [""])
-                                           SimGenerated -> ("simgenerated", "Simulation Generated", unDiv [""])
-                                           CodeGenFail s' -> ("codegenfail", "VHDL Generation Failed", unDiv [s'])
-                                           CompileFail s' -> ("compilefail", "VHDL Compilation Failed", unDiv [s'])
-                                           SimFail s' -> ("simfail", "Simulation Failed (other)", unDiv [s'])
-                                           CompareFail t1 t2 s' -> ("comparefail", "Failed", unDiv [show t1, show t2, s'])
-                                           Pass t1 t2 s' -> ("pass", "Passed", unDiv [show t1, show t2, s'])
+                      , let (sc, s) = case r of
+                                           ShallowFail {}-> ("shallowfail", "Shallow Failed")
+                                           ShallowPass -> ("shallowpass", "Shallow Passed")
+                                           SimGenerated -> ("simgenerated", "Simulation Generated")
+                                           CodeGenFail {} -> ("codegenfail", "VHDL Generation Failed")
+                                           CompileFail {} -> ("compilefail", "VHDL Compilation Failed")
+                                           SimFail {} -> ("simfail", "Simulation Failed (other)")
+                                           CompareFail {} -> ("comparefail", "Failed")
+                                           Pass {} -> ("pass", "Passed")
                       ]
     return $ header ++ (summaryToHtml summary) ++ mid ++ showall ++ res ++ footer
 
-unDiv :: [String] -> String
-unDiv = foldr (\s t -> "<div>" ++ sliceString 200 80 s ++ "</div>" ++ t) ""
+--unDiv :: [String] -> String
+--unDiv = foldr (\s t -> "<div>" ++ sliceString 200 80 s ++ "</div>" ++ t) ""
 
-sliceString :: Int -> Int -> String -> String
-sliceString r c str = unlines $ take r $ chunk str
-    where chunk [] = []
-          chunk s  = let (c1,r') = splitAt c s in c1 : chunk r'
+--sliceString :: Int -> Int -> String -> String
+--sliceString r c str = unlines $ take r $ chunk str
+--    where chunk [] = []
+--          chunk s  = let (c1,r') = splitAt c s in c1 : chunk r'
 
 testDriver :: Options -> [TestSeq -> IO ()] -> IO ()
 testDriver opt tests = do
@@ -630,14 +630,14 @@ instance Default Options where
 
 type TestCase = (String, Result)
 
-data Result = ShallowFail Trace String       -- Shallow result doesn't match expected
+data Result = ShallowFail {- Trace String -}      -- Shallow result doesn't match expected
             | ShallowPass                    -- Shallow result matches, we aren't simulating
             | SimGenerated                   -- Shallow passed, testbench generated, not running sim
-            | CodeGenFail String             -- Shallow passed, testbench generation failed
-            | CompileFail String             -- VHDL compilation failed during simulation
-            | SimFail     String             -- Modelsim failed for some other reason
-            | CompareFail Trace Trace String -- Deep result didn't match the shallow result
-            | Pass        Trace Trace String -- Deep matches shallow which matches expected
+            | CodeGenFail {- String -}             -- Shallow passed, testbench generation failed
+            | CompileFail {- String -}             -- VHDL compilation failed during simulation
+            | SimFail     {- String -}            -- Modelsim failed for some other reason
+            | CompareFail {- Trace Trace String -} -- Deep result didn't match the shallow result
+            | Pass        {- Trace Trace String  -}-- Deep matches shallow which matches expected
     deriving (Show, Read)
 
 ---------------------------------------------------------------------------------------
