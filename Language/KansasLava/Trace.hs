@@ -274,7 +274,7 @@ addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
 padToTraceStream :: Pad -> TraceStream
 padToTraceStream (StdLogic s) = toTrace $ seqValue s
 padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
-padToTraceStream (GenericPad _) = error "fix padToTraceStream for Generics"
+padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 
 -- | Used by 'mkTraceCM' to add internal probes to the Trace.
 addProbes :: KLEG -> Trace -> Trace

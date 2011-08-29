@@ -16,6 +16,9 @@ module Language.KansasLava.Fabric
         , outStdLogic
         , outStdLogicVector
         , padStdLogicType
+        , theClk
+        , theRst
+        , theClkEn
         , reifyFabric
         , runFabricWithResult
         , runFabricWithDriver
@@ -46,6 +49,9 @@ data Pad = StdLogic (Seq Bool)
                 => StdLogicVector (Seq a)
 --         | TypedPad (...)
          | GenericPad Integer
+	 | TheClk
+	 | TheRst
+	 | TheClkEn
 
 -- | Get the type of a pad.
 padStdLogicType :: Pad -> StdLogicType
@@ -54,11 +60,17 @@ padStdLogicType (StdLogicVector s) = SLV $ size (untype s)
     where untype :: (Size (W a)) => Seq a -> W a
           untype = error "untype"
 padStdLogicType (GenericPad _)        = G
+padStdLogicType (TheClk) 	      = SL
+padStdLogicType (TheRst) 	      = SL
+padStdLogicType (TheClkEn) 	      = SL
 
 instance Show Pad where
         show (StdLogic sq)       = "StdLogic " ++ show sq
         show (StdLogicVector sq) = "StdLogicVector " ++ show sq
         show (GenericPad i)      = "Generic " ++ show i
+        show (TheClk)            = "Clk"
+        show (TheRst)            = "Rst"
+        show (TheClkEn)          = "ClkEn"
 
          -- TODO: the 2D Array
 
@@ -142,6 +154,19 @@ inStdLogicVector nm = do
           _                  -> error "internal type error in inStdLogic"
   where
 	ty = repType (Witness :: Witness a)
+
+-- | theClk gives the external name for the clock.
+theClk   :: String -> Fabric ()
+theClk nm  = input nm TheClk >> return ()
+
+-- | theRst gives the external name for the reset signal [default = low].
+theRst   :: String -> Fabric ()
+theRst nm = input nm TheRst >> return ()
+
+-- | theClkEn gives the external name for the clock enable signal [default = high].
+theClkEn :: String -> Fabric ()
+theClkEn nm = input nm TheClkEn >> return ()
+
 
 
 -------------------------------------------------------------------------------
@@ -232,20 +257,43 @@ reifyFabric (Fabric circuit) = do
                      _ -> error $ "reifyFabric: " ++ show o
                 v -> fail $ "reifyGraph failed in reifyFabric" ++ show v
 
-        let rCit = KLEG { theCircuit = gr
-                        , theSrcs =
+	let ins0' = clk' ++ ins0
+
+    	    -- only clock has a default always connecteda; this may check for clk somewhere else.
+	    clk'    = if null [ () | (_,TheClk) <- ins0 ] then [("clk",TheClk)] else []
+
+	    clk_name    = head $ [ Pad (OVar 0 nm) | (nm,TheClk) <- ins0' ]   ++ error "bad clk_name"
+	    rst_name    = head $ [ Pad (OVar 0 nm) | (nm,TheRst) <- ins0' ]   ++ [Lit (RepValue [Just False])]
+	    clk_en_name = head $ [ Pad (OVar 0 nm) | (nm,TheClkEn) <- ins0' ] ++ [Lit (RepValue [Just True])]
+
+	    gr1 = map replaceEnv gr
+
+	    replaceEnv (u,Entity name outs ins) = (u,Entity name outs 
+						    [ (s,t,case d of
+							Pad (OVar _ "clk") -> clk_name
+							Pad (OVar _ "rst") -> rst_name
+							Pad (OVar _ "clk_en") -> clk_en_name
+							other -> other)
+						    | (s,t,d) <- ins
+						    ])
+
+	
+        let rCit = KLEG { theCircuit = gr1
+                        , theSrcs = 
+{-
                                 [ (OVar 0 "clk",ClkTy)
                                 , (OVar 0 "clk_en",B)
                                 , (OVar 0 "rst", B)             -- Reset Ty?
                                 ] ++
-                                [ (OVar 0 nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0 ]
+-}
+                                [ (OVar 0 nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0' ]
                         , theSinks = outpads
                         }
 
         -- find the clock domains
 
         let start :: [(EntityClock,Set (Driver Unique))]
-            start = [( EntityClock $ Pad $ OVar 0 "clk_en"
+            start = [( EntityClock $ clk_en_name
                      , Set.fromList [ p | (_,_,p) <- theSinks rCit ]
                      ) ]
 
