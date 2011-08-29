@@ -255,7 +255,7 @@ mapPatch = forwardPatch . mapEnabled
 
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ready protocol.
-sinkReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sinkReadyPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ready)                 ()
 sinkReadyPatch ~(_, ()) = (toReady ready, ())
@@ -263,7 +263,7 @@ sinkReadyPatch ~(_, ()) = (toReady ready, ())
         ready = high
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ack protocol.
-sinkAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sinkAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ack)                   ()
 sinkAckPatch ~(inp, ()) = (toAck ack, ())
@@ -277,7 +277,7 @@ sinkAckPatch ~(inp, ()) = (toAck ack, ())
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the
 -- ready/enabled protocol.
-sourceReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sourceReadyPatch :: forall a c sig . ( Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ready)
@@ -288,7 +288,7 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
-sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sourceAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
