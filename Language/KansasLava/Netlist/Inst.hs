@@ -591,15 +591,15 @@ genInst _ i (Entity (Prim "write") [ ("o0",_) ]
 
 
 -- assumes single clock
-genInst _ i (Entity (Prim "delay") [("o0",_)]    [ ("i0",tI,d)
+genInst _ i (Entity (Prim "delay") [("o0",ty)]    [ ("i0",tI,d)
                                                   , ("clk",ClkTy,clk)
                                                   , ("rst",B,_)
                                                   , ("clk_en",B,clk_en)
-                                                  ]) =
+                                                  ]) | ty == tI =
         [ mkProcessDecl
          [ ( Event (toStdLogicExpr B clk) PosEdge
            , If (isHigh (toStdLogicExpr B clk_en))
-                (statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
+		(assignStmt "o0" i tI d)
                 Nothing
            )
          ]
@@ -610,15 +610,15 @@ genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                                                   , ("clk",ClkTy,clk)
                                                   , ("rst",B,rst)
                                                   , ("clk_en",B,clk_en)
-                                                  ]) =
+                                                  ]) | ty == tI =
         [ ProcessDecl
            (Event (toStdLogicExpr B clk) PosEdge)
            (Just ( Event (toStdLogicExpr B rst) PosEdge
-                 , Assign (ExprVar $ sigName "o0" i) (toTypedExpr ty n)
+                 , assignStmt "o0" i ty n
                  )
            )
            ( If (isHigh (toStdLogicExpr B clk_en))
-		(statements [Assign (ExprVar $ sigName "o0" i) (toStdLogicExpr tI d)])
+		(assignStmt "o0" i tI d)
                 Nothing
            )
         ]
