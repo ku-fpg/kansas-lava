@@ -70,7 +70,7 @@ instance ToTypedExpr Integer where
 fromIntegerToExpr :: Type -> Integer -> Expr
 fromIntegerToExpr t i =
 	case toStdLogicTy t of
-	     B   -> ExprLit (Just 1) (ExprBit (b (fromInteger i)))
+	     B   -> ExprLit Nothing (ExprBit (b (fromInteger i)))
 	     V n -> ExprLit (Just n) (ExprNum i)
 	     GenericTy   -> ExprLit Nothing  (ExprNum i)
 	     _ -> error "fromIntegerToExpr: was expecting B or V from normalized number"
@@ -233,6 +233,7 @@ to_integer e       = ExprFunCall "to_integer" [e]
 
 -- | The netlist representation of the isHigh predicate.
 isHigh :: Expr -> Expr
+isHigh (ExprLit Nothing (ExprBit T)) = ExprVar "true"
 isHigh d = ExprBinary Equals d (ExprLit Nothing (ExprBit T))
 
 -- | Convert a driver to an Expr to be used as a memory address.
