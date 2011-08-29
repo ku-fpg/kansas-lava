@@ -30,6 +30,8 @@ import Language.KansasLava.Seq
 import Language.KansasLava.VHDL
 import Language.KansasLava.Protocols
 
+import Paths_kansas_lava
+
 import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
@@ -42,11 +44,13 @@ import Data.Ord ( comparing )
 import System.Cmd
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
 import Data.Sized.Ix
 --import System.Random
+
 
 
 -------------------------------------------------------------------------------------
@@ -202,7 +206,7 @@ simCompare path report verb = do
                                 else do verb 3 "simulation failed"
 --                                        verb 4 $ show ("shallow",t1)
 --                                        verb 4 $ show ("deep",t2)
-                                        report $ CompareFail 
+                                        report $ CompareFail
 
                     else do verb 3 "VHDL compilation failed"
 --                            verb 4 transcript
@@ -328,10 +332,8 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
-	ks <- getEnv "KANSAS_LAVA_ROOT"
-        prel <- Strict.readFile (ks </> "Prelude/VHDL" </> preludeFile)
-	writeFile (dest </> preludeFile) prel
-
+  file <- readPreludeFile ("Prelude/VHDL/" </> preludeFile)
+  writeFile (dest </> preludeFile) file
 -------------------------------------------------------------------------------------
 
 -- Not really random, but good enough for basic testing.
@@ -485,10 +487,9 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    ks <- getEnv "KANSAS_LAVA_ROOT"
-    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
-    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
-    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
+    header <- readPreludeFile "Prelude/HTML/header.inc"
+    mid <-  readPreludeFile "Prelude/HTML/mid.inc"
+    footer <- readPreludeFile "Prelude/HTML/footer.inc"
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -516,10 +517,9 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    ks <- getEnv "KANSAS_LAVA_ROOT"
-    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
-    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
-    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
+    header <- readPreludeFile "Prelude/HTML/header.inc"
+    mid <- readPreludeFile "Prelude/HTML/mid.inc"
+    footer <- readPreludeFile "Prelude/HTML/footer.inc"
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
@@ -604,6 +604,8 @@ instance Show Options where
                 , "testOnly: " ++ show to
                 , "testNever: " ++ show tn
                 , "testData: " ++ show td ]
+
+
 
 -------------------------------------------------------------------------------------
 -- Verbose table
@@ -722,17 +724,17 @@ testStream (TestSeq test _) tyName streamTest ws = do
                 -- DUT does stuff
 
                 -- reading from DUT
-                res     <- inStdLogicVector "res" 
+                res     <- inStdLogicVector "res"
                 res_en  <- inStdLogic       "res_en"
 
-                let flag :: Seq Ack 
+                let flag :: Seq Ack
                     opt_as :: [Maybe w2]
 
                     (flag, opt_as) = fromAckBox' d (packEnabled res_en res,())
 
                 outStdLogic "flag" flag
 
-                return $ \ n -> correctnessCondition streamTest 
+                return $ \ n -> correctnessCondition streamTest
                                    [ x | (Just x) <- take n $ vals ]
                                    [ x | (Just x) <- take n $ opt_as ]
 
@@ -756,8 +758,23 @@ let ans = [ a | Just a <- take n opt_as ]
                 outStdLogic "ack"        ack
 
 
-            a = cycle [0..2] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
-            d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)  
+            a = cycle [0..2] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)
+            d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)
 
         test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
+
+
+-- | Get a file from the prelude. First, check the KANSAS_LAVA_ROOT system
+-- environment variable. If it exists, use that. If not, try to get it from the
+-- installed cabal package.
+readPreludeFile :: String -> IO String
+readPreludeFile fname = do
+   ks <- getEnv "KANSAS_LAVA_ROOT"
+   Strict.readFile (ks </> fname)
+ `catch` \_ -> do
+    path <- getDataFileName fname
+    Strict.readFile path
+ `catch` \_ -> do putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
+                  putStrLn "to point to the root of the KsLava source directory."
+                  exitFailure
 

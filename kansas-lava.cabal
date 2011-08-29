@@ -13,7 +13,8 @@ Copyright:           (c) 2009 The University of Kansas
 Homepage:            http://ittc.ku.edu/~andygill/kansas-lava.php
 Stability:	     alpha
 build-type: 	     Simple
-Cabal-Version:       >= 1.6
+Cabal-Version:       >= 1.8
+Data-files: Prelude/VHDL/*.vhd, Prelude/HTML/*.inc
 
 Flag all
   Description: Enable full development tree
@@ -24,10 +25,11 @@ Flag unit
   Default:     True
 
 Flag tools
-  Description: Enable unit testing binary
+  Description: Enable extra tool binary
   Default:     True
 
 Library
+
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.1.20110426,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
@@ -65,8 +67,10 @@ Library
        Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
        Language.KansasLava.Protocols.Patch
+       Paths_kansas_lava
 
-       
+
+
 -- hack for now
 --  Hs-Source-Dirs: ., ../sized-types
 -- need a module refactor to address the orphan warnings
@@ -77,56 +81,64 @@ Library
 
 Executable kansas-lava-unittest
     if flag(unit)
-      Build-Depends: base,  hpc, strict
+      Build-Depends: base,  hpc, strict, kansas-lava, sized-types, data-default
       buildable: True
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests
-    Ghc-Options: -Wall  -Werror 
+    Hs-Source-Dirs:  tests
+    Ghc-Options: -Wall  -Werror
                  -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-tracediff
     if flag(unit)
-      Build-Depends: base, strict
+      Build-Depends: base, strict, kansas-lava
       buildable: True
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        Diff.hs
-    Hs-Source-Dirs: ., tests
+    Hs-Source-Dirs: tests
     Ghc-Options: -Wall  -Werror  -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
 Executable kansas-lava-testreport
     if flag(unit)
-      Build-Depends: base, strict
+      Build-Depends: base, strict, kansas-lava
       buildable: True
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        GenReport.hs
-    Hs-Source-Dirs: ., tests
+    Hs-Source-Dirs:  tests
     Ghc-Options: -Wall  -Werror -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
 
 Executable bits2vcd
     if flag(tools)
-      Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.1.20110426,
-                 directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict
+      -- Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
+      --            dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.1.20110426,
+      --            directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
+      --            fgl, filepath, data-default, unix, bytestring, mtl, strict
+      Build-depends: base, kansas-lava
       buildable: True
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        Bits2VCD.hs
-    Hs-Source-Dirs: ., tools
+    Hs-Source-Dirs: tools
     Ghc-Options: -Wall  -Werror -fno-warn-orphans
 
+
+Test-suite test-shallow
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends: base, kansas-lava, sized-types, data-default
+    Ghc-Options: -Wall  -Werror -fno-warn-orphans -fcontext-stack=50
+    Hs-source-dirs: tests
