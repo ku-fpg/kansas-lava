@@ -692,7 +692,7 @@ signedX = id
        . toRep
 
 -- | consider the bits as signed number (sign extend)
-signed :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
+signed :: (Rep a, Rep b, Num b, Signal sig)  => sig a -> sig b
 signed = liftS1 $ \ (Comb a ae) -> Comb (signedX a) $ entity1 (Prim "signed") ae
 
 -- | Consider the value as an unsigned value.
@@ -705,7 +705,7 @@ unsignedX = id
        . toRep
 
 -- | consider the bits an unsigned number (zero extend)
-unsigned :: (Rep a, Rep b, Signal sig)  => sig a -> sig b
+unsigned :: (Rep a, Rep b, Num b, Signal sig)  => sig a -> sig b
 unsigned = liftS1 $ \ (Comb a ae) -> Comb (unsignedX a) $ entity1 (Prim "unsigned") ae
 
 ----------------------------------------------------------------------------
