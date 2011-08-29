@@ -355,7 +355,7 @@ assignStmt nm i ty d =
       SLVA n m -> statements $
 		[ Assign (ExprIndex (sigName nm i)
 				    (ExprLit Nothing $ ExprNum $ fromIntegral j))
-			$ toStdLogicEleExpr i (V m) d
+			$ toStdLogicEleExpr j (V m) d
 		| j <- [0..n]
 		]
       G {} -> error "assignStmt {G} ?"
