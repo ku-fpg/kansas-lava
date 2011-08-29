@@ -242,7 +242,7 @@ openPatch = forwardPatch (\ a -> (() :> a)) $$
 -- Sink Patches - throw away (ignore) data
 -------------------------------------------------------------------------------
 
-mapPatch :: forall a b c sig . (Num a, Rep a, Rep b, Clock c, sig ~ CSeq c)
+mapPatch :: forall a b c sig . (Rep a, Rep b, Clock c, sig ~ CSeq c)
 	 => (Comb a -> Comb b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (sig Ack)	    (sig Ack)
@@ -255,7 +255,7 @@ mapPatch = forwardPatch . mapEnabled
 
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ready protocol.
-sinkReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sinkReadyPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ready)                 ()
 sinkReadyPatch ~(_, ()) = (toReady ready, ())
@@ -263,7 +263,7 @@ sinkReadyPatch ~(_, ()) = (toReady ready, ())
         ready = high
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ack protocol.
-sinkAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sinkAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ack)                   ()
 sinkAckPatch ~(inp, ()) = (toAck ack, ())
@@ -277,7 +277,7 @@ sinkAckPatch ~(inp, ()) = (toAck ack, ())
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the
 -- ready/enabled protocol.
-sourceReadyPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sourceReadyPatch :: forall a c sig . ( Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ready)
@@ -288,7 +288,7 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
-sourceAckPatch :: forall a c sig . (Num a, Rep a, Clock c, sig ~ CSeq c)
+sourceAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
@@ -566,7 +566,8 @@ deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
 	   (sig Ack               :> sig Ack)		          (sig Ack	   :> sig Ack)
 deMuxPatch = fe $$ matrixDeMuxPatch $$ be
   where
-	fe = fstPatch (forwardPatch ((unsigned)))
+--	fe = fstPatch (forwardPatch ((unsigned)))
+	fe = fstPatch (mapPatch (unsigned))
 	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) `bus`
 	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
 
@@ -621,7 +622,7 @@ muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
 
 muxPatch = fe `bus` matrixMuxPatch
    where
-	fe = forwardPatch (\ ~(a :> b :> c) -> ((unsigned) a :> matrix [c,b])) `bus`
+	fe = forwardPatch (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) `bus`
 	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
 
 

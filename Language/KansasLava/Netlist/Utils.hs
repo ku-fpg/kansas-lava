@@ -16,7 +16,7 @@ module Language.KansasLava.Netlist.Utils
    active_high, stdLogicToMem, memToStdLogic,
    addNum, prodSlices, toMemIndex,
    mkExprConcat,
-   assignStmt
+   assignStmt, assignDecl
   ) where
 
 import Language.KansasLava.Types
@@ -356,9 +356,26 @@ assignStmt nm i ty d =
 		[ Assign (ExprIndex (sigName nm i)
 				    (ExprLit Nothing $ ExprNum $ fromIntegral j))
 			$ toStdLogicEleExpr j (V m) d
-		| j <- [0..n]
+		| j <- [0..(n-1)]
 		]
       G {} -> error "assignStmt {G} ?"
-		  
+
+-- | 'assignDecl' takes a name and unique, a target type, and
+-- a function that takes a driver-to-expr function, and returns an expr.
+assignDecl :: String -> Unique -> Type -> ((Driver Unique -> Expr) -> Expr) -> [Decl]
+assignDecl nm i ty f = 
+   case toStdLogicType ty of
+      SL  ->   [ NetAssign (sigName nm i) 
+      	       	 	   (f $ toStdLogicExpr ty)
+               ]
+      SLV {} -> [ NetAssign (sigName nm i) 
+      	     	  	    (f $ toStdLogicExpr ty)
+                ]			   
+      SLVA n m -> [  MemAssign (sigName "o0" i) 
+      	      	    	       (ExprLit Nothing $ ExprNum $ fromIntegral j)
+      	     	  	       (f $ toStdLogicEleExpr j (V m))
+	         | j <- [0..(n-1)]
+                ]			   
+      G {} -> error "assignDecl {G} ?"
 		
 --error "assignStmt of Matrix"

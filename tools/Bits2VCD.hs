@@ -21,6 +21,7 @@ toVCDBit :: Char -> Char
 toVCDBit '0' = '0'
 toVCDBit '1' = '1'
 toVCDBit 'X' = 'x'
+toVCDBit 'U' = 'x'	-- undefined is unknown in VCD
 toVCDBit c = error $ "strange bit in bits : " ++ show c
 
 parsesig :: [(OVar, Type)] -> [t] -> [(Int, t, String)]

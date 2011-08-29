@@ -264,15 +264,18 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 -}
 
 -- Muxes
-genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [Just True])),("i1",tTy,t),("i2",_,_)])
-	= [NetAssign (sigName "o0" i) (toStdLogicExpr tTy t)]
-genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",_,Lit (RepValue [Just False])),("i1",_,_),("i2",fTy,f)])
-	= [NetAssign (sigName "o0" i) (toStdLogicExpr fTy f)]
-genInst _ i (Entity (Prim "mux2") [("o0",_)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
-	= [NetAssign (sigName "o0" i)
+genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",_,Lit (RepValue [Just True])),("i1",tTy,t),("i2",fTy,_)])
+	| ty == tTy && ty == fTy
+	= assignDecl "o0" i ty $ \ toExpr -> toExpr t
+genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",_,Lit (RepValue [Just False])),("i1",tTy,_),("i2",fTy,f)])
+	| ty == tTy && ty == fTy
+	= assignDecl "o0" i ty $ \ toExpr -> toExpr f
+genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
+	| ty == tTy && ty == fTy
+	= assignDecl "o0" i ty $ \ toExpr ->
                      (ExprCond cond
-                      (toStdLogicExpr tTy t)
-                      (toStdLogicExpr fTy f))]
+                      (toExpr t)
+                      (toExpr f))
   where cond = ExprBinary Equals (toTypedExpr cTy c) (ExprLit Nothing (ExprBit T))
 
 --------------------------------------------------------------------------------------------
