@@ -128,5 +128,31 @@ tests test = do
 
 	testStream test "U5" (patchTest3) (arbitrary :: Gen (Maybe U5))
 
+	-- This tests deMuxPatch (and matrixDeMuxPatch), and zipPatch
+        let patchTest4 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
+		      => StreamTest w (w,w)
+            patchTest4 = StreamTest
+                        { theStream = 
+				openPatch $$
+				fstPatch (cyclePatch (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
+				deMuxPatch $$
+				stack (fifo1) (fifo1) $$
+				zipPatch 
+                        , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
+--				trace (show (ins,outs)) $ 
+                                case () of
+				  () | length outs /= length ins `div` 2 -> return "in/out size issues"
+			             | concat [ [a,b] | (a,b) <- outs ] /= ins
+								     -> return "value out distored"
+                                     | otherwise -> Nothing
+
+	    		, theStreamTestCount  = count
+	    		, theStreamTestCycles = 10000
+                        , theStreamName = "deMuxPatch-zipPatch"
+                        }
+	   	where
+			count = 100
+
+	testStream test "U5" (patchTest4) (arbitrary :: Gen (Maybe U5))
 
 	return ()
