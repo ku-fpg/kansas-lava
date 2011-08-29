@@ -478,7 +478,7 @@ genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI == typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $ ExprVar nm 
 	]
-        | typeWidth tI == typeWidth tO =
+        | typeWidth tI > typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
 	]
