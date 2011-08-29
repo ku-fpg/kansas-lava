@@ -15,11 +15,13 @@ module Language.KansasLava.Netlist.Utils
    sanitizeName,
    active_high, stdLogicToMem, memToStdLogic,
    addNum, prodSlices, toMemIndex,
-   mkExprConcat
+   mkExprConcat,
+   assignStmt
   ) where
 
 import Language.KansasLava.Types
 import Language.Netlist.AST hiding (U)
+import Language.Netlist.Util
 import Language.KansasLava.Rep
 
 import Data.Reify.Graph (Unique)
@@ -89,6 +91,11 @@ class ToStdLogicExpr v where
 	toStdLogicExpr' :: Type -> v -> Expr
 	toStdLogicExpr' = toStdLogicExpr
 
+	-- | Turn a value into an access of a specific element of an array.
+	-- The Type is type of the element.
+	toStdLogicEleExpr :: Int -> Type -> v -> Expr
+	toStdLogicEleExpr = error "toStdLogicEleExpr"
+
 instance (Integral a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
         toStdLogicExpr ty _
@@ -112,7 +119,13 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 			      ExprIndex (sigName v (fromIntegral n))
 			                (ExprLit Nothing $ ExprNum $ 0)
 	toStdLogicExpr' _ _ = error "missing pattern in toStdLogicExpr'"
-		
+
+	toStdLogicEleExpr i ty (Port v n) =
+		memToStdLogic ty $
+			      ExprIndex (sigName v (fromIntegral n))
+			                (ExprLit Nothing $ ExprNum $ fromIntegral i)
+	toStdLogicEleExpr _ _ _ = error "missing pattern in toStdLogicEleExpr"
+			
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
 	toStdLogicExpr = fromIntegerToExpr
@@ -330,3 +343,22 @@ log2 num
    | num > 1 = 1 + log2 (num `div` 2)
    | otherwise = error $ "Can't take the log of negative number " ++ show num
 -}
+
+----------------------------------------------
+
+-- Build an assignment statement.
+assignStmt :: String -> Unique -> Type -> Driver Unique -> Stmt
+assignStmt nm i ty d = 
+   case toStdLogicType ty of
+      SL  ->    Assign (ExprVar $ sigName nm i) (toStdLogicExpr ty d)
+      SLV {} -> Assign (ExprVar $ sigName nm i) (toStdLogicExpr ty d)
+      SLVA n m -> statements $
+		[ Assign (ExprIndex (sigName nm i)
+				    (ExprLit Nothing $ ExprNum $ fromIntegral j))
+			$ toStdLogicEleExpr i (V m) d
+		| j <- [0..n]
+		]
+      G {} -> error "assignStmt {G} ?"
+		  
+		
+--error "assignStmt of Matrix"
