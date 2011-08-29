@@ -616,9 +616,12 @@ genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                                                   ]) | ty == tI =
         [ ProcessDecl
            (Event (toStdLogicExpr B clk) PosEdge)
-           (Just ( Event (toStdLogicExpr B rst) PosEdge
-                 , assignStmt "o0" i ty n
-                 )
+	   (case rst of
+	      Port {} -> Just ( Event (toStdLogicExpr B rst) PosEdge
+                 	      , assignStmt "o0" i ty n
+                 	      )
+	      Lit (RepValue [Just False]) -> Nothing
+	      _ -> error "genInst 'register' has strange reset value"
            )
            ( If (isHigh (toStdLogicExpr B clk_en))
 		(assignStmt "o0" i tI d)
