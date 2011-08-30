@@ -180,6 +180,24 @@ sndPatch :: Patch a   b
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
 
+-- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position 
+-- given by index.  (Note:  The first position is index 0)
+matrixSplicePatch :: (Size x, Integral x)
+            => x
+            -> Patch a   a
+                     b   b -> Patch (Matrix x a) (Matrix x a)
+                                    (Matrix x b) (Matrix x b)
+matrixSplicePatch index p ~(mlhs_in, mrhs_in) = (mlhs_out, mrhs_out)
+  where
+    lhs_in = mlhs_in M.! index
+    rhs_in = mrhs_in M.! index
+
+    (lhs_out, rhs_out) = p (lhs_in, rhs_in)
+
+    indexInt = (fromIntegral index) :: Int
+    mlhs_out = M.matrix $ (take indexInt $ M.toList mrhs_in) ++ lhs_out:(drop (indexInt+1) $ M.toList mrhs_in)
+    mrhs_out = M.matrix $ (take indexInt $ M.toList mlhs_in) ++ rhs_out:(drop (indexInt+1) $ M.toList mlhs_in)
+
 -- | Lift a function to a patch, applying the function to the data input.
 forwardPatch :: (li -> ro)
 	    -> Patch li ro
