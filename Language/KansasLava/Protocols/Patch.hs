@@ -164,17 +164,17 @@ idPatch :: Patch a  a
 	         b  b
 idPatch ~(a,b) = (b,a)
 
--- | Given a patch, add add to the data and control inputs/outputs a second set
--- of signal that are passed-through. The signals of the argument patch o fstPatch will
--- appear as the first element of the pair in the resulting patch.
+-- | Given a patch, add to the data and control inputs/outputs a second set of
+-- signals that are passed-through. The signals of the argument patch to fstPatch 
+-- will appear as the first element of the pair in the resulting patch.
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
 fstPatch p = p `stack` nullPatch
 
--- | Given a patch, add add to the data and control inputs/outputs a second set
--- of signal that are passed-through. The signals of the argument patch o fstPatch will
--- appear as the second element of the pair in the resulting patch.
+-- | Given a patch, add to the data and control inputs/outputs a second set of 
+-- signals that are passed-through. The signals of the argument patch to sndPatch 
+-- will appear as the second element of the pair in the resulting patch.
 sndPatch :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
