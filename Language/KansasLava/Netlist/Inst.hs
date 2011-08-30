@@ -616,10 +616,12 @@ genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                                                   ]) | ty == tI =
         [ ProcessDecl
            (Event (toStdLogicExpr B clk) PosEdge)
-	   (case rst of
-	      Port {} -> Just ( Event (toStdLogicExpr B rst) PosEdge
-                 	      , assignStmt "o0" i ty n
-                 	      )
+	   (let rst_code = Just ( Event (toStdLogicExpr B rst) PosEdge
+                 	        , assignStmt "o0" i ty n
+                 	        )
+	    in case rst of
+	      Port {} -> rst_code
+	      Pad (OVar {}) -> rst_code
 	      Lit (RepValue [Just False]) -> Nothing
 	      _ -> error "genInst 'register' has strange reset value"
            )
