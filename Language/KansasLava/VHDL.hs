@@ -125,7 +125,8 @@ entity name = unlines
 architecture :: String -> KLEG -> String
 architecture name circuit = unlines $
         ["architecture sim of " ++ name ++ "_tb is"
-        ,"signal clk, rst : std_logic;"
+        ,"signal clk : std_logic := '1';"
+        ,"signal rst : std_logic := '0';"
         ,"constant input_size : integer := 16;"
         ,"constant output_size : integer := 16;"
         ,"signal input : " ++ portType (ins ++ outs) ++ ":= (others => '0');"
@@ -158,17 +159,10 @@ stimulus name ins outs = unlines $ [
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType (ins ++ outs) ++ ";",
   "\tvariable output_var : " ++ portType (ins ++ outs) ++ ";",
-  "\tvariable needs_rst : boolean := true;",
+  "\tvariable needs_rst : boolean := false;",
 
   "begin",
 
-  "\tclk <= '0';",
-  pause 5,
-  "\tclk <= '1';",
-  pause 5,
-  "\tclk <= '0';",
-  pause 5,	-- 5 cycles
-  "wait for 20 ns;",
   "\twhile not endfile (" ++ inputfile ++ ") loop",
   "\t\tREADLINE(" ++ inputfile ++ ", line_in);",
   "\t\tREAD(line_in,input_var);",
