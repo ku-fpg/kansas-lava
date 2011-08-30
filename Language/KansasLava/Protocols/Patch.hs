@@ -500,8 +500,7 @@ unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = fromReady ready_in
 
--- | probePatch creates a patch with a named probe, probing both data and control
--- outputs.
+-- | 'probePatch' creates a patch with a named probe, probing both data and control outputs.
 probePatch :: (Probe a, Probe b)
    => String
    -> Patch    a   a
@@ -512,7 +511,7 @@ probePatch probeName ~(inp1, inp2) = (out2, out1)
                     $ probe probeName
                     $ (inp1, inp2)
 
--- | probeDataPatch creates a patch with a named probe, probing the data input.
+-- | 'probeDataPatch' creates a patch with a named probe, probing the data input.
 probeDataPatch :: (Probe a)
     => String
     -> Patch    a        a
@@ -524,7 +523,7 @@ probeDataPatch probeName ~(inp1, inp2) = (out2, out1)
              $ inp1
         out2 = inp2
 
--- | probeDataPatch creates a patch with a named probe, probing the control input.
+-- | 'probeHandshakePatch' creates a patch with a named probe, probing the control/handshake input.
 probeHandshakePatch :: (Probe b)
     => String
     -> Patch    a        a
