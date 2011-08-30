@@ -536,6 +536,36 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
              $ probe probeName
              $ inp2
 
+-- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack 
+-- signals in an Ack interface.  Probe prints output is in a packed format, so it is 
+-- easier to read than using the probeDataPatch.
+probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+    => String
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ack)           (sig Ack)
+probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
+  where
+      out          = inp
+      (_, ack_out) = unpack probed
+
+      probed :: sig (Enabled a, Ack)
+      probed = probe probeName $ pack (inp, ack_in)
+
+-- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready 
+-- signals in a Ready interface.  Probe prints output is in a packed format, so it is 
+-- easier to read than using the probeDataPatch.
+probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+    => String      
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ready)         (sig Ready)
+probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
+    where
+        (out, _)  = unpack probed
+        ready_out = ready_in
+
+        probed :: sig (Enabled a, Ready)
+        probed = probe probeName $ pack (inp, ready_in)
+
 ---------------------------------------------------------------------------------
 -- Functions that fork streams.
 ---------------------------------------------------------------------------------
