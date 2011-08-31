@@ -247,10 +247,10 @@ openPatch = forwardPatch (\ a -> (() :> a)) $$
 -- Sink Patches - throw away (ignore) data
 -------------------------------------------------------------------------------
 
-mapPatch :: forall a b c sig . (Rep a, Rep b, Clock c, sig ~ CSeq c)
+mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ CSeq c)
 	 => (Comb a -> Comb b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
-	   	  (sig Ack)	    (sig Ack)
+	   	  (ack)		    (ack)
 mapPatch = forwardPatch . mapEnabled
 	
 
@@ -300,6 +300,14 @@ sourceAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
 sourceAckPatch baseVal ~((), _) = ((), out)
   where
         out = packEnabled high (pureS baseVal)
+
+------------------------------------------------
+
+-- no data ever sent
+emptyAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+    => Patch    ()           (sig (Enabled a))
+                ()           (sig Ack)
+emptyAckPatch (_,_) = ((),disabledS)
 
 ------------------------------------------------
 -- Unit
@@ -822,3 +830,25 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
 		( inp
 		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
 		)
+
+---------------------------------------------------
+
+
+swapPatch 
+	:: Patch (a :> b)	(b :> a)
+	         (c :> d)	(d :> c)
+swapPatch = undefined
+
+fst2Patch 
+	:: Patch (a :> b)	(a' :> b')
+	         (d :> e)	(d' :> e')
+	-> Patch (a :> b :> c) 	(a' :> b' :> c)
+	         (d :> e :> f) 	(d' :> e' :> f)
+fst2Patch = undefined
+
+--swap01 :: forall a b . Swap (forall a b . a :> b) (forall a b 
+
+--Shape 
+
+
+
