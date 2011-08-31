@@ -14,7 +14,7 @@ tests :: TestSeq -> IO ()
 tests test = do
         -- testing Streams
 
-        let fifoTest :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
+        let fifoTest :: forall w . (Rep w, Eq w, Show w, Size (W w)) 
 		      => String
 		      -> Patch (Seq (Enabled w)) (Seq (Enabled w)) (Seq Ack) (Seq Ack) -> StreamTest w w
             fifoTest n f = StreamTest
@@ -39,12 +39,12 @@ tests test = do
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
-	testStream test "U5"   (fifoTest "idPatch" idPatch) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "idPatch" idPatch) (arbitrary :: Gen (Maybe Bool))
-	testStream test "U5"   (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "fifo1" fifo1) (arbitrary :: Gen (Maybe Bool))
-	testStream test "U5"   (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe U5))
-	testStream test "Bool" (fifoTest "fifo2" fifo2) (arbitrary :: Gen (Maybe Bool))
+	testStream test "U5"   (fifoTest "idPatch" idPatch :: StreamTest U5 U5)
+	testStream test "Bool" (fifoTest "idPatch" idPatch :: StreamTest Bool Bool)
+	testStream test "U5"   (fifoTest "fifo1" fifo1 :: StreamTest U5 U5)
+	testStream test "Bool" (fifoTest "fifo1" fifo1 :: StreamTest Bool Bool)
+	testStream test "U5"   (fifoTest "fifo2" fifo2 :: StreamTest U5 U5)
+	testStream test "Bool" (fifoTest "fifo2" fifo2 :: StreamTest Bool Bool)
 
 
 	-- This tests dupPatch and zipPatch
@@ -67,7 +67,7 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest1) (arbitrary :: Gen (Maybe U5))
+	testStream test "U5" (patchTest1 :: StreamTest U5 (U5,U5))
 
 
 	-- This tests matrixDupPatch and matrixZipPatch
@@ -95,7 +95,7 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest2) (arbitrary :: Gen (Maybe U5))
+	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix X3 U5))
 
 	-- This tests muxPatch (and matrixMuxPatch)
         let patchTest3 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
@@ -126,7 +126,7 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest3) (arbitrary :: Gen (Maybe U5))
+	testStream test "U5" (patchTest3 :: StreamTest U5 U5)
 
 	-- This tests deMuxPatch (and matrixDeMuxPatch), and zipPatch
         let patchTest4 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
@@ -153,6 +153,5 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest4) (arbitrary :: Gen (Maybe U5))
-
+	testStream test "U5" (patchTest4 :: StreamTest U5 (U5,U5))
 	return ()

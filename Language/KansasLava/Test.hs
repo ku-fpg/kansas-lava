@@ -689,12 +689,11 @@ data StreamTest w1 w2 = StreamTest
 testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, Size (W w1)
 			     , Eq w2, Rep w2, Show w2, Size (W w2)
 			     )
-        => TestSeq -> String -> StreamTest w1 w2 -> Gen (Maybe w1) -> IO ()
-testStream (TestSeq test _) tyName streamTest ws = do
+        => TestSeq -> String -> StreamTest w1 w2 -> IO ()
+testStream (TestSeq test _) tyName streamTest = do
 
         let vals0 :: [Maybe w1]
-	    vals0 = take (fromIntegral (theStreamTestCycles streamTest))
-			 (cycle (genToRandom $ loop 10 $ ws))
+	    vals0 = finiteCases (fromIntegral (theStreamTestCycles streamTest))
 
 	    vals1 :: [Int]
 	    vals1 = drop (fromIntegral (theStreamTestCount streamTest))
