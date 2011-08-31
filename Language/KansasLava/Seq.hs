@@ -114,19 +114,6 @@ toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
 toSeqX :: forall a c . (Rep a) => [X a] -> CSeq c a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
--- | Take the first n elements of one sequence, then append the second sequence.
-takeThenSeq :: Int -> CSeq c a -> CSeq c a -> CSeq c a
-takeThenSeq n sq1 sq2 = shallowSeq (S.fromList (take n (S.toList (seqValue sq1)) ++
-                                                S.toList (seqValue sq2)))
-
-
--- | Convert a CSeq into a list of Strings, one string for each time step.
-showStreamList :: forall a c . (Rep a) => CSeq c a -> [String]
-showStreamList ss =
-	[ showRep  x
-	| x <- S.toList (seqValue ss)
-	]
-
 -- | Convert a CSeq of values into a list of Maybe values.
 fromSeq :: (Rep a) => CSeq c a -> [Maybe a]
 fromSeq = fmap unX . S.toList . seqValue
@@ -143,7 +130,6 @@ cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 
 -----------------------------------------------------------------------------------
 
-
 instance Dual (CSeq c a) where
     dual c d = Seq (seqValue c) (seqDriver d)
 
@@ -151,14 +137,3 @@ instance Dual (CSeq c a) where
 typeOfSeq :: forall w  . (Rep w) => Seq w -> Type
 typeOfSeq _ = repType (Witness :: Witness w)
 
-{-
-  - TODO: TO BE MOVED
-
--- | Generate a (shallow) stream of random boolean. Used for testing
--- shallow circuits. The function is a mapping from clock cycle number (starting
--- at 0) to (0..1), which is the likelihood of returning a True.
--- The clock cycle count allows for periodic tests.
-
-randomBools :: (Clock c, sig ~ CSeq c) => StdGen -> (Integer -> Float) -> sig Bool
-randomBools stdGen cut = toSeq [ c < cut t | (c,t) <- zip (randoms stdGen) [0..] ]
--}
