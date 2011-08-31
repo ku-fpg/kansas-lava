@@ -154,6 +154,11 @@ runPatch p = a
  where
    (_,a) = p (unit,unit)
 
+execPatch :: Patch a b 
+ 		   c d
+ 	  -> (a,d) -> (c,b)
+execPatch = id
+
 -- TODO: rm
 nullPatch :: Patch a  a
 	         b  b
