@@ -10,11 +10,6 @@ module Language.KansasLava.Test
         , arbitrary
 	, allCases
 	, finiteCases
-        , loop
-        , dubGen
-        , genToList
-        , genToRandom
-        , largeNumber
         , testDriver
         , generateReport
         , Options(..)
@@ -38,7 +33,6 @@ import Control.Monad
 import Data.List as List
 import Data.Maybe as Maybe
 import Data.Default
-import Data.Ord ( comparing )
 --import Data.Sized.Unsigned
 
 import System.Cmd
@@ -78,7 +72,7 @@ fileReporter path nm res = do
 
 data TestSeq = TestSeq
         (String -> Int  -> Fabric () -> (Fabric (Int -> Maybe String)) -> IO ())
-        (forall a. Gen a -> [a])
+	()	-- remove the unit
 
 {-
 -- | Fabric outputs are equal if for each output from the left fabric,
@@ -336,14 +330,6 @@ copyLavaPrelude dest = do
 
 -------------------------------------------------------------------------------------
 
--- Not really random, but good enough for basic testing.
-unsort :: [x] -> [x]
-unsort es = map snd . sortBy (comparing fst) $ zip rs es
-  where rs = R.randoms stdGen :: [Integer]
-        stdGen = R.mkStdGen 0
-
--------------------------------------------------------------------------------------
-
 data Gen a = Gen Integer (Integer -> Maybe a)
 
 arbitrary :: forall w . (Rep w) => Gen w
@@ -360,9 +346,6 @@ arbitrary = Gen sz integer2rep
                 $ iterate (`div` 2)
                 $ (fromIntegral v :: Int)
 
-loop :: Integer -> Gen w -> Gen w
-loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
-
 ------------------------------------------------------------------------------------
 -- The new testing system.
 
@@ -375,39 +358,6 @@ allCases = Maybe.catMaybes $ fmap f [0..(n-1)]
 finiteCases :: (Rep w) => Int ->[w]
 finiteCases i = take i $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n-1) (R.mkStdGen 0)
   where (Gen n f) = arbitrary
-
-------------------------------------------------------------------------------------
--- | makes sure all sequences of two specific elements happen.
--- Random messes this up a bit, but its still an approximation.
-dubGen :: Gen w -> Gen w
-dubGen g = ((\ a b c -> if a then b else c) <$> arbitrary)
-        <*> g
-        <*> g
-
-
-instance Functor Gen where
-        fmap g (Gen n f) = Gen n (\i -> do r <- f i
-                                           return $ g r)
-
-instance Applicative Gen where
-        pure a = Gen 1 (const $ return a)
-        (Gen n1 f1) <*> (Gen n2 f2) = Gen (n1 * n2) (\ i -> do r1 <- f1 (i `mod` n1)
-                                                               r2 <- f2 (i `div` n1)
-                                                               return $ r1 r2)
-
--- get *all* elements from a Gen
-genToList :: Gen a -> [a]
-genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
-
--- get some (random) elements from a Gen
--- If it is small, then just output all the values.
-genToRandom :: Gen a -> [a]
-genToRandom (Gen n f)
-        | n <= 100 = unsort $ genToList (Gen n f)
-        | otherwise = {- take (fromIntegral (min n largeNumber)) $ -} Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
-
-largeNumber :: Integer
-largeNumber = 10000
 
 -------------------------------------------------------------------
 
@@ -571,7 +521,7 @@ testDriver opt tests = do
 
         let test :: TestSeq
             test = TestSeq (testFabrics opt)
-                           (take (testData opt) . genToRandom)
+                           ()
 
         -- The different tests to run (from different modules)
         sequence_ [ t test
