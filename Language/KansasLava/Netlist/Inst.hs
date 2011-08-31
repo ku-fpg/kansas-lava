@@ -67,10 +67,10 @@ genInst env i (Entity (BlackBox _) ins outs) =
 genInst env i (Entity (Prim "retime") outs [("i0",ty,dr),("pulse",_,_)]) = 
     genInst env i (Entity (Prim "id") outs [("i0",ty,dr)])
 
-genInst _ _ (Entity (Comment' comments) [] []) =
+genInst _ _ (Entity (Comment comments) [] []) =
         [ CommentDecl (unlines comments)
         ]
-genInst env i (Entity (Comment' comments) ins@[_] outs@[_]) =
+genInst env i (Entity (Comment comments) ins@[_] outs@[_]) =
         CommentDecl (unlines comments) :
 	genInst env i (Entity (Prim "id") ins outs)
 
@@ -111,9 +111,6 @@ genInst _ i (Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
   where
      -- we assume the expression is a var name for matrix types (no constants here)
      (ExprVar varname) =  toStdLogicExpr tyI d
-
-genInst env i (Entity (Label label) [(vO,tyO)] [(vI,tyI,d)] ) =
-	 	CommentDecl label:genInst env i (Entity (Prim "id") [(vO,tyO)] [(vI,tyI,d)])
 
 -- Concat and index (join, project)
 

@@ -54,11 +54,8 @@ undefinedS = liftS0 undefinedComb
 -- TODO: insert Id/Comment
 -- | Wrap a Signal with a comment.
 comment :: (Signal sig, Rep a) => String -> sig a -> sig a
-comment msg = liftS1 $ \ (Comb s ae) -> Comb s $ entity1 (Comment' [msg]) ae
+comment msg = liftS1 $ \ (Comb s ae) -> Comb s $ entity1 (Comment [msg]) ae
 
--- | Wrap a Signal with a String label.
-label :: (Rep a, Signal sig) => String -> sig a -> sig a
-label msg = liftS1 $ \ (Comb a ae) -> Comb a $ entity1 (Label msg) ae
 
 ----------------------------------------------------------------------------------------------------
 

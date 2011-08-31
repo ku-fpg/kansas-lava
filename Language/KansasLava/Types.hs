@@ -238,8 +238,7 @@ data Id = Prim String                           -- ^ built in thing
 
         | ClockId String                        -- ^ An environment box
 
-        | Label String                          -- ^ An identity; also a name, used to tag function arguments
-        | Comment' [String]                     -- ^ An identity; also a multi-line comments
+        | Comment [String]                      -- ^ An identity; also a multi-line comments
         | BlackBox (Box Dynamic)                -- ^ 'BlackBox' can be removed without harm
                                                 -- The rule is you can only insert you own
                                                 -- types in here (or use newtype).
@@ -259,13 +258,12 @@ data Id = Prim String                           -- ^ built in thing
 instance Show Id where
     show (External nm) = '$':nm
     show (Prim nm)     = nm
-    show (Label nm)    = show nm ++ ":"
     show (TraceVal ovar _) = '^':show ovar
     show (ClockId nm)    = '@':nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
     show (BlackBox _) = "<bb>"
-    show (Comment' xs) = "{- " ++ show xs ++ " -}"
+    show (Comment xs) = "{- " ++ show xs ++ " -}"
 
 -- | Box wraps a dynamic, so that we can define custom Eq/Ord instances.
 newtype Box a = Box a
