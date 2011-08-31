@@ -63,11 +63,6 @@ shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 undefinedSeq ::  forall a c . (Rep a) => CSeq c a
 undefinedSeq = liftS0 undefinedComb
 
--- | Create a Seq which will repeatedly enumerates all of the possible values of
--- the witness data type in the shallow portion.
-seqAll :: forall w. (Rep w) => Seq w
-seqAll = toSeqX $ cycle [fromRep rep | rep <- allReps (Witness :: Witness w) ]
-
 instance Signal (CSeq c) where
   liftS0 c = Seq (pure (combValue c)) (combDriver c)
 
