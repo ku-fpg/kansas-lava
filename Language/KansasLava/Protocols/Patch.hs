@@ -169,21 +169,39 @@ idPatch :: Patch a  a
 	         b  b
 idPatch ~(a,b) = (b,a)
 
--- | Given a patch, add add to the data and control inputs/outputs a second set
--- of signal that are passed-through. The signals of the argument patch o fstPatch will
--- appear as the first element of the pair in the resulting patch.
+-- | Given a patch, add to the data and control inputs/outputs a second set of
+-- signals that are passed-through. The signals of the argument patch to fstPatch 
+-- will appear as the first element of the pair in the resulting patch.
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
 fstPatch p = p `stack` nullPatch
 
--- | Given a patch, add add to the data and control inputs/outputs a second set
--- of signal that are passed-through. The signals of the argument patch o fstPatch will
--- appear as the second element of the pair in the resulting patch.
+-- | Given a patch, add to the data and control inputs/outputs a second set of 
+-- signals that are passed-through. The signals of the argument patch to sndPatch 
+-- will appear as the second element of the pair in the resulting patch.
 sndPatch :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
+
+-- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position 
+-- given by index.  (Note:  The first position is index 0)
+matrixSplicePatch :: (Size x, Integral x)
+            => x
+            -> Patch a   a
+                     b   b -> Patch (Matrix x a) (Matrix x a)
+                                    (Matrix x b) (Matrix x b)
+matrixSplicePatch index p ~(mlhs_in, mrhs_in) = (mlhs_out, mrhs_out)
+  where
+    lhs_in = mlhs_in M.! index
+    rhs_in = mrhs_in M.! index
+
+    (lhs_out, rhs_out) = p (lhs_in, rhs_in)
+
+    indexInt = (fromIntegral index) :: Int
+    mlhs_out = M.matrix $ (take indexInt $ M.toList mrhs_in) ++ lhs_out:(drop (indexInt+1) $ M.toList mrhs_in)
+    mrhs_out = M.matrix $ (take indexInt $ M.toList mlhs_in) ++ rhs_out:(drop (indexInt+1) $ M.toList mlhs_in)
 
 -- | Lift a function to a patch, applying the function to the data input.
 forwardPatch :: (li -> ro)
@@ -495,8 +513,7 @@ unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = fromReady ready_in
 
--- | probePatch creates a patch with a named probe, probing both data and control
--- outputs.
+-- | 'probePatch' creates a patch with a named probe, probing both data and control outputs.
 probePatch :: (Probe a, Probe b)
    => String
    -> Patch    a   a
@@ -507,7 +524,7 @@ probePatch probeName ~(inp1, inp2) = (out2, out1)
                     $ probe probeName
                     $ (inp1, inp2)
 
--- | probeDataPatch creates a patch with a named probe, probing the data input.
+-- | 'probeDataPatch' creates a patch with a named probe, probing the data input.
 probeDataPatch :: (Probe a)
     => String
     -> Patch    a        a
@@ -519,7 +536,7 @@ probeDataPatch probeName ~(inp1, inp2) = (out2, out1)
              $ inp1
         out2 = inp2
 
--- | probeDataPatch creates a patch with a named probe, probing the control input.
+-- | 'probeHandshakePatch' creates a patch with a named probe, probing the control/handshake input.
 probeHandshakePatch :: (Probe b)
     => String
     -> Patch    a        a
@@ -530,6 +547,36 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
         out2 = id
              $ probe probeName
              $ inp2
+
+-- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack 
+-- signals in an Ack interface.  Probe prints output is in a packed format, so it is 
+-- easier to read than using the probeDataPatch.
+probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+    => String
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ack)           (sig Ack)
+probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
+  where
+      out          = inp
+      (_, ack_out) = unpack probed
+
+      probed :: sig (Enabled a, Ack)
+      probed = probe probeName $ pack (inp, ack_in)
+
+-- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready 
+-- signals in a Ready interface.  Probe prints output is in a packed format, so it is 
+-- easier to read than using the probeDataPatch.
+probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+    => String      
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ready)         (sig Ready)
+probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
+    where
+        (out, _)  = unpack probed
+        ready_out = ready_in
+
+        probed :: sig (Enabled a, Ready)
+        probed = probe probeName $ pack (inp, ready_in)
 
 ---------------------------------------------------------------------------------
 -- Functions that fork streams.
