@@ -8,6 +8,8 @@ module Language.KansasLava.Test
         , testFabrics
         , Gen(..)
         , arbitrary
+	, allCases
+	, finiteCases
         , loop
         , dubGen
         , genToList
@@ -361,7 +363,20 @@ arbitrary = Gen sz integer2rep
 loop :: Integer -> Gen w -> Gen w
 loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
 
+------------------------------------------------------------------------------------
+-- The new testing system.
 
+-- | 'allCases' returns all values of type w, in a non-random order.
+allCases :: (Rep w) => [w]
+allCases = Maybe.catMaybes $ fmap f [0..(n-1)]
+   where (Gen n f) = arbitrary
+
+-- | 'finiteCases' returns finite values, perhaps many times, in a random order.
+finiteCases :: (Rep w) => Int ->[w]
+finiteCases i = take i $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n-1) (R.mkStdGen 0)
+  where (Gen n f) = arbitrary
+
+------------------------------------------------------------------------------------
 -- | makes sure all sequences of two specific elements happen.
 -- Random messes this up a bit, but its still an approximation.
 dubGen :: Gen w -> Gen w
