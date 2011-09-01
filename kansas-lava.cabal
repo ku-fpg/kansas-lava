@@ -29,7 +29,7 @@ Flag tools
 
 Library
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.1.20110426,
+                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.2.20110831,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
                  fgl, filepath, data-default, unix, bytestring, mtl, strict
   Exposed-modules:
@@ -118,7 +118,7 @@ Executable kansas-lava-testreport
 Executable bits2vcd
     if flag(tools)
       Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.1.20110426,
+                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.2.20110831,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
                  fgl, filepath, data-default, unix, bytestring, mtl, strict
       buildable: True
