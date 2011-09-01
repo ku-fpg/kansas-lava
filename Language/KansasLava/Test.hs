@@ -530,20 +530,33 @@ testDriver opt tests = do
 	sequence_ [
 		forkIO $ 
 		let loop = do
+			putStrLn $ "(waiting) Thread: " ++ show i
 			act <- takeMVar work
 			case act of
-			   Nothing -> return () -- stop command
+			   Nothing -> do
+				putStrLn $ "Stopping thread: " ++ show i
+				return () -- stop command
 			   Just io -> 
-				do io `catches` 
-					[ Handler $ \ (ex :: AsyncException) -> throw ex
+				do putStrLn $ "(go) Thread: " ++ show i
+				   io `catches` 
+					[ Handler $ \ (ex :: AsyncException) -> do
+					     putStrLn ("AsyncException: " ++ show ex)
+                                             throw ex
 					, Handler $ \ (_ :: SomeException) -> return ()
 					]
+				   putStrLn $ "(done) Thread: " ++ show i
 				   loop
 		in loop
-		| _ <- [1..thread_count]]
+		| i <- [1..thread_count]]
+
 
         let test :: TestSeq
-            test = TestSeq (\ nm sz fab fn -> putMVar work (Just $ testFabrics opt nm sz fab fn))
+            test = TestSeq (\ nm sz fab fn -> 
+			      let work_to_do = testFabrics opt nm sz fab fn
+			      in 
+				putMVar work (Just $ work_to_do)
+--				work_to_do
+			   )
                            ()
 
 
