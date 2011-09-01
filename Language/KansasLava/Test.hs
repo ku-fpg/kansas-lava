@@ -26,6 +26,9 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.VHDL
 import Language.KansasLava.Protocols
+import Control.Concurrent.MVar
+import Control.Concurrent (forkIO)
+import Control.Exception
 
 import Control.Applicative
 import qualified Control.Exception as E
@@ -519,14 +522,40 @@ testDriver opt tests = do
 
         prepareSimDirectory opt
 
+	work <- newEmptyMVar :: IO (MVar (Maybe (IO ())))
+
+	let thread_count :: Int
+	    thread_count = parTest opt
+
+	sequence_ [
+		forkIO $ 
+		let loop = do
+			act <- takeMVar work
+			case act of
+			   Nothing -> return () -- stop command
+			   Just io -> 
+				do io `catches` 
+					[ Handler $ \ (ex :: AsyncException) -> throw ex
+					, Handler $ \ (_ :: SomeException) -> return ()
+					]
+				   loop
+		in loop
+		| _ <- [1..thread_count]]
+
         let test :: TestSeq
-            test = TestSeq (testFabrics opt)
+            test = TestSeq (\ nm sz fab fn -> putMVar work (Just $ testFabrics opt nm sz fab fn))
                            ()
+
+
+ 	putMVar work (Just $ error "Hello")
 
         -- The different tests to run (from different modules)
         sequence_ [ t test
                   | t <- tests
                   ]
+
+	-- wait for then kill all the worker threads
+	sequence_ [ putMVar work Nothing | _ <- [1..thread_count]]
 
         -- If we didn't generate simulations, make a report for the shallow results.
         if genSim opt
@@ -555,10 +584,11 @@ data Options = Options
         , testOnly    :: Maybe [String]              -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
         , testData    :: Int                         -- ^ cut off for random testing
+	, parTest     :: Int			     -- ^ how may tests to run in parallel 
         }
 
 instance Show Options where
-    show (Options gs rs sc sp sm pm vo to tn td) =
+    show (Options gs rs sc sp sm pm vo to tn td pt) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
                 , "simCmd: " ++ show sc
@@ -568,7 +598,8 @@ instance Show Options where
                 , "verboseOpt: " ++ show vo
                 , "testOnly: " ++ show to
                 , "testNever: " ++ show tn
-                , "testData: " ++ show td ]
+                , "testData: " ++ show td
+                , "parTest: " ++ show pt ]
 
 -------------------------------------------------------------------------------------
 -- Verbose table
@@ -591,6 +622,7 @@ instance Default Options where
                 , testOnly = Nothing
                 , testNever = []
                 , testData = 1000
+		, parTest = 2		-- everyone has multicore now
                 }
 
 type TestCase = (String, Result)

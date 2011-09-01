@@ -87,6 +87,7 @@ Executable kansas-lava-unittest
     Hs-Source-Dirs: ., tests
     Ghc-Options: -Wall  -Werror 
                  -fno-warn-orphans -fcontext-stack=256
+                 -threaded -rtsopts
 
 Executable kansas-lava-tracediff
     if flag(unit)
