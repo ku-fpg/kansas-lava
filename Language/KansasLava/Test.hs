@@ -622,7 +622,9 @@ instance Default Options where
                 , testOnly = Nothing
                 , testNever = []
                 , testData = 1000
-		, parTest = 2		-- everyone has multicore now
+		, parTest = 4	-- everyone has multicore now.
+		  	    	-- This is the number of *threads*,
+				-- so we cope with upto 4 cores.
                 }
 
 type TestCase = (String, Result)
