@@ -61,7 +61,7 @@ mkTraceCM :: Maybe Int               -- ^ Nothing means infinite trace, Just x s
 mkTraceCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
 
-    let output = runFabric fabric input
+    let (_,output) = runFabric fabric input
         tr = Trace { len = c
                    , inputs = [ (OVar 0 nm, padToTraceStream p)
                               | (OVar _ nm,_) <- theSrcs rc
