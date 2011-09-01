@@ -522,7 +522,7 @@ testDriver opt tests = do
 
         prepareSimDirectory opt
 
-	work <- newEmptyMVar :: IO (MVar (Maybe (IO ())))
+	work <- newEmptyMVar :: IO (MVar (Either (MVar ()) (IO ())))
 
 	let thread_count :: Int
 	    thread_count = parTest opt
@@ -530,37 +530,31 @@ testDriver opt tests = do
 	sequence_ [
 		forkIO $ 
 		let loop = do
-			putStrLn $ "(waiting) Thread: " ++ show i
 			act <- takeMVar work
 			case act of
-			   Nothing -> do
-				putStrLn $ "Stopping thread: " ++ show i
+			   Left end -> do
+				putMVar end ()
 				return () -- stop command
-			   Just io -> 
-				do putStrLn $ "(go) Thread: " ++ show i
-				   io `catches` 
+			   Right io -> 
+				do io `catches` 
 					[ Handler $ \ (ex :: AsyncException) -> do
 					     putStrLn ("AsyncException: " ++ show ex)
                                              throw ex
 					, Handler $ \ (_ :: SomeException) -> return ()
 					]
-				   putStrLn $ "(done) Thread: " ++ show i
 				   loop
 		in loop
-		| i <- [1..thread_count]]
+		| _ <- [1..thread_count]]
 
 
         let test :: TestSeq
             test = TestSeq (\ nm sz fab fn -> 
 			      let work_to_do = testFabrics opt nm sz fab fn
 			      in 
-				putMVar work (Just $ work_to_do)
+				putMVar work (Right $ work_to_do)
 --				work_to_do
 			   )
                            ()
-
-
- 	putMVar work (Just $ error "Hello")
 
         -- The different tests to run (from different modules)
         sequence_ [ t test
@@ -568,7 +562,12 @@ testDriver opt tests = do
                   ]
 
 	-- wait for then kill all the worker threads
-	sequence_ [ putMVar work Nothing | _ <- [1..thread_count]]
+	sequence_ [ do stop <- newEmptyMVar
+		       putMVar work (Left stop)
+		       takeMVar stop
+		  | _ <- [1..thread_count]
+		  ]
+
 
         -- If we didn't generate simulations, make a report for the shallow results.
         if genSim opt
