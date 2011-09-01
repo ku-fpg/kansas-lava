@@ -42,8 +42,6 @@ Library
        Language.KansasLava.Probes
        Language.KansasLava.Protocols
        Language.KansasLava.Rep
-       Language.KansasLava.Rep.TH
-       Language.KansasLava.Rep.Class
        Language.KansasLava.RTL
        Language.KansasLava.Seq
        Language.KansasLava.Signal
@@ -56,6 +54,8 @@ Library
        Language.KansasLava.VCD
        Language.KansasLava.Trace
   Other-modules:
+       Language.KansasLava.Rep.TH
+       Language.KansasLava.Rep.Class
        Language.KansasLava.Netlist.Decl
        Language.KansasLava.Netlist.Inst
        Language.KansasLava.Netlist.Utils
