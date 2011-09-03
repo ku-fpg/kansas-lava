@@ -8,14 +8,14 @@ module Language.KansasLava.Test
         , testFabrics
         , Gen(..)
         , arbitrary
-	, allCases
-	, finiteCases
+        , allCases
+        , finiteCases
         , testDriver
         , generateReport
         , Options(..)
         , matchExpected
-	, StreamTest(..)
-	, testStream
+        , StreamTest(..)
+        , testStream
         ) where
 
 import Language.KansasLava.Trace
@@ -75,7 +75,7 @@ fileReporter path nm res = do
 
 data TestSeq = TestSeq
         (String -> Int  -> Fabric () -> (Fabric (Int -> Maybe String)) -> IO ())
-	()	-- remove the unit
+        ()      -- remove the unit
 
 {-
 -- | Fabric outputs are equal if for each output from the left fabric,
@@ -201,7 +201,7 @@ simCompare path report verb = do
                                 else do verb 3 "simulation failed"
 --                                        verb 4 $ show ("shallow",t1)
 --                                        verb 4 $ show ("deep",t2)
-                                        report $ CompareFail 
+                                        report $ CompareFail
 
                     else do verb 3 "VHDL compilation failed"
 --                            verb 4 transcript
@@ -327,9 +327,9 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
-	ks <- getEnv "KANSAS_LAVA_ROOT"
+        ks <- getEnv "KANSAS_LAVA_ROOT"
         prel <- Strict.readFile (ks </> "Prelude/VHDL" </> preludeFile)
-	writeFile (dest </> preludeFile) prel
+        writeFile (dest </> preludeFile) prel
 
 -------------------------------------------------------------------------------------
 
@@ -522,29 +522,29 @@ testDriver opt tests = do
 
         prepareSimDirectory opt
 
-	work <- newEmptyMVar :: IO (MVar (Either (MVar ()) (IO ())))
+        work <- newEmptyMVar :: IO (MVar (Either (MVar ()) (IO ())))
 
-	let thread_count :: Int
-	    thread_count = parTest opt
+        let thread_count :: Int
+            thread_count = parTest opt
 
-	sequence_ [
-		forkIO $ 
-		let loop = do
-			act <- takeMVar work
-			case act of
-			   Left end -> do
-				putMVar end ()
-				return () -- stop command
-			   Right io -> 
-				do io `catches` 
-					[ Handler $ \ (ex :: AsyncException) -> do
-					     putStrLn ("AsyncException: " ++ show ex)
+        sequence_ [
+                forkIO $
+                let loop = do
+                        act <- takeMVar work
+                        case act of
+                           Left end -> do
+                                putMVar end ()
+                                return () -- stop command
+                           Right io ->
+                                do io `catches`
+                                        [ Handler $ \ (ex :: AsyncException) -> do
+                                             putStrLn ("AsyncException: " ++ show ex)
                                              throw ex
-					, Handler $ \ (_ :: SomeException) -> return ()
-					]
-				   loop
-		in loop
-		| _ <- [1..thread_count]]
+                                        , Handler $ \ (_ :: SomeException) -> return ()
+                                        ]
+                                   loop
+                in loop
+                | _ <- [1..thread_count]]
 
 
         let test :: TestSeq
@@ -561,12 +561,12 @@ testDriver opt tests = do
                   | t <- tests
                   ]
 
-	-- wait for then kill all the worker threads
-	sequence_ [ do stop <- newEmptyMVar
-		       putMVar work (Left stop)
-		       takeMVar stop
-		  | _ <- [1..thread_count]
-		  ]
+        -- wait for then kill all the worker threads
+        sequence_ [ do stop <- newEmptyMVar
+                       putMVar work (Left stop)
+                       takeMVar stop
+                  | _ <- [1..thread_count]
+                  ]
 
 
         -- If we didn't generate simulations, make a report for the shallow results.
@@ -674,41 +674,41 @@ matchExpected out_name ref = do
 ----------------------------------------------------------------------------
 
 data StreamTest w1 w2 = StreamTest
-            { theStream            :: Patch (Seq (Enabled w1))		(Seq (Enabled w2))
-					    (Seq Ack)  			(Seq Ack)
+            { theStream            :: Patch (Seq (Enabled w1))          (Seq (Enabled w2))
+                                            (Seq Ack)                   (Seq Ack)
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
-	    , theStreamTestCount   :: Int
-	    , theStreamTestCycles  :: Int
+            , theStreamTestCount   :: Int
+            , theStreamTestCycles  :: Int
             , theStreamName        :: String
             }
 
 testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, Size (W w1)
-			     , Eq w2, Rep w2, Show w2, Size (W w2)
-			     )
+                             , Eq w2, Rep w2, Show w2, Size (W w2)
+                             )
         => TestSeq -> String -> StreamTest w1 w2 -> IO ()
 testStream (TestSeq test _) tyName streamTest = do
 
         let vals0 :: [Maybe w1]
-	    vals0 = finiteCases (fromIntegral (theStreamTestCycles streamTest))
+            vals0 = finiteCases (fromIntegral (theStreamTestCycles streamTest))
 
-	    vals1 :: [Int]
-	    vals1 = drop (fromIntegral (theStreamTestCount streamTest))
-		    [ n
-	  	    | (Just _,n) <- zip vals0 [0..]
-	            ]
+            vals1 :: [Int]
+            vals1 = drop (fromIntegral (theStreamTestCount streamTest))
+                    [ n
+                    | (Just _,n) <- zip vals0 [0..]
+                    ]
 
-	    vals :: [Maybe w1]
-	    vals = case vals1 of
-		     [] -> vals0
-		     (n:_) -> [ if i < n then v else Nothing
-			      | (v,i) <- zip vals0 [0..]
-			      ]
+            vals :: [Maybe w1]
+            vals = case vals1 of
+                     [] -> vals0
+                     (n:_) -> [ if i < n then v else Nothing
+                              | (v,i) <- zip vals0 [0..]
+                              ]
 
 {-
-	print (theStreamTestCount StreamTest,theStreamTestCycles StreamTest)
-	print vals0
-	print vals1
-	print vals
+        print (theStreamTestCount StreamTest,theStreamTestCycles StreamTest)
+        print vals0
+        print vals1
+        print vals
 -}
         -- good enough for this sort of testing
 --        let stdGen = mkStdGen 0
@@ -732,17 +732,17 @@ testStream (TestSeq test _) tyName streamTest = do
                 -- DUT does stuff
 
                 -- reading from DUT
-                res     <- inStdLogicVector "res" 
+                res     <- inStdLogicVector "res"
                 res_en  <- inStdLogic       "res_en"
 
-                let flag :: Seq Ack 
+                let flag :: Seq Ack
                     opt_as :: [Maybe w2]
 
                     (flag, opt_as) = fromAckBox' d (packEnabled res_en res,())
 
                 outStdLogic "flag" flag
 
-                return $ \ n -> correctnessCondition streamTest 
+                return $ \ n -> correctnessCondition streamTest
                                    [ x | (Just x) <- take n $ vals ]
                                    [ x | (Just x) <- take n $ opt_as ]
 
@@ -766,8 +766,8 @@ let ans = [ a | Just a <- take n opt_as ]
                 outStdLogic "ack"        ack
 
 
-            a = cycle [0..2] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000) 
-            d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)  
+            a = cycle [0..2] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)
+            d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)
 
         test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
 
