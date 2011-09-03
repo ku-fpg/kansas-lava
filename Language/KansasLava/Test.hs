@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable #-}
 module Language.KansasLava.Test
         ( testMe
         , neverTestMe
@@ -39,6 +39,7 @@ import Data.Default
 --import Data.Sized.Unsigned
 
 import System.Cmd
+import System.Console.CmdArgs hiding (Default,def,name,summary,opt)
 import System.Directory
 import System.Environment
 import System.FilePath as FP
@@ -99,14 +100,17 @@ cmpFabricOutputs count expected shallow =
                            GenericPad _ -> error "testFabrics: Generic output pad?"
 -}
 
+type SimMods = [(String,KLEG -> IO KLEG)]
+
 testFabrics
         :: Options                  -- Options
+        -> SimMods                  -- ^ [(String,KLEG -> IO KLEG)]
         -> String                   -- Test Name
         -> Int                      -- Number of Cycles
         -> Fabric ()                         -- DUT
         -> (Fabric (Int -> Maybe String))    -- Driver
         -> IO ()
-testFabrics opts name count f_dut f_expected
+testFabrics opts simMods name count f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
             path = (simPath opts) </> name
@@ -137,8 +141,8 @@ testFabrics opts name count f_dut f_expected
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
                                                            $ subsequences
-                                                           $ simMods opts
-                                                    else simMods opts
+                                                           $ simMods
+                                                    else simMods
                                        , let modname = fst cmod
                                        ]
 
@@ -515,7 +519,8 @@ reportToHtml (Report summary results) = do
 --          chunk s  = let (c1,r') = splitAt c s in c1 : chunk r'
 
 testDriver :: Options -> [TestSeq -> IO ()] -> IO ()
-testDriver opt tests = do
+testDriver dopt tests = do
+        opt <- cmdArgs dopt
 
         putStrLn "Running with the following options:"
         putStrLn $ show opt
@@ -548,12 +553,12 @@ testDriver opt tests = do
 
 
         let test :: TestSeq
-            test = TestSeq (\ nm sz fab fn -> 
-			      let work_to_do = testFabrics opt nm sz fab fn
-			      in 
-				putMVar work (Right $ work_to_do)
---				work_to_do
-			   )
+            test = TestSeq (\ nm sz fab fn ->
+                              let work_to_do = testFabrics opt [] nm sz fab fn
+                              in
+                                putMVar work (Right $ work_to_do)
+--                              work_to_do
+                           )
                            ()
 
         -- The different tests to run (from different modules)
@@ -588,24 +593,21 @@ data Options = Options
         , runSim      :: Bool                        -- ^ Run the tests after generation?
         , simCmd      :: String                      -- ^ Command to call with runSim is True
         , simPath     :: FilePath                    -- ^ Path into which we place all our simulation directories.
-        , simMods     :: [(String, KLEG -> IO KLEG)] -- ^ List of modifications (like optimizations) to apply to
-                                                     --   the circuit before simulation.
         , permuteMods :: Bool                        -- ^ False: Run each mod separately. True: Run all possible
                                                      --   permutations of the mods to see if they affect each other.
         , verboseOpt  :: Int                         -- ^ See verbose table below.
         , testOnly    :: Maybe [String]              -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
         , testData    :: Int                         -- ^ cut off for random testing
-	, parTest     :: Int			     -- ^ how may tests to run in parallel 
-        }
+        , parTest     :: Int                         -- ^ how may tests to run in parallel
+        } deriving (Data, Typeable)
 
 instance Show Options where
-    show (Options gs rs sc sp sm pm vo to tn td pt) =
+    show (Options gs rs sc sp pm vo to tn td pt) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
                 , "simCmd: " ++ show sc
                 , "simPath: " ++ show sp
-                , "simMods: " ++ show (map fst sm)
                 , "permuteMods: " ++ show pm
                 , "verboseOpt: " ++ show vo
                 , "testOnly: " ++ show to
@@ -624,19 +626,19 @@ instance Show Options where
 
 instance Default Options where
         def = Options
-                { genSim = False
-                , runSim = False
-                , simCmd = "sims/runsims"
-                , simPath = "sims"
-                , simMods = []
-                , permuteMods = True
-                , verboseOpt = 4
-                , testOnly = Nothing
-                , testNever = []
-                , testData = 1000
-		, parTest = 4	-- everyone has multicore now.
-		  	    	-- This is the number of *threads*,
-				-- so we cope with upto 4 cores.
+                { genSim = False &= help "Generate modelsim testbenches for each test?"
+                , runSim = False &= help "Run the tests after generation?"
+                , simCmd = "sims/runsims" &= help "Command to call when runSim is True"
+                , simPath = "sims" &= typDir &= help "Path into which we place all our simulation directories."
+                , permuteMods = True &= help "Run all possible permutations of circuit mods."
+                , verboseOpt = 4 &= help "Verbosity level. 1: Failures 2: What runs 3: What succeeds 4: Failures 9: Everything"
+                , testOnly = Nothing &= help "List of tests to execute. Can match either end. Default is all tests."
+                , testNever = [] &= help "List of tests to never execute. Can match either end."
+                , testData = 1000 &= help "Cutoff for random testing."
+                , parTest = 4 &= help "Number of tests to run in parallel."
+                                -- everyone has multicore now.
+                                -- This is the number of *threads*,
+                                -- so we cope with upto 4 cores.
                 }
 
 type TestCase = (String, Result)
