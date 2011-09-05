@@ -909,23 +909,23 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
 		)
 
 ---------------------------------------------------
+-- These are patch order swappers : re-wiring only
 
+exp2Stack :: Patch ((a :> b) :> c)	(a :> b :> c)
+	           ((d :> e) :> f)	(d :> e :> f)
+exp2Stack = forwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) $$
+	    backwardPatch (\ (a :> b :> c) -> ((a :> b) :> c))
 
-swapPatch 
-	:: Patch (a :> b)	(b :> a)
-	         (c :> d)	(d :> c)
-swapPatch = undefined
+con2Stack :: Patch (a :> b :> c)	((a :> b) :> c)	
+	           (d :> e :> f)	((d :> e) :> f)	 
+con2Stack = forwardPatch (\ (a :> b :> c) -> ((a :> b) :> c)) $$
+	    backwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) 
 
-fst2Patch 
-	:: Patch (a :> b)	(a' :> b')
-	         (d :> e)	(d' :> e')
-	-> Patch (a :> b :> c) 	(a' :> b' :> c)
-	         (d :> e :> f) 	(d' :> e' :> f)
-fst2Patch = undefined
+swapPatch :: Patch (a :> b)	(b :> a)
+	           (c :> d)	(d :> c)
+swapPatch = forwardPatch (\ (a :> b) -> (b :> a)) $$
+	    backwardPatch (\ (b :> a) -> (a :> b))
 
---swap01 :: forall a b . Swap (forall a b . a :> b) (forall a b 
-
---Shape 
-
+----------------------------------------------------
 
 
