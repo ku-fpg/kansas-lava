@@ -252,6 +252,18 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 
 -----------------------------------------------------------------------------------------------
 
+-- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
+-- zero (false) selects the first argument of the tuple, one (true)
+-- selects the second.
+mux :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
+mux iSig (eSig,tSig)
+	= liftS3 (\ (Comb i ei)
+	 	    (Comb e ee)
+	 	    (Comb t et)
+			-> Comb (mux2shallow i e t)
+                                (entity3 (Prim "mux2") ei et ee) -- TODO: redo as mux (and re-order)
+	         ) iSig tSig eSig
+
 -- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
 -- the use of liftS3. This is safe, because we know the kind of node that we're building.
 -- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
@@ -266,11 +278,11 @@ mux2 iSig (tSig,eSig)
 
 -- | Shallow definition of a multiplexer. Deals with 3-value logic.
 mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
-mux2shallow i t e =
+mux2shallow i e t =
    case unX i of
        Nothing -> optX Nothing
-       Just True -> t
-       Just False -> e
+       Just True -> e
+       Just False -> t
 
 -------------------------------------------------------------------------------------------------
 -- | TODO: Document this.
