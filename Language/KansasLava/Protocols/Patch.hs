@@ -929,3 +929,37 @@ swapPatch = forwardPatch (\ (a :> b) -> (b :> a)) $$
 ----------------------------------------------------
 
 
+data MergePlan = PriorityMerge		-- The first element always has priority
+	       | RoundRobinMerge	-- turn about
+
+mergePatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+ => MergePlan
+ -> Patch ((sig (Enabled a)) :> (sig (Enabled a)))    (sig (Enabled a))
+	   ((sig Ack)         :> (sig Ack))            (sig Ack) 
+
+mergePatch plan = fe $$ matrixMergePatch plan
+  where
+	fe = forwardPatch (\ ~(b :> c) -> (matrix [b,c])) `bus`
+	     backwardPatch (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
+
+
+matrixMergePatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+  => MergePlan
+  -> Patch (Matrix x (sig (Enabled a)))		(sig (Enabled a))
+	   (Matrix x (sig Ack))		  	(sig Ack)
+matrixMergePatch plan ~(mInp, ackOut) = (mAckInp, out)
+ where
+   isEs :: sig (Matrix x Bool)
+   isEs = pack (fmap isEnabled mInp)
+
+   -- Value to consider selecting.
+   inpIndex :: sig x
+   inpIndex = case plan of
+		PriorityMerge   -> cASE (zip (map isEnabled $ M.toList mInp) (map pureS [0..])) (pureS 0)
+		RoundRobinMerge -> let reg = register 0 (mux ((isEs .!. reg) .&&. bitNot (fromAck ackOut))
+								-- stop looking if found enable
+								-- an no ack
+							     (loopingInc reg,reg)) in reg
+
+   mAckInp = forEach mInp $ \ x _inp -> toAck $ ((pureS x) .==. inpIndex) .&&. (fromAck ackOut)
+   out = (pack mInp) .!. inpIndex 
