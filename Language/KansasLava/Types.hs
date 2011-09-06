@@ -392,26 +392,30 @@ newtype RepValue = RepValue { unRepValue :: [Maybe Bool] }
         deriving (Eq, Ord)
 
 instance Show RepValue where
-        show (RepValue vals) = [ case v of
+        show (RepValue vals) = "0b" ++
+				[ case v of
                                    Nothing   -> 'X'
                                    Just True  -> '1'
                                    Just False -> '0'
-                               | v <- vals
+                               | v <- reverse vals
                                ]
 
 instance Read RepValue where
-        readsPrec _ xs = [(RepValue [ case c of
+        readsPrec _ ('0':'b':xs) 
+		      = [ (RepValue [ case c of
                                         'X' -> Nothing
                                         'U' -> Nothing
                                         '0' -> Just False
                                         '1' -> Just True
-                                        v -> error $ "Can't read repvalue " ++ show v
-                                    | c <- cs
+                                        v -> error $ "Can't read RepValue " ++ show v
+                                    | c <- reverse cs
                                     ]
                           ,rest)]
             where (cs,rest) = span (`elem` "01XU") xs
+	readsPrec _ other = error $ "Can't read RepValue " ++ show other
 
 -- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
+-- TODO: reverse this!
 appendRepValue :: RepValue -> RepValue -> RepValue
 appendRepValue (RepValue xs) (RepValue ys) = RepValue (xs ++ ys)
 
