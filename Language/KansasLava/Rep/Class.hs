@@ -91,7 +91,7 @@ toRepFromIntegral v = case unX v :: Maybe v of
                  Just v' -> RepValue
                     $ take (repWidth (Witness :: Witness v))
                     $ map (Just . odd)
-                    $ iterate (`div` (2::Int))
+                    $ iterate (`div` (2::Integer))
                     $ fromIntegral v'
 -- | Convert a RepValue representing an integral value to a representable value
 -- of that integral type.
