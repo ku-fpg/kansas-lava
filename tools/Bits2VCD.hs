@@ -113,10 +113,10 @@ main = do
 	main2 cmds
 	
 main2 :: [String] -> IO ()
-main2 ["--clock",clk,sig,bits] | all C.isDigit clk
-	= main3 True (read clk) sig bits
-main2 [clk,sig,bits] | all C.isDigit clk
-	= main3 False (read clk) sig bits
+main2 ["--clock",clk,sig,bits'] | all C.isDigit clk
+	= main3 True (read clk) sig bits'
+main2 [clk,sig,bits'] | all C.isDigit clk
+	= main3 False (read clk) sig bits'
 main2 _ = error $ "usage bits2vcd: [--clock] (clockrate-in-ns) <.sig-file> <.bits-file>"
 	
 main3 :: Bool -> Integer -> String -> String -> IO ()
