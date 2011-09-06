@@ -29,7 +29,15 @@ module Language.KansasLava.Types (
         , appendRepValue
         , isValidRepValue
         , getValidRepValue
+	, chooseRepValue
         , cmpRepValue
+	-- * BitPat
+	, BitPat(..)
+	, (#)
+	, bits
+	, bool
+	, every
+	, bitPatToInteger
         -- * Tracing
         , TraceStream(..)
         -- * KLEG
@@ -61,7 +69,10 @@ import Data.List as L
 import Data.Maybe
 import Data.Monoid hiding (Dual)
 import Data.Reify
+import Data.Ratio
 import qualified Data.Traversable as T
+import Data.Sized.Ix
+import GHC.Exts( IsString(..) )
 
 -------------------------------------------------------------------------
 -- | Type captures HDL-representable types.
@@ -191,10 +202,10 @@ toStdLogicType B               = SL
 toStdLogicType ClkTy           = SL
 toStdLogicType (V n)           = SLV n
 toStdLogicType GenericTy       = G
-toStdLogicType (MatrixTy i ty) = SLVA i (fromIntegral size)
-  where size = typeWidth ty
-toStdLogicType ty              = SLV $ fromIntegral size
-  where size = typeWidth ty
+toStdLogicType (MatrixTy i ty) = SLVA i (fromIntegral size')
+  where size' = typeWidth ty
+toStdLogicType ty              = SLV $ fromIntegral size'
+  where size' = typeWidth ty
 
 -- | fromStdLogic maps StdLogicTypes to Lava types.
 fromStdLogicType :: StdLogicType -> Type
@@ -436,6 +447,15 @@ getValidRepValue r@(RepValue m)
   where f (Just v) = v
         f Nothing = error "Can't get the value of an unknown wire."
 
+
+-- | 'chooseRepValue' turns a RepValue with (optional) unknow values,
+-- and chooses a representation for the RepValue.
+chooseRepValue :: RepValue -> RepValue
+chooseRepValue (RepValue xs) = RepValue $ map f xs
+  where
+	f Nothing = Just False
+	f other	  = other
+
 -- | 'cmpRepValue' compares a golden value with another value, returning the bits that are different.
 -- The first value may contain 'X', in which case *any* value in that bit location will
 -- match. This means that 'cmpRepValue' is not commutative.
@@ -444,11 +464,89 @@ cmpRepValue (RepValue gs) (RepValue vs)
         | length gs == length vs
                 = and $ zipWith (\ g v ->
                              case (g,v) of
-                                (Nothing,_)               -> True
+                                (Nothing,_)             -> True
                                 (Just True,Just True)   -> True
                                 (Just False,Just False) -> True
                                 _ -> False) gs vs
 cmpRepValue _ _ = False
+
+---------------------------------------------------------------------------------------------------------
+-- BitPat is a small DSL for writing bit-patterns.
+-- It is bit-endian, unlike other parts of KL.
+-- It is also a sized version of RepValue.
+
+data BitPat w = BitPat { bitPatToRepValue :: RepValue }
+    deriving (Eq, Ord, Show)
+
+-- | '#' is a sized append for BitPat.
+infixl 6 #
+(#) :: (Size w1, Size w2, Size w, w ~ ADD w1 w2, w1 ~ SUB w w2, w2 ~ SUB w w1)
+    => BitPat w1 -> BitPat w2 -> BitPat w
+(BitPat a) # (BitPat b) = BitPat (appendRepValue b a)
+
+instance (Size w) => Num (BitPat w) where
+    (+) = error "(+) undefined for BitPat"
+    (*) = error "(*) undefined for BitPat"
+    abs = error "abs undefined for BitPat"
+    signum = error "signum undefined for BitPat"
+    fromInteger n 
+	| n >= 2^(size (error "witness" :: w)) 
+	= error $ "fromInteger: out of range, value = " ++  show n
+	| otherwise
+	= BitPat $ RepValue
+		           $ take (size (error "witness" :: w))
+                           $ map (Just . odd)
+			   $ iterate (`div` (2::Integer))
+			   $ n
+
+instance (Size w) => Real (BitPat w) where
+	toRational n = toInteger n % 1
+
+instance (Size w) => Enum (BitPat w) where
+	toEnum = fromInteger . fromIntegral
+	fromEnum p = case bitPatToInteger p of
+			Nothing -> error $ "fromEnum failure: " ++ show p		     
+			Just i -> fromIntegral i
+instance (Size w) => Integral (BitPat w) where
+	quotRem = error "quotRem undefined for BitPat"
+	toInteger p = case bitPatToInteger p of
+			Nothing -> error $ "toInteger failure: " ++ show p
+			Just i -> i
+		
+bitPatToInteger :: BitPat w -> Maybe Integer
+bitPatToInteger (BitPat rv) = case getValidRepValue rv of
+	Nothing -> Nothing
+	Just xs -> return $ 
+		sum [ n
+                    | (n,b) <- zip (iterate (* 2) 1)
+                       		    xs
+                    , b
+                    ]
+
+instance IsString (BitPat w) where 
+  fromString = bits
+
+bits :: String -> BitPat w
+bits = BitPat . RepValue . map f . reverse
+    where 
+	f '0' = return False
+	f '1' = return True
+	f 'X' = Nothing
+	f '_' = Nothing
+	f '-' = Nothing
+	f o   = error $ "bit pattern, expecting one of 01X_-, found " ++ show o
+
+bool :: BitPat X1 -> Bool
+bool (BitPat (RepValue [Just b])) = b
+bool other = error $ "bool: expecting bool isomophism, found: " ++ show other
+
+every :: forall w . (Size w) => [BitPat w]
+every = [ BitPat $ RepValue (fmap Just count) | count <- counts n ]
+   where
+    n = size (error "witness" :: w)
+    counts :: Int -> [[Bool]]
+    counts 0 = [[]]
+    counts num = [ x : xs |  xs <- counts (num-1), x <- [False,True] ]
 
 ---------------------------------------------------------------------------------------------------------
 -- | The TraceStream is used for capturing traces of shallow-embedded

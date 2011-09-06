@@ -10,9 +10,7 @@ module Language.KansasLava.Rep.Class where
 
 import Language.KansasLava.Types
 import Control.Monad (liftM)
-import Data.Sized.Unsigned
 import Data.Sized.Ix
-import GHC.Exts( IsString(..) )
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
 -- wire. The general idea is that instances of Rep should have a width (for the
@@ -49,61 +47,8 @@ class {- (Size (W w)) => -} Rep w where
 -- | 'Bitrep' is list of values, and their bitwise representation.
 -- It is used to derive (via Template Haskell) the Rep for user Haskell datatypes.
 class (Size (W a), Eq a, Rep a) => BitRep a where
-   bitRep :: [(a, BitPat)]
+   bitRep :: [(a, BitPat (W a))]
 
--- BitPat is a small DSL for writing bit-patterns.
--- It is bit-endian, unlike other parts of KL.
-data BitPat = BitPat Integer		-- unsign extended
-	    | BitPatPlus BitPat BitPat	-- sized
-	    | BitPatRepValue RepValue	-- sized
-    deriving (Eq, Ord, Show)
-
-instance Num BitPat where
-    (+) = BitPatPlus
-    (*) = error "(*) undefined for BitPat"
-    abs = error "abs undefined for BitPat"
-    signum = error "signum undefined for BitPat"
-    fromInteger n = BitPat n
-
-instance IsString BitPat where 
-  fromString = bits
-
-bits :: String -> BitPat
-bits = BitPatRepValue . RepValue . map f . reverse
-    where 
-	f '0' = return False
-	f '1' = return True
-	f 'X' = Nothing
-	f '_' = Nothing
-	f '-' = Nothing
-	f o   = error $ "bit pattern, expecting one of 01X_-, found " ++ show o
-
-word :: forall w . (Size w) => Unsigned w -> BitPat
-word = BitPatRepValue . bitPatToRepValue (size (error "witness" :: w)) . fromIntegral
-
-widthBitPat :: BitPat -> Maybe Int
-widthBitPat (BitPat {}) = Nothing
-widthBitPat (BitPatPlus a b) = do
-	aw <- widthBitPat a
-	bw <- widthBitPat b
-	return (aw + bw)
-widthBitPat (BitPatRepValue (RepValue ws)) = return (length ws)
-
--- 
-bitPatToRepValue :: Int -> BitPat -> RepValue
-bitPatToRepValue n (BitPat i) = RepValue $ take n
-                    			 $ map (Just . odd)
-                    		 	 $ iterate (`div` (2::Integer))
-					 $ i
-bitPatToRepValue n e@(BitPatPlus e1 e2) =
-	case (widthBitPat e1,widthBitPat e2) of
-		-- reverse the order, because the DSL is bit-endian
-	   (Just w1,_) -> appendRepValue (bitPatToRepValue (n - w1) e2) (bitPatToRepValue w1 e1) 
-	   (_,Just w2) -> appendRepValue (bitPatToRepValue w2 e2) (bitPatToRepValue (n - w2) e1) 
-	   _ -> error $ "bitPatToRepValue, unknown size of " ++ show e ++ ", expecting " ++ show n
-bitPatToRepValue n (BitPatRepValue rv@(RepValue ws))
-	| n == length ws = rv
-	| otherwise = error $ "bitPatToRepValue, bad size of rep, expecting " ++ show n ++ ", found " ++ show (length ws)
 
 -- | Given a witness of a representable type, generate all (2^n) possible values of that type.
 allReps :: (Rep w) => Witness w -> [RepValue]
@@ -189,7 +134,7 @@ bitRepToRep w =
 	  Nothing -> unknownRepValue (Witness :: Witness w)
 	  Just val -> case Prelude.lookup val bitRep of
 			Nothing -> unknownRepValue (Witness :: Witness w)
-		        Just pat -> bitPatToRepValue (repWidth (Witness :: Witness w)) pat
+		        Just pat -> chooseRepValue $ bitPatToRepValue pat
 
 
 -- TODO: optimize this
@@ -197,7 +142,7 @@ bitRepFromRep :: forall w . (BitRep w) => RepValue -> X w
 bitRepFromRep rep =
     case [ a
 	 | (a,b) <- bitRep
-	 , bitPatToRepValue (repWidth (Witness :: Witness w)) b `cmpRepValue` rep
+	 , bitPatToRepValue  b `cmpRepValue` rep
 	 ] of
 	[] ->    optX Nothing
 	(i:_) -> optX (Just i)	-- first matches
