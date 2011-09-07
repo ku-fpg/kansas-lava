@@ -13,7 +13,7 @@ Copyright:           (c) 2009 The University of Kansas
 Homepage:            http://ittc.ku.edu/~andygill/kansas-lava.php
 Stability:	     alpha
 build-type: 	     Simple
-Cabal-Version:       >= 1.8
+Cabal-Version:       >= 1.11
 
 Flag all
   Description: Enable full development tree
@@ -28,6 +28,7 @@ Flag tools
   Default:     True
 
 Library
+  default-language: Haskell2010
   Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.2.20110831,
                  directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
@@ -85,6 +86,7 @@ Executable kansas-lava-unittest
       buildable: False
     Main-Is:        Main.hs
     Hs-Source-Dirs: tests
+    default-language: Haskell2010
     Ghc-Options: -Wall  -Werror
                  -fno-warn-orphans -fcontext-stack=256
                  -threaded -rtsopts
@@ -99,6 +101,7 @@ Executable kansas-lava-tracediff
       buildable: False
     Main-Is:        Diff.hs
     Hs-Source-Dirs: tests
+    default-language: Haskell2010
     Ghc-Options: -Wall  -Werror  -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
@@ -112,6 +115,7 @@ Executable kansas-lava-testreport
       buildable: False
     Main-Is:        GenReport.hs
     Hs-Source-Dirs: tests
+    default-language: Haskell2010
     Ghc-Options: -Wall  -Werror -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
 
@@ -126,5 +130,6 @@ Executable bits2vcd
       buildable: False
     Main-Is:        Bits2VCD.hs
     Hs-Source-Dirs: tools
+    default-language: Haskell2010
     Ghc-Options: -Wall  -Werror -fno-warn-orphans
 
