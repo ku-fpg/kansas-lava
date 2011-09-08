@@ -33,7 +33,7 @@ module Language.KansasLava.Types (
         , cmpRepValue
 	-- * BitPat
 	, BitPat(..)
-	, (#)
+	, (&)
 	, bits
 	, bool
 	, every
@@ -478,11 +478,11 @@ cmpRepValue _ _ = False
 data BitPat w = BitPat { bitPatToRepValue :: RepValue }
     deriving (Eq, Ord, Show)
 
--- | '#' is a sized append for BitPat.
-infixl 6 #
-(#) :: (Size w1, Size w2, Size w, w ~ ADD w1 w2, w1 ~ SUB w w2, w2 ~ SUB w w1)
+-- | '&' is a sized append for BitPat.
+infixl 6 &
+(&) :: (Size w1, Size w2, Size w, w ~ ADD w1 w2, w1 ~ SUB w w2, w2 ~ SUB w w1)
     => BitPat w1 -> BitPat w2 -> BitPat w
-(BitPat a) # (BitPat b) = BitPat (appendRepValue b a)
+(BitPat a) & (BitPat b) = BitPat (appendRepValue b a)
 
 instance (Size w) => Num (BitPat w) where
     (+) = error "(+) undefined for BitPat"
