@@ -154,7 +154,7 @@ runPatch p = a
  where
    (_,a) = p (unit,unit)
 
-execPatch :: Patch a b 
+execPatch :: Patch a b
  		   c d
  	  -> (a,d) -> (c,b)
 execPatch = id
@@ -170,22 +170,22 @@ idPatch :: Patch a  a
 idPatch ~(a,b) = (b,a)
 
 -- | Given a patch, add to the data and control inputs/outputs a second set of
--- signals that are passed-through. The signals of the argument patch to fstPatch 
+-- signals that are passed-through. The signals of the argument patch to fstPatch
 -- will appear as the first element of the pair in the resulting patch.
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
 fstPatch p = p `stack` nullPatch
 
--- | Given a patch, add to the data and control inputs/outputs a second set of 
--- signals that are passed-through. The signals of the argument patch to sndPatch 
+-- | Given a patch, add to the data and control inputs/outputs a second set of
+-- signals that are passed-through. The signals of the argument patch to sndPatch
 -- will appear as the second element of the pair in the resulting patch.
 sndPatch :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
 
--- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position 
+-- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position
 -- given by index.  (Note:  The first position is index 0)
 matrixSplicePatch :: (Size x, Integral x)
             => x
@@ -270,7 +270,7 @@ mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ CSeq c)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
 mapPatch = forwardPatch . mapEnabled
-	
+
 
 -------------------------------------------------------------------------------
 -- Sink Patches - throw away (ignore) data
@@ -312,7 +312,6 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
 
---sourceAckPatch = alwaysAckPatch
 alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
@@ -324,7 +323,6 @@ alwaysAckPatch baseVal ~((), _) = ((), out)
 ------------------------------------------------
 
 -- no data ever sent
---emptyAckPatch = neverAckPatch -- old name
 neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
@@ -551,8 +549,8 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
              $ probe probeName
              $ inp2
 
--- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack 
--- signals in an Ack interface.  Probe prints output is in a packed format, so it is 
+-- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack
+-- signals in an Ack interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
 probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
     => String
@@ -566,11 +564,11 @@ probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
       probed :: sig (Enabled a, Ack)
       probed = probe probeName $ pack (inp, ack_in)
 
--- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready 
--- signals in a Ready interface.  Probe prints output is in a packed format, so it is 
+-- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
+-- signals in a Ready interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
 probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
-    => String      
+    => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
              (sig Ready)         (sig Ready)
 probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
@@ -795,7 +793,7 @@ matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Si
 	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
 	   openPatch
-	$$ stack 
+	$$ stack
 		 (cyclePatch (coord :: Matrix x x))
 		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
@@ -804,7 +802,7 @@ matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, 
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
-	   openPatch 
+	   openPatch
 	$$ fstPatch (cyclePatch (coord :: Matrix x x))
 	$$ matrixDeMuxPatch
 	$$ matrixZipPatch
@@ -906,7 +904,7 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
 		, toAck low -- do not acccept anything until header has been sent
 		)
 	out :: sig (Enabled a)
-	out = mux2 st 
+	out = mux2 st
 		( inp
 		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
 		)
@@ -919,10 +917,10 @@ exp2Stack :: Patch ((a :> b) :> c)	(a :> b :> c)
 exp2Stack = forwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) $$
 	    backwardPatch (\ (a :> b :> c) -> ((a :> b) :> c))
 
-con2Stack :: Patch (a :> b :> c)	((a :> b) :> c)	
-	           (d :> e :> f)	((d :> e) :> f)	 
+con2Stack :: Patch (a :> b :> c)	((a :> b) :> c)
+	           (d :> e :> f)	((d :> e) :> f)
 con2Stack = forwardPatch (\ (a :> b :> c) -> ((a :> b) :> c)) $$
-	    backwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) 
+	    backwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c))
 
 swapPatch :: Patch (a :> b)	(b :> a)
 	           (c :> d)	(d :> c)
@@ -938,7 +936,7 @@ data MergePlan = PriorityMerge		-- The first element always has priority
 mergePatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
  => MergePlan
  -> Patch ((sig (Enabled a)) :> (sig (Enabled a)))    (sig (Enabled a))
-	   ((sig Ack)         :> (sig Ack))            (sig Ack) 
+	   ((sig Ack)         :> (sig Ack))            (sig Ack)
 
 mergePatch plan = fe $$ matrixMergePatch plan
   where
@@ -965,4 +963,4 @@ matrixMergePatch plan ~(mInp, ackOut) = (mAckInp, out)
 							     (loopingInc reg,reg)) in reg
 
    mAckInp = forEach mInp $ \ x _inp -> toAck $ ((pureS x) .==. inpIndex) .&&. (fromAck ackOut)
-   out = (pack mInp) .!. inpIndex 
+   out = (pack mInp) .!. inpIndex

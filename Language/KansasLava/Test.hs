@@ -30,6 +30,8 @@ import Control.Concurrent.MVar
 import Control.Concurrent (forkIO)
 import Control.Exception
 
+import Paths_kansas_lava
+
 import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad
@@ -42,11 +44,13 @@ import System.Cmd
 import System.Console.CmdArgs hiding (Default,def,name,summary,opt)
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
 import Data.Sized.Ix
 --import System.Random
+
 
 
 -------------------------------------------------------------------------------------
@@ -331,9 +335,8 @@ preludeFile = "Lava.vhd"
 
 copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
-        ks <- getEnv "KANSAS_LAVA_ROOT"
-        prel <- Strict.readFile (ks </> "Prelude/VHDL" </> preludeFile)
-        writeFile (dest </> preludeFile) prel
+  file <- readPreludeFile ("Prelude/VHDL/" </> preludeFile)
+  writeFile (dest </> preludeFile) file
 
 -------------------------------------------------------------------------------------
 
@@ -457,10 +460,9 @@ buildReport rs = Report summary rs
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
-    ks <- getEnv "KANSAS_LAVA_ROOT"
-    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
-    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
-    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
+    header <- readPreludeFile "Prelude/HTML/header.inc"
+    mid <-  readPreludeFile "Prelude/HTML/mid.inc"
+    footer <- readPreludeFile "Prelude/HTML/footer.inc"
 
     return $ header ++ (summaryToHtml summary) ++ mid ++ footer
 
@@ -488,10 +490,9 @@ summaryToHtml s = unlines [ "<table>"
 
 reportToHtml :: Report -> IO String
 reportToHtml (Report summary results) = do
-    ks <- getEnv "KANSAS_LAVA_ROOT"
-    header <- Strict.readFile (ks </> "Prelude/HTML/header.inc")
-    mid <- Strict.readFile    (ks </> "Prelude/HTML/mid.inc")
-    footer <- Strict.readFile (ks </> "Prelude/HTML/footer.inc")
+    header <- readPreludeFile "Prelude/HTML/header.inc"
+    mid <- readPreludeFile "Prelude/HTML/mid.inc"
+    footer <- readPreludeFile "Prelude/HTML/footer.inc"
 
     let showall = "<a href=\"#\" id=\"showall\">Show All</a>"
         res = unlines [ concat ["<div id=\"", name, "\" class=\"header ", sc, "\">", name
@@ -614,6 +615,8 @@ instance Show Options where
                 , "testNever: " ++ show tn
                 , "testData: " ++ show td
                 , "parTest: " ++ show pt ]
+
+
 
 -------------------------------------------------------------------------------------
 -- Verbose table
@@ -772,4 +775,20 @@ let ans = [ a | Just a <- take n opt_as ]
             d = cycle [0..4] -- \ n -> [0.1,0.2 ..] !! fromIntegral (n `div` 10000)
 
         test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
+
+
+-- | Get a file from the prelude. First, check the KANSAS_LAVA_ROOT system
+-- environment variable. If it exists, use that. If not, try to get it from the
+-- installed cabal package.
+readPreludeFile :: String -> IO String
+readPreludeFile fname = do
+   ks <- getEnv "KANSAS_LAVA_ROOT"
+   Strict.readFile (ks </> fname)
+ `Prelude.catch` \_ -> do
+    path <- getDataFileName fname
+    Strict.readFile path
+ `Prelude.catch` \_ -> do
+   putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
+   putStrLn "to point to the root of the KsLava source directory."
+   exitFailure
 

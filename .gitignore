@@ -7,4 +7,7 @@ dist/
 *.hi
 *.dot
 *.html
-tests/sims/
+tests/unit/sims/*
+tests/sims/*
+/tests/unit/sims/add/S2/default_opts/unmodified/Lava.vhd
+/sims/*
