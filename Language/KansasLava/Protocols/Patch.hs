@@ -311,21 +311,24 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
-sourceAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+
+sourceAckPatch = alwaysAckPatch
+alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
-sourceAckPatch baseVal ~((), _) = ((), out)
+alwaysAckPatch baseVal ~((), _) = ((), out)
   where
         out = packEnabled high (pureS baseVal)
 
 ------------------------------------------------
 
 -- no data ever sent
-emptyAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+emptyAckPatch = neverAckPatch -- old name
+neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
-emptyAckPatch (_,_) = ((),disabledS)
+neverAckPatch (_,_) = ((),disabledS)
 
 ------------------------------------------------
 -- Unit
