@@ -9,6 +9,8 @@ import Data.Sized.Unsigned
 import qualified Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Ix
 
+type List a = [a]
+
 tests :: TestSeq -> IO ()
 tests test = do
 
@@ -18,30 +20,30 @@ tests test = do
                       Rep w2,
                       Rep w1,
                       Num w2,
-                      Integral w1) => String -> Gen (M.Matrix w1 w2) -> IO ()
+                      Integral w1) => String -> List (M.Matrix w1 w2) -> IO ()
 	    t1 str arb = testMatrix1 test str arb
 
-        t1 "X1xU4" (arbitrary :: Gen (M.Matrix X1 U4))
-        t1 "X2xU4" (arbitrary :: Gen (M.Matrix X2 U4))
-        t1 "X3xU4" (arbitrary :: Gen (M.Matrix X3 U4))
+        t1 "X1xU4" (allCases :: List (M.Matrix X1 U4))
+        t1 "X2xU4" (allCases :: List (M.Matrix X2 U4))
+        t1 "X3xU4" (allCases :: List (M.Matrix X3 U4))
 
         let t2 :: (Size (MUL w1 (W w2)),
                       Size w1,
                       Rep w2,
                       Rep w1,
                       Num w2,
-                      Integral w1) => String -> Gen (M.Matrix w1 w2) -> IO ()
+                      Integral w1) => String -> List (M.Matrix w1 w2) -> IO ()
 	    t2 str arb = testMatrix2 test str arb
 
-        t2 "X1xU4" (arbitrary :: Gen (M.Matrix X1 U4))
-        t2 "X2xU4" (arbitrary :: Gen (M.Matrix X2 U4))
-        t2 "X3xU4" (arbitrary :: Gen (M.Matrix X3 U4))
+        t2 "X1xU4" (allCases :: List (M.Matrix X1 U4))
+        t2 "X2xU4" (allCases :: List (M.Matrix X2 U4))
+        t2 "X3xU4" (allCases :: List (M.Matrix X3 U4))
 
-        let t3 :: (Size (ADD (W w) X1), Rep w, Show w) => String -> Gen (Maybe w) -> IO ()
+        let t3 :: (Size (ADD (W w) X1), Rep w, Show w) => String -> List (Maybe w) -> IO ()
 	    t3 str arb = testMatrix3 test str arb
 
-        t3 "U3" (arbitrary :: Gen (Maybe U3))
-        t3 "Bool" (arbitrary :: Gen (Maybe Bool))
+        t3 "U3" (allCases :: List (Maybe U3))
+        t3 "Bool" (allCases :: List (Maybe Bool))
 
         return ()
 
@@ -52,10 +54,10 @@ testMatrix1 :: forall w1 w2 .
                , Size (W w2), Size (MUL w1 (W w2)))
             => TestSeq
             -> String
-            -> Gen (M.Matrix w1 w2)
+            -> List (M.Matrix w1 w2)
             -> IO ()
-testMatrix1 (TestSeq test toList') tyName ws = do
-        let ms = toList' ws
+testMatrix1 (TestSeq test _) tyName ws = do
+        let ms = ws
             cir = sum . M.toList . unpack :: Seq (M.Matrix w1 w2) -> Seq w2
             driver = do
                 outStdLogicVector "i0" (bitwise (toSeq ms) :: Seq (Unsigned (MUL w1 (W w2))))
@@ -73,10 +75,10 @@ testMatrix2 :: forall w1 w2 .
                , Size (MUL w1 (W w2)))
             => TestSeq
             -> String
-            -> Gen (M.Matrix w1 w2)
+            -> List (M.Matrix w1 w2)
             -> IO ()
-testMatrix2 (TestSeq test toList') tyName ws = do
-        let ms = toList' ws
+testMatrix2 (TestSeq test _) tyName ws = do
+        let ms = ws
             cir = pack . (\ m -> M.forAll $ \ i -> m M.! i) . unpack :: Seq (M.Matrix w1 w2) -> Seq (M.Matrix w1 w2)
             driver = do
 		return ()
@@ -96,10 +98,10 @@ testMatrix3 :: forall w1 .
 	(Size (ADD (W w1) X1), Rep w1, Show w1)
             => TestSeq
             -> String
-            -> Gen (Maybe w1)
+            -> List (Maybe w1)
             -> IO ()
-testMatrix3 (TestSeq test toList') tyName ws = do
-        let ms = toList' ws
+testMatrix3 (TestSeq test _) tyName ws = do
+        let ms = ws
 	    cir :: Seq (Enabled w1) -> Seq (Enabled w1)
             cir = mapEnabled (\ m -> unpack m M.! 0)
 		. mapEnabled (\ x -> pack (M.matrix [ x, x ]) :: Comb (M.Matrix X2 w1))

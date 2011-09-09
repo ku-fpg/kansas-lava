@@ -154,7 +154,7 @@ runPatch p = a
  where
    (_,a) = p (unit,unit)
 
-execPatch :: Patch a b 
+execPatch :: Patch a b
  		   c d
  	  -> (a,d) -> (c,b)
 execPatch = id
@@ -170,22 +170,22 @@ idPatch :: Patch a  a
 idPatch ~(a,b) = (b,a)
 
 -- | Given a patch, add to the data and control inputs/outputs a second set of
--- signals that are passed-through. The signals of the argument patch to fstPatch 
+-- signals that are passed-through. The signals of the argument patch to fstPatch
 -- will appear as the first element of the pair in the resulting patch.
 fstPatch :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
 fstPatch p = p `stack` nullPatch
 
--- | Given a patch, add to the data and control inputs/outputs a second set of 
--- signals that are passed-through. The signals of the argument patch to sndPatch 
+-- | Given a patch, add to the data and control inputs/outputs a second set of
+-- signals that are passed-through. The signals of the argument patch to sndPatch
 -- will appear as the second element of the pair in the resulting patch.
 sndPatch :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
 sndPatch p = nullPatch `stack` p
 
--- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position 
+-- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position
 -- given by index.  (Note:  The first position is index 0)
 matrixSplicePatch :: (Size x, Integral x)
             => x
@@ -270,7 +270,7 @@ mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ CSeq c)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
 mapPatch = forwardPatch . mapEnabled
-	
+
 
 -------------------------------------------------------------------------------
 -- Sink Patches - throw away (ignore) data
@@ -311,21 +311,29 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
-sourceAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+sourceAckPatch :: forall a c.
+                  (Rep a, Clock c) =>
+                  a -> Patch () (CSeq c (Enabled a)) () (CSeq c Ack)
+sourceAckPatch = alwaysAckPatch
+alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
-sourceAckPatch baseVal ~((), _) = ((), out)
+alwaysAckPatch baseVal ~((), _) = ((), out)
   where
         out = packEnabled high (pureS baseVal)
 
 ------------------------------------------------
 
 -- no data ever sent
-emptyAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+emptyAckPatch :: forall a c.
+                 (Rep a, Clock c) =>
+                 Patch () (CSeq c (Enabled a)) () (CSeq c Ack)
+emptyAckPatch = neverAckPatch -- old name
+neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
     => Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
-emptyAckPatch (_,_) = ((),disabledS)
+neverAckPatch (_,_) = ((),disabledS)
 
 ------------------------------------------------
 -- Unit
@@ -548,8 +556,8 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
              $ probe probeName
              $ inp2
 
--- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack 
--- signals in an Ack interface.  Probe prints output is in a packed format, so it is 
+-- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack
+-- signals in an Ack interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
 probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
     => String
@@ -563,11 +571,11 @@ probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
       probed :: sig (Enabled a, Ack)
       probed = probe probeName $ pack (inp, ack_in)
 
--- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready 
--- signals in a Ready interface.  Probe prints output is in a packed format, so it is 
+-- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
+-- signals in a Ready interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
 probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
-    => String      
+    => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
              (sig Ready)         (sig Ready)
 probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
@@ -792,7 +800,7 @@ matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Si
 	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
 	   openPatch
-	$$ stack 
+	$$ stack
 		 (cyclePatch (coord :: Matrix x x))
 		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
@@ -801,7 +809,7 @@ matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, 
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
-	   openPatch 
+	   openPatch
 	$$ fstPatch (cyclePatch (coord :: Matrix x x))
 	$$ matrixDeMuxPatch
 	$$ matrixZipPatch
@@ -841,6 +849,36 @@ cyclePatch m ~(_,ack) = ((),out)
             $ funMap (\ x -> return (m M.! x))
 		     ix
 
+constPatch :: forall a c ix sig .
+        ( Size ix
+        , Rep a
+        , Rep ix
+        , Num ix
+        , Clock c
+	, sig ~ CSeq c
+        )
+	=> Matrix ix a
+	-> Patch ()	(sig (Enabled a))
+	         ()	(sig Ack)
+constPatch m ~(_,ackOut) = ((),out)
+  where
+	ix :: sig ix
+	ix = register 0
+	   $ cASE [ (fromAck ackOut, loopingInc ix) ]
+		  ix
+
+	st :: sig Bool
+	st = register False
+	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig ix), high) ]
+		  st
+
+	out :: sig (Enabled a)
+	out = mux2 st
+		( disabledS
+		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+		)
+
+
 -- appendPatch appends constant list (matrix) before
 -- a stream of handshaken values.
 
@@ -873,29 +911,63 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
 		, toAck low -- do not acccept anything until header has been sent
 		)
 	out :: sig (Enabled a)
-	out = mux2 st 
+	out = mux2 st
 		( inp
 		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
 		)
 
 ---------------------------------------------------
+-- These are patch order swappers : re-wiring only
+
+exp2Stack :: Patch ((a :> b) :> c)	(a :> b :> c)
+	           ((d :> e) :> f)	(d :> e :> f)
+exp2Stack = forwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) $$
+	    backwardPatch (\ (a :> b :> c) -> ((a :> b) :> c))
+
+con2Stack :: Patch (a :> b :> c)	((a :> b) :> c)
+	           (d :> e :> f)	((d :> e) :> f)
+con2Stack = forwardPatch (\ (a :> b :> c) -> ((a :> b) :> c)) $$
+	    backwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c))
+
+swapPatch :: Patch (a :> b)	(b :> a)
+	           (c :> d)	(d :> c)
+swapPatch = forwardPatch (\ (a :> b) -> (b :> a)) $$
+	    backwardPatch (\ (b :> a) -> (a :> b))
+
+----------------------------------------------------
 
 
-swapPatch 
-	:: Patch (a :> b)	(b :> a)
-	         (c :> d)	(d :> c)
-swapPatch = undefined
+data MergePlan = PriorityMerge		-- The first element always has priority
+	       | RoundRobinMerge	-- turn about
 
-fst2Patch 
-	:: Patch (a :> b)	(a' :> b')
-	         (d :> e)	(d' :> e')
-	-> Patch (a :> b :> c) 	(a' :> b' :> c)
-	         (d :> e :> f) 	(d' :> e' :> f)
-fst2Patch = undefined
+mergePatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+ => MergePlan
+ -> Patch ((sig (Enabled a)) :> (sig (Enabled a)))    (sig (Enabled a))
+	   ((sig Ack)         :> (sig Ack))            (sig Ack)
 
---swap01 :: forall a b . Swap (forall a b . a :> b) (forall a b 
-
---Shape 
+mergePatch plan = fe $$ matrixMergePatch plan
+  where
+	fe = forwardPatch (\ ~(b :> c) -> (matrix [b,c])) `bus`
+	     backwardPatch (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
 
 
+matrixMergePatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+  => MergePlan
+  -> Patch (Matrix x (sig (Enabled a)))		(sig (Enabled a))
+	   (Matrix x (sig Ack))		  	(sig Ack)
+matrixMergePatch plan ~(mInp, ackOut) = (mAckInp, out)
+ where
+   isEs :: sig (Matrix x Bool)
+   isEs = pack (fmap isEnabled mInp)
 
+   -- Value to consider selecting.
+   inpIndex :: sig x
+   inpIndex = case plan of
+		PriorityMerge   -> cASE (zip (map isEnabled $ M.toList mInp) (map pureS [0..])) (pureS 0)
+		RoundRobinMerge -> let reg = register 0 (mux ((isEs .!. reg) .&&. bitNot (fromAck ackOut))
+								-- stop looking if found enable
+								-- an no ack
+							     (loopingInc reg,reg)) in reg
+
+   mAckInp = forEach mInp $ \ x _inp -> toAck $ ((pureS x) .==. inpIndex) .&&. (fromAck ackOut)
+   out = (pack mInp) .!. inpIndex

@@ -2,8 +2,6 @@
 -- | A top-level module that re-exports the library's internal modules.
 module Language.KansasLava (
     module Language.KansasLava.Comb,
-    module Language.KansasLava.Dynamic,
-    module Language.KansasLava.Entity,
     module Language.KansasLava.Fabric,
     module Language.KansasLava.Optimization,
     module Language.KansasLava.Probes,
@@ -23,8 +21,6 @@ module Language.KansasLava (
      ) where
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Dynamic
-import Language.KansasLava.Entity
 import Language.KansasLava.Fabric
 import Language.KansasLava.Optimization
 import Language.KansasLava.Probes

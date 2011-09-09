@@ -15,11 +15,7 @@ import qualified Protocols
 main :: IO ()
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
-                      , genSim = True
-                      , simMods = [("default_opts", (optimizeCircuit def))]
---                      , testOnly = return ["negate"]
                       , testNever = ["max","min","abs","signum"] -- for now
-                      , testData = 1000
                       }
         testDriver opt $ take 5 $ drop 0
                 [ Matrix.tests

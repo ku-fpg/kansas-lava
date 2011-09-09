@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable #-}
 module Language.KansasLava.Test
         ( testMe
         , neverTestMe
@@ -8,17 +8,14 @@ module Language.KansasLava.Test
         , testFabrics
         , Gen(..)
         , arbitrary
-        , loop
-        , dubGen
-        , genToList
-        , genToRandom
-        , largeNumber
+        , allCases
+        , finiteCases
         , testDriver
         , generateReport
         , Options(..)
         , matchExpected
-	, StreamTest(..)
-	, testStream
+        , StreamTest(..)
+        , testStream
         ) where
 
 import Language.KansasLava.Trace
@@ -29,6 +26,9 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Seq
 import Language.KansasLava.VHDL
 import Language.KansasLava.Protocols
+import Control.Concurrent.MVar
+import Control.Concurrent (forkIO)
+import Control.Exception
 
 import Paths_kansas_lava
 
@@ -38,10 +38,10 @@ import Control.Monad
 import Data.List as List
 import Data.Maybe as Maybe
 import Data.Default
-import Data.Ord ( comparing )
 --import Data.Sized.Unsigned
 
 import System.Cmd
+import System.Console.CmdArgs hiding (Default,def,name,summary,opt)
 import System.Directory
 import System.Environment
 import System.Exit
@@ -80,7 +80,7 @@ fileReporter path nm res = do
 
 data TestSeq = TestSeq
         (String -> Int  -> Fabric () -> (Fabric (Int -> Maybe String)) -> IO ())
-        (forall a. Gen a -> [a])
+        ()      -- remove the unit
 
 {-
 -- | Fabric outputs are equal if for each output from the left fabric,
@@ -104,14 +104,17 @@ cmpFabricOutputs count expected shallow =
                            GenericPad _ -> error "testFabrics: Generic output pad?"
 -}
 
+type SimMods = [(String,KLEG -> IO KLEG)]
+
 testFabrics
         :: Options                  -- Options
+        -> SimMods                  -- ^ [(String,KLEG -> IO KLEG)]
         -> String                   -- Test Name
         -> Int                      -- Number of Cycles
         -> Fabric ()                         -- DUT
         -> (Fabric (Int -> Maybe String))    -- Driver
         -> IO ()
-testFabrics opts name count f_dut f_expected
+testFabrics opts simMods name count f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
         let verb = verbose (verboseOpt opts) name
             path = (simPath opts) </> name
@@ -120,10 +123,10 @@ testFabrics opts name count f_dut f_expected
         verb 2 $ "testing(" ++ show count ++ ")"
 
         let inp :: [(String,Pad)]
-            (expected_fn,inp) = runFabric' f_expected shallow
+            (expected_fn,inp) = runFabric f_expected shallow
 
             shallow :: [(String,Pad)]
-            (_,shallow) = runFabric' f_dut inp
+            (_,shallow) = runFabric f_dut inp
 
             expected = expected_fn count
 
@@ -142,8 +145,8 @@ testFabrics opts name count f_dut f_expected
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
                                                            $ subsequences
-                                                           $ simMods opts
-                                                    else simMods opts
+                                                           $ simMods
+                                                    else simMods
                                        , let modname = fst cmod
                                        ]
 
@@ -334,13 +337,6 @@ copyLavaPrelude :: FilePath -> IO ()
 copyLavaPrelude dest = do
   file <- readPreludeFile ("Prelude/VHDL/" </> preludeFile)
   writeFile (dest </> preludeFile) file
--------------------------------------------------------------------------------------
-
--- Not really random, but good enough for basic testing.
-unsort :: [x] -> [x]
-unsort es = map snd . sortBy (comparing fst) $ zip rs es
-  where rs = R.randoms stdGen :: [Integer]
-        stdGen = R.mkStdGen 0
 
 -------------------------------------------------------------------------------------
 
@@ -360,41 +356,18 @@ arbitrary = Gen sz integer2rep
                 $ iterate (`div` 2)
                 $ (fromIntegral v :: Int)
 
-loop :: Integer -> Gen w -> Gen w
-loop n (Gen sz f) = Gen (sz * n) (\ i -> f $ i `mod` sz)
+------------------------------------------------------------------------------------
+-- The new testing system.
 
+-- | 'allCases' returns all values of type w, in a non-random order.
+allCases :: (Rep w) => [w]
+allCases = Maybe.catMaybes $ fmap f [0..(n-1)]
+   where (Gen n f) = arbitrary
 
--- | makes sure all sequences of two specific elements happen.
--- Random messes this up a bit, but its still an approximation.
-dubGen :: Gen w -> Gen w
-dubGen g = ((\ a b c -> if a then b else c) <$> arbitrary)
-        <*> g
-        <*> g
-
-
-instance Functor Gen where
-        fmap g (Gen n f) = Gen n (\i -> do r <- f i
-                                           return $ g r)
-
-instance Applicative Gen where
-        pure a = Gen 1 (const $ return a)
-        (Gen n1 f1) <*> (Gen n2 f2) = Gen (n1 * n2) (\ i -> do r1 <- f1 (i `mod` n1)
-                                                               r2 <- f2 (i `div` n1)
-                                                               return $ r1 r2)
-
--- get *all* elements from a Gen
-genToList :: Gen a -> [a]
-genToList (Gen n f) = Maybe.catMaybes $ fmap f [0..(n-1)]
-
--- get some (random) elements from a Gen
--- If it is small, then just output all the values.
-genToRandom :: Gen a -> [a]
-genToRandom (Gen n f)
-        | n <= 100 = unsort $ genToList (Gen n f)
-        | otherwise = {- take (fromIntegral (min n largeNumber)) $ -} Maybe.catMaybes $ fmap f $ R.randomRs (0,n) (R.mkStdGen 0)
-
-largeNumber :: Integer
-largeNumber = 10000
+-- | 'finiteCases' returns finite values, perhaps many times, in a random order.
+finiteCases :: (Rep w) => Int ->[w]
+finiteCases i = take i $ Maybe.catMaybes $ fmap f $ R.randomRs (0,n-1) (R.mkStdGen 0)
+  where (Gen n f) = arbitrary
 
 -------------------------------------------------------------------
 
@@ -547,21 +520,60 @@ reportToHtml (Report summary results) = do
 --          chunk s  = let (c1,r') = splitAt c s in c1 : chunk r'
 
 testDriver :: Options -> [TestSeq -> IO ()] -> IO ()
-testDriver opt tests = do
+testDriver dopt tests = do
+        opt <- cmdArgs dopt
 
         putStrLn "Running with the following options:"
         putStrLn $ show opt
 
         prepareSimDirectory opt
 
+        work <- newEmptyMVar :: IO (MVar (Either (MVar ()) (IO ())))
+
+        let thread_count :: Int
+            thread_count = parTest opt
+
+        sequence_ [
+                forkIO $
+                let loop = do
+                        act <- takeMVar work
+                        case act of
+                           Left end -> do
+                                putMVar end ()
+                                return () -- stop command
+                           Right io ->
+                                do io `catches`
+                                        [ Handler $ \ (ex :: AsyncException) -> do
+                                             putStrLn ("AsyncException: " ++ show ex)
+                                             throw ex
+                                        , Handler $ \ (_ :: SomeException) -> return ()
+                                        ]
+                                   loop
+                in loop
+                | _ <- [1..thread_count]]
+
+
         let test :: TestSeq
-            test = TestSeq (testFabrics opt)
-                           (take (testData opt) . genToRandom)
+            test = TestSeq (\ nm sz fab fn ->
+                              let work_to_do = testFabrics opt [] nm sz fab fn
+                              in
+                                putMVar work (Right $ work_to_do)
+--                              work_to_do
+                           )
+                           ()
 
         -- The different tests to run (from different modules)
         sequence_ [ t test
                   | t <- tests
                   ]
+
+        -- wait for then kill all the worker threads
+        sequence_ [ do stop <- newEmptyMVar
+                       putMVar work (Left stop)
+                       takeMVar stop
+                  | _ <- [1..thread_count]
+                  ]
+
 
         -- If we didn't generate simulations, make a report for the shallow results.
         if genSim opt
@@ -582,28 +594,27 @@ data Options = Options
         , runSim      :: Bool                        -- ^ Run the tests after generation?
         , simCmd      :: String                      -- ^ Command to call with runSim is True
         , simPath     :: FilePath                    -- ^ Path into which we place all our simulation directories.
-        , simMods     :: [(String, KLEG -> IO KLEG)] -- ^ List of modifications (like optimizations) to apply to
-                                                     --   the circuit before simulation.
         , permuteMods :: Bool                        -- ^ False: Run each mod separately. True: Run all possible
                                                      --   permutations of the mods to see if they affect each other.
         , verboseOpt  :: Int                         -- ^ See verbose table below.
         , testOnly    :: Maybe [String]              -- ^ Lists of tests to execute. Can match either end. Nothing means all tests.
         , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
         , testData    :: Int                         -- ^ cut off for random testing
-        }
+        , parTest     :: Int                         -- ^ how may tests to run in parallel
+        } deriving (Data, Typeable)
 
 instance Show Options where
-    show (Options gs rs sc sp sm pm vo to tn td) =
+    show (Options gs rs sc sp pm vo to tn td pt) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
                 , "simCmd: " ++ show sc
                 , "simPath: " ++ show sp
-                , "simMods: " ++ show (map fst sm)
                 , "permuteMods: " ++ show pm
                 , "verboseOpt: " ++ show vo
                 , "testOnly: " ++ show to
                 , "testNever: " ++ show tn
-                , "testData: " ++ show td ]
+                , "testData: " ++ show td
+                , "parTest: " ++ show pt ]
 
 
 
@@ -618,16 +629,19 @@ instance Show Options where
 
 instance Default Options where
         def = Options
-                { genSim = False
-                , runSim = False
-                , simCmd = "sims/runsims"
-                , simPath = "sims"
-                , simMods = []
-                , permuteMods = True
-                , verboseOpt = 4
-                , testOnly = Nothing
-                , testNever = []
-                , testData = 1000
+                { genSim = False &= help "Generate modelsim testbenches for each test?"
+                , runSim = False &= help "Run the tests after generation?"
+                , simCmd = "sims/runsims" &= help "Command to call when runSim is True"
+                , simPath = "sims" &= typDir &= help "Path into which we place all our simulation directories."
+                , permuteMods = True &= help "Run all possible permutations of circuit mods."
+                , verboseOpt = 4 &= help "Verbosity level. 1: Failures 2: What runs 3: What succeeds 4: Failures 9: Everything"
+                , testOnly = Nothing &= help "List of tests to execute. Can match either end. Default is all tests."
+                , testNever = [] &= help "List of tests to never execute. Can match either end."
+                , testData = 1000 &= help "Cutoff for random testing."
+                , parTest = 4 &= help "Number of tests to run in parallel."
+                                -- everyone has multicore now.
+                                -- This is the number of *threads*,
+                                -- so we cope with upto 4 cores.
                 }
 
 type TestCase = (String, Result)
@@ -665,42 +679,41 @@ matchExpected out_name ref = do
 ----------------------------------------------------------------------------
 
 data StreamTest w1 w2 = StreamTest
-            { theStream            :: Patch (Seq (Enabled w1))		(Seq (Enabled w2))
-					    (Seq Ack)  			(Seq Ack)
+            { theStream            :: Patch (Seq (Enabled w1))          (Seq (Enabled w2))
+                                            (Seq Ack)                   (Seq Ack)
             , correctnessCondition :: [w1] -> [w2] -> Maybe String
-	    , theStreamTestCount   :: Int
-	    , theStreamTestCycles  :: Int
+            , theStreamTestCount   :: Int
+            , theStreamTestCycles  :: Int
             , theStreamName        :: String
             }
 
 testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, Size (W w1)
-			     , Eq w2, Rep w2, Show w2, Size (W w2)
-			     )
-        => TestSeq -> String -> StreamTest w1 w2 -> Gen (Maybe w1) -> IO ()
-testStream (TestSeq test _) tyName streamTest ws = do
+                             , Eq w2, Rep w2, Show w2, Size (W w2)
+                             )
+        => TestSeq -> String -> StreamTest w1 w2 -> IO ()
+testStream (TestSeq test _) tyName streamTest = do
 
         let vals0 :: [Maybe w1]
-	    vals0 = take (fromIntegral (theStreamTestCycles streamTest))
-			 (cycle (genToRandom $ loop 10 $ ws))
+            vals0 = finiteCases (fromIntegral (theStreamTestCycles streamTest))
 
-	    vals1 :: [Int]
-	    vals1 = drop (fromIntegral (theStreamTestCount streamTest))
-		    [ n
-	  	    | (Just _,n) <- zip vals0 [0..]
-	            ]
+            vals1 :: [Int]
+            vals1 = drop (fromIntegral (theStreamTestCount streamTest))
+                    [ n
+                    | (Just _,n) <- zip vals0 [0..]
+                    ]
 
-	    vals :: [Maybe w1]
-	    vals = case vals1 of
-		     [] -> vals0
-		     (n:_) -> [ if i < n then v else Nothing
-			      | (v,i) <- zip vals0 [0..]
-			      ]
+            vals :: [Maybe w1]
+            vals = case vals1 of
+                     [] -> vals0
+                     (n:_) -> [ if i < n then v else Nothing
+                              | (v,i) <- zip vals0 [0..]
+                              ]
 
 {-
-	print (theStreamTestCount StreamTest,theStreamTestCycles StreamTest)
-	print vals0
-	print vals1
-	print vals
+        print (theStreamTestCount StreamTest,theStreamTestCycles StreamTest)
+        print vals0
+        print vals1
+        print vals
 -}
         -- good enough for this sort of testing
 --        let stdGen = mkStdGen 0
@@ -771,10 +784,11 @@ readPreludeFile :: String -> IO String
 readPreludeFile fname = do
    ks <- getEnv "KANSAS_LAVA_ROOT"
    Strict.readFile (ks </> fname)
- `catch` \_ -> do
+ `Prelude.catch` \_ -> do
     path <- getDataFileName fname
     Strict.readFile path
- `catch` \_ -> do putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
-                  putStrLn "to point to the root of the KsLava source directory."
-                  exitFailure
+ `Prelude.catch` \_ -> do
+   putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
+   putStrLn "to point to the root of the KsLava source directory."
+   exitFailure
 

@@ -10,8 +10,7 @@ module Language.KansasLava.Rep.Class where
 
 import Language.KansasLava.Types
 import Control.Monad (liftM)
-
-
+import Data.Sized.Ix
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
 -- wire. The general idea is that instances of Rep should have a width (for the
@@ -44,6 +43,12 @@ class {- (Size (W w)) => -} Rep w where
     -- show the value (in its Haskell form, default is the bits)
     showRep :: X w -> String
     showRep x = show (toRep x)
+
+-- | 'Bitrep' is list of values, and their bitwise representation.
+-- It is used to derive (via Template Haskell) the Rep for user Haskell datatypes.
+class (Size (W a), Eq a, Rep a) => BitRep a where
+   bitRep :: [(a, BitPat (W a))]
+
 
 -- | Given a witness of a representable type, generate all (2^n) possible values of that type.
 allReps :: (Rep w) => Witness w -> [RepValue]
@@ -91,7 +96,7 @@ toRepFromIntegral v = case unX v :: Maybe v of
                  Just v' -> RepValue
                     $ take (repWidth (Witness :: Witness v))
                     $ map (Just . odd)
-                    $ iterate (`div` (2::Int))
+                    $ iterate (`div` (2::Integer))
                     $ fromIntegral v'
 -- | Convert a RepValue representing an integral value to a representable value
 -- of that integral type.
@@ -121,3 +126,24 @@ fromRepToInteger (RepValue xs) =
 -- | Compare a golden value with a generated value.
 cmpRep :: (Rep a) => X a -> X a -> Bool
 cmpRep g v = toRep g `cmpRepValue` toRep v
+
+-- TODO: optimize this
+bitRepToRep :: forall w . (BitRep w) => X w -> RepValue
+bitRepToRep w = 
+	case unX w of
+	  Nothing -> unknownRepValue (Witness :: Witness w)
+	  Just val -> case Prelude.lookup val bitRep of
+			Nothing -> unknownRepValue (Witness :: Witness w)
+		        Just pat -> chooseRepValue $ bitPatToRepValue pat
+
+
+-- TODO: optimize this
+bitRepFromRep :: forall w . (BitRep w) => RepValue -> X w
+bitRepFromRep rep =
+    case [ a
+	 | (a,b) <- bitRep
+	 , bitPatToRepValue  b `cmpRepValue` rep
+	 ] of
+	[] ->    optX Nothing
+	(i:_) -> optX (Just i)	-- first matches
+

@@ -9,7 +9,6 @@ module Language.KansasLava.Fabric
         ( Fabric(..)
         , Pad(..)
         , runFabric
-        , runFabric'                    -- TODO: rename as runFabric
         , inStdLogic
         , inStdLogicVector
         , inGeneric
@@ -195,14 +194,9 @@ outStdLogicVector nm sq =
 
 -------------------------------------------------------------------------------
 
--- | 'runFabric'  runs a Fabric () with arguments, and gives a (structured) reply.
-runFabric :: Fabric () -> [(String,Pad)] -> [(String,Pad)]
-runFabric (Fabric f) args = result
-        where ((),_arg_types,result) = f args
-
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
-runFabric' :: Fabric a -> [(String,Pad)] -> (a,[(String,Pad)])
-runFabric' (Fabric f) args = (a,result)
+runFabric :: Fabric a -> [(String,Pad)] -> (a,[(String,Pad)])
+runFabric (Fabric f) args = (a,result)
         where (a,_arg_types,result) = f args
 
 -- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.

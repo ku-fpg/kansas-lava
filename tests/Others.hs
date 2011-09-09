@@ -10,99 +10,92 @@ import Data.Sized.Sampled
 import Data.Sized.Signed
 import Data.Sized.Unsigned
 
-import Control.Applicative
-
+type List a = [a]
 
 tests :: TestSeq -> IO ()
 tests test = do
         -- Just the Num Stuff
-        let t1 :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> Gen a -> IO ()
+        let t1 :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> [a] -> IO ()
             t1 str arb = testOpsFractional test str arb
         -- With Sampled, use
         --  * powers of two scale, larger than 1
         --  * make sure there are enough bits to represent
         --     both the fractional and non-fractional part.
 
-        t1 "Sampled/X8xX8" (arbitrary :: Gen (Sampled X8 X8))
--- These do not represent every integer in their range, so fail
---        t1 "Sampled/X4xX2" (arbitrary :: Gen (Sampled X4 X2))
---        t1 "Sampled/X2xX2" (arbitrary :: Gen (Sampled X2 X2))
---        t1 "Sampled/X2xX1" (arbitrary :: Gen (Sampled X2 X1))
--- This have a round error; looks like a base case
---        t1 "Sampled/X1xX2" (arbitrary :: Gen (Sampled X1 X2))
-        t1 "Sampled/X1xX4" (arbitrary :: Gen (Sampled X1 X4))
-        t1 "Sampled/X8xX10"(arbitrary :: Gen (Sampled X8 X10))
-        t1 "Sampled/X128xX16"(arbitrary :: Gen (Sampled X128 X16))
+        t1 "Sampled/X8xX8" (allCases :: [Sampled X8 X8])
+        t1 "Sampled/X1xX4" (allCases :: [Sampled X1 X4])
+        t1 "Sampled/X8xX10"(finiteCases 100 :: [Sampled X8 X10])
+        t1 "Sampled/X128xX16"(finiteCases 100 ::[Sampled X128 X16])
 
         -- Just the Bits Stuff
-        let t2 :: (Ord a, Bits a, Rep a, Size (W a)) => String -> Gen a -> IO ()
+        let t2 :: (Ord a, Bits a, Rep a, Size (W a)) => String -> List a -> IO ()
             t2 str arb = testOpsBits test str arb
 
-        t2 "U1" (arbitrary :: Gen U1)
-        t2 "U2" (arbitrary :: Gen U2)
-        t2 "U3" (arbitrary :: Gen U3)
-        t2 "U4" (arbitrary :: Gen U4)
-        t2 "U5" (arbitrary :: Gen U5)
-        t2 "U6" (arbitrary :: Gen U6)
-        t2 "U7" (arbitrary :: Gen U7)
-        t2 "U8" (arbitrary :: Gen U8)
-        t2 "U32" (arbitrary :: Gen U32)
+        t2 "U1" (allCases :: List U1)
+        t2 "U2" (allCases :: List U2)
+        t2 "U3" (allCases :: List U3)
+        t2 "U4" (allCases :: List U4)
+        t2 "U5" (allCases :: List U5)
+        t2 "U6" (allCases :: List U6)
+        t2 "U7" (allCases :: List U7)
+        t2 "U8" (allCases :: List U8)
+        t2 "U32" (finiteCases 100 :: List U32)
 {- ghci keeps getting killed during these, Out Of Memory maybe?
-        t2 "U64" (arbitrary :: Gen (Unsigned X64))
+        t2 "U64" (finiteCases 100 :: List (Unsigned X64))
 -}
 
         -- no S1
-        t2 "S2" (arbitrary :: Gen S2)
-        t2 "S3" (arbitrary :: Gen S3)
-        t2 "S4" (arbitrary :: Gen S4)
-        t2 "S5" (arbitrary :: Gen S5)
-        t2 "S6" (arbitrary :: Gen S6)
-        t2 "S7" (arbitrary :: Gen S7)
-        t2 "S8" (arbitrary :: Gen S8)
-        t2 "S32" (arbitrary :: Gen S32)
+        t2 "S2" (allCases :: List S2)
+        t2 "S3" (allCases :: List S3)
+        t2 "S4" (allCases :: List S4)
+        t2 "S5" (allCases :: List S5)
+        t2 "S6" (allCases :: List S6)
+        t2 "S7" (allCases :: List S7)
+        t2 "S8" (allCases :: List S8)
+        t2 "S32" (finiteCases 100 :: List S32)
 {- ghci keeps getting killed during these, Out Of Memory maybe?
-        t2 "S64" (arbitrary :: Gen (Signed X64))
+        t2 "S64" (finiteCases 100 :: List (Signed X64))
 -}
         -- Just the Eq Stuff
 
         -- None
 
         --  Now registers
-        let t3 :: (Eq a, Show a, Rep a, Size (W a)) => String -> Gen a -> IO ()
+        let t3 :: (Eq a, Show a, Rep a, Size (W a)) => String -> List a -> IO ()
             t3 str arb = testRegister test str arb
 
-        t3 "U1" (loop 10 (arbitrary :: Gen U1))
-        t3 "U2" (loop 10 (arbitrary :: Gen U2))
-        t3 "U3" (loop 10 (arbitrary :: Gen U3))
-        t3 "Int" (loop 10 (arbitrary :: Gen Int))
-        t3 "Bool" (loop 10 (arbitrary :: Gen Bool))
+        t3 "U1" ( (finiteCases 1000 :: List U1))
+        t3 "U2" ( (finiteCases 1000 :: List U2))
+        t3 "U3" ( (finiteCases 1000 :: List U3))
+        t3 "Int" ( (finiteCases 1000 :: List Int))
+        t3 "Bool" ( (finiteCases 1000 :: List Bool))
 
-        let t4 :: (Eq a, Show a, Rep a, Size (W a)) => String -> Gen a -> IO ()
+        let t4 :: (Eq a, Show a, Rep a, Size (W a)) => String -> List a -> IO ()
             t4 str arb = testDelay test str arb
 
-        t4 "U1" (loop 10 (arbitrary :: Gen U1))
-        t4 "U2" (loop 10 (arbitrary :: Gen U2))
-        t4 "U3" (loop 10 (arbitrary :: Gen U3))
-        t4 "Int" (loop 10 (arbitrary :: Gen Int))
-        t4 "Bool" (loop 10 (arbitrary :: Gen Bool))
+        t4 "U1" ( (finiteCases 1000 :: List U1))
+        t4 "U2" ( (finiteCases 1000 :: List U2))
+        t4 "U3" ( (finiteCases 1000 :: List U3))
+        t4 "Int" ( (finiteCases 1000 :: List Int))
+        t4 "Bool" ( (finiteCases 1000 :: List Bool))
 
 
 {- We are not ready for this yet
 	-- Test the flux capacitor
         let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
-	       => String -> Gen (Maybe a) -> (forall c. (Clock c) => CSeq c a -> CSeq c a) -> IO ()
+	       => String -> List (Maybe a) -> (forall c. (Clock c) => CSeq c a -> CSeq c a) -> IO ()
             t5 str arb op = testFluxCapacitor test str arb op
 
-        t5 "U5/add" (loop 10 (arbitrary :: Gen (Maybe U5)))
+        t5 "U5/add" ( (take 1000 inifiniteCases :: List (Maybe U5)))
 	   	$ \ x -> x + 1
 
-        t5 "U5/delay" (loop 10 (arbitrary :: Gen (Maybe U5)))
+        t5 "U5/delay" ( (take 1000 inifiniteCases :: List (Maybe U5)))
 	   	$ delay
 
-        t5 "U5/register" (loop 10 (arbitrary :: Gen (Maybe U5)))
+        t5 "U5/register" ( (take 1000 inifiniteCases :: List (Maybe U5)))
 	   	$ register 0
 
-        t5 "U5/accum" (loop 10 (arbitrary :: Gen (Maybe U5)))
+        t5 "U5/accum" ( (take 1000 inifiniteCases :: List (Maybe U5)))
 	   	$ \ x -> let r = register 0 (x + r) in r
 
 -}
@@ -115,12 +108,10 @@ testUniOp :: forall a b .
           => TestSeq
           -> String
           -> (a -> b)
-          -> (Comb a
-          -> Comb b)
-          -> Gen a
+          -> (Comb a -> Comb b)
+          -> [a]
           -> IO ()
-testUniOp (TestSeq test toL) nm opr lavaOp gen = do
-        let us0 = toL gen
+testUniOp (TestSeq test _) nm opr lavaOp us0 = do
         let driver = do
                 outStdLogicVector "i0" (toSeq us0)
             dut = do
@@ -141,10 +132,10 @@ testBinOp :: forall a b c .
           -> String
           -> (a -> b -> c)
           -> (Comb a -> Comb b -> Comb c)
-          -> Gen (a,b)
+          -> List (a,b)
           -> IO ()
-testBinOp (TestSeq test toL) nm opr lavaOp gen = do
-        let (us0,us1) = unzip $ toL gen
+testBinOp (TestSeq test _) nm opr lavaOp gen = do
+        let (us0,us1) = unzip gen
             driver = do
                 outStdLogicVector "i0" (toSeq us0)
                 outStdLogicVector "i1" (toSeq us1)
@@ -155,7 +146,7 @@ testBinOp (TestSeq test toL) nm opr lavaOp gen = do
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith opr us0 us1)
 
-        test nm (length (zip us0 us1)) dut (driver >> matchExpected "o0" res)
+        test nm (length gen) dut (driver >> matchExpected "o0" res)
 
 testTriOp :: forall a b c d .
              (Rep a, Show a, Size (W a)
@@ -166,10 +157,10 @@ testTriOp :: forall a b c d .
           -> String
           -> (a -> b -> c -> d)
           -> (Comb a -> Comb b -> Comb c -> Comb d)
-          -> Gen (a,b,c)
+          -> List (a,b,c)
           -> IO ()
-testTriOp (TestSeq test toL) nm opr lavaOp gen = do
-        let (us0,us1,us2) = unzip3 $ toL gen
+testTriOp (TestSeq test _) nm opr lavaOp gen = do
+        let (us0,us1,us2) = unzip3 gen
             driver = do
                 outStdLogicVector "i0" (toSeq us0)
                 outStdLogicVector "i1" (toSeq us1)
@@ -181,19 +172,19 @@ testTriOp (TestSeq test toL) nm opr lavaOp gen = do
                 let o0 = liftS3 lavaOp (i0) (i1) (i2)
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith3 opr us0 us1 us2)
-        test nm (length (zip3 us0 us1 us2)) dut (driver >> matchExpected "o0" res)
+        test nm (length gen) dut (driver >> matchExpected "o0" res)
 
 ------------------------------------------------------------------------------------------------
 
-testOpsEq :: (Rep w, Eq w, Show w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
+testOpsEq :: (Rep w, Eq w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsEq test tyName ws = do
         let ws2 = pair ws
+	    bs = finiteCases (length ws2) :: [Bool]
 
         sequence_
           [ testTriOp test (name ++ "/" ++ tyName) opr lavaOp
-                        (pure (\ c (a,b) -> (c,a,b))
-                                          <*> arbitrary
-                                          <*> ws2)
+	    	      	[ (b,w1,w2) | (b,(w1,w2)) <- zip bs ws2 ]
+
           | (name,opr,lavaOp) <-
                 [ ("mux",\ c a b -> if c then a else b,\ c a b -> mux2 c (a,b))
                 ]
@@ -207,11 +198,9 @@ testOpsEq test tyName ws = do
                 ]
           ]
 
-
 ------------------------------------------------------------------------------------------------
 
-
-testOpsOrd :: (Rep w, Ord w, Show w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
+testOpsOrd :: (Rep w, Ord w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsOrd test tyName ws = do
         let ws2 = pair ws
 
@@ -232,7 +221,7 @@ testOpsOrd test tyName ws = do
 
 
 testOpsNum :: forall w .
-        (Ord w, Rep w, Num w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Num w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsNum test tyName ws = do
         testOpsOrd test tyName ws
 
@@ -259,7 +248,7 @@ testOpsNum test tyName ws = do
           ]
 
 testOpsFractional :: forall w .
-        (Ord w, Rep w, Fractional w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Fractional w, Size (W w)) => TestSeq -> String -> [w] -> IO ()
 testOpsFractional test tyName ws = do
         testOpsNum test tyName ws
 
@@ -278,11 +267,12 @@ testOpsFractional test tyName ws = do
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
-        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> Gen w -> IO ()
+        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsBits test tyName ws = do
         testOpsNum test tyName ws
 
         let ws2 = pair ws
+
 
         sequence_
           [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
@@ -300,20 +290,14 @@ testOpsBits test tyName ws = do
                 ]
           ]
 
-pair :: (Applicative f) => f a -> f (a, a)
-pair ws = pure (,) <*> ws <*> ws
-
-{- unused?
-triple :: (Applicative f) => f a -> f (a, a, a)
-triple ws = pure (,,) <*> ws <*> ws <*> ws
--}
+pair :: [a] -> [(a, a)]
+pair ws = [ (a,b) | a <- ws, b <- ws ]
 
 --------------------------------------------------------------------------------------
 -- Testing register and memory
-testRegister :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
-testRegister  (TestSeq test toL) tyName ws = do
-        let (u0:us0) = toL ws
-            r = register :: a -> Seq a -> Seq a
+testRegister :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> List a -> IO ()
+testRegister  (TestSeq test _) tyName ~(u0:us0) = do
+        let r = register :: a -> Seq a -> Seq a
             driver = do
                 outStdLogicVector "i0" (toSeq us0)
             dut = do
@@ -324,10 +308,9 @@ testRegister  (TestSeq test toL) tyName ws = do
         test ("register/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
-testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> Gen a -> IO ()
-testDelay  (TestSeq test toL) tyName ws = do
-        let us0 = toL ws
-            dlay = delay :: Seq a -> Seq a
+testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -> List a -> IO ()
+testDelay  (TestSeq test _) tyName (us0) = do
+        let dlay = delay :: Seq a -> Seq a
             driver = do
                 outStdLogicVector "i0" (toSeq us0)
             dut = do
@@ -342,7 +325,7 @@ testDelay  (TestSeq test toL) tyName ws = do
 
 {-
 testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1)) 
-	  => TestSeq -> String -> Gen (Maybe a)  -> (forall c . (Clock c) => CSeq c a -> CSeq c a) -> IO ()
+	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => CSeq c a -> CSeq c a) -> IO ()
 testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       let xs = toL ws
       

@@ -200,7 +200,6 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
 
 		  len = Prelude.length xs `div` size (error "witness" :: ix)
 
---  showWire _ = show
 instance (Size ix) => Rep (Unsigned ix) where
     type W (Unsigned ix) = ix
     data X (Unsigned ix) = XUnsigned (Maybe (Unsigned ix))
