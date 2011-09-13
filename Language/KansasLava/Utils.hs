@@ -258,9 +258,9 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 mux :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux iSig (eSig,tSig)
 	= liftS3 (\ (Comb i ei)
-	 	    (Comb e ee)
 	 	    (Comb t et)
-			-> Comb (mux2shallow i e t)
+	 	    (Comb e ee)
+			-> Comb (mux2shallow i t e)
                                 (entity3 (Prim "mux2") ei et ee) -- TODO: redo as mux (and re-order)
 	         ) iSig tSig eSig
 
