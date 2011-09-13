@@ -586,13 +586,40 @@ probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
 -- | This duplicates the incomming datum.
 -- This has the behavior that neither branch sees the value
 -- until both can recieve it.
+
 dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))
 	          (sig Ack)             (sig Ack          :> sig Ack)
+
+dupPatch ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2) 
+  where
+	have_read = (state .==. 0) .&&. isEnabled inp
+	written1  = (state ./=. 0) .&&. fromAck ack1
+	written2  = (state ./=. 0) .&&. fromAck ack2
+
+	state :: sig X4
+	state = register 0
+	      $ cASE [ (have_read,	                pureS 1)
+		     , (written1 .&&. written2,	        pureS 0)
+		     , (written1 .&&. state .==. 1,	pureS 3)
+		     , (written2 .&&. state .==. 1,	pureS 2)
+		     , (written1 .&&. state .==. 2,	pureS 0)
+		     , (written2 .&&. state .==. 3,	pureS 0)
+		     ] state
+
+	store :: sig a
+	store = cASE [ (have_read,enabledVal inp)
+		     ]
+	      $ delay store
+
+	out1 = packEnabled (state .==. 1 .||. state .==. 2) store
+	out2 = packEnabled (state .==. 1 .||. state .==. 3) store
+{-
 dupPatch =
 	matrixDupPatch $$
 	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
 	backwardPatch (\ ~(a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
+-}
 
 -- | This duplicate the incoming datam over many handshaken streams.
 matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
