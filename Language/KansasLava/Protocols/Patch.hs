@@ -729,10 +729,12 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 		     , (written,	pureS 0)
 		     ] state
 
+
 	store :: sig a
-	store = cASE [ (have_read,enabledVal inp)
+	store = delay 
+	      $ cASE [ (have_read,enabledVal inp)
 		     ]
-	      $ delay store
+	       store
 
 	out = packEnabled (state .==. 1) store
 
