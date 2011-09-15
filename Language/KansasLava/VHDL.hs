@@ -77,7 +77,7 @@ fromASCII ilines sig = et { inputs = ins, outputs = outs }
 
 -- | Generate a human readable format for a trace.
 toInfo :: Trace -> String
-toInfo t = unwords names ++ "\n" 
+toInfo t = unwords names ++ "\n"
          ++ unlines [ "(" ++ show i ++ ") " ++ l
                    | (i::Int,l) <- zip [1..] lines' ]
     where lines' = mergeWith (\ x y -> x ++ " " ++ y) $ asciiStrings t
@@ -86,8 +86,14 @@ toInfo t = unwords names ++ "\n"
 -- | Convert a Trace into a list of lists of Strings, each String is a value,
 -- each list of Strings is a signal.
 asciiStrings :: Trace -> [[String]]
-asciiStrings (Trace c ins outs _) = [ map (reverse . show) $ takeMaybe c s
+asciiStrings (Trace c ins outs _) = [ map showRep $ takeMaybe c s
                                     | (_,TraceStream _ s) <- ins ++ outs ]
+  where showRep (RepValue vals) = [ case v of
+                                      Nothing   -> 'X'
+                                      Just True  -> '1'
+                                      Just False -> '0'
+                                    | v <- reverse vals
+                                  ]
 -- Note the reverse here is crucial due to way vhdl indexes stuff
 
 -- surely this exists in the prelude?
