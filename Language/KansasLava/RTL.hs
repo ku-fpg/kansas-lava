@@ -2,7 +2,15 @@
   ScopedTypeVariables, TypeFamilies, TypeSynonymInstances #-}
 
 -- | The RTL module provides a small DSL that's useful for control-oriented -- stateful -- computations.
-module Language.KansasLava.RTL where
+module Language.KansasLava.RTL (
+        RTL(..),    -- not abstract
+        Reg,        -- abstract
+        Cond(..),   -- not abstract
+        runRTL,
+        reg, var,
+        newReg, newArr,
+        match
+        ) where
 
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
@@ -58,11 +66,11 @@ andPred :: Pred c -> CSeq c Bool -> Pred c
 andPred (Pred Nothing) c    = Pred (Just c)
 andPred (Pred (Just c1)) c2 = Pred (Just (c1 .&&. c2))
 
--- | If the first predicate is true, then return the first element of the
+-- | If the first predicate is false, then return the first element of the
 -- predicate. Otherwise, return the second element.
 muxPred :: (Rep a) => Pred c -> (CSeq c a, CSeq c a) -> CSeq c a
 muxPred (Pred Nothing) (t,_) = t
-muxPred (Pred (Just p)) (t,f) = mux2 p (t,f)
+muxPred (Pred (Just p)) (t,f) = mux p (t,f)
 
 -------------------------------------------------------------------------------
 
@@ -87,7 +95,7 @@ instance Monad (RTL s c) where
 runRTL :: forall c a . (Clock c) => (forall s . RTL s c a) -> a
 runRTL rtl = runST (do
 	u <- newSTRef 0
-	(r,_) <- unRTL rtl (Pred Nothing) u
+	(r,_) <- unRTL rtl truePred u
 	return r)
 
 -- This is where our fixed (constant) names get handled.
@@ -95,10 +103,10 @@ runRTL rtl = runST (do
 unRTL :: RTL s c a -> Pred c -> STRef s Int -> ST s (a,[Int])
 unRTL (RTL m) = m
 unRTL (Reg _ _ varSt _ uq := ss) = \ c _u -> do
-	modifySTRef varSt ((:) (\ r -> muxPred c (ss,r)))
+	modifySTRef varSt ((:) (\ r -> muxPred c (r,ss)))
 	return ((), [uq])
 unRTL (Arr _ ix varSt uq := ss) = \ c _u -> do
-	modifySTRef varSt ((:) (\ r -> muxPred c (enabledS (pack (ix,ss)),r)))
+	modifySTRef varSt ((:) (\ r -> muxPred c (r,enabledS (pack (ix,ss)))))
 	return ((), [uq])
 
 unRTL (CASE alts) = \ c u -> do
