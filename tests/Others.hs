@@ -2,6 +2,8 @@
 module Others (tests) where
 
 import Language.KansasLava
+import Language.KansasLava.Seq(shallowSeq)
+
 import qualified Language.KansasLava.Stream as S
 
 import Data.Bits
