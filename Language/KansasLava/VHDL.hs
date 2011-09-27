@@ -70,10 +70,18 @@ fromASCII ilines sig = et { inputs = ins, outputs = outs }
                    | (_,TraceStream ty _) <- inputs et ++ outputs et
                    ]
           (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
-          addToMap sigs m = [ (k,TraceStream ty (map (read . reverse) strm))
+          addToMap sigs m = [ (k,TraceStream ty $ map unASCII strm)
                             | (strm,(k,TraceStream ty _)) <- zip sigs m
                             ]
           (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
+          -- this needs to do the inverse of what asciiStrings does below
+          unASCII :: String -> RepValue
+          unASCII vals = RepValue [ case v of
+                                        'X' -> Nothing
+                                        '1' -> Just True
+                                        '0' -> Just False
+                                        _   -> error "fromASCII: bad character!"
+                                  | v <- reverse vals ]
 
 -- | Generate a human readable format for a trace.
 toInfo :: Trace -> String
