@@ -245,6 +245,7 @@ data ProbeState = NoProbe | TraceProbe | CaptureProbe
 probeState :: ProbeState
 probeState = unsafePerformIO $ do
         nm <- getEnv "KANSAS_LAVA_PROBE" `catch` (\ _ -> return "")
+        putStrLn $ "Probes invoked with KANSAS_LAVA_PROBE=" ++ nm
         return $ case nm of
           "none"    -> NoProbe
           "trace"   -> TraceProbe
