@@ -63,13 +63,13 @@ mkTraceCM c fabric input circuitMod = do
 
     let (_,output) = runFabric fabric input
         tr = Trace { len = c
-                   , inputs = [ (OVar 0 nm, padToTraceStream p)
-                              | (OVar _ nm,_) <- theSrcs rc
+                   , inputs = [ (nm, padToTraceStream p)
+                              | (nm,_) <- theSrcs rc
                               , (nm',p) <- input
                               , nm == nm'
                               ]
-                   , outputs = [ (OVar 0 nm, padToTraceStream p)
-                               | (OVar _ nm,_,_) <- theSinks rc
+                   , outputs = [ (nm, padToTraceStream p)
+                               | (nm,_,_) <- theSinks rc
                                , (nm',p) <- output
                                , nm == nm'
                                ]
@@ -81,9 +81,9 @@ mkTraceCM c fabric input circuitMod = do
 -- | 'Trace' is a primary bit-wise record of an interactive session with some circuit
 -- The inputs and outputs are in the order of the parent KLEG.
 data Trace = Trace { len :: Maybe Int
-                   , inputs :: [(OVar,TraceStream)]
-                   , outputs :: [(OVar,TraceStream)]
-                   , probes :: [(OVar,TraceStream)]
+                   , inputs :: [(String,TraceStream)]
+                   , outputs :: [(String,TraceStream)]
+                   , probes :: [(String,TraceStream)]
                    }
 
 -- instances for Trace
@@ -126,12 +126,12 @@ instance Rep a => Traceable (Comb a) where
 -- TODO: support generics in both these functions?
 toSignature :: Trace -> Signature
 toSignature (Trace _ ins outs _) = Signature (convert ins) (convert outs) []
-    where convert m = [ (ovar,ty) | (ovar,TraceStream ty _) <- m ]
+    where convert m = [ (nm,ty) | (nm,TraceStream ty _) <- m ]
 
 -- | Creates an (empty) trace from a signature
 fromSignature :: Signature -> Trace
 fromSignature (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) []
-    where convert l = [ (ovar, TraceStream ty [])  | (ovar, ty) <- l ]
+    where convert l = [ (nm, TraceStream ty [])  | (nm, ty) <- l ]
 
 -- Combinators to change a trace
 -- | Set the length of the trace, in cycles.
@@ -139,39 +139,39 @@ setCycles :: Int -> Trace -> Trace
 setCycles i t = t { len = Just i }
 
 -- | Add a named input to a Trace.
-addInput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addInput :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
 addInput key iseq t@(Trace _ ins _ _) = t { inputs = addSeq key iseq ins }
 
 -- | Get a named input from a Trace.
-getInput :: (Rep w) => OVar -> Trace -> Seq w
+getInput :: (Rep w) => String -> Trace -> Seq w
 getInput key trace = getSignal $ fromJust $ lookup key (inputs trace)
 
 -- | Remove a named input from a Trace.
-remInput :: OVar -> Trace -> Trace
+remInput :: String -> Trace -> Trace
 remInput key t@(Trace _ ins _ _) = t { inputs = filter ((== key) . fst) ins }
 
 -- | Add a named output to a Trace.
-addOutput :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addOutput :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
 addOutput key iseq t@(Trace _ _ outs _) = t { outputs = addSeq key iseq outs }
 
 -- | Get a named output from a Trace
-getOutput :: (Rep w) => OVar -> Trace -> Seq w
+getOutput :: (Rep w) => String -> Trace -> Seq w
 getOutput key trace = getSignal $ fromJust $ lookup key (outputs trace)
 
 -- | Remove a named output from a Trace.
-remOutput :: OVar -> Trace -> Trace
+remOutput :: String -> Trace -> Trace
 remOutput key t@(Trace _ _ outs _) = t { outputs = filter ((== key) . fst) outs }
 
 -- | Add a named internal probe to a Trace.
-addProbe :: forall a. (Rep a) => OVar -> Seq a -> Trace -> Trace
+addProbe :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
 addProbe key iseq t@(Trace _ _ _ ps) = t { probes = addSeq key iseq ps }
 
 -- | Get a named internal probe from a Trace.
-getProbe :: (Rep w) => OVar -> Trace -> Seq w
+getProbe :: (Rep w) => String -> Trace -> Seq w
 getProbe key trace = getSignal $ fromJust $ lookup key (probes trace)
 
 -- | Remove a named internal probe from a Trace.
-remProbe :: OVar -> Trace -> Trace
+remProbe :: String -> Trace -> Trace
 remProbe key t@(Trace _ _ _ ps) = t { probes = filter ((== key) . fst) ps }
 
 -- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
@@ -225,11 +225,11 @@ serialize (Trace c ins outs ps) = unlines
                                ++ ["PROBES"]
                                ++ boxIn (showMap ps)
                                ++ ["END"]
-    where showMap :: [(OVar,TraceStream)] -> [String]
-          showMap m = [intercalate "\t" [show k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
+    where showMap :: [(String,TraceStream)] -> [String]
+          showMap m = [intercalate "\t" [k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
           showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- takeMaybe c s]
 
-          boxIn = take 20 . map (take 75) 
+          boxIn = take 20 . map (take 75)
 
 
 
@@ -253,22 +253,22 @@ readFromFile fp = do
 
 -- Functions below are not exported.
 
-readMap :: [String] -> ([(OVar,TraceStream)], [String])
+readMap :: [String] -> ([(String,TraceStream)], [String])
 readMap ls = (go thismap, rest)
     where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES","END"])
           (thismap, rest) = span cond ls
           tabsplit l = let (k,'\t':r1) = span (/= '\t') l
                            (ty,'\t':r) = span (/= '\t') r1
                        in (k,ty,r)
-          go :: [String] -> [(OVar,TraceStream)]
+          go :: [String] -> [(String,TraceStream)]
           go = map (\l -> let (k,ty,strm) = tabsplit l
-                          in (read k,TraceStream (read ty) [read v | v <- words strm])
+                          in (k,TraceStream (read ty) [read v | v <- words strm])
                    )
 
-addStream :: forall w. (Rep w) => OVar -> [(OVar,TraceStream)] -> S.Stream (X w) -> [(OVar,TraceStream)]
+addStream :: forall w. (Rep w) => String -> [(String,TraceStream)] -> S.Stream (X w) -> [(String,TraceStream)]
 addStream key m stream = m ++ [(key,toTrace stream)]
 
-addSeq :: forall w. (Rep w) => OVar -> Seq w -> [(OVar,TraceStream)] -> [(OVar,TraceStream)]
+addSeq :: forall w. (Rep w) => String -> Seq w -> [(String,TraceStream)] -> [(String,TraceStream)]
 addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
 
 padToTraceStream :: Pad -> TraceStream
@@ -280,4 +280,4 @@ padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 addProbes :: KLEG -> Trace -> Trace
 addProbes rc t = t { probes = ps }
     where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
-          ps = [ (OVar nid nm, strm) | (nid, OVar _ nm, strm) <- pdata ]
+          ps = [ (show nid ++ nm, strm) | (nid, nm, strm) <- pdata ]

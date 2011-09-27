@@ -47,7 +47,7 @@ instance (Integral a) => ToTypedExpr (Driver a) where
 	toTypedExpr ty (Lit n)           = toTypedExpr ty n
 	toTypedExpr ty (Generic n)       = toTypedExpr ty n
 	toTypedExpr ty (Port v n)        = toTypedExpr ty (sigName v (fromIntegral n))
-	toTypedExpr ty (Pad (OVar _ nm)) = toTypedExpr ty nm
+	toTypedExpr ty (Pad nm) = toTypedExpr ty nm
         toTypedExpr _ other = error $ "toTypedExpr(Driver a): " ++ show other
 
 instance ToTypedExpr String where
@@ -102,8 +102,8 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
           | typeWidth ty == 0        = ExprVar "\"\""
 	toStdLogicExpr ty (Lit n)          = toStdLogicExpr ty n
 	toStdLogicExpr ty (Generic n)      = toStdLogicExpr ty n
-	toStdLogicExpr (MatrixTy w ty') (Port v n)        
-					   = mkExprConcat 
+	toStdLogicExpr (MatrixTy w ty') (Port v n)
+					   = mkExprConcat
 			[ (ty', memToStdLogic ty' $
 			      ExprIndex (sigName v (fromIntegral n))
 			                (ExprLit Nothing $ ExprNum $ fromIntegral (i)))
@@ -111,7 +111,7 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 			]
 
 	toStdLogicExpr _ (Port v n)        = ExprVar (sigName v (fromIntegral n))
-	toStdLogicExpr _ (Pad (OVar _ v)) = ExprVar v
+	toStdLogicExpr _ (Pad v) = ExprVar v
 	toStdLogicExpr _ other		   = error $ show other
 
 	toStdLogicExpr' (MatrixTy 1 _) (Port v n) =
@@ -125,7 +125,7 @@ instance (Integral a) => ToStdLogicExpr (Driver a) where
 			      ExprIndex (sigName v (fromIntegral n))
 			                (ExprLit Nothing $ ExprNum $ fromIntegral i)
 	toStdLogicEleExpr _ _ _ = error "missing pattern in toStdLogicEleExpr"
-			
+
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
 	toStdLogicExpr = fromIntegerToExpr
@@ -139,7 +139,7 @@ instance ToStdLogicExpr Expr where
 	toStdLogicExpr ClkTy  e = 		     e
 	toStdLogicExpr (V _)  e = 	   	     e
 	toStdLogicExpr (TupleTy _) e = 		     e
-	toStdLogicExpr (MatrixTy _n _) (ExprVar _nm) = error "BBB" 
+	toStdLogicExpr (MatrixTy _n _) (ExprVar _nm) = error "BBB"
 {-
 		ExprConcat
 		[ ExprIndex nm
@@ -278,7 +278,7 @@ prodSlices d tys = reverse $ snd $ mapAccumL f size $ reverse tys
 
 	nm = case d of
 		Port v n -> sigName v n
-		Pad (OVar _ v) -> v
+		Pad v -> v
 		Lit {} -> error "projecting into a literal (not implemented yet!)"
                 driver -> error "projecting into " ++ show driver ++ " not implemented"
 
@@ -349,7 +349,7 @@ log2 num
 
 -- Build an assignment statement.
 assignStmt :: String -> Unique -> Type -> Driver Unique -> Stmt
-assignStmt nm i ty d = 
+assignStmt nm i ty d =
    case toStdLogicType ty of
       SL  ->    Assign (ExprVar $ sigName nm i) (toStdLogicExpr ty d)
       SLV {} -> Assign (ExprVar $ sigName nm i) (toStdLogicExpr ty d)
@@ -364,19 +364,19 @@ assignStmt nm i ty d =
 -- | 'assignDecl' takes a name and unique, a target type, and
 -- a function that takes a driver-to-expr function, and returns an expr.
 assignDecl :: String -> Unique -> Type -> ((Driver Unique -> Expr) -> Expr) -> [Decl]
-assignDecl nm i ty f = 
+assignDecl nm i ty f =
    case toStdLogicType ty of
-      SL  ->   [ NetAssign (sigName nm i) 
+      SL  ->   [ NetAssign (sigName nm i)
       	       	 	   (f $ toStdLogicExpr ty)
                ]
-      SLV {} -> [ NetAssign (sigName nm i) 
+      SLV {} -> [ NetAssign (sigName nm i)
       	     	  	    (f $ toStdLogicExpr ty)
-                ]			   
-      SLVA n m -> [  MemAssign (sigName "o0" i) 
+                ]
+      SLVA n m -> [  MemAssign (sigName "o0" i)
       	      	    	       (ExprLit Nothing $ ExprNum $ fromIntegral j)
       	     	  	       (f $ toStdLogicEleExpr j (V m))
 	         | j <- [0..(n-1)]
-                ]			   
+                ]
       G {} -> error "assignDecl {G} ?"
-		
+
 --error "assignStmt of Matrix"

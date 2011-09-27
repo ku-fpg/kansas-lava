@@ -1,5 +1,4 @@
 import Language.KansasLava.Trace
-import Language.KansasLava.Types
 import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
 
@@ -9,10 +8,9 @@ import System.Environment
 vcdDiff :: Trace -> Trace -> String
 vcdDiff (Trace c1 i1 o1 p1) (Trace _ i2 o2 p2) = toVCD t
     where t = Trace c1 (mergeMaps i1 i2) (mergeMaps o1 o2) (mergeMaps p1 p2)
-          prefixKey p (OVar i nm) = OVar i $ p ++ nm
-          mergeMaps m1 m2 = [ (prefixKey "trace1_" k,v) | (k,v) <- m1 ]
+          mergeMaps m1 m2 = [ ("trace1_" ++ k,v) | (k,v) <- m1 ]
                             ++
-                            [ (prefixKey "trace2_" k,v) | (k,v) <- m2 ]
+                            [ ("trace2_" ++ k,v) | (k,v) <- m2 ]
 
 main :: IO ()
 main = do

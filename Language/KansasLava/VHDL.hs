@@ -21,6 +21,7 @@ import Language.Netlist.GenVHDL
 import qualified Data.Map as M
 import System.Directory
 import System.FilePath.Posix
+import Data.Char
 import Data.Reify(Unique)
 
 
@@ -151,7 +152,7 @@ architecture name circuit = unlines $
         ,"end architecture sim;"]
     where (ins, outs, sequentials) = ports circuit
 
-dut :: String -> [(OVar, Type)] -> [(OVar, Type)] -> [(OVar, Type)] -> String
+dut :: String -> [(String, Type)] -> [(String, Type)] -> [(String, Type)] -> String
 dut name ins outs sequentials = unlines $ [
     "dut: entity work." ++ name,
     "port map ("] ++
@@ -160,7 +161,7 @@ dut name ins outs sequentials = unlines $ [
 				"clk"    -> "clk,"
 				"rst"    -> "rst,"
                                 n -> n
-	 	| (OVar _ c,_) <- sequentials] ++
+	 	| (c,_) <- sequentials] ++
     (let xs = portAssigns ins outs in (init xs) ++ [init (last xs)]) ++
     [");"]
 
@@ -210,11 +211,11 @@ stimulus name ins outs = unlines $ [
 	outputRange = show (portLen (ins ++ outs) - 1) ++ " downto " ++ show (portLen outs)
 
 -- Manipulating ports
-ports :: KLEG -> ([(OVar, Type)],[(OVar, Type)],[(OVar, Type)])
+ports :: KLEG -> ([(String, Type)],[(String, Type)],[(String, Type)])
 ports reified = (ins, outs, clocks)
-    where ins  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `notElem` ["clk","rst","clk_en"]]
+    where ins  = [(nm,ty) | (nm,ty) <- theSrcs reified, nm `notElem` ["clk","rst","clk_en"]]
           outs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
-          clocks  = [(nm,ty) | (nm@(OVar _ m),ty) <- theSrcs reified, m `elem` ["clk","rst","clk_en"]]
+          clocks  = [(nm,ty) | (nm,ty) <- theSrcs reified, nm `elem` ["clk","rst","clk_en"]]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
 portType :: [(a, Type)] -> [Char]
@@ -223,14 +224,14 @@ portType pts = "std_logic_vector(" ++ show (portLen pts - 1) ++ " downto 0)"
 portLen :: [(a, Type)] -> Int
 portLen pts = sum (map (typeWidth .snd) pts)
 
-portAssigns :: [(OVar, Type)]-> [(OVar, Type)] -> [String]
+portAssigns :: [(String, Type)]-> [(String, Type)] -> [String]
 portAssigns ins outs = imap ++ omap
   where assign sig idx (B,n,1) =
           (idx + 1, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show idx ++ "),")
         assign sig idx (_,n,k) =
           (idx + k, "\t" ++ n ++ " => " ++ sig ++ "(" ++ show (idx + k - 1) ++" downto " ++ show idx ++ "),")
-        (_,imap) = mapAccumL (assign "input") (portLen outs) $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- ins]
-        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (OVar _ n,ty) <- outs]
+        (_,imap) = mapAccumL (assign "input") (portLen outs) $ reverse [(ty,n,typeWidth ty) | (n,ty) <- ins]
+        (_,omap) = mapAccumL (assign "output") 0 $ reverse [(ty,n,typeWidth ty) | (n,ty) <- outs]
 
 -- Modelsim 'do' script
 doscript :: String -> String
@@ -268,7 +269,7 @@ netlistCircuit name circ = do
   let outports = checkPortType (map outputNameAndType sinks)
 
   -- Finals are the assignments from the output signals for entities to the output ports
-  let finals = [ NetAssign n (toStdLogicExpr ty x) | (OVar _ n,ty,x) <- sinks
+  let finals = [ NetAssign n (toStdLogicExpr ty x) | (n,ty,x) <- sinks
                                                    , case toStdLogicTy ty of
                                                         MatrixTy {} -> error "can not have a matrix as an out argument"
                                                         _ -> True
@@ -280,7 +281,7 @@ netlistCircuit name circ = do
 	    finals)
 
 
-  where checkPortType ports' =  [ (nm,sizedRange ty) | (OVar _ nm, ty) <- ports'
+  where checkPortType ports' =  [ (nm,sizedRange ty) | (nm, ty) <- ports'
                                , not (isMatrixStdLogicTy ty) || error "can not have a matrix as a port"
                                ]
         outputNameAndType (n,ty,_) = (n,ty)
@@ -304,8 +305,8 @@ preprocessNetlistCircuit cir = res
         nodes'  = map fixUp nodes ++ nodesIn ++ nodesOut
 
         -- figure out the list of srcs
-        srcs'   =  [ (OVar k $ nm ++ extra1, ty2)
-                   | (OVar _ nm, ty) <- srcs
+        srcs'   =  [ (nm ++ extra1, ty2)
+                   | (nm, ty) <- srcs
                          , (extra1,ty2)
                                 <- case toStdLogicTy ty of
                                      B    -> [("",ty)]
@@ -314,19 +315,19 @@ preprocessNetlistCircuit cir = res
                                           -> let (MatrixTy _ inner) = ty
                                              in reverse [("_x" ++ show j,inner) | j <- [0..(n-1)]]
                                      other -> error $ show ("srcs",other)
-                   | k <- [0..] -- This gives them better sorting numbers
+--                   | k <- [0..] -- This gives them better sorting numbers
                    ]
 
 
-        extras0 :: [(OVar,Entity Unique)]
-        extras0  = [ (OVar i nm, Entity (Prim "concat")
+        extras0 :: [(String,Entity Unique)]
+        extras0  = [ (nm, Entity (Prim "concat")
                               [("o0",ty)]
                               [ ( 'i':show j
                                 , case ty of
                                    MatrixTy _ inner -> inner
                                    _ -> error $ "preprocessVhdlCircuit: not a matrix type " ++ show ty
-                                , case [ OVar i' nm'
-                                         | (OVar i' nm',_) <- srcs'
+                                , case [ nm'
+                                         | (nm',_) <- srcs'
                                          , nm' == (nm ++ "_x" ++ show j)
                                          ] of
                                       [] -> error ("could not find " ++ show nm)
@@ -335,14 +336,14 @@ preprocessNetlistCircuit cir = res
                                 )
                               | j <- [0..(getMatrixNumColumns ty - 1)]]
                      )
-                  | (OVar i nm, ty) <- srcs
+                  | (nm, ty) <- srcs
                   , isMatrixStdLogicTy ty
                   ]
 
         getMatrixNumColumns (MatrixTy c _) = c
         getMatrixNumColumns _ = error "Can't get number of columns for non-matrix type"
 
-        extras1 :: [(Unique, (OVar, Entity Unique))]
+        extras1 :: [(Unique, (String, Entity Unique))]
         extras1 = zip srcVars extras0
 
         nodesIn :: [(Unique, Entity Unique)]
@@ -350,8 +351,8 @@ preprocessNetlistCircuit cir = res
 
         --------------------------------------------------------------------------------------------
 
-        sinks'  = [ (OVar k $ nm ++ extra1, ty2, dr2)
-                  | (u,(OVar _ nm, ty, dr)) <- zip sinkVars (sinks)
+        sinks'  = [ (nm ++ extra1, ty2, dr2)
+                  | (u,(nm, ty, dr)) <- zip sinkVars (sinks)
                          , (extra1,ty2,dr2)
                                 <- case toStdLogicTy ty of
                                      B    -> [("",ty,dr)]
@@ -360,7 +361,7 @@ preprocessNetlistCircuit cir = res
                                           -> let (MatrixTy _ inner) = ty
                                              in reverse [ ("_x" ++ show j,inner,Port ('o':show j) u) | j <- [0..(n-1)]]
                                      other -> error $ show ("sinks",other)
-                  | k <- [0..] -- This gives them better sorting numbers
+--                  | k <- [0..] -- This gives them better sorting numbers
                   ]
 
 
@@ -368,7 +369,7 @@ preprocessNetlistCircuit cir = res
         nodesOut = [  (u,Entity (Prim "unconcat")
                                 [('o':show j,innerTy) | j <- [0..(n-1)]]
                                 [("i0",ty,dr)])
-                   | (u,(OVar _ _, ty, dr)) <- zip sinkVars (sinks)
+                   | (u,(_, ty, dr)) <- zip sinkVars (sinks)
                    , (innerTy,n )
                         <- case toStdLogicTy ty of
                              B    -> []
@@ -381,6 +382,7 @@ preprocessNetlistCircuit cir = res
 
         --------------------------------------------------------------------------------------------
 
+{- ACF: Here is original, before removing OVars, because I'm not sure I'm doing this right.
         fixUp :: (Unique,Entity Unique) -> (Unique, Entity Unique)
         fixUp (i,Entity e ins outs) = (i,
                 Entity e ins
@@ -394,6 +396,18 @@ preprocessNetlistCircuit cir = res
                                              _ -> error "fixUp"
                                  other -> other
                                  ) | (o,t,d) <- outs ])
+-}
 
-
-
+        fixUp :: (Unique,Entity Unique) -> (Unique, Entity Unique)
+        fixUp (i,Entity e ins outs) = (i,
+                Entity e ins
+                         [ (o,t,case d of
+                                 Pad nm
+                                     -> case [ u | (u,(o3,_)) <- extras1, nm == o3 ] of
+                                             [u] -> Port "o0" u
+                                             []  -> case [ nm' | (nm',_) <- srcs', nm == dropWhile isDigit nm' ] of
+                                                      [nm'] -> Pad nm'
+                                                      _ -> error "fixUp find"
+                                             _ -> error "fixUp"
+                                 other -> other
+                                 ) | (o,t,d) <- outs ])

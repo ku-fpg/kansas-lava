@@ -22,7 +22,7 @@ genInst' :: M.Map Unique (Entity Unique)
          -> Entity Unique
          -> [Decl]
 genInst' env i e =
-	(CommentDecl $ show (i,e)): 
+	(CommentDecl $ show (i,e)):
 	genInst env i e
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
@@ -64,7 +64,7 @@ genInst env i (Entity (TraceVal _ _) ins outs) =
 genInst env i (Entity (BlackBox _) ins outs) =
   genInst env i (Entity (Prim "id") ins outs)
 
-genInst env i (Entity (Prim "retime") outs [("i0",ty,dr),("pulse",_,_)]) = 
+genInst env i (Entity (Prim "retime") outs [("i0",ty,dr),("pulse",_,_)]) =
     genInst env i (Entity (Prim "id") outs [("i0",ty,dr)])
 
 genInst _ _ (Entity (Comment comments) [] []) =
@@ -186,15 +186,15 @@ genInst _ i e@(Entity (Prim "project")
 		  [("i0", GenericTy, Generic ix),
 		   ("i1",TupleTy tys,input)]) =
   case toStdLogicType tyOut of
-     SL -> 
+     SL ->
         [ NetAssign (sigName "o0" i)
                     (prodSlices input tys !! fromIntegral ix)
 	]
-     SLV _n -> 
+     SLV _n ->
         [ NetAssign (sigName "o0" i)
                     (prodSlices input tys !! fromIntegral ix)
 	]
-     SLVA n _ -> 
+     SLVA n _ ->
 	    -- The trick here is to expand out the matrix to be
 	    -- imbeaded in the tuple, then to project from there.
 	    -- So (B,2[U4]) ==> (B,U4,U4)
@@ -206,11 +206,11 @@ genInst _ i e@(Entity (Prim "project")
 		   | (ty,j) <- zip tys [0..] ]
 	    slices = prodSlices input tys'
 	    select = take n . drop (fromIntegral ix)
-	in 
-	    [ MemAssign (sigName "o0" i) 
+	in
+	    [ MemAssign (sigName "o0" i)
 			(ExprLit Nothing $ ExprNum $ j)
 			(stdLogicToMem ty' slice)
-    	   | (j,(ty',slice)) <- zip [0..] 
+    	   | (j,(ty',slice)) <- zip [0..]
 			      (select (zip tys' slices))
     	   ]
      _ -> error $ show ("project",e)
@@ -410,7 +410,7 @@ genInst env i (Entity (Prim "coerce") [("o0",tO)] [("i0",tI,w)])
 		[ NetAssign  (sigName "o0" i)
 		             (toStdLogicExpr' tI w)
 		]
-          (MatrixTy _ _,V _) -> 
+          (MatrixTy _ _,V _) ->
 		[ NetAssign  (sigName "o0" i)
 			     (toStdLogicExpr tI w)
 		]
@@ -476,7 +476,7 @@ genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
 	[ NetAssign  (sigName "o0" i) $ mkExprConcat $ [(tI,ExprVar nm)]
 	]
         | typeWidth tI == typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ ExprVar nm 
+	[ NetAssign  (sigName "o0" i) $ ExprVar nm
 	]
         | typeWidth tI > typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
@@ -618,7 +618,7 @@ genInst _ i (Entity (Prim "register") [("o0",ty)] [ ("i0",tI,d)
                  	        )
 	    in case rst of
 	      Port {} -> rst_code
-	      Pad (OVar {}) -> rst_code
+	      Pad {} -> rst_code
 	      Lit (RepValue [Just False]) -> Nothing
 	      _ -> error "genInst 'register' has strange reset value"
            )
