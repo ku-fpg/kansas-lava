@@ -484,8 +484,8 @@ delay ~(Seq line eline) = res
         entity = Entity (Prim "delay")
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
-		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
-		     ("rst",B,     Pad $ OVar (-1) "rst")
+		     ("clk",ClkTy, Pad "clk"),
+		     ("rst",B,     Pad "rst")
 		    ]
 -- | delays generates a serial sequence of n delays.
 delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
@@ -508,8 +508,8 @@ register first  ~(Seq line eline) = res
                     [("o0", bitTypeOf res)]
                     [("i0", bitTypeOf res, unD eline),
                      ("def",GenericTy,Generic (fromRepToInteger rep)),
-		     ("clk",ClkTy, Pad $ OVar (-2) "clk"),
-		     ("rst",B,     Pad $ OVar (-1) "rst")
+		     ("clk",ClkTy, Pad "clk"),
+		     ("rst",B,     Pad "rst")
 		    ]
 -- | registers generates a serial sequence of n registers, all with the same initial value.
 registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a

@@ -10,8 +10,6 @@ module Language.KansasLava.Types (
         , StdLogicType(..)
         , toStdLogicType
         , fromStdLogicType
-        -- * OVar
-        , OVar(..)
         -- * Id
         , Id(..)
         , Box(..)
@@ -212,25 +210,6 @@ fromStdLogicType (SLVA n m) = MatrixTy n (V m)
 fromStdLogicType G          = GenericTy
 
 -------------------------------------------------------------------------
--- | 'OVar' is an order Var, with a number that is used for sorting purposes.
--- This is used for names of arguments in VHDL, and other places, so
--- that arguments can preserve order through transformation.
-data OVar = OVar Int String             -- The # is used purely for sorting order.
-                                        -- Idea: there can be several with the same #;
-                                        -- its about ordering.
-        deriving (Eq, Ord)
-
-instance Show OVar where
-        show (OVar i nm) = nm ++ "$" ++ show i
-
-instance Read OVar where
-        readsPrec _ xs = case span (/= '$') xs of
-                          (n,'$':r1) -> [ (OVar i n,r2)
-                                        | (i,r2) <- reads r1
-                                        ]
-                          _         -> [] -- no parse
-
--------------------------------------------------------------------------
 -- | Id is the name/tag of a block of compuation.
 data Id = Prim String                           -- ^ built in thing
         | External String                       -- ^ VHDL entity
@@ -238,7 +217,7 @@ data Id = Prim String                           -- ^ built in thing
 
 
                                                 --
-        | TraceVal [OVar] TraceStream           -- ^ trace (probes, etc)
+        | TraceVal [String] TraceStream         -- ^ trace (probes, etc)
                                                 -- may have multiple names matching same data
                                                 -- This is type of identity
                                                 -- that records its shallow value,
@@ -330,7 +309,7 @@ instance Eq E where
 -- | A 'Driver' is a specific driven 'wire' (signal in VHDL),
 -- which types contains a value that changes over time.
 data Driver s = Port String s   -- ^ a specific port on the entity
-              | Pad OVar        -- ^ an input pad
+              | Pad String      -- ^ an input pad
               | ClkDom String   -- ^ the clock domain (the clock enable, resolved via context)
               | Lit RepValue    -- ^ A representable Value (including unknowns, aka X in VHDL)
               | Generic Integer -- ^ A generic argument, always fully defined
@@ -409,7 +388,7 @@ instance Show RepValue where
                                ]
 
 instance Read RepValue where
-        readsPrec _ ('0':'b':xs) 
+        readsPrec _ ('0':'b':xs)
 		      = [ (RepValue [ case c of
                                         'X' -> Nothing
                                         'U' -> Nothing
@@ -486,8 +465,8 @@ instance (Size w) => Num (BitPat w) where
     (*) = error "(*) undefined for BitPat"
     abs = error "abs undefined for BitPat"
     signum = error "signum undefined for BitPat"
-    fromInteger n 
-	| n >= 2^(size (error "witness" :: w)) 
+    fromInteger n
+	| n >= 2^(size (error "witness" :: w))
 	= error $ "fromInteger: out of range, value = " ++  show n
 	| otherwise
 	= BitPat $ RepValue
@@ -502,30 +481,30 @@ instance (Size w) => Real (BitPat w) where
 instance (Size w) => Enum (BitPat w) where
 	toEnum = fromInteger . fromIntegral
 	fromEnum p = case bitPatToInteger p of
-			Nothing -> error $ "fromEnum failure: " ++ show p		     
+			Nothing -> error $ "fromEnum failure: " ++ show p
 			Just i -> fromIntegral i
 instance (Size w) => Integral (BitPat w) where
 	quotRem = error "quotRem undefined for BitPat"
 	toInteger p = case bitPatToInteger p of
 			Nothing -> error $ "toInteger failure: " ++ show p
 			Just i -> i
-		
+
 bitPatToInteger :: BitPat w -> Maybe Integer
 bitPatToInteger (BitPat rv) = case getValidRepValue rv of
 	Nothing -> Nothing
-	Just xs -> return $ 
+	Just xs -> return $
 		sum [ n
                     | (n,b) <- zip (iterate (* 2) 1)
                        		    xs
                     , b
                     ]
 
-instance IsString (BitPat w) where 
+instance IsString (BitPat w) where
   fromString = bits
 
 bits :: String -> BitPat w
 bits = BitPat . RepValue . map f . reverse
-    where 
+    where
 	f '0' = return False
 	f '1' = return True
 	f 'X' = Nothing
@@ -562,9 +541,9 @@ instance Show TraceStream where
 data KLEG = KLEG
         { theCircuit :: [(Unique,Entity Unique)]
                 -- ^ This the main graph. There is no actual node for the source or sink.
-        , theSrcs    :: [(OVar,Type)]
+        , theSrcs    :: [(String,Type)]
                 -- ^ this is a (convenience) list of the src values.
-        , theSinks   :: [(OVar,Type,Driver Unique)]
+        , theSinks   :: [(String,Type,Driver Unique)]
                 -- ^ these are the sinks; all values are generated from here.
         }
 
@@ -578,14 +557,12 @@ instance Show KLEG where
 
         circInputs = unlines
                 [ show var ++ " : " ++ show ty
-                | (var,ty) <- sortBy (\ (OVar i _,_) (OVar j _,_) -> i `compare` j)
-                            $ theSrcs rCir
+                | (var,ty) <- sort $ theSrcs rCir
                 ]
 
         circOutputs = unlines
                 [ show var   ++ " <- " ++ showDriver dr ty
-                | (var,ty,dr) <- sortBy (\ (OVar i _,_,_) (OVar j _,_,_) -> i `compare` j)
-                               $ theSinks rCir
+                | (var,ty,dr) <- sort $ theSinks rCir
                 ]
 
         circuit = unlines
@@ -642,9 +619,9 @@ allocEntities cir = [ highest + i | i <- [1..]]
 
 -- | A 'Signature' is the structure-level type of a KLEG.
 data Signature = Signature
-        { sigInputs   :: [(OVar,Type)]
-        , sigOutputs  :: [(OVar,Type)]
-        , sigGenerics :: [(OVar,Integer)]
+        { sigInputs   :: [(String,Type)]
+        , sigOutputs  :: [(String,Type)]
+        , sigGenerics :: [(String,Integer)]
         }
         deriving (Show, Read, Eq)
 
@@ -687,7 +664,7 @@ data a :> b = a :> b deriving (Eq, Ord, Show, Read)
 
 
 ----------------------------------------------------------------------------
--- | How to balance our circuits. Typically use 'Sweet'(spot), but 
+-- | How to balance our circuits. Typically use 'Sweet'(spot), but
 -- 'Small' has permission to take longer, and 'Fast' has permission
 -- use extra gates.
 

@@ -30,6 +30,7 @@ import Control.Concurrent.MVar
 import Control.Concurrent (forkIO)
 import Control.Exception
 
+-- found in dist/build/autogen
 import Paths_kansas_lava
 
 import Control.Applicative

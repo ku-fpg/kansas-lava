@@ -34,7 +34,7 @@ vcdVal :: RepValue -> String -> String
 vcdVal r@(RepValue bs) ident | length bs == 1 = show r ++ ident
                              | otherwise      = "b" ++ show r ++ " " ++ ident
 
-values :: Int -> [(String, (OVar, TraceStream))] -> String
+values :: Int -> [(String, (String, TraceStream))] -> String
 values n sigs = dumpVars initials ++ eventList initials (zip [0..] rest)
     where (initials:rest) =
             transpose [ take n $ zip strm (repeat ident) | (ident, (_, TraceStream _ strm)) <- sigs ]

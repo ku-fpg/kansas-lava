@@ -9,7 +9,7 @@ module Language.KansasLava.Probes (
 
 import qualified Data.Reify.Graph as DRG
 
-import Data.List(nub,sortBy,sort,isPrefixOf,transpose)
+import Data.List(nub,sort,isPrefixOf,transpose)
 -- import Control.Monad
 import Control.Applicative
 import qualified Data.Graph.Inductive as G
@@ -40,11 +40,11 @@ fromTrace (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 -- this is the public facing method for probing
 -- | Add a named probe to a circuit
 probe :: (Probe a) => String -> a -> a
-probe name = probe' probeState [ OVar i name | i <- [0..] ]
+probe name = probe' probeState [ show (i::Int) ++ name | i <- [0..] ]
 
 -- | Probe all of the inputs/outputs for the given Fabric. The parameter 'n'
 -- indicates the sequence length to capture.
-probeCircuit :: Int -> Fabric () -> IO [(OVar, TraceStream)]
+probeCircuit :: Int -> Fabric () -> IO [(String, TraceStream)]
 probeCircuit n fabric = do
     -- TODO: figure out why mergeProbes is broken
     -- rc <- (reifyFabric >=> mergeProbesIO) fabric
@@ -55,19 +55,19 @@ probeCircuit n fabric = do
            , nm <- nms ]
 
 -- | Print the output of 'probeCircuit' nicely on stdout, one stream per line
-printProbes :: [(OVar, TraceStream)] -> IO ()
+printProbes :: [(String, TraceStream)] -> IO ()
 printProbes strms = do
     let maxlen = maximum $ map (length . show . fst) strms
-    sequence_ [ putStrLn $ replicate p ' ' ++ show nm ++ ": " ++ show strm
-              | (nm,strm) <- strms, let p = maxlen - length (show nm) ]
+    sequence_ [ putStrLn $ replicate p ' ' ++ nm ++ ": " ++ show strm
+              | (nm,strm) <- strms, let p = maxlen - length nm ]
 
 -- | Print the output of 'probeCircuit' in a tabular format on stdout, one stream per column
-printProbeTable :: [(OVar, TraceStream)] -> IO ()
+printProbeTable :: [(String, TraceStream)] -> IO ()
 printProbeTable strms = do
     let (headers, strms') = unzip strms
         strms'' = [map show s | TraceStream _ s <- strms']
         (ticks, _) = unzip $ zip (map show [(0::Int)..]) $ case strms'' of [] -> [""]; (x:_) -> x
-        table = ("clk" : map show headers) : transpose (ticks : strms'')
+        table = ("clk" : headers) : transpose (ticks : strms'')
         clkwidth = 1 + max 3 (maximum $ map length ticks)
         widths = clkwidth : [1 + max hl sl | (h,TraceStream _ (v:_)) <- strms
                                       , let hl = length (show h)
@@ -79,7 +79,7 @@ printProbeTable strms = do
     mapM_ (pr widths) table
 
 -- | Get all of the named probes for a 'KLEG' node.
-probeNames :: DRG.Unique -> KLEG -> [OVar]
+probeNames :: DRG.Unique -> KLEG -> [String]
 probeNames n c = maybe [] fst $ probeData n c
 
 -- | Get all of the prove values for a 'KLEG' node.
@@ -87,7 +87,7 @@ probeValue :: DRG.Unique -> KLEG -> Maybe TraceStream
 probeValue n c = snd <$> probeData n c
 
 -- | Capture the shallow embedding probe value to the deep embedding.
-insertProbe :: OVar -> TraceStream -> Driver E -> Driver E
+insertProbe :: String -> TraceStream -> Driver E -> Driver E
 insertProbe n s@(TraceStream ty _) = mergeNested
     where mergeNested :: Driver E -> Driver E
           mergeNested (Port nm (E (Entity (TraceVal names strm) outs ins)))
@@ -95,7 +95,7 @@ insertProbe n s@(TraceStream ty _) = mergeNested
           mergeNested d = Port "o0" (E (Entity (TraceVal [n] s) [("o0",ty)] [("i0",ty,d)]))
 
 -- | Get the probe names and trace from a 'KLEG' graph.
-probeData :: DRG.Unique -> KLEG -> Maybe ([OVar], TraceStream)
+probeData :: DRG.Unique -> KLEG -> Maybe ([String], TraceStream)
 probeData n circuit = case lookup n $ theCircuit circuit of
                         Just (Entity (TraceVal nms strm) _ _) -> Just (nms, strm)
                         _ -> Nothing
@@ -103,9 +103,9 @@ probeData n circuit = case lookup n $ theCircuit circuit of
 -- | The 'Probe' class is used for adding probes to all inputs/outputs of a Lava
 -- circuit.
 class Probe a where
-    -- | Add probes (using the input list of 'OVar's as a name supply) to Lava
+    -- | Add probes (using the input list of strings as a name supply) to Lava
     -- circuit.
-    probe' :: ProbeState -> [OVar] -> a -> a
+    probe' :: ProbeState -> [String] -> a -> a
 
 instance (Clock c, Rep a) => Probe (CSeq c a) where
     probe' NoProbe _ sq = sq
@@ -125,14 +125,14 @@ instance Rep a => Probe (Comb a) where
     probe' _ [] _ = error "Can't add probe: no name supply available (Comb)"
 
 instance (Probe a, Probe b) => Probe (a,b) where
-    probe' m names (x,y) = (probe' m(addSuffixToOVars names "-fst") x,
-                            probe' m (addSuffixToOVars names "-snd") y)
+    probe' m names (x,y) = (probe' m (addSuffixToProbes names "-fst") x,
+                            probe' m (addSuffixToProbes names "-snd") y)
 
 
 instance (Probe a, Probe b, Probe c) => Probe (a,b,c) where
-    probe' m names (x,y,z) = (probe' m (addSuffixToOVars names "-fst") x,
-                              probe' m (addSuffixToOVars names "-snd") y,
-                              probe' m (addSuffixToOVars names "-thd") z)
+    probe' m names (x,y,z) = (probe' m (addSuffixToProbes names "-fst") x,
+                              probe' m (addSuffixToProbes names "-snd") y,
+                              probe' m (addSuffixToProbes names "-thd") z)
 
 instance (Probe a, M.Size x) => Probe (M.Matrix x a) where
     probe' _ _ _ = error "Probe(probe') not defined for Matrix"
@@ -141,8 +141,8 @@ instance (Probe a, Probe b) => Probe (a -> b) where
     probe' m (n:ns) f x = probe' m ns $ f (probe' m [n] x)
     probe' _ [] _ _ = error "Can't add probe: no name supply available (a -> b)"
 
-addSuffixToOVars :: [OVar] -> String -> [OVar]
-addSuffixToOVars pns suf = [ OVar i $ name ++ suf | OVar i name <- pns ]
+addSuffixToProbes :: [String] -> String -> [String]
+addSuffixToProbes pns suf = map (++ suf) pns
 
 -- | Convert a 'KLEG' to a fgl graph.
 toGraph :: KLEG -> G.Gr (Entity DRG.Unique) ()
@@ -154,9 +154,8 @@ toGraph rc = G.mkGraph (theCircuit rc) [ (n1,n2,())
 addProbeIds :: KLEG -> KLEG
 addProbeIds circuit = circuit { theCircuit = newCircuit }
     where newCircuit = [ addId entity | entity <- theCircuit circuit ]
-          addId (nid, Entity (TraceVal nms strm) outs ins) = (nid, Entity (TraceVal (map (addToName nid) nms) strm) outs ins)
+          addId (nid, Entity (TraceVal nms strm) outs ins) = (nid, Entity (TraceVal (map (++ show nid) nms) strm) outs ins)
           addId other = other
-          addToName nid (OVar _ nm) = OVar nid nm
 
 
 -- | Rewrites the circuit graph and commons up probes that have the same stream value.
@@ -195,17 +194,16 @@ exposeProbesIO names = return . exposeProbes names
 exposeProbes :: [String] -> KLEG -> KLEG
 exposeProbes names rc = rc { theSinks = oldSinks ++ newSinks }
     where oldSinks = theSinks rc
-          n = succ $ head $ sortBy (flip compare) [ i | (OVar i _, _, _) <- oldSinks ]
+--          n = succ $ head $ sortBy (flip compare) [ read $ takeWhile isDigit nm | (nm, _, _) <- oldSinks ]
           allProbes = sort [ (pname, nm, outs)
-                        | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
-                        , pname <- pnames ]
-          exposed = nub [ (p, oty, Port onm nm)
-                        | (p@(OVar _ pname), nm, outs) <- allProbes
-                        , or [ name `isPrefixOf` pname | name <- names ]
-                        , (onm,oty) <- outs ]
-          showPNames x pname = show pname ++ "_" ++ show x
+                           | (nm, Entity (TraceVal pnames _) outs _) <- theCircuit rc
+                           , pname <- pnames ]
+          newSinks = nub [ (pname, oty, Port onm nm)
+                         | (pname, nm, outs) <- allProbes
+                         , or [ name `isPrefixOf` pname | name <- names ]
+                         , (onm,oty) <- outs ]
 
-          newSinks = [ (OVar i $ showPNames i pname, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
+--          newSinks = [ (pname ++ "_" ++ show i, ty, d) | (i,(pname, ty,d@(Port _ _))) <- zip [n..] exposed ]
 
 -- Below is not exported.
 
@@ -220,7 +218,7 @@ replaceWith y xs rc = rc { theCircuit = newCircuit, theSinks = newSinks }
           newCircuit = [ (ident,Entity n o (map change ins))
                        | (ident,Entity n o ins) <- theCircuit rc
                        , ident `notElem` xs ]
-          newSinks ::[(OVar, Type, Driver DRG.Unique)]
+          newSinks ::[(String, Type, Driver DRG.Unique)]
           newSinks = map change $ theSinks rc
 
           change :: (a, Type, Driver DRG.Unique) ->
@@ -234,10 +232,10 @@ probeList rc = [ (n,e) | (n,e@(Entity (TraceVal _ _) _ _)) <- theCircuit rc ]
 -- probesOn :: Driver DRG.Unique -> KLEG -> [(DRG.Unique,[ProbeName])]
 -- probesOn x rc = probesOnAL x $ theCircuit rc
 
-probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[OVar])]
+probesOnAL :: Driver DRG.Unique -> [(DRG.Unique, Entity DRG.Unique)] -> [(DRG.Unique,[String])]
 probesOnAL x al = [ (ident,nms) | (ident, Entity (TraceVal nms _) _ ins) <- al
-                             , (_,_,d) <- ins
-                             , d == x ]
+                                , (_,_,d) <- ins
+                                , d == x ]
 
 
 
@@ -247,10 +245,10 @@ data ProbeState = NoProbe | TraceProbe | CaptureProbe
 probeState :: ProbeState
 probeState = unsafePerformIO $ do
         nm <- getEnv "KANSAS_LAVA_PROBE" `catch` (\ _ -> return "")
+        putStrLn $ "Probes invoked with KANSAS_LAVA_PROBE=" ++ nm
         return $ case nm of
           "none"    -> NoProbe
           "trace"   -> TraceProbe
           "capture" -> CaptureProbe
           _         -> NoProbe
-
 

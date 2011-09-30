@@ -23,37 +23,52 @@ dut = do
 -- printProbes -> horizontal, one probe per line
 -- printProbeTable -> vertical, cycle count and one probe per column
 main = do
+    -- if KANSAS_LAVA_PROBE=capture
     streams <- probeCircuit 20 dut
+    -- you have two options for output, list of probes or a table
+    -- we do both here
     printProbes streams
     putStrLn ""
     printProbeTable streams
 
-{- ------------------------- Output --------------------------------------------
-     c2$0: TraceStream B [0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0]
-ha1-snd$2: TraceStream B [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0]
-ha1-fst$2: TraceStream B [0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0]
-    ha1$1: TraceStream B [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
-    ha1$0: TraceStream B [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]
+    -- if KANSAS_LAVA_PROBE=trace
+    let (s,c) = fullAdder (toSeq $ cycle [True,False])
+                          (toSeq $ cycle [True,True,False,False])
+                          (toSeq $ cycle [False,False,False,False,True])
+    -- have to force evaluation (traces are lazy too)
+    -- print isn't a good way, as the print/trace info is interleaved,
+    -- but it's simple. We ascribe the type to 's' to specify the clock
+    print (s :: Seq Bool,c)
 
-clk c2$0 ha1-snd$2 ha1-fst$2 ha1$1 ha1$0
-0   0    1         0         1     1
-1   0    0         1         1     0
-2   0    0         1         0     1
-3   0    0         0         0     0
-4   0    1         0         1     1
-5   0    0         1         1     0
-6   0    0         1         0     1
-7   0    0         0         0     0
-8   0    1         0         1     1
-9   1    0         1         1     0
-10  0    0         1         0     1
-11  0    0         0         0     0
-12  0    1         0         1     1
-13  0    0         1         1     0
-14  1    0         1         0     1
-15  0    0         0         0     0
-16  0    1         0         1     1
-17  0    0         1         1     0
-18  0    0         1         0     1
-19  0    0         0         0     0
+-- run this file with:
+-- KANSAS_LAVA_PROBE=capture ghci -i../ -i../dist/build/autogen Probes.hs
+
+{- ------------------------- Output --------------------------------------------
+       0c2: TraceStream B [0b0,0b0,0b0,0b0,0b0,0b0,0b0,0b0,0b0,0b1,0b0,0b0,0b0,0b0,0b1,0b0,0b0,0b0,0b0,0b0]
+  2ha1-snd: TraceStream B [0b1,0b0,0b0,0b0,0b1,0b0,0b0,0b0,0b1,0b0,0b0,0b0,0b1,0b0,0b0,0b0,0b1,0b0,0b0,0b0]
+  2ha1-fst: TraceStream B [0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0]
+      1ha1: TraceStream B [0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0,0b1,0b1,0b0,0b0]
+      0ha1: TraceStream B [0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0,0b1,0b0]
+
+clk 0c2   2ha1-snd   2ha1-fst   1ha1   0ha1
+0   0b0   0b1        0b0        0b1    0b1
+1   0b0   0b0        0b1        0b1    0b0
+2   0b0   0b0        0b1        0b0    0b1
+3   0b0   0b0        0b0        0b0    0b0
+4   0b0   0b1        0b0        0b1    0b1
+5   0b0   0b0        0b1        0b1    0b0
+6   0b0   0b0        0b1        0b0    0b1
+7   0b0   0b0        0b0        0b0    0b0
+8   0b0   0b1        0b0        0b1    0b1
+9   0b1   0b0        0b1        0b1    0b0
+10  0b0   0b0        0b1        0b0    0b1
+11  0b0   0b0        0b0        0b0    0b0
+12  0b0   0b1        0b0        0b1    0b1
+13  0b0   0b0        0b1        0b1    0b0
+14  0b1   0b0        0b1        0b0    0b1
+15  0b0   0b0        0b0        0b0    0b0
+16  0b0   0b1        0b0        0b1    0b1
+17  0b0   0b0        0b1        0b1    0b0
+18  0b0   0b0        0b1        0b0    0b1
+19  0b0   0b0        0b0        0b0    0b0
 ----------------------------------------------------------------------------- -}

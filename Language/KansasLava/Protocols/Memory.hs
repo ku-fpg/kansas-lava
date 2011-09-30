@@ -120,8 +120,8 @@ writeMemory pipe = res
     	entity =
 		Entity (Prim "write")
 			[ ("o0",bitTypeOf res)]
-			[ ("clk",ClkTy, Pad $ OVar (-2) "clk")
-   		        , ("rst",B,     Pad $ OVar (-1) "rst")
+			[ ("clk",ClkTy, Pad "clk")
+   		        , ("rst",B,     Pad "rst")
 			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
 			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
 			, ("wData",bitTypeOf dat,unD $ seqDriver dat)

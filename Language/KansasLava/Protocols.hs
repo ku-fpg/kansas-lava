@@ -32,8 +32,8 @@ import qualified Language.KansasLava.Stream as Stream
 -- If you need a synthesizable FIFO, you can find one in the kansas-lava-cores package.
 
 shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
-	=> Patch (sig (Enabled a)) 		(sig (Enabled a)) 
-		 (sig Ready) 			(sig Ack) 
+	=> Patch (sig (Enabled a)) 		(sig (Enabled a))
+		 (sig Ready) 			(sig Ack)
 shallowFIFO = fromReadyBox `bus` toAckBox
 
 
@@ -56,7 +56,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
 	-- input
 	(en_
 
-	Seq s_seq _ = fn 
+	Seq s_seq _ = fn
 
  (Seq s_Ready d_Ready) = res
    where
@@ -74,23 +74,23 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
                    ]
 
 	res :: sig (Enabled a)
-        res = Seq (fn0 s_seq s_Ready) 
+        res = Seq (fn0 s_seq s_Ready)
                   (D $ Port "o0" $ E $
-			Entity (Prim "pair") 
+			Entity (Prim "pair")
 				[("o0",bitTypeOf res)]
 				[("i0",B,Port "o_en" $ E $ e)
 				,("i1",ty,Port "o_val" $ E $ e)
 				]
-                  )                
+                  )
 
 	-- ignore the first ready.
-        fn0 ss (XReadyRep _ `Cons` readys) = 
+        fn0 ss (XReadyRep _ `Cons` readys) =
 		XMaybe (pureX False, unknownX) `Cons` fn ss readys
 
-        fn ss (XReadyRep (XBool (Just True)) `Cons` readys) 
+        fn ss (XReadyRep (XBool (Just True)) `Cons` readys)
 		= case ss of
 		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` fn ss' readys
-        fn ss (XReadyRep (XBool (Just False)) `Cons` readys) 
+        fn ss (XReadyRep (XBool (Just False)) `Cons` readys)
 		= XMaybe (pureX False, unknownX) `Cons` fn ss readys
         fn _ (XReadyRep _ `Cons` _) = Stream.repeat unknownX
 
@@ -106,12 +106,12 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 
 	s_enB = upsample0 s_a s_b
 	d_enB = D $ Port "o0" $ E $
-			Entity (Prim "pair") 
+			Entity (Prim "pair")
 				[("o0",bitTypeOf res)]
 				[("i0",B,Port "o_en" $ E $ e)
 				,("i1",ty,Port "o0" $ E $ e)
 				]
-	
+
 	ty = bitTypeOf (undefined :: Seq a)
 
 	e = Entity (External "upflux")
@@ -121,20 +121,20 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 		   ]
                    [("i0",ty, unD d_a)
                    ,("go",B, unD d_b)
-		   , ("clk",ClkTy, Pad $ OVar (-2) "clk")
-		   , ("rst",B,     Pad $ OVar (-1) "rst")
+		   , ("clk",ClkTy, Pad "clk")
+		   , ("rst",B,     Pad "rst")
                    ]
 
 	-- first value is unknown, because this is a clock enable
-        upsample0 ss readys = 
+        upsample0 ss readys =
 		XMaybe (pureX False, unknownX) `Cons` upsample ss readys
 
 	-- Only steps when you have a Boolean yes
 	upsample :: Rep a => Stream (X a) -> Stream (X Bool) -> Stream (X (Maybe a))
-        upsample ss (XBool ((Just True)) `Cons` readys) 
+        upsample ss (XBool ((Just True)) `Cons` readys)
 		= case ss of
 		   (s `Cons` ss') -> XMaybe (pureX True, s) `Cons` upsample ss' readys
-        upsample ss (XBool ((Just False)) `Cons` readys) 
+        upsample ss (XBool ((Just False)) `Cons` readys)
 		= XMaybe (pureX False, unknownX) `Cons` upsample ss readys
         upsample _ (XBool _ `Cons` _) = Stream.repeat unknownX
 
@@ -143,16 +143,16 @@ downFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ CSeq c
 downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
    where
 	(Seq s_in_b d_in_b,Seq s_in_a d_in_a) = unpack sig
-	
+
 	ty = bitTypeOf (undefined :: Seq a)
 
 
 	s_out_b = s_in_b	-- pass through for shallow
 	d_out_b = D $ Port "go" $ E $ e
-	
+
 	s_out_a = downsample s_in_b s_in_a
 	d_out_a = D $ Port "o0" $ E $ e
-	
+
 	e = Entity (External "downflux")
                    [("go",B)
                    ,("o0",ty)
@@ -161,18 +161,18 @@ downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
                    ,("en",B, unD d_in_b)
 		   ,("width", GenericTy
                             , Generic (fromIntegral (repWidth (Witness :: Witness a))))
-		   , ("clk",ClkTy, Pad $ OVar (-2) "clk")
-		   , ("rst",B,     Pad $ OVar (-1) "rst")
+		   , ("clk",ClkTy, Pad "clk")
+		   , ("rst",B,     Pad "rst")
                    ]
 
 	downsample :: Rep a => Stream (X Bool) -> Stream (X a) -> Stream (X a)
-	downsample (XBool (Just True) `Cons` ens) (s `Cons` ss) 
+	downsample (XBool (Just True) `Cons` ens) (s `Cons` ss)
 		= s `Cons` downsample ens ss
-	downsample (XBool (Just False) `Cons` ens) (_ `Cons` ss) 
+	downsample (XBool (Just False) `Cons` ens) (_ `Cons` ss)
 		= downsample ens ss
 	downsample (XBool _ `Cons` _) _
 		= Stream.repeat unknownX
-		
+
 
 fluxCapacitor :: forall a b c sig . (Rep a, Rep b, Clock c, sig ~ CSeq c)
 	=> (forall c' sig' . (Clock c', sig' ~ CSeq c') => sig' a -> sig' b)

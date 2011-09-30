@@ -123,7 +123,7 @@ output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 -- | Generate a named std_logic input port.
 inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
-        pad <- input nm (StdLogic $ deepSeq $ D $ Pad (OVar 0 nm))
+        pad <- input nm (StdLogic $ deepSeq $ D $ Pad nm)
         return $ case pad of
           StdLogic sq -> bitwise sq
           _           -> error "internal type error in inStdLogic"
@@ -139,7 +139,7 @@ inGeneric nm = do
 -- | Generate a named std_logic_vector port input.
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-	let seq' = deepSeq $ D $ Pad (OVar 0 nm) :: Seq a
+	let seq' = deepSeq $ D $ Pad nm :: Seq a
         pad <- input nm (StdLogicVector seq')
         return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
@@ -245,7 +245,7 @@ reifyFabric (Fabric circuit) = do
                              ]
                    case lookup out gr of
                      Just (Entity (Prim "top")  _ ins) ->
-                       return (gr',[(OVar 0 nm,ity, driver)
+                       return (gr',[(nm,ity, driver)
                                        | (nm,ity,driver) <- ins
                                        ])
                      _ -> error $ "reifyFabric: " ++ show o
@@ -256,31 +256,24 @@ reifyFabric (Fabric circuit) = do
     	    -- only clock has a default always connecteda; this may check for clk somewhere else.
 	    clk'    = if null [ () | (_,TheClk) <- ins0 ] then [("clk",TheClk)] else []
 
-	    clk_name    = head $ [ Pad (OVar 0 nm) | (nm,TheClk) <- ins0' ]   ++ error "bad clk_name"
-	    rst_name    = head $ [ Pad (OVar 0 nm) | (nm,TheRst) <- ins0' ]   ++ [Lit (RepValue [Just False])]
-	    clk_en_name = head $ [ Pad (OVar 0 nm) | (nm,TheClkEn) <- ins0' ] ++ [Lit (RepValue [Just True])]
+	    clk_name    = head $ [ Pad nm | (nm,TheClk) <- ins0' ]   ++ error "bad clk_name"
+	    rst_name    = head $ [ Pad nm | (nm,TheRst) <- ins0' ]   ++ [Lit (RepValue [Just False])]
+	    clk_en_name = head $ [ Pad nm | (nm,TheClkEn) <- ins0' ] ++ [Lit (RepValue [Just True])]
 
 	    gr1 = map replaceEnv gr
 
-	    replaceEnv (u,Entity name outs ins) = (u,Entity name outs 
+	    replaceEnv (u,Entity name outs ins) = (u,Entity name outs
 						    [ (s,t,case d of
-							Pad (OVar _ "clk") -> clk_name
-							Pad (OVar _ "rst") -> rst_name
-							Pad (OVar _ "clk_en") -> clk_en_name
+							Pad "clk" -> clk_name
+							Pad "rst" -> rst_name
+							Pad "clk_en" -> clk_en_name
 							other -> other)
 						    | (s,t,d) <- ins
 						    ])
 
-	
+
         let rCit = KLEG { theCircuit = gr1
-                        , theSrcs = 
-{-
-                                [ (OVar 0 "clk",ClkTy)
-                                , (OVar 0 "clk_en",B)
-                                , (OVar 0 "rst", B)             -- Reset Ty?
-                                ] ++
--}
-                                [ (OVar 0 nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0' ]
+                        , theSrcs = [ (nm,fromStdLogicType $ padStdLogicType pad) | (nm,pad) <- ins0' ]
                         , theSinks = outpads
                         }
 
