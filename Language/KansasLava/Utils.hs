@@ -114,6 +114,10 @@ instance (Bounded a, Rep a) => Bounded (Comb a) where
     minBound = pureS $ minBound
     maxBound = pureS $ maxBound
 
+instance (Bounded a, Rep a) => Bounded (CSeq c a) where
+    minBound = liftS0 minBound
+    maxBound = liftS0 maxBound
+
 -- Somehow, these ignore the type name
 instance (Show a, Bits a, Rep a)
 	=> Bits (Comb a) where
@@ -367,10 +371,6 @@ instance (Ord a, Rep a) => Ord (CSeq c a) where
   (<=)_ _ = error "(<=) not supported for Seq"
   max = liftS2 max
   min = liftS2 min
-
-instance (Bounded a, Rep a) => Bounded (CSeq c a) where
-    minBound = liftS0 minBound
-    maxBound = liftS0 maxBound
 
 -- | Lift a (named) binary function over bools to be over 'Signal's.
 boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
@@ -661,6 +661,7 @@ lavaId = fun1 "id" id
 -------------------------------------------------------------------------------------
 
 -- | 'ignoring' is used to make sure a value is reified.
+-- TODO: is this used?
 ignoring :: (Signal sig, Rep a, Rep b) => sig a -> sig b -> sig a
 ignoring = fun2 "const" const
 

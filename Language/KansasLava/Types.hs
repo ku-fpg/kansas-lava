@@ -49,9 +49,6 @@ module Language.KansasLava.Types (
         , circuitSignature
         -- *Witness
         , Witness(..)
-        -- I and O
-        , I
-        , O
         -- * Dual shallow/deep
         , Dual(..)
 	-- * Our version of tuples
@@ -664,33 +661,6 @@ circuitSignature cir = Signature
 -- Really, we are using this in a system-F style.
 -- (As suggested by an anonymous TFP referee, as a better alternative to using 'error "witness"').
 data Witness w = Witness
--- TODO: Move into sized types.
-
-
---------------------------------------------------------------------------------------
--- We sometimes talk about bytes, which are unsigned 8-bit values.
-
--- type Byte = U8
-
---------------------------------------------------------------------------------------
-
--- Prepare yourself for an ASCII FIFO diagram!
---
---                ============
---      input---->=   FIFO   =---->output
---  writeflag<----=          =<----readflag
---                ============
---
--- where readflag  :: CSeq c Bool = read successful
---       writeflag :: CSeq c Bool = write successful
---
--- eventually, these may become datatypes.
-
--- | An alias for the pairing of an input value and read flag.
-type I input     readflag = (input    ,readflag)
--- | An alias for the pairing of an output value and read flag.
-type O writeflag output   = (writeflag,output  )
-
 
 ----------------------------------------------------------------------------
 

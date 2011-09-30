@@ -50,6 +50,9 @@ instance Rep Bool where
     toRep (XBool v)   = RepValue [v]
     fromRep (RepValue [v]) = XBool v
     fromRep rep    = error ("size error for Bool : " ++ show (Prelude.length $ unRepValue rep) ++ " " ++ show rep)
+    showRep (XBool Nothing)      = "?"
+    showRep (XBool (Just True))  = "H"
+    showRep (XBool (Just False)) = "L"
 
 $(repIntegral ''Int     (S 32)) -- a lie on 64-bit machines??
 

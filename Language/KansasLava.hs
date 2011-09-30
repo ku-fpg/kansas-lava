@@ -39,7 +39,6 @@ module Language.KansasLava (
     module Language.KansasLava.Rep,
     module Language.KansasLava.Signal,
     module Language.KansasLava.Test,
---    module Language.KansasLava.Types,
     module Language.KansasLava.Utils
 
      ) where
