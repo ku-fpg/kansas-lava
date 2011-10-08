@@ -102,6 +102,14 @@ tests test = do
 
 -}
 
+
+
+data TestMux a = TestMux String (Bool -> a -> a -> a) (forall clk . CSeq clk Bool -> CSeq clk a -> CSeq clk a -> CSeq clk a)
+data TestCmp a = TestCmp String (a -> a -> Bool) (forall clk . CSeq clk a -> CSeq clk a -> CSeq clk Bool)
+data TestUni a = TestUni String (a -> a) (forall clk . CSeq clk a -> CSeq clk a)
+data TestBin a = TestBin String (a -> a -> a) (forall clk . CSeq clk a -> CSeq clk a -> CSeq clk a)
+
+
 -- This only tests at the *value* level, and ignores testing unknowns.
 
 testUniOp :: forall a b .
@@ -110,7 +118,7 @@ testUniOp :: forall a b .
           => TestSeq
           -> String
           -> (a -> b)
-          -> (Comb a -> Comb b)
+          -> (forall clk . CSeq clk a -> CSeq clk b)
           -> [a]
           -> IO ()
 testUniOp (TestSeq test _) nm opr lavaOp us0 = do
@@ -118,7 +126,7 @@ testUniOp (TestSeq test _) nm opr lavaOp us0 = do
                 outStdLogicVector "i0" (toSeq us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
-                let o0 = liftS1 lavaOp (i0)
+                let o0 = lavaOp (i0)
                 outStdLogicVector "o0" (o0)
                 
             res = toSeq (fmap opr us0)
@@ -133,7 +141,7 @@ testBinOp :: forall a b c .
           => TestSeq
           -> String
           -> (a -> b -> c)
-          -> (Comb a -> Comb b -> Comb c)
+          -> (forall clk . CSeq clk a -> CSeq clk b -> CSeq clk c)
           -> List (a,b)
           -> IO ()
 testBinOp (TestSeq test _) nm opr lavaOp gen = do
@@ -144,7 +152,7 @@ testBinOp (TestSeq test _) nm opr lavaOp gen = do
             dut = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
-                let o0 = liftS2 lavaOp (i0) (i1)
+                let o0 = lavaOp (i0) (i1)
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith opr us0 us1)
 
@@ -158,7 +166,7 @@ testTriOp :: forall a b c d .
           => TestSeq
           -> String
           -> (a -> b -> c -> d)
-          -> (Comb a -> Comb b -> Comb c -> Comb d)
+          -> (forall clk . CSeq clk a -> CSeq clk b -> CSeq clk c -> CSeq clk d)
           -> List (a,b,c)
           -> IO ()
 testTriOp (TestSeq test _) nm opr lavaOp gen = do
@@ -171,35 +179,36 @@ testTriOp (TestSeq test _) nm opr lavaOp gen = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
                 i2 <- inStdLogicVector "i2"
-                let o0 = liftS3 lavaOp (i0) (i1) (i2)
+                let o0 = lavaOp (i0) (i1) (i2)
                 outStdLogicVector "o0" (o0)
             res = toSeq (Prelude.zipWith3 opr us0 us1 us2)
         test nm (length gen) dut (driver >> matchExpected "o0" res)
 
 ------------------------------------------------------------------------------------------------
 
-testOpsEq :: (Rep w, Eq w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
+testOpsEq :: forall w . (Rep w, Eq w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsEq test tyName ws = do
         let ws2 = pair ws
 	    bs = finiteCases (length ws2) :: [Bool]
 
         sequence_
-          [ testTriOp test (name ++ "/" ++ tyName) opr lavaOp
+          [ testTriOp test (name ++ "/" ++ tyName) opr (lavaOp)
 	    	      	[ (b,w1,w2) | (b,(w1,w2)) <- zip bs ws2 ]
-
-          | (name,opr,lavaOp) <-
-                [ ("mux",\ c a b -> if c then a else b,\ c a b -> mux2 c (a,b))
+          | TestMux name opr lavaOp <-
+                [ TestMux "mux" (\ c a b -> if c then a else b) (\ c a b -> mux2 c (a,b))
                 ]
           ]
 
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
-          | (name,opr,lavaOp) <-
-                [ ("double-equal",(==),(.==.))
-                , ("not-equal",(/=),(./=.))
+          | TestCmp name opr lavaOp <-
+                [ TestCmp "double-equal" (==) (.==.)
+                , TestCmp "not-equal"    (/=) (./=.)
                 ]
           ]
 
+        return ()
+        
 ------------------------------------------------------------------------------------------------
 
 testOpsOrd :: (Rep w, Ord w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
@@ -210,14 +219,15 @@ testOpsOrd test tyName ws = do
 
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
-          | (name,opr,lavaOp) <-
-                [ ("greater-than",(>),(.>.))
-                , ("less-than",(<),(.<.))
-                , ("gt-equal",(>=),(.>=.))
-                , ("lt-equal",(<=),(.<=.))
+          | TestCmp name opr lavaOp <-
+                [ TestCmp "greater-than" (>)  (.>.)
+                , TestCmp "less-than"    (<)  (.<.)
+                , TestCmp "gt-equal"     (>=) (.>=.)
+                , TestCmp "lt-equal"     (<=) (.<=.)
                 ]
           ]
 
+        return ()
 
 ------------------------------------------------------------------------------------------------
 
@@ -231,24 +241,25 @@ testOpsNum test tyName ws = do
 
         sequence_
           [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
-          | (name,opr,lavaOp) <-
-                [ ("negate",negate,negate)
-                , ("abs",abs,abs)
-                , ("signum",signum,signum)
+          | TestUni name opr lavaOp <-
+                [ TestUni "negate" negate negate 
+                , TestUni "abs"    abs    abs
+                , TestUni "signum" signum signum
                 ]
           ]
 
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
-          | (name,opr,lavaOp) <-
-                [ ("add",(+),(+))
-                , ("sub",(-),(-))
-                , ("mul",(*),(*))
-                , ("max",max,max)
-                , ("min",min,min)
+          | TestBin name opr lavaOp <-
+                [ TestBin "add" (+) (+)
+                , TestBin "sub" (-) (-)
+                , TestBin "mul" (*) (*)
+                , TestBin "max" max max
+                , TestBin "min" min min
                 ]
           ]
 
+        return ()
 testOpsFractional :: forall w .
         (Ord w, Rep w, Fractional w, Size (W w)) => TestSeq -> String -> [w] -> IO ()
 testOpsFractional test tyName ws = do
@@ -257,15 +268,17 @@ testOpsFractional test tyName ws = do
         -- TODO: add in recip
         sequence_
           [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
-          | (name,opr,lavaOp) <-
+          | TestUni name opr lavaOp <-
                 -- for now, we *only* divide by powers of two, that we *can* divide by (in range)
-                [ ("divide_by_" ++ show n,(/ (fromIntegral n)),(/ (fromIntegral n)))
+                [ TestUni ("divide_by_" ++ show n) (/ (fromIntegral n)) (/ (fromIntegral n))
                 | n <- [2,4,8,16,32,64,128,256::Integer]
                 , let w = fromInteger n :: w
                 , (show n ++ ".0") == show w
                 ]
           ]
 
+        return ()
+        
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
@@ -275,23 +288,23 @@ testOpsBits test tyName ws = do
 
         let ws2 = pair ws
 
-
         sequence_
           [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
-          | (name,opr,lavaOp) <-
-                [ ("complement",complement,complement)
+          | TestUni name opr lavaOp <-
+                [ TestUni "complement" complement complement
                 ]
           ]
 
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
-          | (name,opr,lavaOp) <-
-                [ ("bitwise-and",(.&.),(.&.))
-                , ("bitwise-or",(.|.),(.|.))
-                , ("xor",(xor),(xor))
+          | TestBin name opr lavaOp <-
+                [ TestBin "bitwise-and" (.&.) (.&.)
+                , TestBin "bitwise-or"  (.|.) (.|.)
+                , TestBin "xor"         (xor) (xor)
                 ]
           ]
 
+        return ()
 pair :: [a] -> [(a, a)]
 pair ws = [ (a,b) | a <- ws, b <- ws ]
 

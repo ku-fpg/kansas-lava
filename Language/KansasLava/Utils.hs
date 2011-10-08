@@ -21,13 +21,14 @@ import Data.Sized.Signed	as SI
 -----------------------------------------------------------------------------------------------
 
 -- | The 'Signal' representing True.
-high :: forall (sig :: * -> *) . (Signal sig) => sig Bool
+high :: forall c (sig :: * -> *) . (sig ~ CSeq c) => sig Bool
 high = pureS True
 
 -- | The 'Signal' representing False.
-low :: forall (sig :: * -> *) . (Signal sig) => sig Bool
+low :: forall c (sig :: * -> *) . (sig ~ CSeq c) => sig Bool
 low  = pureS False
 
+{-
 -- | The constant combinational values for True.
 true :: Comb Bool
 true = pureS True
@@ -35,10 +36,11 @@ true = pureS True
 -- | The constant combinational values for False.
 false :: Comb Bool
 false = pureS False
+-}
 
 -----------------------------------------------------------------------------------------------
 -- | 1-bit and gate.
-and2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+and2 :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just True,Just True) -> optX $ Just True
 						     (Just False,_)        -> optX $ Just False
@@ -47,7 +49,7 @@ and2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 					 $ entity2 (Prim "and2") ae be
 
 -- | 1 bit or gate.
-or2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+or2 :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     (Just False,Just False) -> optX $ Just False
 						     (Just True,_)           -> optX $ Just True
@@ -55,21 +57,21 @@ or2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (case (unX a,unX b) of
 						     _                       -> optX $ Nothing )
 					 $ entity2 (Prim "or2") ae be
 -- | 1 bit xor gate.
-xor2 :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+xor2 :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 xor2 = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 (/=) (unX a) (unX b)) $ entity2 (Prim "xor2") ae be
 
 -- | 1 bit inverter.
-bitNot :: (Signal sig) => sig Bool -> sig Bool
+bitNot :: (sig ~ CSeq c) => sig Bool -> sig Bool
 bitNot = liftS1 $ \ (Comb a ae) -> Comb (optX $ liftA (not) (unX a)) $ entity1 (Prim "not") ae
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
-testABit :: forall sig a . (Bits a, Rep a, Signal sig) => sig a -> Int -> sig Bool
+testABit :: forall c sig a . (Bits a, Rep a, sig ~ CSeq c) => sig a -> Int -> sig Bool
 testABit x y = liftS1 (\ (Comb a ae) -> Comb (optX $ liftA (flip testBit y) (unX a))
                                       $ entity2 (Prim "testBit") ae (D $ Generic (fromIntegral y) :: D Integer)
 		      ) x
 
 -- | Predicate to see if a Signed value is positive.
-isPositive :: forall sig ix . (Signal sig, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
+isPositive :: forall c sig ix . (sig ~ CSeq c, Size ix, Enum ix, Integral ix, Bits (sig (Signed ix))) => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a  msb
     where msb = bitSize a - 1
 
@@ -79,15 +81,15 @@ infixr 2 .||.
 infixr 2 .^.
 
 -- | Alias for 'and2'.
-(.&&.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.&&.) :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 (.&&.) = and2
 
 -- | Alias for 'or2'.
-(.||.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.||.) :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 (.||.) = or2
 
 -- | Alias for 'xor2'.
-(.^.) :: (Signal sig) => sig Bool -> sig Bool -> sig Bool
+(.^.) :: (sig ~ CSeq c) => sig Bool -> sig Bool -> sig Bool
 (.^.)  = xor2
 
 -----------------------------------------------------------------------------------------------
@@ -99,8 +101,9 @@ instance (Show a, Rep a, Num a) => Num (Comb a) where
     negate s = fun1 "negate" (negate) s
     abs s    = fun1 "abs"    (abs)    s
     signum s = fun1 "signum" (signum) s
-    fromInteger n = pureS (fromInteger n)
+    fromInteger n = pureS' (fromInteger n)
 
+{-
 instance (Show a, Rep a, Num a) => Num (CSeq c a) where
     (+) = liftS2 (+)
     (-) = liftS2 (-)
@@ -109,10 +112,11 @@ instance (Show a, Rep a, Num a) => Num (CSeq c a) where
     abs = liftS1 abs
     signum = liftS1 signum
     fromInteger n = pureS (fromInteger n)
+-}
 
 instance (Bounded a, Rep a) => Bounded (Comb a) where
-    minBound = pureS $ minBound
-    maxBound = pureS $ maxBound
+    minBound = pureS' $ minBound
+    maxBound = pureS' $ maxBound
 
 instance (Bounded a, Rep a) => Bounded (CSeq c a) where
     minBound = liftS0 minBound
@@ -175,18 +179,18 @@ instance (Rep a, Integral a) => Integral (Comb a) where
 
 {-
  - TO reinstall!
-mapToBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), Rep w) => sig w -> sig (Matrix (WIDTH w) Bool)
+mapToBoolMatrix :: forall c sig w . (sig ~ CSeq c, Size (WIDTH w), Rep w) => sig w -> sig (Matrix (WIDTH w) Bool)
 mapToBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(( optX (liftM fromWireRep ((unX a) :: Maybe w
 		    ) :: Maybe (Matrix (WIDTH w) Bool))
 	 ) :: X (Matrix (WIDTH w) Bool))
 	(entity1 (Prim "toBoolMatrix") d)
 
-toBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
+toBoolMatrix :: forall c sig w . (sig ~ CSeq c, Integral (WIDTH w), Size (WIDTH w), Rep w)
              => sig w -> Matrix (WIDTH w) (sig Bool)
 toBoolMatrix = unpack . mapToBoolMatrix
 
-mapFromBoolMatrix :: forall sig w . (Signal sig, Size (WIDTH w), Rep w) => sig (Matrix (WIDTH w) Bool) -> sig w
+mapFromBoolMatrix :: forall c sig w . (sig ~ CSeq c, Size (WIDTH w), Rep w) => sig (Matrix (WIDTH w) Bool) -> sig w
 mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	(case unX (a :: X (Matrix (WIDTH w) Bool)) :: Maybe (Matrix (WIDTH w) Bool) of
 	     Nothing -> optX (Nothing :: Maybe w)
@@ -194,7 +198,7 @@ mapFromBoolMatrix = liftS1 $ \ (Comb a d) -> Comb
 	)
 	(entity1 (Prim "fromBoolMatrix") d)
 
-fromBoolMatrix :: forall sig w . (Signal sig, Integral (WIDTH w), Size (WIDTH w), Rep w)
+fromBoolMatrix :: forall c sig w . (sig ~ CSeq c, Integral (WIDTH w), Size (WIDTH w), Rep w)
 	       => Matrix (WIDTH w) (sig Bool) ->  sig w
 fromBoolMatrix = mapFromBoolMatrix . pack
 
@@ -209,7 +213,7 @@ fromBoolMatrix = mapFromBoolMatrix . pack
 -- | Given a function over a finite domain, generate a ROM representing the
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
-funMap :: forall sig a b . (Signal sig, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
+funMap :: forall c sig a b . (sig ~ CSeq c, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
 funMap fn = liftS1 $ \ (Comb a (D ae))
 			-> Comb (case unX a of
 				   Nothing -> optX Nothing
@@ -259,7 +263,7 @@ repValueToInteger (RepValue _) = error "repValueToInteger over unknown value"
 -- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
 -- zero (false) selects the first argument of the tuple, one (true)
 -- selects the second.
-mux :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
+mux :: forall c sig a . (sig ~ CSeq c, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux iSig (eSig,tSig)
 	= liftS3 (\ (Comb i ei)
 	 	    (Comb t et)
@@ -271,7 +275,7 @@ mux iSig (eSig,tSig)
 -- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
 -- the use of liftS3. This is safe, because we know the kind of node that we're building.
 -- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
-mux2 :: forall sig a . (Signal sig, Rep a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall c sig a . (sig ~ CSeq c, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig)
 	= liftS3 (\ (Comb i ei)
 	 	    (Comb t et)
@@ -309,16 +313,16 @@ evalX a = count $ unRepValue $ toRep a
 
 -- | Alias for '.!.'
 muxMatrix
-	:: forall sig x a
-	 . (Signal sig, Size x, Rep x, Rep a)
+	:: forall c sig x a
+	 . (sig ~ CSeq c, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
 muxMatrix = (.!.)
 
 -- | Extract the n'th element of a vector.
-(.!.)	:: forall sig x a
-	 . (Signal sig, Size x, Rep x, Rep a)
+(.!.)	:: forall c sig x a
+	 . (sig ~ CSeq c, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
@@ -333,8 +337,8 @@ muxMatrix = (.!.)
 	         ) mSig xSig
 
 {-
-updateMatrix :: forall sig x a
-	 . (Signal sig, Size x, Rep x, Rep a)
+updateMatrix :: forall c sig x a
+	 . (sig ~ CSeq c, Size x, Rep x, Rep a)
 	=> sig x
 	-> sig a
 	-> sig (Matrix x a)
@@ -373,7 +377,7 @@ instance (Ord a, Rep a) => Ord (CSeq c a) where
   min = liftS2 min
 
 -- | Lift a (named) binary function over bools to be over 'Signal's.
-boolOp :: forall a sig . (Rep a, Signal sig) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
+boolOp :: forall c a sig . (Rep a, sig ~ CSeq c) => String -> (a -> a -> Bool) -> sig a -> sig a -> sig Bool
 boolOp nm fn =
 	liftS2 $ \ (Comb a ea) (Comb b eb) ->
 		    Comb (optX $ do a' <- unX a
@@ -384,27 +388,27 @@ boolOp nm fn =
 infix 4 .==., .>=., .<=., .<., .>.
 
 -- | N-bit equality.
-(.==.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
+(.==.) :: forall c a sig . (Rep a, Eq a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (.==.) = boolOp ".==." (==)
 
 -- | N-bit not-equals.
-(./=.) :: forall a sig . (Rep a, Eq a, Signal sig) => sig a -> sig a -> sig Bool
+(./=.) :: forall c a sig . (Rep a, Eq a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (./=.) xs ys = bitNot (xs .==. ys) -- TODO: consider making this a primitive
 
 -- | N-bit greater-than-or-equals.
-(.>=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>=.) :: forall c a sig . (Rep a, Ord a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp ".>=." (>=)
 
 -- | N-bit less-than-or-equals.
-(.<=.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<=.) :: forall c a sig . (Rep a, Ord a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (.<=.) = boolOp ".<=." (<=)
 
 -- | N-bit less-than.
-(.<.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.<.) :: forall c a sig . (Rep a, Ord a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (.<.) = boolOp ".<." (<)
 
 -- | N-bit greater-than.
-(.>.) :: forall a sig . (Rep a, Ord a, Signal sig) => sig a -> sig a -> sig Bool
+(.>.) :: forall c a sig . (Rep a, Ord a, sig ~ CSeq c) => sig a -> sig a -> sig Bool
 (.>.) = boolOp ".>." (>)
 
 -------------------------------------------------------------------------------
@@ -470,7 +474,7 @@ shallowRst =  Seq (S.fromList $ (map (optX  . Just) ([True] ++ repeat False)))
 -- a delay is a register with no defined default / initial value.
 
 -- | a delay is a register with no defined default / initial value.
-delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
+delay :: (Rep a, Clock clk, seq ~ CSeq clk) => seq a -> seq a
 delay ~(Seq line eline) = res
    where
         def = optX $ Nothing
@@ -488,12 +492,12 @@ delay ~(Seq line eline) = res
 		     ("rst",B,     Pad "rst")
 		    ]
 -- | delays generates a serial sequence of n delays.
-delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
+delays :: (Rep a, Clock clk, seq ~ CSeq clk) => Int -> seq a -> seq a
 delays n ss = iterate delay ss !! n
 
 
 -- | A register is a state element with a reset. The reset is supplied by the clock domain in the CSeq.
-register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
+register :: (Rep a, Clock clk, seq ~ CSeq clk) => a -> seq a -> seq a
 register first  ~(Seq line eline) = res
    where
         def = optX $ Just first
@@ -512,7 +516,7 @@ register first  ~(Seq line eline) = res
 		     ("rst",B,     Pad "rst")
 		    ]
 -- | registers generates a serial sequence of n registers, all with the same initial value.
-registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a
+registers :: (Rep a, Clock clk, seq ~ CSeq clk) => Int -> a -> seq a -> seq a
 registers n def ss = iterate (register def) ss !! n
 
 -- hack
@@ -556,11 +560,11 @@ instance (Size (LOG (SUB (X1_ x) X1)), StdLogic x) => StdLogic (X1_ x) where
 instance (Size (LOG (APP1 (ADD x N1))), StdLogic x) => StdLogic (X0_ x) where
    type WIDTH (X0_ x) = LOG (SUB (X0_ x) X1)
 
-toSLV :: forall w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
+toSLV :: forall c w . (Rep w, StdLogic w) => w -> StdLogicVector (WIDTH w)
 toSLV v = case toRep (Witness :: Witness w) (optX (return v) :: X w) of
 		RepValue v -> StdLogicVector $ M.matrix $ v
 
-fromSLV :: forall w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
+fromSLV :: forall c w . (Rep w, StdLogic w) =>  StdLogicVector (WIDTH w) -> Maybe w
 fromSLV x@(StdLogicVector v) = unX (fromRep (Witness :: Witness w) (RepValue (M.toList v))) :: Maybe w
 
 -}
@@ -568,7 +572,7 @@ fromSLV x@(StdLogicVector v) = unX (fromRep (Witness :: Witness w) (RepValue (M.
 
 
 {-
-instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) where
+instance (Integral ix, Size ix, sig ~ CSeq c) => Pack sig (StdLogicVector ix) where
 	type Unpacked sig (StdLogicVector ix) = Matrix ix (sig Bool)
 	pack m = liftSL (\ ms -> let sh :: Matrix ix (Just Bool)
 				     sh = M.fromList [ m | Comb (XBool m) _ <- ms ]
@@ -577,28 +581,28 @@ instance (Integral ix, Size ix, Signal sig) => Pack sig (StdLogicVector ix) wher
 	unpack sig = forAll $ \ i -> testABit sig (fromIntegral i)
 
 
---  toStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
---  fromStdLogicVector :: (Signal sig, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
+--  toStdLogicVector :: (sig ~ CSeq c, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
+--  fromStdLogicVector :: (sig ~ CSeq c, StdLogic c, Size x) => sig (c x) -> sig (StdLogicVector x)
 -- This is pack/unpack???
 -}
 
 {-
-toStdLogicVector :: forall sig w . (Signal sig, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
+toStdLogicVector :: forall c sig w . (sig ~ CSeq c, Rep w, StdLogic w) => sig w -> sig (StdLogicVector (WIDTH w))
 toStdLogicVector = fun1 "toStdLogicVector" $ \ v -> case toRep (optX (return v)) of
 						       RepValue v' -> StdLogicVector $ M.matrix $ v'
 
 -- TODO: way may have to lift these up to handle unknowns better.
-fromStdLogicVector :: forall sig w . (Signal sig, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
+fromStdLogicVector :: forall c sig w . (sig ~ CSeq c, StdLogic w, Rep w) => sig (StdLogicVector (WIDTH w)) -> sig w
 fromStdLogicVector = fun1' "fromStdLogicVector" $ \ (StdLogicVector v) ->
 				  unX (fromRep (RepValue (M.toList v)))
 
 -- This is done bit-wise; grab the correct (aka size 'b') number of bits, adding zeros or truncating if needed.
-coerceStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b)
+coerceStdLogicVector :: forall c sig a b . (sig ~ CSeq c, Size a, Size b)
 		     => sig (StdLogicVector a) -> sig (StdLogicVector b)
 coerceStdLogicVector = fun1 "coerceStdLogicVector" (SLV.coerceSLV)
 
 -- Starting at the given bit; grab the specified (by the type) number of bits.
-extractStdLogicVector :: forall sig a b . (Signal sig, Integral a, Integral b, Size a, Size b)
+extractStdLogicVector :: forall c sig a b . (sig ~ CSeq c, Integral a, Integral b, Size a, Size b)
 		     => Int -> sig (StdLogicVector a) -> sig (StdLogicVector b)
 extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 	liftS1 $ \ (Comb a ea) ->
@@ -608,7 +612,7 @@ extractStdLogicVector i =  -- fun2 "spliceStdLogicVector" (SLV.splice i)
 -}
 {-
 {-
-append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c)
+append :: forall c sig a b c . (sig ~ CSeq c, Rep a, Rep b, Rep c)
 	=> sig a
 	-> sig b
 	-> sig c
@@ -619,7 +623,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 			     (entity2 (Prim "concat") ea eb)
 -}
 
-appendStdLogicVector :: forall sig a b . (Signal sig, Size a, Size b, Size (ADD a b))
+appendStdLogicVector :: forall c sig a b . (sig ~ CSeq c, Size a, Size b, Size (ADD a b))
 	=> sig (StdLogicVector a)
 	-> sig (StdLogicVector b)
 	-> sig (StdLogicVector (ADD a b))
@@ -643,7 +647,7 @@ appendStdLogicVector = liftS2 $ \ (Comb a ea) (Comb b eb) ->
 
 
 {-
-	   , Signal sig, Rep a2, Rep a1
+	   , sig ~ CSeq c, Rep a2, Rep a1
 	   , StdLogic a, StdLogic a1, StdLogic a2) => sig a -> sig (a1,a2)
 factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 		 , fromStdLogicVector $ extractStdLogicVector (size (error "witness" :: WIDTH a1)) vec
@@ -655,20 +659,20 @@ factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 -------------------------------------------------------------------------------------
 
 -- | The identity function, lifted to 'Signal's.
-lavaId :: (Signal sig, Rep a) => sig a -> sig a
+lavaId :: (sig ~ CSeq c, Rep a) => sig a -> sig a
 lavaId = fun1 "id" id
 
 -------------------------------------------------------------------------------------
 
 -- | 'ignoring' is used to make sure a value is reified.
 -- TODO: is this used?
-ignoring :: (Signal sig, Rep a, Rep b) => sig a -> sig b -> sig a
+ignoring :: (sig ~ CSeq c, Rep a, Rep b) => sig a -> sig b -> sig a
 ignoring = fun2 "const" const
 
 -------------------------------------------------------------------------------------
 
 -- | Given a representable value for a discirminant and a list of input signals, generate a n-ary mux.
-cASE :: (Rep b, Signal seq) => [(seq Bool,seq b)] -> seq b -> seq b
+cASE :: (Rep b, sig ~ CSeq clk) => [(sig Bool,sig b)] -> sig b -> sig b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 
@@ -681,12 +685,12 @@ takeMaybe = maybe id take
 -------------------------------------------------------------------------------------
 
 -- | translate using raw underlying bits, Width *must* be the same.
-bitwise :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => sig a -> sig b
+bitwise :: forall c sig a b . (sig ~ CSeq c, Rep a, Rep b, W a ~ W b) => sig a -> sig b
 bitwise = liftS1 $ \ (Comb a ae) -> Comb (fromRep (toRep a)) $ entity1 (Prim "coerce") ae
 
 
 -- | translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
-coerce :: forall sig a b . (Signal sig, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
+coerce :: forall c sig a b . (sig ~ CSeq c, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
 coerce f = liftS1 $ \ (Comb a ae) ->
 	let
 	    b = liftX f a
@@ -705,7 +709,7 @@ signedX = id
        . toRep
 
 -- | consider the bits as signed number (sign extend)
-signed :: (Rep a, Rep b, Num b, Signal sig)  => sig a -> sig b
+signed :: (Rep a, Rep b, Num b, sig ~ CSeq c)  => sig a -> sig b
 signed = liftS1 $ \ (Comb a ae) -> Comb (signedX a) $ entity1 (Prim "signed") ae
 
 -- | Consider the value as an unsigned value.
@@ -718,22 +722,22 @@ unsignedX = id
        . toRep
 
 -- | consider the bits an unsigned number (zero extend)
-unsigned :: (Rep a, Rep b, Num b, Signal sig)  => sig a -> sig b
+unsigned :: (Rep a, Rep b, Num b, sig ~ CSeq c)  => sig a -> sig b
 unsigned = liftS1 $ \ (Comb a ae) -> Comb (unsignedX a) $ entity1 (Prim "unsigned") ae
 
 ----------------------------------------------------------------------------
 -- | translate using raw underlying bits, type  *must* be the same, but is not statically checked.
-unsafeId :: forall sig a b . (Signal sig, Rep a, Rep b) => sig a -> sig b
+unsafeId :: forall c sig a b . (sig ~ CSeq c, Rep a, Rep b) => sig a -> sig b
 unsafeId = liftS1 $ \ (Comb a (D ae)) -> Comb (fromRep $ toRep a) $ (D ae)
 
 ----------------------------------------------------------------------------
 
 -- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
-factor :: forall a a1 a2 sig . (Signal sig, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+factor :: forall c a a1 a2 sig . (sig ~ CSeq c, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
 factor a = unpack (bitwise a :: sig (a1,a2))
 
 -- | given two signals of a1 and a2 width, respectively, pack them into a signal of a1 + a2 width.
-append :: forall sig a b c . (Signal sig, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
+append :: forall clk sig a b c . (sig ~ CSeq clk, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = bitwise (pack (x,y) :: sig (a,b))
 
 ----------------------------------------------------------------------------
@@ -742,7 +746,7 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- the second is our reference value.
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
-refinesFrom :: forall sig a . (Signal sig, Rep a) => sig a -> sig a -> sig Bool
+refinesFrom :: forall c sig a . (sig ~ CSeq c, Rep a) => sig a -> sig a -> sig Bool
 refinesFrom = liftS2 $ \ (Comb a _) (Comb b _) ->
                         Comb (let res = and
                                       [ case (vut,ref) of
@@ -765,10 +769,10 @@ iterateS f start = out where
 ---------------------------------------------------------------------
 
 -- These varients of succ/pred can handle bounded values and do proper looping.
-loopingInc :: (Bounded a, Num a, Rep a, Signal sig) => sig a -> sig a
-loopingInc a = mux2 (a .==. pureS maxBound) (pureS 0,liftS2 (+) a (pureS 1))
+loopingInc :: (Bounded a, Num a, Rep a, sig ~ CSeq c) => sig a -> sig a
+loopingInc a = mux (a .==. maxBound) (a + 1,0)
 
-loopingDec :: (Bounded a, Num a, Rep a, Signal sig) => sig a -> sig a
-loopingDec a = mux2 (a .==. pureS 0) (pureS maxBound,liftS2 (-) a (pureS 1))
+loopingDec :: (Bounded a, Num a, Rep a, sig ~ CSeq c) => sig a -> sig a
+loopingDec a = mux (a .==. 0) (a - 1,maxBound)
 
 

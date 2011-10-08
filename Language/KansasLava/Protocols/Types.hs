@@ -10,7 +10,7 @@
 module Language.KansasLava.Protocols.Types where
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Signal
+import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 
@@ -40,11 +40,11 @@ instance Rep Ack where
   showRep         = showRepDefault
 
 -- | Convert a 'Bool' signal to an 'Ack' signal.
-toAck :: (Signal sig) => sig Bool -> sig Ack
+toAck :: (sig ~ CSeq clk) => sig Bool -> sig Ack
 toAck = coerce Ack
 
 -- | Convert an 'Ack' to a 'Bool' signal.
-fromAck :: (Signal sig) => sig Ack -> sig Bool
+fromAck :: (sig ~ CSeq clk) => sig Ack -> sig Bool
 fromAck = coerce unAck
 
 ------------------------------------------------------------------------------------
@@ -68,11 +68,11 @@ instance Rep Ready where
   showRep         = showRepDefault
 
 -- | Convert a Bool signal to a 'Ready' signal.
-toReady :: (Signal sig) => sig Bool -> sig Ready
+toReady :: (sig ~ CSeq clk) => sig Bool -> sig Ready
 toReady = coerce Ready
 
 -- | Convert a 'Ready' signal to a Bool signal.
-fromReady :: (Signal sig) => sig Ready -> sig Bool
+fromReady :: (sig ~ CSeq clk) => sig Ready -> sig Bool
 fromReady = coerce unReady
 
 ------------------------------------------------------------------------------------------------------------------------------------------------

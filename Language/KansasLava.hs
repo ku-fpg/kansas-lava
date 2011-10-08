@@ -18,6 +18,8 @@ module Language.KansasLava (
     -- * The CSeq and Seq types
     CSeq, Seq, 
     toSeq, toSeq', undefinedSeq, fromSeq,
+    pack, unpack,
+    packMatrix, unpackMatrix,
     
     -- * Rendering KLEG as a Graph
     writeDotCircuit,

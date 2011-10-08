@@ -44,9 +44,9 @@ pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
 -- Does not work for two clocks, *YET*
 -- call writeMemory
 -- | Write the input pipe to memory, return a circuit that does reads.
-writeMemory :: forall a d clk1 . (Clock clk1, Size a, Rep a, Rep d)
-	=> CSeq clk1 (Pipe a d)
-	-> CSeq clk1 (a -> d)
+writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ CSeq clk1, Size a, Rep a, Rep d)
+	=> sig (Pipe a d)
+	-> sig (a -> d)
 writeMemory pipe = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
@@ -59,7 +59,7 @@ writeMemory pipe = res
 
 	shallowRes :: Stream (X (a -> d))
 	shallowRes = pure (\ m -> XFunction $ \ ix ->
-			case getValidRepValue (toRep (optX (Just ix))) of
+			case getValidRepValue (toRep ix) of
 			       Nothing -> optX Nothing
 			       Just a' -> case lookup a' m of
 					    Nothing -> optX Nothing
@@ -138,7 +138,7 @@ readMemory mem addr = unpack mem addr
 
 -- This is an alias (TODO: remove)
 -- | Read a series of addresses.
-readMemory :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
+readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
 
@@ -148,13 +148,10 @@ syncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep 
 syncRead mem addr = delay (asyncRead mem addr)
 
 -- | Read a series of addresses.
-asyncRead :: forall a d sig . (Signal sig, Size a, Rep a, Rep d)
+asyncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
-				Comb (case unX x of
-				    	Just x' -> f x'
-				    	Nothing -> optX Nothing
-			     	     )
+				Comb (f x)
 			$ entity2 (Prim "asyncRead") me xe
 
 -- | memoryToMatrix should be used with caution/simulation  only,
@@ -165,7 +162,7 @@ memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 -- | Apply a function to the Enabled input signal producing a Pipe.
-enabledToPipe :: (Rep x, Rep y, Rep z, Signal sig) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ CSeq clk) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, liftS1 f x)
    where (en,x) = unpack se
 
@@ -189,15 +186,15 @@ cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> CSeq clk a -> CSeq clk b
 cmp env f inp = liftS2 f (delay env inp) inp
 
 -}
--- | Apply a function to the data output of a Pipe.
-mapPipe :: (Signal sig, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
-mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
+-- Apply a function to the data output of a Pipe.
+--mapPipe :: (sig ~ CSeq clk, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
+--mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
 
 {-
 -- | only combines pipes when both inputs are enabled, and *assumes* the
 -- x addresses are the same.
-zipPipe :: (Signal sig, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
+zipPipe :: (sig ~ CSeq clk, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 -}
 

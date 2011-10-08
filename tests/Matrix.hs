@@ -93,6 +93,8 @@ testMatrix2 (TestSeq test _) tyName ws = do
         test ("matrix/2/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
 
 
+type XX a = forall clk . CSeq clk  a
+
 
 testMatrix3 :: forall w1 .
 	(Size (ADD (W w1) X1), Rep w1, Show w1)
@@ -103,8 +105,8 @@ testMatrix3 :: forall w1 .
 testMatrix3 (TestSeq test _) tyName ws = do
         let ms = ws
 	    cir :: Seq (Enabled w1) -> Seq (Enabled w1)
-            cir = mapEnabled (\ m -> unpack m M.! 0)
-		. mapEnabled (\ x -> pack (M.matrix [ x, x ]) :: Comb (M.Matrix X2 w1))
+            cir = mapEnabled (\ m -> unpackMatrix m M.! (0 :: X2))
+		. mapEnabled (\ x -> packMatrix (M.matrix [ x, x ]))
             driver = do
 		return ()
                 outStdLogicVector "i0" (bitwise (toSeq ms) :: Seq (Enabled w1))

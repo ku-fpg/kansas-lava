@@ -113,7 +113,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
-import Language.KansasLava.Comb
 import Language.KansasLava.Signal
 import Language.KansasLava.Probes
 
@@ -266,7 +265,7 @@ openPatch = forwardPatch (\ a -> (() :> a)) $$
 -------------------------------------------------------------------------------
 
 mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ CSeq c)
-	 => (Comb a -> Comb b)
+	 => (forall clk' . CSeq clk' a -> CSeq clk' b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
 mapPatch = forwardPatch . mapEnabled
@@ -646,7 +645,7 @@ matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
 	          (sig Ack)          		  (Matrix x (sig Ack))
 matrixUnzipPatch =
 	matrixDupPatch $$
-	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
+	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS' x))
 
 -- | TODO: Andy write docs for this.
 deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)

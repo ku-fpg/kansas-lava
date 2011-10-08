@@ -93,6 +93,9 @@ data Type
         | MatrixTy Int Type
                         -- ^ Matrix, for example a vhdl array.
 
+        | FunctionTy Type Type
+                        -- ^ functions; not realizable in VHDL.
+
         -- TODO: Call this FixedPointTy
         | SampledTy Int Int
                         -- ^ Our "floating" values.
@@ -127,6 +130,7 @@ isTypeSigned GenericTy = False
 isTypeSigned (RomTy _) = False
 isTypeSigned (TupleTy _) = False
 isTypeSigned (MatrixTy _ _) = False
+isTypeSigned (FunctionTy {}) = False
 
 instance Show Type where
         show B          = "B"
@@ -139,6 +143,7 @@ instance Show Type where
         show (V i)      = show i ++ "V"
         show (TupleTy tys) = show tys
         show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
+        show (FunctionTy r d) = "(" ++ show r ++ "->" ++ show d ++ ")"
         show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
 
 -- This is required for the deserialization of Trace objects.
