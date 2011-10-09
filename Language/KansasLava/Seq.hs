@@ -10,6 +10,7 @@
 module Language.KansasLava.Seq where
 
 import Control.Applicative
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
 
 import Data.Sized.Ix
@@ -32,12 +33,31 @@ data CSeq (c :: *) a = Seq (S.Stream (X a)) (D a)
 -- | CSeq in some implicit clock domain.
 type Seq a = CSeq () a
 
-apS :: (Rep a, Rep b) => CSeq c (a -> b) -> CSeq c a -> CSeq c b
-apS (Seq f fe) (Seq a ae) = Seq (S.zipWith apX f a) (fe `apD` ae)
+--apS :: (Rep a, Rep b) => CSeq c (a -> b) -> CSeq c a -> CSeq c b
+--apS (Seq f fe) (Seq a ae) = Seq (S.zipWith apX f a) (fe `apD` ae)
 
 -- wrong location (To Move)
 entityD :: forall a . (Rep a) => String -> D a
-entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] []
+entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+                                                  []
+
+entityD1 :: forall a1 a . (Rep a, Rep a1) => String -> D a1 -> D a
+entityD1 nm (D a1) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+                                               [("i0",repType (Witness :: Witness a1),a1)]
+
+entityD2 :: forall a1 a2 a . (Rep a, Rep a1, Rep a2) => String -> D a1 -> D a2 -> D a
+entityD2 nm (D a1) (D a2) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
+                                               [("i0",repType (Witness :: Witness a1),a1)
+                                               ,("i1",repType (Witness :: Witness a2),a2)]
+                                               
+entityD3 :: forall a1 a2 a3 a . (Rep a, Rep a1, Rep a2, Rep a3) => String -> D a1 -> D a2 -> D a3 -> D a
+entityD3 nm (D a1) (D a2) (D a3) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
+                                               [("i0",repType (Witness :: Witness a1),a1)
+                                               ,("i1",repType (Witness :: Witness a2),a2)
+                                               ,("i1",repType (Witness :: Witness a3),a3)]
 
 pureD :: (Rep a) => a -> D a
 pureD a = pureXD (pureX a)
@@ -49,7 +69,7 @@ apD :: D (a -> b) -> D a -> D b
 apD (D (Port "o0" (E (Entity nm [("o0",FunctionTy t1 t2)] xs)))) (D e) 
         = D $ Port "o0" $ E $ Entity nm [("o0",t2)] (xs ++ [ (i,t1,e) ])
       where i = "i" ++ show (List.length xs)
-apD other f = error $ show ("apI",other,f)
+apD other f = error $ "internal error with apD: " ++ show (other,f)
 
 
 -- | Extract the shallow portion of a CSeq.
@@ -64,20 +84,32 @@ pureS :: (Rep a) => a -> CSeq i a
 pureS a = Seq (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
 primS :: (Rep a) => a -> String -> CSeq i a
-primS a nm = Seq (pure (pureX a)) (entityD nm)
+primS a nm = primXS (pureX a) nm
+
+primS1 :: (Rep a, Rep b) => (a -> b) -> String -> CSeq i a -> CSeq i b
+primS1 f nm = primXS1 (\ a -> optX $ liftM f (unX a)) nm
+
+primS2 :: (Rep a, Rep b, Rep c) => (a -> b -> c) -> String -> CSeq i a -> CSeq i b ->  CSeq i c
+primS2 f nm = primXS2 (\ a b -> optX $ liftM2 f (unX a) (unX b)) nm
+
+primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> CSeq i a -> CSeq i b -> CSeq i c -> CSeq i d
+primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
 
 primXS :: (Rep a) => X a -> String -> CSeq i a
 primXS a nm = Seq (pure a) (entityD nm)
 
-primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> CSeq i (a -> b)
-primXS1 f nm = primXS (unapX f) nm
+primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> CSeq i a -> CSeq i b
+primXS1 f nm (Seq a1 ae1) = Seq (fmap f a1) (entityD1 nm  ae1)
 
-primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> CSeq i (a -> b -> c)
-primXS2 f nm = primXS1 (\ a -> unapX (f a)) nm
+primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> CSeq i a -> CSeq i b ->  CSeq i c
+primXS2 f nm (Seq a1 ae1) (Seq a2 ae2) 
+        = Seq (S.zipWith f a1 a2) 
+              (entityD2 nm ae1 ae2)
 
 primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
-        => (X a -> X b -> X c -> X d) -> String -> CSeq i (a -> b -> c -> d)
-primXS3 f nm = primXS2 (\ a b -> unapX (f a b)) nm
+        => (X a -> X b -> X c -> X d) -> String ->  CSeq i a -> CSeq i b -> CSeq i c -> CSeq i d
+primXS3 f nm (Seq a1 ae1) (Seq a2 ae2)  (Seq a3 ae3)  = Seq (S.zipWith3 f a1 a2 a3)
+              (entityD3 nm  ae1  ae2  ae3)
 
 
 instance (Rep a, Show a) => Show (CSeq c a) where
@@ -91,12 +123,12 @@ instance (Rep a, Eq a) => Eq (CSeq c a) where
 	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
 
 instance (Num a, Rep a) => Num (CSeq i a) where
-    s1 + s2 = primS (+) "+" `apS` s1 `apS` s2
-    s1 - s2 = primS (-) "-" `apS` s1 `apS` s2
-    s1 * s2 = primS (*) "*" `apS` s1 `apS` s2
-    negate s1 = primS (negate) "negate" `apS` s1
-    abs s1    = primS (abs)    "abs"    `apS` s1
-    signum s1 = primS (signum) "signum" `apS` s1
+    s1 + s2 = primS2 (+) "+" s1 s2
+    s1 - s2 = primS2 (-) "-" s1 s2
+    s1 * s2 = primS2 (*) "*" s1 s2
+    negate s1 = primS1 (negate) "negate" s1
+    abs s1    = primS1 (abs)    "abs"    s1
+    signum s1 = primS1 (signum) "signum" s1
     fromInteger n = pureS (fromInteger n)
 
 
@@ -211,32 +243,30 @@ zipPacked f x y = pack $ f (unpack x) (unpack y)
 
 instance (Rep a, Rep b) => Pack i (a,b) where
 	type Unpacked i (a,b) = (CSeq i a,CSeq i b)
-	pack (a,b) = primS (,) "pair" `apS` a `apS` b
-	unpack ab = ( primS (fst) "fst" `apS` ab
-		    , primS (snd) "snd" `apS` ab
+	pack (a,b) = primS2 (,) "pair"  a  b
+	unpack ab = ( primS1 (fst) "fst"  ab
+		    , primS1 (snd) "snd"  ab
 		    )
 
 
 instance (Rep a) => Pack i (Maybe a) where
 	type Unpacked i (Maybe a) = (CSeq i Bool, CSeq i a)
 
-	pack (a,b) = primXS (unapX $ \ a' -> 
-	                     unapX $ \ b' -> case unX a' of
+	pack (a,b) = primXS2 (\ a' b' -> case unX a' of
 	                                  Nothing    -> optX Nothing
 					  Just False -> optX $ Just Nothing
 					  Just True  -> optX (Just (unX b')))
-                             "pair" 
-                 `apS` a `apS` b
-	unpack ma = ( primXS (unapX $ \ a -> case unX a of
+                             "pair" a b
+	unpack ma = ( primXS1 (\ a -> case unX a of
 					Nothing -> optX Nothing
 					Just Nothing -> optX (Just False)
 					Just (Just _) -> optX (Just True))
-                             "fst" `apS` ma
-		    , primXS (unapX $ \ a -> case unX a of
+                             "fst" ma
+		    , primXS1 (\ a -> case unX a of
 					Nothing -> optX Nothing
 					Just Nothing -> optX Nothing
 					Just (Just v) -> optX (Just v))
-                              "snd" `apS` ma
+                              "snd" ma
 		    )
 
 

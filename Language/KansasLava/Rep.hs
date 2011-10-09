@@ -21,6 +21,7 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
+import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
 
@@ -229,36 +230,38 @@ instance (Size ix) => Rep (Signed ix) where
 -----------------------------------------------------------------------------
 -- The grandfather of them all, functions.
 
-data FunWidth
+instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
+    type W (ix -> a) = MUL ix (W a)
+    data X (ix -> a) = XFunction (ix -> X a)
 
-instance (Rep a, Rep ix) => Rep (ix -> a) where
-    type W (ix -> a) = FunWidth
-    data X (ix -> a) = XFunction (X ix -> X a)
+    optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
+    optX Nothing    = XFunction $ const (optX Nothing)
 
-    optX (Just f) = XFunction $ (optX . liftM f . unX)
-    optX Nothing  = XFunction $ const (optX Nothing)
+    -- assumes total function
+    unX (XFunction f) = return (Maybe.fromJust . unX . f)
 
-    unX (XFunction _f) = Nothing
-
-    repType Witness = FunctionTy (repType (Witness :: Witness ix)) (repType (Witness :: Witness a))
+    repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
 
     -- reuse the matrix encodings here
     -- TODO: work out how to remove the Size ix constraint,
     -- and use Rep ix somehow instead.
-    toRep (XFunction _f) = error "toRep: function"
-    fromRep _xs = XFunction $ error "fromRep: function"
+    toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
+    fromRep (RepValue xs) = XFunction $ \ ix ->
+        case fromRep (RepValue xs) of
+           XMatrix m -> m M.! ix
 
-
+{-
 infixl 4 `apX`
 
 -- The applicative functor style 'ap'.
 apX :: (Rep a, Rep b) => X (a -> b) -> X a -> X b
 apX (XFunction f) a = f a
 
--- The apX^{-1} function. Useful when building applicative functor style things
+-- The apX-1 function. Useful when building applicative functor style things
 -- on top of 'X'.
 unapX :: (Rep a, Rep b) => (X a -> X b) -> X (a -> b) 
 unapX f = XFunction f
+-} 
 
 -----------------------------------------------------------------------------
 

@@ -58,13 +58,13 @@ writeMemory pipe = res
     	res = Seq shallowRes (D $ Port "o0" $ E entity)
 
 	shallowRes :: Stream (X (a -> d))
-	shallowRes = pure (\ m -> XFunction $ \ ix ->
-			case getValidRepValue (toRep ix) of
-			       Nothing -> optX Nothing
-			       Just a' -> case lookup a' m of
-					    Nothing -> optX Nothing
-					    Just v -> optX (Just v)
-			  )
+        shallowRes = pure (\ m -> XFunction $ \ ix ->
+                        case getValidRepValue (toRep (optX (Just ix))) of
+                               Nothing -> optX Nothing
+                               Just a' -> case lookup a' m of
+                                            Nothing -> optX Nothing
+                                            Just v -> optX (Just v)
+                          )
 			<*> mem -- (emptyMEM :~ mem)
 --			    <*> ({- optX Nothing :~ -} seqValue addr2)
 
@@ -151,7 +151,10 @@ syncRead mem addr = delay (asyncRead mem addr)
 asyncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
-				Comb (f x)
+                                Comb (case unX x of
+                                        Just x' -> f x'
+                                        Nothing -> optX Nothing
+                                     )
 			$ entity2 (Prim "asyncRead") me xe
 
 -- | memoryToMatrix should be used with caution/simulation  only,
