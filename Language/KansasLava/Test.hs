@@ -116,10 +116,8 @@ testFabrics
         -> (Fabric (Int -> Maybe String))    -- Driver
         -> IO ()
 testFabrics opts simMods name count f_dut f_expected
-   | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = do
-        let verb = verbose (verboseOpt opts) name
-            path = (simPath opts) </> name
-            report = fileReporter $ simPath opts
+   | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = (do
+        
 
         verb 2 $ "testing(" ++ show count ++ ")"
 
@@ -186,8 +184,14 @@ testFabrics opts simMods name count f_dut f_expected
 --                  verb 4 $ show $ take count shallow
 --                  verb 4 "EXPECT OUT MESSAGE:"
                   verb 4 $ msg
-                  report name $ ShallowFail -- t_dut msg
+                  report name $ ShallowFail) `E.catch` 
+                (\ (e :: E.SomeException) -> do verb 2 $ ("SomeException: " ++ show e) 
+                                                report name TestAborted)
   | otherwise = return ()
+ where
+         verb = verbose (verboseOpt opts) name
+         path = (simPath opts) </> name
+         report = fileReporter $ simPath opts
 
 simCompare :: FilePath -> (Result -> IO ()) -> (Int -> String -> IO ()) -> IO ()
 simCompare path report verb = do
@@ -384,13 +388,14 @@ data Summary = Summary { sfail :: Int
                        , vhdlfail :: Int
                        , simfail :: Int
                        , compfail :: Int
+                       , testaborted :: Int
                        , passed :: Int
                        , total :: Int
                        }
 
 
 instance Show Summary where
-    show summary = unlines [tt,sf,sp,rf,gn,vf,cp,si,ps]
+    show summary = unlines [tt,sf,sp,rf,gn,vf,cp,si,ja,ps]
         where tt = "Total tests: " ++ show (total summary)
               sf = "Shallow test failures: " ++ show (sfail summary)
               sp = "Shallow tests passed: "
@@ -409,6 +414,7 @@ instance Show Summary where
               vf = "VHDL compilation failures: " ++ show (vhdlfail summary)
               cp = "Simulation failures (non-matching traces): " ++ show (compfail summary)
               si = "Simulation failures (other): " ++ show (simfail summary)
+              ja = "Tests that just aborted: " ++ show (testaborted summary)
               ps = "Simulation tests passed: " ++ show (passed summary)
 
 generateReport :: FilePath -> IO ()
@@ -452,12 +458,13 @@ addtoSummary (CodeGenFail {}) s = s { codegenfail = 1 + (codegenfail s) }
 addtoSummary (CompileFail {}) s = s { vhdlfail = 1 + (vhdlfail s) }
 addtoSummary (SimFail {})     s = s { simfail = 1 + (simfail s) }
 addtoSummary (CompareFail {}) s = s { compfail = 1 + (compfail s) }
+addtoSummary (TestAborted)    s = s { testaborted = 1 + (testaborted s) }
 addtoSummary (Pass {})        s = s { passed = 1 + (passed s) }
 
 buildReport :: [TestCase] -> Report
 buildReport rs = Report summary rs
     where rs' = map snd rs
-          summary = foldr addtoSummary (Summary 0 0 0 0 0 0 0 0 (length rs')) rs'
+          summary = foldr addtoSummary (Summary 0 0 0 0 0 0 0 0 0 (length rs')) rs'
 
 reportToSummaryHtml :: Report -> IO String
 reportToSummaryHtml (Report summary _) = do
@@ -508,6 +515,7 @@ reportToHtml (Report summary results) = do
                                            CompileFail {} -> ("compilefail", "VHDL Compilation Failed")
                                            SimFail {} -> ("simfail", "Simulation Failed (other)")
                                            CompareFail {} -> ("comparefail", "Failed")
+                                           TestAborted {} -> ("testabort", "Test Aborted")
                                            Pass {} -> ("pass", "Passed")
                       ]
     return $ header ++ (summaryToHtml summary) ++ mid ++ showall ++ res ++ footer
@@ -547,7 +555,9 @@ testDriver dopt tests = do
                                         [ Handler $ \ (ex :: AsyncException) -> do
                                              putStrLn ("AsyncException: " ++ show ex)
                                              throw ex
-                                        , Handler $ \ (_ :: SomeException) -> return ()
+                                        , Handler $ \ (ex :: SomeException) -> do
+                                             putStrLn ("SomeException: " ++ show ex)
+                                             throw ex
                                         ]
                                    loop
                 in loop
@@ -654,6 +664,7 @@ data Result = ShallowFail {- Trace String -}      -- Shallow result doesn't matc
             | CompileFail {- String -}             -- VHDL compilation failed during simulation
             | SimFail     {- String -}            -- Modelsim failed for some other reason
             | CompareFail {- Trace Trace String -} -- Deep result didn't match the shallow result
+            | TestAborted                          -- Something went badly wrong a some stage
             | Pass        {- Trace Trace String  -}-- Deep matches shallow which matches expected
     deriving (Show, Read)
 
