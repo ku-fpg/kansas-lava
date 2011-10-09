@@ -69,6 +69,17 @@ primS a nm = Seq (pure (pureX a)) (entityD nm)
 primXS :: (Rep a) => X a -> String -> CSeq i a
 primXS a nm = Seq (pure a) (entityD nm)
 
+primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> CSeq i (a -> b)
+primXS1 f nm = primXS (unapX f) nm
+
+primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> CSeq i (a -> b -> c)
+primXS2 f nm = primXS1 (\ a -> unapX (f a)) nm
+
+primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
+        => (X a -> X b -> X c -> X d) -> String -> CSeq i (a -> b -> c -> d)
+primXS3 f nm = primXS2 (\ a b -> unapX (f a b)) nm
+
+
 instance (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
          	= concat [ showRep x ++ " "
@@ -248,24 +259,45 @@ unpackMatrix a = unpack a
 packMatrix :: (Rep a, Size x, sig ~ CSeq clk) => M.Matrix x (sig a) -> sig (M.Matrix x a)
 packMatrix a = pack a
 
-
 instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
 	type Unpacked clk (Matrix ix a) = Matrix ix (CSeq clk a)
-        pack = error "pack/Matrix"
-        unpack = error "pack/Matrix"
-{-
-	pack m = liftSL (\ ms -> let sh = M.fromList [ m' | Comb m' _ <- ms ]
-				     de = entityN (Prim "concat") [ d | Comb _ d <- ms ]
-				 in Comb (XMatrix sh) de) (M.toList m)
-        -- unpack :: sig (Matrix ix a) -> Matrix ix (sig a)
-	unpack s = forAll $ \ ix ->
-			liftS1 (\ (Comb (XMatrix s') d) -> Comb (s' ! ix)
-					       (entity2 (Prim "index")
-							(D $ Generic (mx ! ix) :: D Integer)
-							d
-					       )
-			        ) s
+        pack m = Seq shallow
+                     deep
+          where
+                shallow :: (S.Stream (X (Matrix ix a)))
+                shallow = id
+                        $ S.fromList            -- Stream (X (Matrix ix a))
+                        $ fmap XMatrix          -- [(X (Matrix ix a))]
+                        $ fmap M.fromList       -- [Matrix ix (X a)]
+                        $ List.transpose        -- [[X a]]
+                        $ fmap S.toList         -- [[X a]]
+                        $ fmap seqValue         -- [Stream (X a)]
+                        $ M.toList              -- [sig a]
+                        $ m                     -- Matrix ix (sig a)
+
+                deep :: D (Matrix ix a)
+                deep = D 
+                     $ Port "o0" 
+                     $ E 
+                     $ Entity (Prim "concat")
+                                 [("o0",repType (Witness :: Witness (Matrix ix a)))]
+                                 [ ("i" ++ show i,repType (Witness :: Witness a),unD $ seqDriver $ x)
+                                 | (x,i) <- zip (M.toList m) ([0..] :: [Int])
+                                 ]
+
+        unpack ms = forAll $ \ i -> Seq (shallow i) (deep i)
+        
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ _ b -> b) (M.indices mx) [0..])
 
--}
+                 deep i = D 
+                        $ Port "o0" 
+                        $ E 
+                        $ Entity (Prim "index")
+                                 [("o0",repType (Witness :: Witness a))]
+                                 [("i0",GenericTy,Generic (mx ! i))
+                                 ,("i1",repType (Witness :: Witness (Matrix ix a)),unD $ seqDriver ms)
+                                 ]
+
+                 shallow i = fmap (liftX (M.! i)) (seqValue ms)
+
