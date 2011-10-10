@@ -71,7 +71,7 @@ bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
 testABit :: forall sig a i . (Bits a, Rep a,  sig ~ Signal i) => sig a -> Int -> sig Bool
-testABit (Seq a ae) i = Seq (fmap (liftX (flip testBit i)) a)
+testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
                             (entityD2 "testBit"  ae
                                                  (pureD (fromIntegral i :: Integer)))
 
@@ -108,7 +108,7 @@ infixr 2 .^.
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
 funMap :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
-funMap fn (Seq a ae) = Seq (fmap fn' a) 
+funMap fn (Signal a ae) = Signal (fmap fn' a) 
                             (D $ Port ("o0")
 			       $ E
 			       $ Entity (Prim "asyncRead")
@@ -359,7 +359,7 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
 refinesFrom :: forall sig a i . ( sig ~ Signal i, Rep a) => sig a -> sig a -> sig Bool
-refinesFrom a b = shallowSeq (S.zipWith fn (seqValue a) (seqValue b))
+refinesFrom a b = shallowSignal (S.zipWith fn (seqValue a) (seqValue b))
    where
            fn a' b' = let res =  and  [ case (vut,ref) of
                                            (_,Nothing)       -> True

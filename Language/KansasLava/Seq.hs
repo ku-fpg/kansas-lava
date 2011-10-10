@@ -29,16 +29,16 @@ import Language.KansasLava.Types
 -- We assume edge triggered logic (checked at (typically) rising edge of clock)
 -- This clock is assumed known, based on who is consuming the list.
 -- Right now, it is global, but we think we can support multiple clocks with a bit of work.
-data Signal (c :: *) a = Seq (S.Stream (X a)) (D a)
+data Signal (c :: *) a = Signal (S.Stream (X a)) (D a)
 
 -- | Signal in some implicit clock domain.
 type Seq a = Signal () a
 
 --apS :: (Rep a, Rep b) => Signal c (a -> b) -> Signal c a -> Signal c b
---apS (Seq f fe) (Seq a ae) = Seq (S.zipWith apX f a) (fe `apD` ae)
+--apS (Signal f fe) (Signal a ae) = Signal (S.zipWith apX f a) (fe `apD` ae)
 
 idD :: forall a sig clk . (Rep a, sig ~ Signal clk) => Id -> sig a -> sig a
-idD id' (Seq a ae) = Seq a $ D $ Port "o0" $ E 
+idD id' (Signal a ae) = Signal a $ D $ Port "o0" $ E 
                      $ Entity id'
                          [("o0",repType (Witness :: Witness a))]
                          [("i0",repType (Witness :: Witness a),unD $ ae)]
@@ -81,28 +81,28 @@ apD other f = error $ "internal error with apD: " ++ show (other,f)
 
 -- | Extract the shallow portion of a Signal.
 seqValue :: Signal c a -> S.Stream (X a)
-seqValue (Seq a _) = a
+seqValue (Signal a _) = a
 
 -- | Extract the deep portion of a Signal.
 seqDriver :: Signal c a -> D a
-seqDriver (Seq _ d) = d
+seqDriver (Signal _ d) = d
 
 pureS :: (Rep a) => a -> Signal i a
-pureS a = Seq (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
+pureS a = Signal (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
 -- | Inject a deep value into a Signal. The shallow portion of the Signal will be an
 -- error, if it is every used.
-deepSeq :: D a -> Signal c a
-deepSeq = Seq (error "incorrect use of shallow Seq")
+deepSignal :: D a -> Signal c a
+deepSignal = Signal (error "incorrect use of shallow Signal")
 
 -- | Inject a shallow value into a Signal. The deep portion of the Signal will be an
 -- Error if it is ever used.
-shallowSeq :: S.Stream (X a) -> Signal c a
-shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
+shallowSignal :: S.Stream (X a) -> Signal c a
+shallowSignal s = Signal s (D $ Error "incorrect use of deep Signal")
 
 -- | Create a Signal with undefined for both the deep and shallow elements.
-undefinedSeq ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
-undefinedSeq = Seq (pure $ optX Nothing)
+undefinedSignal ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
+undefinedSignal = Signal (pure $ optX Nothing)
 		      (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
 comment :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
@@ -122,30 +122,30 @@ primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> Signal
 primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
 
 primXS :: (Rep a) => X a -> String -> Signal i a
-primXS a nm = Seq (pure a) (entityD nm)
+primXS a nm = Signal (pure a) (entityD nm)
 
 primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> Signal i a -> Signal i b
-primXS1 f nm (Seq a1 ae1) = Seq (fmap f a1) (entityD1 nm  ae1)
+primXS1 f nm (Signal a1 ae1) = Signal (fmap f a1) (entityD1 nm  ae1)
 
 primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> Signal i a -> Signal i b ->  Signal i c
-primXS2 f nm (Seq a1 ae1) (Seq a2 ae2) 
-        = Seq (S.zipWith f a1 a2) 
+primXS2 f nm (Signal a1 ae1) (Signal a2 ae2) 
+        = Signal (S.zipWith f a1 a2) 
               (entityD2 nm ae1 ae2)
 
 primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
         => (X a -> X b -> X c -> X d) -> String ->  Signal i a -> Signal i b -> Signal i c -> Signal i d
-primXS3 f nm (Seq a1 ae1) (Seq a2 ae2)  (Seq a3 ae3)  = Seq (S.zipWith3 f a1 a2 a3)
+primXS3 f nm (Signal a1 ae1) (Signal a2 ae2)  (Signal a3 ae3)  = Signal (S.zipWith3 f a1 a2 a3)
               (entityD3 nm  ae1  ae2  ae3)
 
 instance (Rep a, Show a) => Show (Signal c a) where
-	show (Seq vs _)
+	show (Signal vs _)
          	= concat [ showRep x ++ " "
                          | x <- take 20 $ S.toList vs
                          ] ++ "..."
 
 instance (Rep a, Eq a) => Eq (Signal c a) where
 	-- Silly question; never True; can be False.
-	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
+	(Signal _ _) == (Signal _ _) = error "undefined: Eq over a Signal"
 
 instance (Num a, Rep a) => Num (Signal i a) where
     s1 + s2 = primS2 (+) "+" s1 s2
@@ -207,32 +207,32 @@ instance (Rep a, Integral a) => Integral (Signal i a) where
 
 {-
 instance Signal (Signal c) where
-  liftS0 c = Seq (pure (combValue c)) (combDriver c)
+  liftS0 c = Signal (pure (combValue c)) (combDriver c)
 
-  liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
+  liftS1 f (Signal a ea) = {-# SCC "liftS1Signal" #-}
     let deep = combDriver (f (deepComb ea))
 	f' = combValue . f . shallowComb
-   in Seq (fmap f' a) deep
+   in Signal (fmap f' a) deep
 
   -- We can not replace this with a version that uses packing,
   -- because *this* function is used by the pack/unpack stuff.
-  liftS2 f (Seq a ea) (Seq b eb) = Seq (S.zipWith f' a b) ec
+  liftS2 f (Signal a ea) (Signal b eb) = Signal (S.zipWith f' a b) ec
       where
 	ec = combDriver $ f (deepComb ea) (deepComb eb)
 	f' x y = combValue (f (shallowComb x) (shallowComb y))
 
-  liftS3 f (Seq a ea) (Seq b eb) (Seq c ec) = Seq (S.zipWith3 f' a b c) ed
+  liftS3 f (Signal a ea) (Signal b eb) (Signal c ec) = Signal (S.zipWith3 f' a b c) ed
       where
 	ed = combDriver $ f (deepComb ea) (deepComb eb) (deepComb ec)
 	f' x y z = combValue (f (shallowComb x) (shallowComb y) (shallowComb z))
 
-  liftSL f ss = Seq (S.fromList
+  liftSL f ss = Signal (S.fromList
 		    [ combValue $ f [ shallowComb x | x <- xs ]
-		    | xs <- List.transpose [ S.toList x | Seq x _ <- ss ]
+		    | xs <- List.transpose [ S.toList x | Signal x _ <- ss ]
 		    ])
 		    (combDriver (f (map (deepComb . seqDriver) ss)))
 
-  deepS (Seq _ d) = d
+  deepS (Signal _ d) = d
 -}
 ----------------------------------------------------------------------------------------------------
 
@@ -240,44 +240,44 @@ instance Signal (Signal c) where
 
 -- | Convert a list of values into a Signal. The shallow portion of the resulting
 -- Signal will begin with the input list, then an infinite stream of X unknowns.
-toSeq :: (Rep a) => [a] -> Signal c a
-toSeq xs = shallowSeq (S.fromList (map optX (map Just xs ++ repeat Nothing)))
+toSignal :: (Rep a) => [a] -> Signal c a
+toSignal xs = shallowSignal (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
 -- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
-toSeq' :: (Rep a) => [Maybe a] -> Signal c a
-toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
+toSignal' :: (Rep a) => [Maybe a] -> Signal c a
+toSignal' xs = shallowSignal (S.fromList (map optX (xs ++ repeat Nothing)))
 
--- | Convert a list of X values to a Seq. Pad the end with an infinite list of X unknowns.
-toSeqX :: forall a c . (Rep a) => [X a] -> Signal c a
-toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
+-- | Convert a list of X values to a Signal. Pad the end with an infinite list of X unknowns.
+toSignalX :: forall a c . (Rep a) => [X a] -> Signal c a
+toSignalX xs = shallowSignal (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
 -- | Convert a Signal of values into a list of Maybe values.
-fromSeq :: (Rep a) => Signal c a -> [Maybe a]
-fromSeq = fmap unX . S.toList . seqValue
+fromSignal :: (Rep a) => Signal c a -> [Maybe a]
+fromSignal = fmap unX . S.toList . seqValue
 
 -- | Convret a Signal of values into a list of representable values.
-fromSeqX :: (Rep a) => Signal c a -> [X a]
-fromSeqX = S.toList . seqValue
+fromSignalX :: (Rep a) => Signal c a -> [X a]
+fromSignalX = S.toList . seqValue
 
 -- | Compare the first depth elements of two Signals.
-cmpSeqRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
-cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
+cmpSignalRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
+cmpSignalRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 								(seqValue s1)
 								(seqValue s2)
 
 -----------------------------------------------------------------------------------
 
 instance Dual (Signal c a) where
-    dual c d = Seq (seqValue c) (seqDriver d)
+    dual c d = Signal (seqValue c) (seqDriver d)
 
 -- alias
 bitTypeOf :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
-bitTypeOf = typeOfSeq
+bitTypeOf = typeOfSignal
 
 -- | Return the Lava type of a representable signal.
-typeOfSeq :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
-typeOfSeq _ = repType (Witness :: Witness w)
+typeOfSignal :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
+typeOfSignal _ = repType (Witness :: Witness w)
 
 -- | The Pack class allows us to move between signals containing compound data
 -- and signals containing the elements of the compound data. This is done by
@@ -355,7 +355,7 @@ packMatrix a = pack a
 
 instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
 	type Unpacked clk (Matrix ix a) = Matrix ix (Signal clk a)
-        pack m = Seq shallow
+        pack m = Signal shallow
                      deep
           where
                 shallow :: (S.Stream (X (Matrix ix a)))
@@ -379,7 +379,7 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                                  | (x,i) <- zip (M.toList m) ([0..] :: [Int])
                                  ]
 
-        unpack ms = forAll $ \ i -> Seq (shallow i) (deep i)
+        unpack ms = forAll $ \ i -> Signal (shallow i) (deep i)
         
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ _ b -> b) (M.indices mx) [0..])
@@ -399,12 +399,12 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
 
 -- | a delay is a register with no defined default / initial value.
 delay :: forall a clk . (Rep a, Clock clk) => Signal clk a -> Signal clk a
-delay ~(Seq line eline) = res
+delay ~(Signal line eline) = res
    where
         def = optX $ Nothing
 
         -- rep = toRep def
-	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
+	res = Signal sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
 	sres1 = S.Cons def sres0
@@ -422,12 +422,12 @@ delays n ss = iterate delay ss !! n
 
 -- | A register is a state element with a reset. The reset is supplied by the clock domain in the Signal.
 register :: forall a clk .  (Rep a, Clock clk) => a -> Signal clk a -> Signal clk a
-register first  ~(Seq line eline) = res
+register first  ~(Signal line eline) = res
    where
         def = optX $ Just first
 
         rep = toRep def
-	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
+	res = Signal sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
 	sres1 = S.Cons def sres0

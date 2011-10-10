@@ -681,7 +681,7 @@ matchExpected out_name ref = do
         let sq = o0 `refinesFrom` ref
         return $ \ count ->
                 case [ i::Int
-                     | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSeq sq)
+                     | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSignal sq)
                      , v /= Just True
                      ] of
                      [] -> Nothing

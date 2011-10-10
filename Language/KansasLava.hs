@@ -13,7 +13,7 @@ module Language.KansasLava (
 
     -- * The CSeq and Seq types
     Signal, Seq, 
-    toSeq, toSeq', undefinedSeq, fromSeq,
+    toSignal, toSignal', undefinedSignal, fromSignal,
     pack, unpack,
     packMatrix, unpackMatrix,
     register, registers, delay, delays,

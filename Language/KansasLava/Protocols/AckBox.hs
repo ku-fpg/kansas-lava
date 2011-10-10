@@ -62,7 +62,7 @@ toAckBox' :: (Rep a, Clock c, sig ~ Signal c)
              -> Patch [Maybe a] 		(sig (Enabled a))
 		      ()			(sig Ack)
 
-toAckBox' pauses ~(ys,ack) = ((),toSeq (fn ys (fromSeq ack) pauses))
+toAckBox' pauses ~(ys,ack) = ((),toSignal (fn ys (fromSignal ack) pauses))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   -- send the value *before* checking the Ack
@@ -97,9 +97,9 @@ fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ack)			()
-fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), map snd internal)
+fromAckBox' pauses ~(inp,_) = (toSignal (map fst internal), map snd internal)
    where
-        internal = fn (fromSeq inp) pauses
+        internal = fn (fromSignal inp) pauses
 
 	-- pretty simple API
 	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ack,Maybe a)]
@@ -242,12 +242,12 @@ liftAckBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
               => (forall c' . (Clock c') => Signal c' a)
               -> sig Ack
               -> sig (Enabled a)
-liftAckBox seq' (Seq s_ack d_ack) = enabledS res
+liftAckBox seq' (Signal s_ack d_ack) = enabledS res
 
    where
-        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick
+        Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick
 
-        res = Seq (fn s_seq s_ack)
+        res = Signal (fn s_seq s_ack)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
                                         [("o0",bitTypeOf res)]
                                         [("i0",bitTypeOf res, unD d_seq)

@@ -113,7 +113,7 @@ class Traceable a where
     getSignal :: TraceStream -> a
 
 instance Rep a => Traceable (Signal c a) where
-    getSignal ts = shallowSeq $ fromTrace ts
+    getSignal ts = shallowSignal $ fromTrace ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 

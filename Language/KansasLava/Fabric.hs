@@ -123,7 +123,7 @@ output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 -- | Generate a named std_logic input port.
 inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
-        pad <- input nm (StdLogic $ deepSeq $ D $ Pad nm)
+        pad <- input nm (StdLogic $ deepSignal $ D $ Pad nm)
         return $ case pad of
           StdLogic sq -> bitwise sq
           _           -> error "internal type error in inStdLogic"
@@ -139,7 +139,7 @@ inGeneric nm = do
 -- | Generate a named std_logic_vector port input.
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-	let seq' = deepSeq $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
+	let seq' = deepSignal $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
         return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
@@ -176,7 +176,7 @@ outStdLogicVector
   :: forall a .
      (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
 outStdLogicVector nm sq =
-		  case toStdLogicType (typeOfSeq sq) of
+		  case toStdLogicType (typeOfSignal sq) of
 		    SLV _ -> output nm (StdLogicVector sq)
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 		    _     -> output nm $ StdLogicVector

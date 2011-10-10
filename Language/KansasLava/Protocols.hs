@@ -8,7 +8,7 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Patch,
 	-- for now
 	shallowFIFO,
-	upFlux, downFlux, fluxCapacitor
+--	upFlux, downFlux, fluxCapacitor
 	) where
 
 import Language.KansasLava.Protocols.Enabled
@@ -22,8 +22,8 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Seq
 
-import Language.KansasLava.Stream (Stream(..))
-import qualified Language.KansasLava.Stream as Stream
+--import Language.KansasLava.Stream (Stream(..))
+--import qualified Language.KansasLava.Stream as Stream
 
 
 -- | A (shallow only) infinite FIFO, for connecting
@@ -57,11 +57,11 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
 
 	Seq s_seq _ = fn
 
- (Seq s_Ready d_Ready) = res
+ (Signal s_Ready d_Ready) = res
    where
-        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick, we can use *any* clock
+        Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick, we can use *any* clock
 
-	ty = bitTypeOf (undefined :: Seq a)
+	ty = bitTypeOf (undefined :: Signal a)
 
 	e = Entity (External "flux")
                    [("o_en",B)
@@ -73,7 +73,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
                    ]
 
 	res :: sig (Enabled a)
-        res = Seq (fn0 s_seq s_Ready)
+        res = Signal (fn0 s_seq s_Ready)
                   (D $ Port "o0" $ E $
 			Entity (Prim "pair")
 				[("o0",bitTypeOf res)]
@@ -96,7 +96,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
 
 
 -}
-
+{-
 upFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ Signal c1, sig2 ~ Signal c2)
        => ( sig2 Bool, sig1 a ) -> sig2 (Enabled a)
 upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
@@ -182,3 +182,4 @@ fluxCapacitor f sig = upFlux ( clk_en, f slow_a )
 	slow_a :: Seq a	-- can be *any*, so we use the standard clock for wiring.
 	( clk_en, slow_a ) = downFlux sig
 
+-}

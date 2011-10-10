@@ -60,7 +60,7 @@ toReadyBox' :: (Rep a, Clock c, sig ~ Signal c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a]  			(sig (Enabled a))
 		      ()				(sig Ready)
-toReadyBox' pauses ~(ys,full) = ((),toSeq (fn ys (fromSeq full) pauses))
+toReadyBox' pauses ~(ys,full) = ((),toSignal (fn ys (fromSignal full) pauses))
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
 	   -- send the value *before* checking the Ready
@@ -92,9 +92,9 @@ fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ready)			()
-fromReadyBox' ps ~(inp,_) = (toSeq (map fst internal), map snd internal)
+fromReadyBox' ps ~(inp,_) = (toSignal (map fst internal), map snd internal)
    where
-        internal = fn (fromSeq inp) ps
+        internal = fn (fromSignal inp) ps
 
 	-- pretty simple API
 	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ready,Maybe a)]
@@ -110,7 +110,7 @@ fromReadyBox' ps ~(inp,_) = (toSeq (map fst internal), map snd internal)
 {-
 test1 xs = xs'
     where
-	e = toReadyBox' (repeat 0) xs (full :: Seq Ready)
+	e = toReadyBox' (repeat 0) xs (full :: Signal Ready)
  	(full,xs') = fromReadyBox' [0..] e
 -}
 
@@ -211,12 +211,12 @@ liftReadyBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
               => (forall c' . (Clock c') => Signal c' a)
               -> sig Full
               -> sig (Enabled a)
-liftReadyBox seq' (Seq s_Full d_Full) = enabledS res
+liftReadyBox seq' (Signal s_Full d_Full) = enabledS res
 
    where
-        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick
+        Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick
 
-        res = Seq (fn s_seq s_Full)
+        res = Signal (fn s_seq s_Full)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
                                         [("o0",bitTypeOf res)]
                                         [("i0",bitTypeOf res, unD d_seq)

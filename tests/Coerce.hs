@@ -124,7 +124,7 @@ testUnsigned (TestSeq test _) tyName Witness ws = do
         let ms = ws
             cir = unsigned :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (toSeq ms)
+                outStdLogicVector "i0" (toSignal ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir (i0)
@@ -132,7 +132,7 @@ testUnsigned (TestSeq test _) tyName Witness ws = do
 
             -- will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq' [ if toInteger m > toInteger (maxBound :: w2)
+            res = cir $ toSignal' [ if toInteger m > toInteger (maxBound :: w2)
                                  || toInteger m < toInteger (minBound :: w2)
                                 then fail "out of bounds"
                                 else return m
@@ -147,7 +147,7 @@ testSigned (TestSeq test _) tyName Witness ws = do
         let ms = ws
             cir = signed :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (toSeq ms)
+                outStdLogicVector "i0" (toSignal ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir (i0)
@@ -155,7 +155,7 @@ testSigned (TestSeq test _) tyName Witness ws = do
 
             -- will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq' [ if (fromIntegral m :: Int) > fromIntegral (maxBound :: w2)
+            res = cir $ toSignal' [ if (fromIntegral m :: Int) > fromIntegral (maxBound :: w2)
                                  || (fromIntegral m :: Int) < fromIntegral (minBound :: w2)
                                  then fail "out of bounds"
                                  else return m
@@ -170,14 +170,14 @@ testBitwise (TestSeq test _) tyName Witness ws = do
         let ms = ws
             cir = bitwise :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (toSeq ms)
+                outStdLogicVector "i0" (toSignal ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir (i0)
                 outStdLogicVector "o0" (o0)
             -- will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq ms
+            res = cir $ toSignal ms
         test ("bitwise/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
@@ -187,13 +187,13 @@ testCoerce (TestSeq test _) tyName Witness ws f = do
         let ms =  ws
             cir = coerce f :: Seq w1 -> Seq w2
             driver = do
-                outStdLogicVector "i0" (toSeq ms)
+                outStdLogicVector "i0" (toSignal ms)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir (i0)
                 outStdLogicVector "o0" (o0)
             -- will always pass; it *is* the semantics here
             res :: Seq w2
-            res = cir $ toSeq ms
+            res = cir $ toSignal ms
         test ("coerce/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()

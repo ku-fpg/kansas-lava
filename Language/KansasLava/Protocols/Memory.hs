@@ -52,7 +52,7 @@ writeMemory pipe = res
 	(addr,dat) = unpack pipe'
 
     	res :: Signal clk1 (a -> d)
-    	res = Seq shallowRes (D $ Port "o0" $ E entity)
+    	res = Signal shallowRes (D $ Port "o0" $ E entity)
 
 	shallowRes :: Stream (X (a -> d))
         shallowRes = pure (\ m -> XFunction $ \ ix ->

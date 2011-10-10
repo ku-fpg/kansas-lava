@@ -108,13 +108,13 @@ class Probe a where
 
 instance (Clock c, Rep a) => Probe (Signal c a) where
     probe' NoProbe _ sq = sq
-    probe' TraceProbe (n:_) (Seq s (D d)) = Seq (obs s) (D d)
+    probe' TraceProbe (n:_) (Signal s (D d)) = Signal (obs s) (D d)
         where obs = foldr (\ (i,x) xs -> trace (show n ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
                   . zip [(0::Int)..]
                   . S.toList
-    probe' CaptureProbe (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
+    probe' CaptureProbe (n:_) (Signal s (D d)) = Signal s (D (insertProbe n strm d))
         where strm = toTrace s
-    probe' _ [] _ = error "Can't add probe: no name supply available (Seq)"
+    probe' _ [] _ = error "Can't add probe: no name supply available (Signal)"
 
 instance (Probe a, Probe b) => Probe (a,b) where
     probe' m names (x,y) = (probe' m (addSuffixToProbes names "-fst") x,
