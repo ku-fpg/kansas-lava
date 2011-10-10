@@ -2,11 +2,8 @@
 -- | This module provides abstractions for working with RAMs and ROMs.
 module Language.KansasLava.Protocols.Memory where
 
-import Language.KansasLava.Comb
-import Language.KansasLava.Entity
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
-import Language.KansasLava.Signal
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
@@ -150,12 +147,7 @@ syncRead mem addr = delay (asyncRead mem addr)
 -- | Read a series of addresses.
 asyncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
-asyncRead = liftS2 $ \ (Comb (XFunction f) me) (Comb x xe) ->
-                                Comb (case unX x of
-                                        Just x' -> f x'
-                                        Nothing -> optX Nothing
-                                     )
-			$ entity2 (Prim "asyncRead") me xe
+asyncRead = primS2 ($) "asyncRead"
 
 -- | memoryToMatrix should be used with caution/simulation  only,
 -- because this actually clones the memory to allow this to work,
@@ -165,8 +157,8 @@ memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 -- | Apply a function to the Enabled input signal producing a Pipe.
-enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ CSeq clk) => (Comb x -> Comb (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
-enabledToPipe f se = pack (en, liftS1 f x)
+enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ CSeq clk) => (forall j . CSeq j x -> CSeq j (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe f se = pack (en, f x)
    where (en,x) = unpack se
 
 

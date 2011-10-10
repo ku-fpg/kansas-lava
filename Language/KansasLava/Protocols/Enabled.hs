@@ -16,7 +16,6 @@ module Language.KansasLava.Protocols.Enabled
 
 import Language.KansasLava.Seq
 import Language.KansasLava.Rep
-import Language.KansasLava.Signal
 
 -- | Enabled is a synonym for Maybe.
 type Enabled a = Maybe a
@@ -46,7 +45,7 @@ enabledS s = pack (pureS True,s)
 
 -- | Create a signal that's never enabled.
 disabledS :: (Rep a, sig ~ CSeq clk) => sig (Enabled a)
-disabledS = pack (pureS False,undefinedS)
+disabledS = pack (pureS False,undefinedSeq)
 
 -- | Combine a boolean control signal and an data signal into an enabled signal.
 packEnabled :: (Rep a, sig ~ CSeq clk) => sig Bool -> sig a -> sig (Enabled a)

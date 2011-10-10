@@ -9,7 +9,6 @@ import Data.List(mapAccumL)
 import Language.KansasLava.Fabric
 import Language.KansasLava.Trace
 import Language.KansasLava.Types
-import Language.KansasLava.Utils
 import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixStdLogicTy, sizedRange)
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
@@ -411,3 +410,6 @@ preprocessNetlistCircuit cir = res
                                              _ -> error "fixUp"
                                  other -> other
                                  ) | (o,t,d) <- outs ])
+
+takeMaybe :: Maybe Int -> [a] -> [a]
+takeMaybe = maybe id take

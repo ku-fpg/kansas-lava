@@ -12,13 +12,14 @@ module Language.KansasLava.Seq where
 import Control.Applicative
 import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
+import Data.Bits
 
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
 
-import Language.KansasLava.Comb
+-- import Language.KansasLava.Comb
 import Language.KansasLava.Rep
-import Language.KansasLava.Signal
+--import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
@@ -35,6 +36,12 @@ type Seq a = CSeq () a
 
 --apS :: (Rep a, Rep b) => CSeq c (a -> b) -> CSeq c a -> CSeq c b
 --apS (Seq f fe) (Seq a ae) = Seq (S.zipWith apX f a) (fe `apD` ae)
+
+idD :: forall a sig clk . (Rep a, sig ~ CSeq clk) => Id -> sig a -> sig a
+idD id' (Seq a ae) = Seq a $ D $ Port "o0" $ E 
+                     $ Entity id'
+                         [("o0",repType (Witness :: Witness a))]
+                         [("i0",repType (Witness :: Witness a),unD $ ae)]
 
 -- wrong location (To Move)
 entityD :: forall a . (Rep a) => String -> D a
@@ -57,7 +64,7 @@ entityD3 nm (D a1) (D a2) (D a3)
         = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
                                                [("i0",repType (Witness :: Witness a1),a1)
                                                ,("i1",repType (Witness :: Witness a2),a2)
-                                               ,("i1",repType (Witness :: Witness a3),a3)]
+                                               ,("i2",repType (Witness :: Witness a3),a3)]
 
 pureD :: (Rep a) => a -> D a
 pureD a = pureXD (pureX a)
@@ -82,6 +89,25 @@ seqDriver (Seq _ d) = d
 
 pureS :: (Rep a) => a -> CSeq i a
 pureS a = Seq (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
+
+-- | Inject a deep value into a CSeq. The shallow portion of the CSeq will be an
+-- error, if it is every used.
+deepSeq :: D a -> CSeq c a
+deepSeq = Seq (error "incorrect use of shallow Seq")
+
+-- | Inject a shallow value into a CSeq. The deep portion of the CSeq will be an
+-- Error if it is ever used.
+shallowSeq :: S.Stream (X a) -> CSeq c a
+shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
+
+-- | Create a CSeq with undefined for both the deep and shallow elements.
+undefinedSeq ::  forall a sig clk . (Rep a, sig ~ CSeq clk) => sig a
+undefinedSeq = Seq (pure $ optX Nothing)
+		      (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
+
+comment :: forall a sig clk . (Rep a, sig ~ CSeq clk) => String -> sig a -> sig a
+comment msg = idD (Comment [msg])
+
 
 primS :: (Rep a) => a -> String -> CSeq i a
 primS a nm = primXS (pureX a) nm
@@ -111,7 +137,6 @@ primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
 primXS3 f nm (Seq a1 ae1) (Seq a2 ae2)  (Seq a3 ae3)  = Seq (S.zipWith3 f a1 a2 a3)
               (entityD3 nm  ae1  ae2  ae3)
 
-
 instance (Rep a, Show a) => Show (CSeq c a) where
 	show (Seq vs _)
          	= concat [ showRep x ++ " "
@@ -131,21 +156,56 @@ instance (Num a, Rep a) => Num (CSeq i a) where
     signum s1 = primS1 (signum) "signum" s1
     fromInteger n = pureS (fromInteger n)
 
+instance (Bounded a, Rep a) => Bounded (CSeq i a) where
+    minBound = pureS $ minBound
+    maxBound = pureS $ maxBound
 
--- | Inject a deep value into a CSeq. The shallow portion of the CSeq will be an
--- error, if it is every used.
-deepSeq :: D a -> CSeq c a
-deepSeq = Seq (error "incorrect use of shallow Seq")
+instance (Show a, Bits a, Rep a) => Bits (CSeq i a) where
+    s1 .&. s2      = primS2 (.&.) ".&."   s1  s2
+    s1 .|. s2      = primS2 (.|.) ".|."   s1  s2
+    s1 `xor` s2    = primS2 (xor) ".^."   s1  s2
+    s1 `shiftL` n  = primS2 (shiftL) "shiftL"    s1  (pureS n)
+    s1 `shiftR` n  = primS2 (shiftR) "shiftR"    s1  (pureS n)
+    s1 `rotateL` n = primS2 (rotateL) "rotateL"  s1  (pureS n)
+    s1 `rotateR` n = primS2 (rotateR) "rotateR"  s1  (pureS n)
+    complement s   = primS1 (complement) "complement"  s
+    bitSize s      = typeWidth (bitTypeOf s)
+    isSigned s     = isTypeSigned (bitTypeOf s)
 
--- | Inject a shallow value into a CSeq. The deep portion of the CSeq will be an
--- Error if it is ever used.
-shallowSeq :: S.Stream (X a) -> CSeq c a
-shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
+instance (Eq a, Show a, Fractional a, Rep a) => Fractional (CSeq i a) where
+    s1 / s2 = primS2 (/) "/"  s1  s2
+    recip s1 = primS1 (recip) "recip"  s1
+    -- This should just fold down to the raw bits.
+    fromRational r = pureS (fromRational r :: a)
 
--- | Create a CSeq with undefined for both the deep and shallow elements.
-undefinedSeq ::  forall a c . (Rep a) => CSeq c a
-undefinedSeq = liftS0 undefinedComb
+instance (Rep a, Enum a) => Enum (CSeq i a) where
+	toEnum   = error "toEnum not supported"
+	fromEnum = error "fromEnum not supported"
 
+instance (Ord a, Rep a) => Ord (CSeq i a) where
+  compare _ _ = error "compare not supported for Comb"
+  (<) _ _     = error "(<) not supported for Comb"
+  (>=) _ _    = error "(>=) not supported for Comb"
+  (>) _ _     = error "(>) not supported for Comb"
+  (<=)_ _     = error "(<=) not supported for Comb"
+  s1 `max` s2 = primS2 max "max"  s1  s2
+  s1 `min` s2 = primS2 max "min"  s1  s2
+
+instance (Rep a, Real a) => Real (CSeq i a) where
+	toRational = error "toRational not supported for Comb"
+
+instance (Rep a, Integral a) => Integral (CSeq i a) where
+	quot num dom = primS2 quot "quot"  num  dom
+	rem num dom  = primS2 rem "rem"    num  dom
+	div num dom  = primS2 div "div"    num  dom
+	mod num dom  = primS2 mod "mod"    num  dom
+
+        quotRem num dom = (quot num dom, rem num dom)
+        divMod num dom  = (div num dom, mod num dom)
+        toInteger = error "toInteger (Signal {})"
+
+
+{-
 instance Signal (CSeq c) where
   liftS0 c = Seq (pure (combValue c)) (combDriver c)
 
@@ -173,7 +233,7 @@ instance Signal (CSeq c) where
 		    (combDriver (f (map (deepComb . seqDriver) ss)))
 
   deepS (Seq _ d) = d
-
+-}
 ----------------------------------------------------------------------------------------------------
 
 -- Small DSL's for declaring signals
@@ -211,8 +271,12 @@ cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 instance Dual (CSeq c a) where
     dual c d = Seq (seqValue c) (seqDriver d)
 
--- | Extract the Lava type of a Seq.
-typeOfSeq :: forall w  . (Rep w) => Seq w -> Type
+-- alias
+bitTypeOf :: forall w clk sig . (Rep w, sig ~ CSeq clk) => sig w -> Type 
+bitTypeOf = typeOfSeq
+
+-- | Return the Lava type of a representable signal.
+typeOfSeq :: forall w clk sig . (Rep w, sig ~ CSeq clk) => sig w -> Type 
 typeOfSeq _ = repType (Witness :: Witness w)
 
 -- | The Pack class allows us to move between signals containing compound data
@@ -331,3 +395,50 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
 
                  shallow i = fmap (liftX (M.! i)) (seqValue ms)
 
+----------------------------------------------------------------
+
+-- | a delay is a register with no defined default / initial value.
+delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
+delay ~(Seq line eline) = res
+   where
+        def = optX $ Nothing
+
+        -- rep = toRep def
+	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
+
+	sres0 = line
+	sres1 = S.Cons def sres0
+
+        entity = Entity (Prim "delay")
+                    [("o0", bitTypeOf res)]
+                    [("i0", bitTypeOf res, unD eline),
+		     ("clk",ClkTy, Pad "clk"),
+		     ("rst",B,     Pad "rst")
+		    ]
+-- | delays generates a serial sequence of n delays.
+delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
+delays n ss = iterate delay ss !! n
+
+
+-- | A register is a state element with a reset. The reset is supplied by the clock domain in the CSeq.
+register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
+register first  ~(Seq line eline) = res
+   where
+        def = optX $ Just first
+
+        rep = toRep def
+	res = Seq sres1 (D $ Port ("o0") $ E $ entity)
+
+	sres0 = line
+	sres1 = S.Cons def sres0
+
+        entity = Entity (Prim "register")
+                    [("o0", bitTypeOf res)]
+                    [("i0", bitTypeOf res, unD eline),
+                     ("def",GenericTy,Generic (fromRepToInteger rep)),
+		     ("clk",ClkTy, Pad "clk"),
+		     ("rst",B,     Pad "rst")
+		    ]
+-- | registers generates a serial sequence of n registers, all with the same initial value.
+registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a
+registers n def ss = iterate (register def) ss !! n

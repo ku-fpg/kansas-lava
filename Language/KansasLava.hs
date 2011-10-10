@@ -20,6 +20,7 @@ module Language.KansasLava (
     toSeq, toSeq', undefinedSeq, fromSeq,
     pack, unpack,
     packMatrix, unpackMatrix,
+    register, registers, delay, delays,
     
     -- * Rendering KLEG as a Graph
     writeDotCircuit,

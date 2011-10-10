@@ -3,20 +3,21 @@
 -- Lava temporally varying signals.
 module Language.KansasLava.Signal where
 
-import Control.Applicative
+-- import Control.Applicative
 
 import Language.KansasLava.Comb
-import Language.KansasLava.Entity
+--import Language.KansasLava.Entity
 import Language.KansasLava.Rep
 import Language.KansasLava.Types
 
 --import Data.Sized.Ix
 --import Data.Sized.Matrix as M
-import Data.Maybe(fromMaybe)
+--import Data.Maybe(fromMaybe)
 
 -- | The Signal class provides functions for lifting combinational values and
 -- functions into a time-varying sream model.
-class Signal f where
+
+class Signal' f where
   liftS0 :: (Rep a) => Comb a -> f a
   -- ^ Lift a combinatinal value to be a stream
   liftS1 :: (Rep a, Rep b) => (Comb a -> Comb b) -> f a -> f b
@@ -31,14 +32,11 @@ class Signal f where
   deepS  :: f a -> D a
   -- ^ Extract the deep embedding from a signal.
 
--- | Return the Lava type of a representable signal.
-bitTypeOf :: forall f w . (Signal f, Rep w) => f w -> Type
-bitTypeOf _ = repType (Witness :: Witness w)
 
 --class Constant a where
 --  pureS :: (Signal s) => a -> s a
 
-
+{-
 -- | Lift a representable Haskell value -- not a Comb -- to be a signal.
 -- TO REMOVE
 pureS' :: (Signal s, Rep a) => a -> s a
@@ -48,6 +46,7 @@ pureS' a = liftS0 (toComb a)
 -- | Create nn unknown (X) signal.
 undefinedS :: (Signal s, Rep a) => s a
 undefinedS = liftS0 undefinedComb
+-}
 
 -- | k is a constant
 
@@ -56,12 +55,10 @@ undefinedS = liftS0 undefinedComb
 
 -- TODO: insert Id/Comment
 -- | Wrap a Signal with a comment.
-comment :: (Signal sig, Rep a) => String -> sig a -> sig a
-comment msg = liftS1 $ \ (Comb s ae) -> Comb s $ entity1 (Comment [msg]) ae
 
 
 ----------------------------------------------------------------------------------------------------
-
+{-
 instance Signal Comb where
     liftS0 a    = a
     liftS1 f    = f
@@ -69,11 +66,11 @@ instance Signal Comb where
     liftS3 f    = f
     liftSL f    = f
     deepS (Comb _ d) = d
-
+-}
 
 
 --------------------------------------------------------------------------------
-
+{-
 -- | Lift a value (with a primitively-defined name in the deep embedding) to be a signal.
 fun0 :: forall a sig . (Signal sig, Rep a) => String -> a -> sig a
 fun0 nm a = liftS0 $ Comb (optX $ Just a) $ entity0 (Prim nm)
@@ -92,7 +89,7 @@ fun2 :: forall a b c sig . (Signal sig, Rep a, Rep b, Rep c) => String -> (a -> 
 fun2 nm f = liftS2 $ \ (Comb a ae) (Comb b be) -> Comb (optX $ liftA2 f (unX a) (unX b))
 	  $ entity2 (Prim nm) ae be
 
-
+-}
 
 -----------------------------------------------------------------------------------------------
 

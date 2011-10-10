@@ -34,7 +34,6 @@ import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
-import Language.KansasLava.Utils
 
 import qualified Language.KansasLava.Stream as S
 
@@ -281,3 +280,7 @@ addProbes :: KLEG -> Trace -> Trace
 addProbes rc t = t { probes = ps }
     where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
           ps = [ (show nid ++ nm, strm) | (nid, nm, strm) <- pdata ]
+
+takeMaybe :: Maybe Int -> [a] -> [a]
+takeMaybe = maybe id take
+

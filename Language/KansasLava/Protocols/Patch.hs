@@ -113,7 +113,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Seq
-import Language.KansasLava.Signal
 import Language.KansasLava.Probes
 
 import Data.Sized.Unsigned (U8)
@@ -645,7 +644,7 @@ matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
 	          (sig Ack)          		  (Matrix x (sig Ack))
 matrixUnzipPatch =
 	matrixDupPatch $$
-	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS' x))
+	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
 
 -- | TODO: Andy write docs for this.
 deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)

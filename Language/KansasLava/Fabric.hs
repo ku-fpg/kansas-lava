@@ -38,8 +38,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.Comb
-import Language.KansasLava.Signal
 
 -- The '_' will disappear soon from these names.
 -- | A Pad represents the type of a top-level input/output port.
@@ -146,10 +144,7 @@ inStdLogicVector nm = do
           StdLogicVector sq -> case toStdLogicType ty of
 					     SLV _ -> unsafeId sq
 					     G -> error "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
-					     _     -> liftS1 (\ (Comb a (D ae)) -> Comb (fromRep $ toRep a)
-					     	      	 $ D $ Port "o0" $ E $ Entity (Prim "coerce")
-							   	    	            [("o0",ty)]
-									            [("i0",V $ typeWidth ty,ae)]) sq
+					     _     -> unsafeId sq
           _                  -> error "internal type error in inStdLogic"
   where
 	ty = repType (Witness :: Witness a)
@@ -165,8 +160,6 @@ theRst nm = input nm TheRst >> return ()
 -- | theClkEn gives the external name for the clock enable signal [default = high].
 theClkEn :: String -> Fabric ()
 theClkEn nm = input nm TheClkEn >> return ()
-
-
 
 -------------------------------------------------------------------------------
 
@@ -184,13 +177,7 @@ outStdLogicVector nm sq =
 		    SLV _ -> output nm (StdLogicVector sq)
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 		    _     -> output nm $ StdLogicVector
-		    	     	       $ liftS1 (\ (Comb a (D ae)) -> Comb a
-				                      $ D $ Port "o0" $ E $ Entity (Prim "coerce")
-							   	    	            [("o0",V $ typeWidth ty)]
-									            [("i0",ty,ae)])
-				       sq
-  where
-	ty = repType (Witness :: Witness a)
+		    	     	       $ (bitwise sq :: Seq a)
 
 -------------------------------------------------------------------------------
 
