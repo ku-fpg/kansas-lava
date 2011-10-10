@@ -2,7 +2,7 @@
 module Others (tests) where
 
 import Language.KansasLava
-import Language.KansasLava.Seq(shallowSignal)
+import Language.KansasLava.Signal(shallowSignal)
 
 import qualified Language.KansasLava.Stream as S
 

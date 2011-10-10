@@ -23,7 +23,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.VHDL
 import Language.KansasLava.Protocols
 import Control.Concurrent.MVar

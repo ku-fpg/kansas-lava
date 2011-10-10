@@ -3,7 +3,7 @@
 module Language.KansasLava.Protocols.Memory where
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils

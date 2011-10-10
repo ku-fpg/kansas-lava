@@ -112,7 +112,7 @@ import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Probes
 
 import Data.Sized.Unsigned (U8)

@@ -7,7 +7,7 @@ import Control.Monad
 import Data.Bits
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 --import Language.KansasLava.Signal
 -- import Language.KansasLava.Interp
 import qualified Language.KansasLava.Stream as S

@@ -31,7 +31,7 @@ module Language.KansasLava.Trace
 import Language.KansasLava.Fabric
 import Language.KansasLava.Probes
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 
 import qualified Language.KansasLava.Stream as S

@@ -14,7 +14,7 @@ module Language.KansasLava.RTL (
 
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes

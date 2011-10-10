@@ -47,7 +47,7 @@ import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
 import Language.KansasLava.RTL
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Test
 import Language.KansasLava.Utils

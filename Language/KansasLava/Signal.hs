@@ -7,7 +7,7 @@
 -- stream, the deep portion as a (typed) entity.  To allow for multiple clock
 -- domains, the Signal type includes an extra type parameter. The type alias 'Seq'
 -- is for sequential logic in some implicit global clock domain.
-module Language.KansasLava.Seq where
+module Language.KansasLava.Signal where
 
 import Control.Applicative
 import Control.Monad (liftM, liftM2, liftM3)

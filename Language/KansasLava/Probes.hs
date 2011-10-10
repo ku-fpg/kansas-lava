@@ -18,7 +18,7 @@ import qualified Data.Sized.Matrix as M
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 

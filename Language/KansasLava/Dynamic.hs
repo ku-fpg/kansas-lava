@@ -6,7 +6,7 @@
 module Language.KansasLava.Dynamic where
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 
 import Data.Dynamic

@@ -14,7 +14,7 @@ module Language.KansasLava.Protocols.Enabled
   enabledS, disabledS,
   ) where
 
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Rep
 
 -- | Enabled is a synonym for Maybe.

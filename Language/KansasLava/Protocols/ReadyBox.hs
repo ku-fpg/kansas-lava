@@ -10,7 +10,7 @@
 module Language.KansasLava.Protocols.ReadyBox where
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 --import Language.KansasLava.Signal
 --import Language.KansasLava.Stream (Stream(..))
 --import qualified Language.KansasLava.Stream as Stream

@@ -12,7 +12,7 @@
 module Language.KansasLava.Protocols.AckBox where
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types

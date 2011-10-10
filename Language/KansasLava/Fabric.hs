@@ -37,7 +37,7 @@ import Data.Ord(comparing)
 import Data.Sized.Unsigned
 
 import Language.KansasLava.Rep
-import Language.KansasLava.Seq
+import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 
