@@ -40,7 +40,6 @@ module Language.KansasLava (
     module Language.KansasLava.Probes,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Rep,
-    module Language.KansasLava.Signal,
     module Language.KansasLava.Test,
     module Language.KansasLava.Utils
 
@@ -55,7 +54,6 @@ import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
 import Language.KansasLava.RTL
 import Language.KansasLava.Seq
-import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Test
 import Language.KansasLava.Utils

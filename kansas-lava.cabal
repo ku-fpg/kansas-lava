@@ -46,7 +46,6 @@ Library
        Language.KansasLava.Rep
        Language.KansasLava.RTL
        Language.KansasLava.Seq
-       Language.KansasLava.Signal
        Language.KansasLava.Test
        Language.KansasLava.Types
        Language.KansasLava.Utils
