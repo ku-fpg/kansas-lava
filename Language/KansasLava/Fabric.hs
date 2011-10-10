@@ -34,6 +34,8 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 import Data.Ord(comparing)
 
+import Data.Sized.Unsigned
+
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
 import Language.KansasLava.Types
@@ -137,14 +139,15 @@ inGeneric nm = do
 -- | Generate a named std_logic_vector port input.
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-	let seq' = deepSeq $ D $ Pad nm :: Seq a
+	let seq' = deepSeq $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
         return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
           StdLogicVector sq -> case toStdLogicType ty of
 					     SLV _ -> unsafeId sq
-					     G -> error "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
-					     _     -> unsafeId sq
+					     G     -> error "inStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
+					     SL    -> unsafeId sq
+					     SLVA _ _ -> unsafeId sq
           _                  -> error "internal type error in inStdLogic"
   where
 	ty = repType (Witness :: Witness a)
@@ -177,7 +180,7 @@ outStdLogicVector nm sq =
 		    SLV _ -> output nm (StdLogicVector sq)
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 		    _     -> output nm $ StdLogicVector
-		    	     	       $ (bitwise sq :: Seq a)
+		    	     	       $ (bitwise sq :: Seq (ExternalStdLogicVector (W a)))
 
 -------------------------------------------------------------------------------
 
@@ -389,3 +392,20 @@ clkEnPort _ = Nothing
 -- | A clock is represented using its 'clock enable'.
 data EntityClock = EntityClock (Driver Unique)
         deriving (Eq,Ord,Show)
+
+---------------------------------------------------------------------------------
+
+newtype ExternalStdLogicVector x = ExternalStdLogicVector { unExternalStdLogicVector :: Unsigned x }
+        deriving Show
+
+instance (Size ix) => Rep (ExternalStdLogicVector ix) where
+    type W (ExternalStdLogicVector ix) = ix
+    data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (Maybe (ExternalStdLogicVector ix))
+    optX (Just b)       = XExternalStdLogicVector $ return b
+    optX Nothing        = XExternalStdLogicVector $ fail "Wire Int"
+    unX (XExternalStdLogicVector (Just a))     = return a
+    unX (XExternalStdLogicVector Nothing)   = fail "Wire Int"
+    repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
+    toRep (XExternalStdLogicVector a) = toRepFromIntegral (optX (fmap unExternalStdLogicVector a))
+    fromRep rep = optX (fmap ExternalStdLogicVector (unX (fromRepToIntegral rep)))
+    showRep = showRepDefault
