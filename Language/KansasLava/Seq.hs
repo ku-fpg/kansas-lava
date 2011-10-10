@@ -2,10 +2,10 @@
     FlexibleInstances, UndecidableInstances, FlexibleContexts,
     ScopedTypeVariables, MultiParamTypeClasses #-}
 
--- | The CSeq module serves as a representation for the combined shallow and
+-- | The Signal module serves as a representation for the combined shallow and
 -- deep embeddings of sequential circuits. The shallow portion is reprented as a
 -- stream, the deep portion as a (typed) entity.  To allow for multiple clock
--- domains, the CSeq type includes an extra type parameter. The type alias 'Seq'
+-- domains, the Signal type includes an extra type parameter. The type alias 'Seq'
 -- is for sequential logic in some implicit global clock domain.
 module Language.KansasLava.Seq where
 
@@ -29,15 +29,15 @@ import Language.KansasLava.Types
 -- We assume edge triggered logic (checked at (typically) rising edge of clock)
 -- This clock is assumed known, based on who is consuming the list.
 -- Right now, it is global, but we think we can support multiple clocks with a bit of work.
-data CSeq (c :: *) a = Seq (S.Stream (X a)) (D a)
+data Signal (c :: *) a = Seq (S.Stream (X a)) (D a)
 
--- | CSeq in some implicit clock domain.
-type Seq a = CSeq () a
+-- | Signal in some implicit clock domain.
+type Seq a = Signal () a
 
---apS :: (Rep a, Rep b) => CSeq c (a -> b) -> CSeq c a -> CSeq c b
+--apS :: (Rep a, Rep b) => Signal c (a -> b) -> Signal c a -> Signal c b
 --apS (Seq f fe) (Seq a ae) = Seq (S.zipWith apX f a) (fe `apD` ae)
 
-idD :: forall a sig clk . (Rep a, sig ~ CSeq clk) => Id -> sig a -> sig a
+idD :: forall a sig clk . (Rep a, sig ~ Signal clk) => Id -> sig a -> sig a
 idD id' (Seq a ae) = Seq a $ D $ Port "o0" $ E 
                      $ Entity id'
                          [("o0",repType (Witness :: Witness a))]
@@ -79,75 +79,75 @@ apD (D (Port "o0" (E (Entity nm [("o0",FunctionTy t1 t2)] xs)))) (D e)
 apD other f = error $ "internal error with apD: " ++ show (other,f)
 
 
--- | Extract the shallow portion of a CSeq.
-seqValue :: CSeq c a -> S.Stream (X a)
+-- | Extract the shallow portion of a Signal.
+seqValue :: Signal c a -> S.Stream (X a)
 seqValue (Seq a _) = a
 
--- | Extract the deep portion of a CSeq.
-seqDriver :: CSeq c a -> D a
+-- | Extract the deep portion of a Signal.
+seqDriver :: Signal c a -> D a
 seqDriver (Seq _ d) = d
 
-pureS :: (Rep a) => a -> CSeq i a
+pureS :: (Rep a) => a -> Signal i a
 pureS a = Seq (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
--- | Inject a deep value into a CSeq. The shallow portion of the CSeq will be an
+-- | Inject a deep value into a Signal. The shallow portion of the Signal will be an
 -- error, if it is every used.
-deepSeq :: D a -> CSeq c a
+deepSeq :: D a -> Signal c a
 deepSeq = Seq (error "incorrect use of shallow Seq")
 
--- | Inject a shallow value into a CSeq. The deep portion of the CSeq will be an
+-- | Inject a shallow value into a Signal. The deep portion of the Signal will be an
 -- Error if it is ever used.
-shallowSeq :: S.Stream (X a) -> CSeq c a
+shallowSeq :: S.Stream (X a) -> Signal c a
 shallowSeq s = Seq s (D $ Error "incorrect use of deep Seq")
 
--- | Create a CSeq with undefined for both the deep and shallow elements.
-undefinedSeq ::  forall a sig clk . (Rep a, sig ~ CSeq clk) => sig a
+-- | Create a Signal with undefined for both the deep and shallow elements.
+undefinedSeq ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
 undefinedSeq = Seq (pure $ optX Nothing)
 		      (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
-comment :: forall a sig clk . (Rep a, sig ~ CSeq clk) => String -> sig a -> sig a
+comment :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
 comment msg = idD (Comment [msg])
 
 
-primS :: (Rep a) => a -> String -> CSeq i a
+primS :: (Rep a) => a -> String -> Signal i a
 primS a nm = primXS (pureX a) nm
 
-primS1 :: (Rep a, Rep b) => (a -> b) -> String -> CSeq i a -> CSeq i b
+primS1 :: (Rep a, Rep b) => (a -> b) -> String -> Signal i a -> Signal i b
 primS1 f nm = primXS1 (\ a -> optX $ liftM f (unX a)) nm
 
-primS2 :: (Rep a, Rep b, Rep c) => (a -> b -> c) -> String -> CSeq i a -> CSeq i b ->  CSeq i c
+primS2 :: (Rep a, Rep b, Rep c) => (a -> b -> c) -> String -> Signal i a -> Signal i b ->  Signal i c
 primS2 f nm = primXS2 (\ a b -> optX $ liftM2 f (unX a) (unX b)) nm
 
-primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> CSeq i a -> CSeq i b -> CSeq i c -> CSeq i d
+primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> Signal i a -> Signal i b -> Signal i c -> Signal i d
 primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
 
-primXS :: (Rep a) => X a -> String -> CSeq i a
+primXS :: (Rep a) => X a -> String -> Signal i a
 primXS a nm = Seq (pure a) (entityD nm)
 
-primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> CSeq i a -> CSeq i b
+primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> Signal i a -> Signal i b
 primXS1 f nm (Seq a1 ae1) = Seq (fmap f a1) (entityD1 nm  ae1)
 
-primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> CSeq i a -> CSeq i b ->  CSeq i c
+primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> Signal i a -> Signal i b ->  Signal i c
 primXS2 f nm (Seq a1 ae1) (Seq a2 ae2) 
         = Seq (S.zipWith f a1 a2) 
               (entityD2 nm ae1 ae2)
 
 primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
-        => (X a -> X b -> X c -> X d) -> String ->  CSeq i a -> CSeq i b -> CSeq i c -> CSeq i d
+        => (X a -> X b -> X c -> X d) -> String ->  Signal i a -> Signal i b -> Signal i c -> Signal i d
 primXS3 f nm (Seq a1 ae1) (Seq a2 ae2)  (Seq a3 ae3)  = Seq (S.zipWith3 f a1 a2 a3)
               (entityD3 nm  ae1  ae2  ae3)
 
-instance (Rep a, Show a) => Show (CSeq c a) where
+instance (Rep a, Show a) => Show (Signal c a) where
 	show (Seq vs _)
          	= concat [ showRep x ++ " "
                          | x <- take 20 $ S.toList vs
                          ] ++ "..."
 
-instance (Rep a, Eq a) => Eq (CSeq c a) where
+instance (Rep a, Eq a) => Eq (Signal c a) where
 	-- Silly question; never True; can be False.
 	(Seq _ _) == (Seq _ _) = error "undefined: Eq over a Seq"
 
-instance (Num a, Rep a) => Num (CSeq i a) where
+instance (Num a, Rep a) => Num (Signal i a) where
     s1 + s2 = primS2 (+) "+" s1 s2
     s1 - s2 = primS2 (-) "-" s1 s2
     s1 * s2 = primS2 (*) "*" s1 s2
@@ -156,11 +156,11 @@ instance (Num a, Rep a) => Num (CSeq i a) where
     signum s1 = primS1 (signum) "signum" s1
     fromInteger n = pureS (fromInteger n)
 
-instance (Bounded a, Rep a) => Bounded (CSeq i a) where
+instance (Bounded a, Rep a) => Bounded (Signal i a) where
     minBound = pureS $ minBound
     maxBound = pureS $ maxBound
 
-instance (Show a, Bits a, Rep a) => Bits (CSeq i a) where
+instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     s1 .&. s2      = primS2 (.&.) ".&."   s1  s2
     s1 .|. s2      = primS2 (.|.) ".|."   s1  s2
     s1 `xor` s2    = primS2 (xor) ".^."   s1  s2
@@ -172,17 +172,17 @@ instance (Show a, Bits a, Rep a) => Bits (CSeq i a) where
     bitSize s      = typeWidth (bitTypeOf s)
     isSigned s     = isTypeSigned (bitTypeOf s)
 
-instance (Eq a, Show a, Fractional a, Rep a) => Fractional (CSeq i a) where
+instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where
     s1 / s2 = primS2 (/) "/"  s1  s2
     recip s1 = primS1 (recip) "recip"  s1
     -- This should just fold down to the raw bits.
     fromRational r = pureS (fromRational r :: a)
 
-instance (Rep a, Enum a) => Enum (CSeq i a) where
+instance (Rep a, Enum a) => Enum (Signal i a) where
 	toEnum   = error "toEnum not supported"
 	fromEnum = error "fromEnum not supported"
 
-instance (Ord a, Rep a) => Ord (CSeq i a) where
+instance (Ord a, Rep a) => Ord (Signal i a) where
   compare _ _ = error "compare not supported for Comb"
   (<) _ _     = error "(<) not supported for Comb"
   (>=) _ _    = error "(>=) not supported for Comb"
@@ -191,10 +191,10 @@ instance (Ord a, Rep a) => Ord (CSeq i a) where
   s1 `max` s2 = primS2 max "max"  s1  s2
   s1 `min` s2 = primS2 max "min"  s1  s2
 
-instance (Rep a, Real a) => Real (CSeq i a) where
+instance (Rep a, Real a) => Real (Signal i a) where
 	toRational = error "toRational not supported for Comb"
 
-instance (Rep a, Integral a) => Integral (CSeq i a) where
+instance (Rep a, Integral a) => Integral (Signal i a) where
 	quot num dom = primS2 quot "quot"  num  dom
 	rem num dom  = primS2 rem "rem"    num  dom
 	div num dom  = primS2 div "div"    num  dom
@@ -206,7 +206,7 @@ instance (Rep a, Integral a) => Integral (CSeq i a) where
 
 
 {-
-instance Signal (CSeq c) where
+instance Signal (Signal c) where
   liftS0 c = Seq (pure (combValue c)) (combDriver c)
 
   liftS1 f (Seq a ea) = {-# SCC "liftS1Seq" #-}
@@ -238,45 +238,45 @@ instance Signal (CSeq c) where
 
 -- Small DSL's for declaring signals
 
--- | Convert a list of values into a CSeq. The shallow portion of the resulting
--- CSeq will begin with the input list, then an infinite stream of X unknowns.
-toSeq :: (Rep a) => [a] -> CSeq c a
+-- | Convert a list of values into a Signal. The shallow portion of the resulting
+-- Signal will begin with the input list, then an infinite stream of X unknowns.
+toSeq :: (Rep a) => [a] -> Signal c a
 toSeq xs = shallowSeq (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
--- | Convert a list of values into a CSeq. The input list is wrapped with a
+-- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
-toSeq' :: (Rep a) => [Maybe a] -> CSeq c a
+toSeq' :: (Rep a) => [Maybe a] -> Signal c a
 toSeq' xs = shallowSeq (S.fromList (map optX (xs ++ repeat Nothing)))
 
 -- | Convert a list of X values to a Seq. Pad the end with an infinite list of X unknowns.
-toSeqX :: forall a c . (Rep a) => [X a] -> CSeq c a
+toSeqX :: forall a c . (Rep a) => [X a] -> Signal c a
 toSeqX xs = shallowSeq (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
--- | Convert a CSeq of values into a list of Maybe values.
-fromSeq :: (Rep a) => CSeq c a -> [Maybe a]
+-- | Convert a Signal of values into a list of Maybe values.
+fromSeq :: (Rep a) => Signal c a -> [Maybe a]
 fromSeq = fmap unX . S.toList . seqValue
 
--- | Convret a CSeq of values into a list of representable values.
-fromSeqX :: (Rep a) => CSeq c a -> [X a]
+-- | Convret a Signal of values into a list of representable values.
+fromSeqX :: (Rep a) => Signal c a -> [X a]
 fromSeqX = S.toList . seqValue
 
--- | Compare the first depth elements of two CSeqs.
-cmpSeqRep :: forall a c . (Rep a) => Int -> CSeq c a -> CSeq c a -> Bool
+-- | Compare the first depth elements of two Signals.
+cmpSeqRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
 cmpSeqRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 								(seqValue s1)
 								(seqValue s2)
 
 -----------------------------------------------------------------------------------
 
-instance Dual (CSeq c a) where
+instance Dual (Signal c a) where
     dual c d = Seq (seqValue c) (seqDriver d)
 
 -- alias
-bitTypeOf :: forall w clk sig . (Rep w, sig ~ CSeq clk) => sig w -> Type 
+bitTypeOf :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
 bitTypeOf = typeOfSeq
 
 -- | Return the Lava type of a representable signal.
-typeOfSeq :: forall w clk sig . (Rep w, sig ~ CSeq clk) => sig w -> Type 
+typeOfSeq :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
 typeOfSeq _ = repType (Witness :: Witness w)
 
 -- | The Pack class allows us to move between signals containing compound data
@@ -289,24 +289,24 @@ typeOfSeq _ = repType (Witness :: Witness w)
 class Pack clk a where
  type Unpacked clk a
  -- ^ Pull the sig type *out* of the compound data type.
- pack :: Unpacked clk a -> CSeq clk a
+ pack :: Unpacked clk a -> Signal clk a
  -- ^ Push the sign type *into* the compound data type.
- unpack :: CSeq clk a -> Unpacked clk a
+ unpack :: Signal clk a -> Unpacked clk a
 
 
 -- | Given a function over unpacked (composite) signals, turn it into a function
 -- over packed signals.
-mapPacked :: (Pack i a, Pack i b, sig ~ CSeq i) => (Unpacked i a -> Unpacked i b) -> sig a -> sig b
+mapPacked :: (Pack i a, Pack i b, sig ~ Signal i) => (Unpacked i a -> Unpacked i b) -> sig a -> sig b
 mapPacked f = pack . f . unpack
 
 -- | Lift a binary function operating over unpacked signals into a function over a pair of packed signals.
-zipPacked :: (Pack i a, Pack i b, Pack i c, sig ~ CSeq i) 
+zipPacked :: (Pack i a, Pack i b, Pack i c, sig ~ Signal i) 
           => (Unpacked i a -> Unpacked i b -> Unpacked i c) 
           -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
 instance (Rep a, Rep b) => Pack i (a,b) where
-	type Unpacked i (a,b) = (CSeq i a,CSeq i b)
+	type Unpacked i (a,b) = (Signal i a,Signal i b)
 	pack (a,b) = primS2 (,) "pair"  a  b
 	unpack ab = ( primS1 (fst) "fst"  ab
 		    , primS1 (snd) "snd"  ab
@@ -314,7 +314,7 @@ instance (Rep a, Rep b) => Pack i (a,b) where
 
 
 instance (Rep a) => Pack i (Maybe a) where
-	type Unpacked i (Maybe a) = (CSeq i Bool, CSeq i a)
+	type Unpacked i (Maybe a) = (Signal i Bool, Signal i a)
 
 	pack (a,b) = primXS2 (\ a' b' -> case unX a' of
 	                                  Nothing    -> optX Nothing
@@ -347,14 +347,14 @@ instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 		    )
 -}
 
-unpackMatrix :: (Rep a, Size x, sig ~ CSeq clk) => sig (M.Matrix x a) -> M.Matrix x (sig a)
+unpackMatrix :: (Rep a, Size x, sig ~ Signal clk) => sig (M.Matrix x a) -> M.Matrix x (sig a)
 unpackMatrix a = unpack a
 
-packMatrix :: (Rep a, Size x, sig ~ CSeq clk) => M.Matrix x (sig a) -> sig (M.Matrix x a)
+packMatrix :: (Rep a, Size x, sig ~ Signal clk) => M.Matrix x (sig a) -> sig (M.Matrix x a)
 packMatrix a = pack a
 
 instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
-	type Unpacked clk (Matrix ix a) = Matrix ix (CSeq clk a)
+	type Unpacked clk (Matrix ix a) = Matrix ix (Signal clk a)
         pack m = Seq shallow
                      deep
           where
@@ -398,7 +398,7 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
 ----------------------------------------------------------------
 
 -- | a delay is a register with no defined default / initial value.
-delay :: forall a clk . (Rep a, Clock clk) => CSeq clk a -> CSeq clk a
+delay :: forall a clk . (Rep a, Clock clk) => Signal clk a -> Signal clk a
 delay ~(Seq line eline) = res
    where
         def = optX $ Nothing
@@ -416,12 +416,12 @@ delay ~(Seq line eline) = res
 		     ("rst",B,     Pad "rst")
 		    ]
 -- | delays generates a serial sequence of n delays.
-delays :: forall a clk .  (Rep a, Clock clk) => Int -> CSeq clk a -> CSeq clk a
+delays :: forall a clk .  (Rep a, Clock clk) => Int -> Signal clk a -> Signal clk a
 delays n ss = iterate delay ss !! n
 
 
--- | A register is a state element with a reset. The reset is supplied by the clock domain in the CSeq.
-register :: forall a clk .  (Rep a, Clock clk) => a -> CSeq clk a -> CSeq clk a
+-- | A register is a state element with a reset. The reset is supplied by the clock domain in the Signal.
+register :: forall a clk .  (Rep a, Clock clk) => a -> Signal clk a -> Signal clk a
 register first  ~(Seq line eline) = res
    where
         def = optX $ Just first
@@ -440,5 +440,5 @@ register first  ~(Seq line eline) = res
 		     ("rst",B,     Pad "rst")
 		    ]
 -- | registers generates a serial sequence of n registers, all with the same initial value.
-registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> CSeq clk a -> CSeq clk a
+registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> Signal clk a -> Signal clk a
 registers n def ss = iterate (register def) ss !! n

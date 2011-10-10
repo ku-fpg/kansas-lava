@@ -85,7 +85,7 @@ tests test = do
 {- We are not ready for this yet
 	-- Test the flux capacitor
         let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
-	       => String -> List (Maybe a) -> (forall c. (Clock c) => CSeq c a -> CSeq c a) -> IO ()
+	       => String -> List (Maybe a) -> (forall c. (Clock c) => Signal c a -> Signal c a) -> IO ()
             t5 str arb op = testFluxCapacitor test str arb op
 
         t5 "U5/add" ( (take 1000 inifiniteCases :: List (Maybe U5)))
@@ -104,10 +104,10 @@ tests test = do
 
 
 
-data TestMux a = TestMux String (Bool -> a -> a -> a) (forall clk . CSeq clk Bool -> CSeq clk a -> CSeq clk a -> CSeq clk a)
-data TestCmp a = TestCmp String (a -> a -> Bool) (forall clk . CSeq clk a -> CSeq clk a -> CSeq clk Bool)
-data TestUni a = TestUni String (a -> a) (forall clk . CSeq clk a -> CSeq clk a)
-data TestBin a = TestBin String (a -> a -> a) (forall clk . CSeq clk a -> CSeq clk a -> CSeq clk a)
+data TestMux a = TestMux String (Bool -> a -> a -> a) (forall clk . Signal clk Bool -> Signal clk a -> Signal clk a -> Signal clk a)
+data TestCmp a = TestCmp String (a -> a -> Bool) (forall clk . Signal clk a -> Signal clk a -> Signal clk Bool)
+data TestUni a = TestUni String (a -> a) (forall clk . Signal clk a -> Signal clk a)
+data TestBin a = TestBin String (a -> a -> a) (forall clk . Signal clk a -> Signal clk a -> Signal clk a)
 
 
 -- This only tests at the *value* level, and ignores testing unknowns.
@@ -118,7 +118,7 @@ testUniOp :: forall a b .
           => TestSeq
           -> String
           -> (a -> b)
-          -> (forall clk . CSeq clk a -> CSeq clk b)
+          -> (forall clk . Signal clk a -> Signal clk b)
           -> [a]
           -> IO ()
 testUniOp (TestSeq test _) nm opr lavaOp us0 = do
@@ -141,7 +141,7 @@ testBinOp :: forall a b c .
           => TestSeq
           -> String
           -> (a -> b -> c)
-          -> (forall clk . CSeq clk a -> CSeq clk b -> CSeq clk c)
+          -> (forall clk . Signal clk a -> Signal clk b -> Signal clk c)
           -> List (a,b)
           -> IO ()
 testBinOp (TestSeq test _) nm opr lavaOp gen = do
@@ -166,7 +166,7 @@ testTriOp :: forall a b c d .
           => TestSeq
           -> String
           -> (a -> b -> c -> d)
-          -> (forall clk . CSeq clk a -> CSeq clk b -> CSeq clk c -> CSeq clk d)
+          -> (forall clk . Signal clk a -> Signal clk b -> Signal clk c -> Signal clk d)
           -> List (a,b,c)
           -> IO ()
 testTriOp (TestSeq test _) nm opr lavaOp gen = do
@@ -340,7 +340,7 @@ testDelay  (TestSeq test _) tyName (us0) = do
 
 {-
 testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1)) 
-	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => CSeq c a -> CSeq c a) -> IO ()
+	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => Signal c a -> Signal c a) -> IO ()
 testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       let xs = toL ws
       

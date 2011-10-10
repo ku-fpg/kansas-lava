@@ -13,11 +13,11 @@ import Data.Dynamic
 
 -- | We use identity "black boxes" as arbitary tags in the syntax, for extentablity.
 
-addDynamic :: (sig ~ CSeq i, Rep a) => Dynamic -> sig a -> sig a
+addDynamic :: (sig ~ Signal i, Rep a) => Dynamic -> sig a -> sig a
 addDynamic dyn = idD (BlackBox (Box dyn))
 
 -- | Get any chain of (deep) black boxes on this signal.
-getDynamics :: (sig ~ CSeq i, Rep a) => sig a -> [Dynamic]
+getDynamics :: (sig ~ Signal i, Rep a) => sig a -> [Dynamic]
 getDynamics sig = find (unD $ seqDriver sig)
   where
 	find :: Driver E -> [Dynamic]

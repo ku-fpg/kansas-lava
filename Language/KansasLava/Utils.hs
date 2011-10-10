@@ -8,7 +8,7 @@ import Data.Bits
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
---import Language.KansasLava.CSeq
+--import Language.KansasLava.Signal
 -- import Language.KansasLava.Interp
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
@@ -19,11 +19,11 @@ import Data.Sized.Signed	as SI
 -----------------------------------------------------------------------------------------------
 
 -- | The 'Signal' representing True.
-high :: (sig ~ CSeq i) => sig Bool
+high :: (sig ~ Signal i) => sig Bool
 high = pureS True
 
 -- | The 'Signal' representing False.
-low :: (sig ~ CSeq i) => sig Bool
+low :: (sig ~ Signal i) => sig Bool
 low  = pureS False
 
 {-
@@ -38,7 +38,7 @@ false = low
 
 -----------------------------------------------------------------------------------------------
 -- | 1-bit and gate.
-and2 :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+and2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 and2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
 	     (Just True,Just True) -> optX $ Just True
 	     (Just False,_)        -> optX $ Just False
@@ -48,7 +48,7 @@ and2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
          s2
 
 -- | 1-bit or gate.
-or2 :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+or2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 or2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
 	     (Just False,Just False) -> optX $ Just False
 	     (Just True,_)           -> optX $ Just True
@@ -58,7 +58,7 @@ or2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
          s2
         
 -- | 1-bit xor gate.
-xor2 :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+xor2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 xor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
 	     (Just a',Just b') -> optX $ Just (a' /= b')
              _                 -> optX $ Nothing ) "or2"
@@ -66,17 +66,17 @@ xor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
          s2
         
 -- | 1 bit inverter.
-bitNot :: ( sig ~ CSeq i) => sig Bool -> sig Bool
+bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
-testABit :: forall sig a i . (Bits a, Rep a,  sig ~ CSeq i) => sig a -> Int -> sig Bool
+testABit :: forall sig a i . (Bits a, Rep a,  sig ~ Signal i) => sig a -> Int -> sig Bool
 testABit (Seq a ae) i = Seq (fmap (liftX (flip testBit i)) a)
                             (entityD2 "testBit"  ae
                                                  (pureD (fromIntegral i :: Integer)))
 
 -- | Predicate to see if a Signed value is positive.
-isPositive :: forall sig i ix . (sig ~ CSeq i, Size ix, Integral ix) => sig (Signed ix) -> sig Bool
+isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix) => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a msb
     where msb = bitSize a - 1
 
@@ -85,15 +85,15 @@ infixr 2 .||.
 infixr 2 .^.
 
 -- | Alias for 'and2'.
-(.&&.) :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+(.&&.) :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 (.&&.) = and2
 
 -- | Alias for 'or2'.
-(.||.) :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+(.||.) :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 (.||.) = or2
 
 -- | Alias for 'xor2'.
-(.^.) :: ( sig ~ CSeq i) => sig Bool -> sig Bool -> sig Bool
+(.^.) :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 (.^.)  = xor2
 
 
@@ -107,7 +107,7 @@ infixr 2 .^.
 -- | Given a function over a finite domain, generate a ROM representing the
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
-funMap :: forall sig a b i . (sig ~ CSeq i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
+funMap :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
 funMap fn (Seq a ae) = Seq (fmap fn' a) 
                             (D $ Port ("o0")
 			       $ E
@@ -150,13 +150,13 @@ funMap fn (Seq a ae) = Seq (fmap fn' a)
 -- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
 -- zero (false) selects the first argument of the tuple, one (true)
 -- selects the second.
-mux :: forall sig a i . ( sig ~ CSeq i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
+mux :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux iSig (eSig,tSig) = primXS3 mux2shallow "mux2"  iSig  tSig  eSig
 
 -- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
 -- the use of liftS3. This is safe, because we know the kind of node that we're building.
 -- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
-mux2 :: forall sig a i . ( sig ~ CSeq i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
+mux2 :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig) = mux iSig (eSig,tSig)
 
 -- | Shallow definition of a multiplexer. Deals with 3-value logic.
@@ -192,7 +192,7 @@ evalX a = count $ unRepValue $ toRep a
 -- | Alias for '.!.'
 muxMatrix
 	:: forall sig x a i
-	 . ( sig ~ CSeq i, Size x, Rep x, Rep a)
+	 . ( sig ~ Signal i, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
@@ -200,7 +200,7 @@ muxMatrix = (.!.)
 
 -- | Extract the n'th element of a vector.
 (.!.)	:: forall sig x a i
-	 . ( sig ~ CSeq i, Size x, Rep x, Rep a)
+	 . ( sig ~ Signal i, Size x, Rep x, Rep a)
 	=> sig (Matrix x a)
 	-> sig x
 	-> sig a
@@ -209,34 +209,34 @@ muxMatrix = (.!.)
 
 -------------------------------------------------------------------------------------------------
 
--- | Lift a (named) binary function over bools to be over 'CSeq's.
-boolOp :: forall a i sig . (Rep a,  sig ~ CSeq i) => (a -> a -> Bool) -> String -> sig a -> sig a -> sig Bool
+-- | Lift a (named) binary function over bools to be over 'Signal's.
+boolOp :: forall a i sig . (Rep a,  sig ~ Signal i) => (a -> a -> Bool) -> String -> sig a -> sig a -> sig Bool
 boolOp fn nm a b = primS2 fn nm  a  b
 
 infix 4 .==., .>=., .<=., .<., .>.
 
 -- | N-bit equality.
-(.==.) :: forall a i sig . (Rep a, Eq a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(.==.) :: forall a i sig . (Rep a, Eq a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.==.) = boolOp (==) ".==."
 
 -- | N-bit not-equals.
-(./=.) :: forall a i sig . (Rep a, Eq a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(./=.) :: forall a i sig . (Rep a, Eq a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (./=.) xs ys = bitNot (xs .==. ys) -- TODO: consider making this a primitive
 
 -- | N-bit greater-than-or-equals.
-(.>=.) :: forall a i sig . (Rep a, Ord a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(.>=.) :: forall a i sig . (Rep a, Ord a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.>=.) = boolOp (>=) ".>=."
 
 -- | N-bit less-than-or-equals.
-(.<=.) :: forall a i sig . (Rep a, Ord a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(.<=.) :: forall a i sig . (Rep a, Ord a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.<=.) = boolOp (<=) ".<=."
 
 -- | N-bit less-than.
-(.<.) :: forall a i sig . (Rep a, Ord a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(.<.) :: forall a i sig . (Rep a, Ord a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.<.) = boolOp (<) ".<."
 
 -- | N-bit greater-than.
-(.>.) :: forall a i sig . (Rep a, Ord a,  sig ~ CSeq i) => sig a -> sig a -> sig Bool
+(.>.) :: forall a i sig . (Rep a, Ord a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.>.) = boolOp (>) ".>."
 
 
@@ -254,7 +254,7 @@ infix 4 .==., .>=., .<=., .<., .>.
 
 
 {-
-	   ,  sig ~ CSeq i, Rep a2, Rep a1
+	   ,  sig ~ Signal i, Rep a2, Rep a1
 	   , StdLogic a, StdLogic a1, StdLogic a2) => sig a -> sig (a1,a2)
 factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 		 , fromStdLogicVector $ extractStdLogicVector (size (error "witness" :: WIDTH a1)) vec
@@ -266,8 +266,8 @@ factor a = pack ( fromStdLogicVector $ extractStdLogicVector 0 vec
 -------------------------------------------------------------------------------------
 -}
 
--- | The identity function, lifted to 'CSeq's.
-lavaId :: ( sig ~ CSeq i, Rep a) => sig a -> sig a
+-- | The identity function, lifted to 'Signal's.
+lavaId :: ( sig ~ Signal i, Rep a) => sig a -> sig a
 lavaId a = primS1 id "id"  a
 
 
@@ -276,14 +276,14 @@ lavaId a = primS1 id "id"  a
 
 -- | 'ignoring' is used to make sure a value is reified.
 -- TODO: is this used?
-ignoring :: ( sig ~ CSeq i, Rep a, Rep b) => sig a -> sig b -> sig a
+ignoring :: ( sig ~ Signal i, Rep a, Rep b) => sig a -> sig b -> sig a
 ignoring a b = primS2 const "const" a  b
 
 
 -------------------------------------------------------------------------------------
 
 -- | Given a representable value for a discirminant and a list of input signals, generate a n-ary mux.
-cASE :: (Rep b,  sig ~ CSeq i) => [(sig Bool,sig b)] -> sig b -> sig b
+cASE :: (Rep b,  sig ~ Signal i) => [(sig Bool,sig b)] -> sig b -> sig b
 cASE [] def = def
 cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 
@@ -292,11 +292,11 @@ cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
 
 
 -- | translate using raw underlying bits, Width *must* be the same.
-bitwise :: forall sig a b i . ( sig ~ CSeq i, Rep a, Rep b, W a ~ W b) => sig a -> sig b
+bitwise :: forall sig a b i . ( sig ~ Signal i, Rep a, Rep b, W a ~ W b) => sig a -> sig b
 bitwise a = primXS1 (fromRep . toRep) "coerce"  a
 
 -- | translate using raw underlying bits for deep, but given function for shallow, Width *must* be the same.
-coerce :: forall sig a b i . ( sig ~ CSeq i, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
+coerce :: forall sig a b i . ( sig ~ Signal i, Rep a, Rep b, W a ~ W b) => (a -> b) -> sig a -> sig b
 coerce f a = primXS1 g "coerce"  a
   where
        g :: X a -> X b
@@ -319,7 +319,7 @@ signedX = id
 
 
 -- | consider the bits as signed number (sign extend)
-signed :: (Rep a, Rep b, Num b,  sig ~ CSeq i)  => sig a -> sig b
+signed :: (Rep a, Rep b, Num b,  sig ~ Signal i)  => sig a -> sig b
 signed a = primXS1 signedX "signed"  a
 
 -- | Consider the value as an unsigned value.
@@ -332,23 +332,23 @@ unsignedX = id
        . toRep
 
 -- | consider the bits an unsigned number (zero extend)
-unsigned :: (Rep a, Rep b, Num b,  sig ~ CSeq i)  => sig a -> sig b
+unsigned :: (Rep a, Rep b, Num b,  sig ~ Signal i)  => sig a -> sig b
 unsigned a = primXS1 unsignedX "unsigned"  a
 
 
 ----------------------------------------------------------------------------
 -- | translate using raw underlying bits, type  *must* be the same, but is not statically checked.
-unsafeId :: forall sig a b i . ( sig ~ CSeq i, Rep a, Rep b) => sig a -> sig b
+unsafeId :: forall sig a b i . ( sig ~ Signal i, Rep a, Rep b) => sig a -> sig b
 unsafeId a = primXS1 (fromRep . toRep) "coerce"  a
 
 ----------------------------------------------------------------------------
 -- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
 {-
-factor :: forall a a1 a2 sig . ( sig ~ CSeq i, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+factor :: forall a a1 a2 sig . ( sig ~ Signal i, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
 factor a = unpack (bitwise a :: sig (a1,a2))
 
 -- | given two signals of a1 and a2 width, respectively, pack them into a signal of a1 + a2 width.
-append :: forall sig a b c . ( sig ~ CSeq i, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
+append :: forall sig a b c . ( sig ~ Signal i, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
 append x y = bitwise (pack (x,y) :: sig (a,b))
 -}
 
@@ -358,7 +358,7 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- the second is our reference value.
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
-refinesFrom :: forall sig a i . ( sig ~ CSeq i, Rep a) => sig a -> sig a -> sig Bool
+refinesFrom :: forall sig a i . ( sig ~ Signal i, Rep a) => sig a -> sig a -> sig Bool
 refinesFrom a b = shallowSeq (S.zipWith fn (seqValue a) (seqValue b))
    where
            fn a' b' = let res =  and  [ case (vut,ref) of
@@ -373,8 +373,8 @@ refinesFrom a b = shallowSeq (S.zipWith fn (seqValue a) (seqValue b))
 --------------------------------------------------------------------------------
 -- | Create a register, pass the output of the register through some
 -- combinational logic, then pass the result back into the register input.
-iterateS :: (Rep a, Clock c, seq ~ CSeq c)
-         => (forall j . CSeq j a -> CSeq j a) 
+iterateS :: (Rep a, Clock c, seq ~ Signal c)
+         => (forall j . Signal j a -> Signal j a) 
          -> a -> seq a
 iterateS f start = out where
         out = register start (f out)
@@ -382,9 +382,9 @@ iterateS f start = out where
 ---------------------------------------------------------------------
 
 -- These varients of succ/pred can handle bounded values and do proper looping.
-loopingInc :: (Bounded a, Num a, Rep a, sig ~ CSeq i) => sig a -> sig a
+loopingInc :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
 loopingInc a = mux2 (a .==. maxBound) (pureS 0,a + 1)
 
-loopingDec :: (Bounded a, Num a, Rep a, sig ~ CSeq i) => sig a -> sig a
+loopingDec :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
 loopingDec a = mux2 (a .==. 0) (pureS maxBound,a - 1)
 

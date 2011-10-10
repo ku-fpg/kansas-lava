@@ -20,10 +20,10 @@ import Prelude hiding (tail, lookup)
 type Pipe a d = Enabled (a,d)
 
 -- | A Memory takes in a sequence of addresses, and returns a sequence of data at that address.
-type Memory clk a d = CSeq clk a -> CSeq clk d
+type Memory clk a d = Signal clk a -> Signal clk d
 
 -- | Given a Seq of addresses for reads and a memory structure, this produces a Pipe that's the memory output.
-memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clock clk) =>  CSeq clk (Enabled a) -> Memory clk a d -> CSeq clk (Pipe a d)
+memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clock clk) =>  Signal clk (Enabled a) -> Memory clk a d -> Signal clk (Pipe a d)
 memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
    where
 	(en,a) = unpack enA
@@ -32,7 +32,7 @@ memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
 -- at the corresponding address, and return the value at the address that is the
 -- second argument.
 pipeToMemory :: forall a d clk1 . (Size a, Clock clk1, Rep a, Rep d)
-	=> CSeq clk1 (Pipe a d)
+	=> Signal clk1 (Pipe a d)
 	-> Memory clk1 a d
 pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
 
@@ -41,7 +41,7 @@ pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
 -- Does not work for two clocks, *YET*
 -- call writeMemory
 -- | Write the input pipe to memory, return a circuit that does reads.
-writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ CSeq clk1, Size a, Rep a, Rep d)
+writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
 	=> sig (Pipe a d)
 	-> sig (a -> d)
 writeMemory pipe = res
@@ -51,7 +51,7 @@ writeMemory pipe = res
 	(wEn,pipe') = unpack  {- register (pureS Nothing) $ -} pipe
 	(addr,dat) = unpack pipe'
 
-    	res :: CSeq clk1 (a -> d)
+    	res :: Signal clk1 (a -> d)
     	res = Seq shallowRes (D $ Port "o0" $ E entity)
 
 	shallowRes :: Stream (X (a -> d))
@@ -128,36 +128,36 @@ writeMemory pipe = res
                           )
 			]
 {-
-readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+readMemory :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = unpack mem addr
 -}
 
 -- This is an alias (TODO: remove)
 -- | Read a series of addresses.
-readMemory :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+readMemory :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 readMemory mem addr = asyncRead mem addr
 
 -- | Read a series of addresses. Respect the latency of Xilinx BRAMs.
-syncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
 
 -- | Read a series of addresses.
-asyncRead :: forall a d sig clk . (Clock clk, sig ~ CSeq clk, Size a, Rep a, Rep d)
+asyncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 asyncRead = primS2 ($) "asyncRead"
 
 -- | memoryToMatrix should be used with caution/simulation  only,
 -- because this actually clones the memory to allow this to work,
 -- generating lots of LUTs and BRAMS.
-memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ CSeq clk)
+memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ Signal clk)
 	=> sig (a -> d) -> sig (Matrix a d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 -- | Apply a function to the Enabled input signal producing a Pipe.
-enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ CSeq clk) => (forall j . CSeq j x -> CSeq j (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
+enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ Signal clk) => (forall j . Signal j x -> Signal j (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, f x)
    where (en,x) = unpack se
 
@@ -166,30 +166,30 @@ enabledToPipe f se = pack (en, f x)
 -- to move into a counters module
 -- Count the number of ticks on a signal. Notice that we start at zero (no ticks),
 -- and bump the counter at each sighting.
-countTicks :: forall clk x . (Rep x) => x -> (Comb x -> Comb x) ->  CSeq clk Bool -> CSeq clk (Enabled x)
+countTicks :: forall clk x . (Rep x) => x -> (Comb x -> Comb x) ->  Signal clk Bool -> Signal clk (Enabled x)
 countTicks init succ sysEnv enable = packEnabled enable ctr
    where
-        ctr :: CSeq clk x
+        ctr :: Signal clk x
         ctr = register sysEnv (pureS init) val
 
-        val :: CSeq clk x
+        val :: Signal clk x
         val = mux2 enable (liftS1 succ ctr,ctr)
 
 
 -- compare with my previous value
-cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> CSeq clk a -> CSeq clk b
+cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> Signal clk a -> Signal clk b
 cmp env f inp = liftS2 f (delay env inp) inp
 
 -}
 -- Apply a function to the data output of a Pipe.
---mapPipe :: (sig ~ CSeq clk, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
+--mapPipe :: (sig ~ Signal clk, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
 --mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
 
 
 {-
 -- | only combines pipes when both inputs are enabled, and *assumes* the
 -- x addresses are the same.
-zipPipe :: (sig ~ CSeq clk, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
+zipPipe :: (sig ~ Signal clk, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
 zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 -}
 
@@ -203,7 +203,7 @@ zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
 --  res = rom inp $ \ a -> ....
 --
 -- | Generate a read-only memory.
-rom :: (Rep a, Rep b, Clock clk) => CSeq clk a -> (a -> Maybe b) -> CSeq clk b
+rom :: (Rep a, Rep b, Clock clk) => Signal clk a -> (a -> Maybe b) -> Signal clk b
 rom inp fn = delay $ funMap fn inp
 
 ---------------------------------

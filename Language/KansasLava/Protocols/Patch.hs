@@ -73,7 +73,7 @@
 -- How do we represent two handshaken signals going into a signal
 -- processor?
 --
--- zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
+-- zipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep b)
 --   => Patch (sig (Enabled a)  :> sig (Enabled b))  (sig (Enabled (a,b)))
 -- 	   (sig Ack          :> sig Ack)	  (sig Ack)
 --
@@ -83,7 +83,7 @@
 --
 -- As a final example, consider
 --
--- matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+-- matrixContractPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
 --          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 -- 	          (sig Ack)	    (sig Ack)
 -- matrixContractPatch =
@@ -263,8 +263,8 @@ openPatch = forwardPatch (\ a -> (() :> a)) $$
 -- Sink Patches - throw away (ignore) data
 -------------------------------------------------------------------------------
 
-mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ CSeq c)
-	 => (forall clk' . CSeq clk' a -> CSeq clk' b)
+mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ Signal c)
+	 => (forall clk' . Signal clk' a -> Signal clk' b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
 mapPatch = forwardPatch . mapEnabled
@@ -276,7 +276,7 @@ mapPatch = forwardPatch . mapEnabled
 
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ready protocol.
-sinkReadyPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+sinkReadyPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ready)                 ()
 sinkReadyPatch ~(_, ()) = (toReady ready, ())
@@ -284,7 +284,7 @@ sinkReadyPatch ~(_, ()) = (toReady ready, ())
         ready = high
 -- | A sink patch throws away its data input (generating a () data
 -- output). sinkReadyPatch uses an enabled/ack protocol.
-sinkAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+sinkAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => Patch    (sig (Enabled a))           ()
                 (sig Ack)                   ()
 sinkAckPatch ~(inp, ()) = (toAck ack, ())
@@ -298,7 +298,7 @@ sinkAckPatch ~(inp, ()) = (toAck ack, ())
 -- | A source patch takes no input and generates a stream of values. It
 -- corresponds to a top-level input port. sourceReadyPatch uses the
 -- ready/enabled protocol.
-sourceReadyPatch :: forall a c sig . ( Rep a, Clock c, sig ~ CSeq c)
+sourceReadyPatch :: forall a c sig . ( Rep a, Clock c, sig ~ Signal c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ready)
@@ -310,7 +310,7 @@ sourceReadyPatch baseVal ~((), ready_in) = ((), out)
 -- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
 -- protocol.
 
-alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => a
     -> Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
@@ -321,7 +321,7 @@ alwaysAckPatch baseVal ~((), _) = ((), out)
 ------------------------------------------------
 
 -- no data ever sent
-neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => Patch    ()           (sig (Enabled a))
                 ()           (sig Ack)
 neverAckPatch (_,_) = ((),disabledS)
@@ -462,7 +462,7 @@ infixr 5 $$
 -- the output side.  If data is currently being held, then the ready signal
 -- will not be given.  This bridge is fine for deep embedding (can be
 -- represented in hardware).
-readyToAckBridge :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+readyToAckBridge :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ready)                 (sig Ack)
 readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
@@ -491,7 +491,7 @@ readyToAckBridge ~(inp, ack_in0) = (toReady ready, out)
 -- enable from the sending component.  This may not be necessary at times
 -- if the sending component ignores ACKs when no data is sent. This bridge
 -- is fine for deep embedding (can be represented in hardware).
-ackToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
+ackToReadyBridge :: (Rep a, Clock c, sig ~ Signal c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ack)                 (sig Ready)
 ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
@@ -504,7 +504,7 @@ ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
 -- the sending component.  This may unsafe if the sending component does not
 -- ignore Acks when no data is sent.  Otherwise, this should be safe.  This
 -- bridge is fine for deep embedding (can be represented in hardware).
-unsafeAckToReadyBridge :: (Rep a, Clock c, sig ~ CSeq c)
+unsafeAckToReadyBridge :: (Rep a, Clock c, sig ~ Signal c)
     => Patch    (sig (Enabled a))           (sig (Enabled a))
                 (sig Ack)                 (sig Ready)
 unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
@@ -550,7 +550,7 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
 -- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack
 -- signals in an Ack interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
-probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c, Probe (sig a))
     => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
              (sig Ack)           (sig Ack)
@@ -565,7 +565,7 @@ probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
 -- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
 -- signals in a Ready interface.  Probe prints output is in a packed format, so it is
 -- easier to read than using the probeDataPatch.
-probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ CSeq c, Probe (sig a))
+probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c, Probe (sig a))
     => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
              (sig Ready)         (sig Ready)
@@ -585,7 +585,7 @@ probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
 -- This has the behavior that neither branch sees the value
 -- until both can recieve it.
 
-dupPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+dupPatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))
 	          (sig Ack)             (sig Ack          :> sig Ack)
 
@@ -620,7 +620,7 @@ dupPatch =
 -}
 
 -- | This duplicate the incoming datam over many handshaken streams.
-matrixDupPatch :: (Clock c, sig ~ CSeq c, Rep a, Size x)
+matrixDupPatch :: (Clock c, sig ~ Signal c, Rep a, Size x)
          => Patch (sig (Enabled a))     (Matrix x (sig (Enabled a)))
 	          (sig Ack)             (Matrix x (sig Ack))
 matrixDupPatch = ackToReadyBridge $$ matrixDupPatch' $$ matrixStack (pure readyToAckBridge) where
@@ -631,7 +631,7 @@ matrixDupPatch = ackToReadyBridge $$ matrixDupPatch' $$ matrixStack (pure readyT
 
 -- | unzipPatch creates a patch that takes in an Enabled data pair, and produces a
 -- pair of Enabled data outputs.
-unzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
+unzipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep b)
          => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
 	          (sig Ack)                 (sig Ack       :> sig Ack)
 unzipPatch = dupPatch $$
@@ -639,7 +639,7 @@ unzipPatch = dupPatch $$
 		      (forwardPatch $ mapEnabled (snd . unpack))
 
 -- | matrixUnzipPatch is the generalization of unzipPatch to homogeneous matrices.
-matrixUnzipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+matrixUnzipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
          => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
 	          (sig Ack)          		  (Matrix x (sig Ack))
 matrixUnzipPatch =
@@ -647,7 +647,7 @@ matrixUnzipPatch =
 	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
 
 -- | TODO: Andy write docs for this.
-deMuxPatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+deMuxPatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
   => Patch (sig (Enabled Bool)    :> sig (Enabled a)) 		  (sig (Enabled a) :> sig (Enabled a))
 	   (sig Ack               :> sig Ack)		          (sig Ack	   :> sig Ack)
 deMuxPatch = fe $$ matrixDeMuxPatch $$ be
@@ -658,7 +658,7 @@ deMuxPatch = fe $$ matrixDeMuxPatch $$ be
 	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
 
 -- | matrixDeMuxPatch is the generalization of deMuxPatch to a matrix of signals.
-matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
 	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ack))
 matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) where
@@ -679,7 +679,7 @@ matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) wher
 -- no unDup (requires some function / operation, use zipPatch).
 
 -- | Combine two enabled data inputs into a single Enabled tupled data input.
-zipPatch :: (Clock c, sig ~ CSeq c, Rep a, Rep b)
+zipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ack)
 zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
@@ -690,7 +690,7 @@ zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
 	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
 -- | Extension of zipPatch to homogeneous matrices.
-matrixZipPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+matrixZipPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
          => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))
 	          (Matrix x (sig Ack))		(sig Ack)
 matrixZipPatch ~(mIn, outReady) = (mAcks, out)
@@ -702,7 +702,7 @@ matrixZipPatch ~(mIn, outReady) = (mAcks, out)
 	out   = packEnabled try (pack mIn' :: sig (Matrix x a))
 
 -- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
-muxPatch :: (Clock c, sig ~ CSeq c, Rep a)
+muxPatch :: (Clock c, sig ~ Signal c, Rep a)
   => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
 	   (sig Ack            :> sig Ack          :> sig Ack)	  	(sig Ack)
 
@@ -713,7 +713,7 @@ muxPatch = fe `bus` matrixMuxPatch
 
 
 -- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
-matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x)
+matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
 matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
@@ -740,7 +740,7 @@ matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
 -- (There are larger FIFO's in the Kansas Lava Cores package.)
 
 -- | FIFO with depth 1.
-fifo1 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+fifo1 :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
       => Patch (sig (Enabled a)) 	(sig (Enabled a))
 	       (sig Ack)		(sig Ack)
 fifo1 ~(inp,ack) = (toAck have_read, out)
@@ -764,7 +764,7 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 	out = packEnabled (state .==. 1) store
 
 -- | FIFO with depth 2.
-fifo2 :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+fifo2 :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
     => Patch (sig (Enabled a)) 	 (sig (Enabled a))
              (sig Ack)         (sig Ack)
 fifo2 = ackToReadyBridge $$ fifo2' where
@@ -815,7 +815,7 @@ fifo2 = ackToReadyBridge $$ fifo2' where
 -- Retiming
 ---------------------------------------------------------------------------------
 
-matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
 matrixExpandPatch =
@@ -825,7 +825,7 @@ matrixExpandPatch =
 		 (matrixUnzipPatch)
 	$$ matrixMuxPatch
 
-matrixContractPatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixContractPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
 matrixContractPatch =
@@ -839,7 +839,7 @@ matrixContractPatch =
 ---------------------------------------------------------------------------------
 
 -- | unitClockPatch forces the handshaking to use the unit clock. Which is useful for testing.
-unitClockPatch :: (sig ~ CSeq ()) =>
+unitClockPatch :: (sig ~ Signal ()) =>
 	Patch (sig a)		(sig a)
 	      (sig b)           (sig b)
 unitClockPatch ~(li,ri) = (ri,li)
@@ -853,7 +853,7 @@ cyclePatch :: forall a c ix sig .
         , Rep ix
         , Num ix
         , Clock c
-	, sig ~ CSeq c
+	, sig ~ Signal c
         )
 	=> Matrix ix a
 	-> Patch ()		(sig (Enabled a))
@@ -875,7 +875,7 @@ constPatch :: forall a c ix sig .
         , Rep ix
         , Num ix
         , Clock c
-	, sig ~ CSeq c
+	, sig ~ Signal c
         )
 	=> Matrix ix a
 	-> Patch ()	(sig (Enabled a))
@@ -908,7 +908,7 @@ appendPatch :: forall a c ix sig .
         , Rep ix
         , Num ix
         , Clock c
-	, sig ~ CSeq c
+	, sig ~ Signal c
         )
 	=> Matrix ix a
 	-> Patch (sig (Enabled a))	(sig (Enabled a))
@@ -960,7 +960,7 @@ swapPatch = forwardPatch (\ (a :> b) -> (b :> a)) $$
 data MergePlan = PriorityMerge		-- The first element always has priority
 	       | RoundRobinMerge	-- turn about
 
-mergePatch :: forall c sig a . (Clock c, sig ~ CSeq c, Rep a)
+mergePatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
  => MergePlan
  -> Patch ((sig (Enabled a)) :> (sig (Enabled a)))    (sig (Enabled a))
 	   ((sig Ack)         :> (sig Ack))            (sig Ack)
@@ -971,7 +971,7 @@ mergePatch plan = fe $$ matrixMergePatch plan
 	     backwardPatch (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
 
 
-matrixMergePatch :: forall c sig a x . (Clock c, sig ~ CSeq c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixMergePatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
   => MergePlan
   -> Patch (Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (Matrix x (sig Ack))		  	(sig Ack)

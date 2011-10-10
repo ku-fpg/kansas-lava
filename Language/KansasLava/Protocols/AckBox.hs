@@ -49,7 +49,7 @@ OR
 
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
-toAckBox :: (Rep a, Clock c, sig ~ CSeq c)
+toAckBox :: (Rep a, Clock c, sig ~ Signal c)
          =>  Patch [Maybe a]  			(sig (Enabled a))
 	           ()				(sig Ack)
 
@@ -57,7 +57,7 @@ toAckBox = toAckBox' []
 
 -- | An AckBox producer that will go through a series of wait states after each
 -- time it drives the data output.
-toAckBox' :: (Rep a, Clock c, sig ~ CSeq c)
+toAckBox' :: (Rep a, Clock c, sig ~ Signal c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a] 		(sig (Enabled a))
 		      ()			(sig Ack)
@@ -86,14 +86,14 @@ toAckBox' pauses ~(ys,ack) = ((),toSeq (fn ys (fromSeq ack) pauses))
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
 --   is given back to the FIFO, and a shallow list of values.
 -- I'm sure this space-leaks.
-fromAckBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+fromAckBox :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ack)			()
 fromAckBox = fromAckBox' []
 
 -- | An ackBox that goes through a series of intermediate states each time
 -- consumes a value from the input stream and then issues an Ack.
-fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ack)			()
@@ -112,7 +112,7 @@ fromAckBox' pauses ~(inp,_) = (toSeq (map fst internal), map snd internal)
 
 ---------------------------------------------------------------------------
 -- | 'enableToAckBox' turns an Enabled signal into a (1-sided) Patch.
-enabledToAckBox :: (Rep a, Clock c, sig ~ CSeq c)
+enabledToAckBox :: (Rep a, Clock c, sig ~ Signal c)
 	       => Patch (sig (Enabled a))    (sig (Enabled a))
 		        ()  		     (sig Ack)
 enabledToAckBox ~(inp,ack) = ((),res)
@@ -125,7 +125,7 @@ enabledToAckBox ~(inp,ack) = ((),res)
 -- | 'ackBoxToEnabled' turns the AckBox protocol into the Enabled protocol.
 -- The assumptions is the circuit on the right is fast enough to handle the
 -- streamed data.
-ackBoxToEnabled :: (Rep a, Clock c, sig ~ CSeq c)
+ackBoxToEnabled :: (Rep a, Clock c, sig ~ Signal c)
 	       => Patch (sig (Enabled a))    (sig (Enabled a))
 		        (sig Ack) 	     ()
 ackBoxToEnabled ~(inp,_) = (toAck ack,out)
@@ -134,7 +134,7 @@ ackBoxToEnabled ~(inp,_) = (toAck ack,out)
 	ack = isEnabled inp
 
 {-
-beat :: (Clock c, sig ~ CSeq c) =>
+beat :: (Clock c, sig ~ Signal c) =>
 	Patch ()		(sig (Enabled ()))
 	      ()	()	(sig Ack)
 beat ~(_,_) = ((),(),enabledS (pureS ()))
@@ -145,7 +145,7 @@ beat ~(_,_) = ((),(),enabledS (pureS ()))
 test1 :: [Maybe Int] -> [Maybe Int]
 test1 xs = res
   where
-	hs :: CSeq () (Enabled Int)
+	hs :: Signal () (Enabled Int)
 	hs = toAckBox xs ack
 
 	(ack, hs') = shallowAckBoxBridge (lhs_rs,rhs_rs) (hs,ack')
@@ -159,7 +159,7 @@ test1 xs = res
 -}
 
 -- | This introduces protocol-compliant delays (in the shallow embedding)
-shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a)
+shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show a)
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
 				(sig Ack)		 	(sig Ack)
@@ -173,7 +173,7 @@ shallowAckBoxBridge (lhsF,rhsF) = patch
 -- | This function takes a MVar, and gives back a Handshaken signal that represents
 -- the continuous sequence of contents of the MVar.
 {-
-mVarToAckBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Ack -> (CSeq c (Enabled a)))
+mVarToAckBox :: (Clock c, Rep a) => MVar a -> IO (Signal c Ack -> (Signal c (Enabled a)))
 mVarToAckBox sfifo = do
         xs <- getFIFOContents sfifo
         return (toAckBox xs)
@@ -184,7 +184,7 @@ mVarToAckBox sfifo = do
  	        xs <- getFIFOContents var
  	        return (x:xs)
 
-handShakeToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Ack -> CSeq c (Enabled a)) -> IO ()
+handShakeToMVar :: (Clock c, Rep a) => MVar a -> (Signal c Ack -> Signal c (Enabled a)) -> IO ()
 handShakeToMVar sfifo sink = do
         sequence_
                 $ map (putMVar sfifo)
@@ -200,7 +200,7 @@ handShakeToMVar sfifo sink = do
 -- interactMVar
 interactMVar :: forall src sink
          . (Rep src, Rep sink)
-        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => (sig (Enabled src),sig Ack) -> (sig Ack,sig (Enabled sink)))
+        => (forall clk sig . (Clock clk, sig ~ Signal clk) => (sig (Enabled src),sig Ack) -> (sig Ack,sig (Enabled sink)))
         -> MVar src
         -> MVar sink
         -> IO ()
@@ -209,12 +209,12 @@ interactMVar fn varA varB = do
 
         handShakeToMVar varB $ \ rhs_back ->
                 -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Ack)
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: Signal () Ack)
                     lhs_inp = inp_fifo lhs_back
                 in
                     rhs_out
 
-hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
+hInteract :: (forall clk sig . (Clock clk, sig ~ Signal clk)
                 => (sig (Enabled Word8),sig Ack) -> (sig Ack, sig (Enabled Word8))
              )
           -> Handle
@@ -238,14 +238,14 @@ hInteract fn inp out = do
 
 -----------------------------------------------------------------------
 
-liftAckBox :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
-              => (forall c' . (Clock c') => CSeq c' a)
+liftAckBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
+              => (forall c' . (Clock c') => Signal c' a)
               -> sig Ack
               -> sig (Enabled a)
 liftAckBox seq' (Seq s_ack d_ack) = enabledS res
 
    where
-        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick
+        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick
 
         res = Seq (fn s_seq s_ack)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
@@ -264,7 +264,7 @@ liftAckBox seq' (Seq s_ack d_ack) = enabledS res
 -}
 
 -- A simple way of running a patch
-runAckBoxPatch :: forall sig c a b . (Clock c, sig ~ CSeq c, c ~ (), Rep a, Rep b)
+runAckBoxPatch :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
 	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
 		 (sig Ack)		(sig Ack)
 	-> [a] -> [b]

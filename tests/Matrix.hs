@@ -93,7 +93,7 @@ testMatrix2 (TestSeq test _) tyName ws = do
         test ("matrix/2/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
 
 
-type XX a = forall clk . CSeq clk  a
+type XX a = forall clk . Signal clk  a
 
 
 testMatrix3 :: forall w1 .

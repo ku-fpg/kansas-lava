@@ -40,11 +40,11 @@ instance Rep Ack where
   showRep         = showRepDefault
 
 -- | Convert a 'Bool' signal to an 'Ack' signal.
-toAck :: (sig ~ CSeq clk) => sig Bool -> sig Ack
+toAck :: (sig ~ Signal clk) => sig Bool -> sig Ack
 toAck = coerce Ack
 
 -- | Convert an 'Ack' to a 'Bool' signal.
-fromAck :: (sig ~ CSeq clk) => sig Ack -> sig Bool
+fromAck :: (sig ~ Signal clk) => sig Ack -> sig Bool
 fromAck = coerce unAck
 
 ------------------------------------------------------------------------------------
@@ -68,11 +68,11 @@ instance Rep Ready where
   showRep         = showRepDefault
 
 -- | Convert a Bool signal to a 'Ready' signal.
-toReady :: (sig ~ CSeq clk) => sig Bool -> sig Ready
+toReady :: (sig ~ Signal clk) => sig Bool -> sig Ready
 toReady = coerce Ready
 
 -- | Convert a 'Ready' signal to a Bool signal.
-fromReady :: (sig ~ CSeq clk) => sig Ready -> sig Bool
+fromReady :: (sig ~ Signal clk) => sig Ready -> sig Bool
 fromReady = coerce unReady
 
 ------------------------------------------------------------------------------------------------------------------------------------------------

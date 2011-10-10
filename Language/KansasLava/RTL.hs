@@ -27,47 +27,47 @@ import Data.List as L
 
 -------------------------------------------------------------------------------
 -- | A register is used internally to represent a register or memory element.
-data Reg s c a  = Reg (CSeq c a) 		--  output of register
-		      (CSeq c a)		--  input to register
-		      (STRef s [CSeq c a -> CSeq c a])
+data Reg s c a  = Reg (Signal c a) 		--  output of register
+		      (Signal c a)		--  input to register
+		      (STRef s [Signal c a -> Signal c a])
 		      (STRef s (Maybe String))	--  name for debug message
 		      Int
 	      | forall ix . (Rep ix) =>
-		  Arr (CSeq c a)
-		      (CSeq c ix)
-	    	      (STRef s [CSeq c (Maybe (ix,a)) -> CSeq c (Maybe (ix,a))])
+		  Arr (Signal c a)
+		      (Signal c ix)
+	    	      (STRef s [Signal c (Maybe (ix,a)) -> Signal c (Maybe (ix,a))])
 		      Int
 						-- the "assignments"
 
 -- | reg is the value of a register, as set by the start of the cycle.
-reg :: Reg s c a -> CSeq c a
+reg :: Reg s c a -> Signal c a
 reg (Reg iseq _ _ _ _) = iseq
 reg (Arr iseq _ _ _) = iseq
 
 -- | var is the value of a register, as will be set in the next cycle,
 -- so intra-cycle changes are observed. The is simular to a *variable*
 -- in VHDL.
-var :: Reg s c a -> CSeq c a
+var :: Reg s c a -> Signal c a
 var (Reg _ iseq _ _ _) = iseq
 var (Arr _ _ _ _) = error "can not take the var of an array"
 
 -------------------------------------------------------------------------------
 
 -- | A predicate (boolean) circuit. If the argument is Nothing, treat it as true.
-data Pred c = Pred (Maybe (CSeq c Bool))
+data Pred c = Pred (Maybe (Signal c Bool))
 
 -- | A predicate that's always true.
 truePred :: Pred c
 truePred = Pred Nothing
 
 -- | Conjunction of predicates.
-andPred :: Pred c -> CSeq c Bool -> Pred c
+andPred :: Pred c -> Signal c Bool -> Pred c
 andPred (Pred Nothing) c    = Pred (Just c)
 andPred (Pred (Just c1)) c2 = Pred (Just (c1 .&&. c2))
 
 -- | If the first predicate is false, then return the first element of the
 -- predicate. Otherwise, return the second element.
-muxPred :: (Rep a) => Pred c -> (CSeq c a, CSeq c a) -> CSeq c a
+muxPred :: (Rep a) => Pred c -> (Signal c a, Signal c a) -> Signal c a
 muxPred (Pred Nothing) (t,_) = t
 muxPred (Pred (Just p)) (t,f) = mux p (t,f)
 
@@ -76,9 +76,9 @@ muxPred (Pred (Just p)) (t,f) = mux p (t,f)
 -- | RTL Monad; s == the runST state; c is governing clock, and a is the result
 data RTL s c a where
 	RTL :: (Pred c -> STRef s Int -> ST s (a,[Int])) -> RTL s c a
-	(:=) :: forall c b s . (Rep b) => Reg s c b -> CSeq c b -> RTL s c ()
+	(:=) :: forall c b s . (Rep b) => Reg s c b -> Signal c b -> RTL s c ()
 	CASE :: [Cond s c] -> RTL s c ()
-	WHEN :: CSeq c Bool -> RTL s c () -> RTL s c ()
+	WHEN :: Signal c Bool -> RTL s c () -> RTL s c ()
 	DEBUG :: forall c b s . (Rep b) => String -> Reg s c b -> RTL s c ()
 
 -- everything except ($) bids tighter
@@ -132,7 +132,7 @@ unRTL (WHEN p m) = unRTL (CASE [IF p m])
 
 -- | A conditional statement.
 data Cond s c
-	= IF (CSeq c Bool) (RTL s c ())
+	= IF (Signal c Bool) (RTL s c ())
 	| OTHERWISE (RTL s c ())
 
 -------------------------------------------------------------------------------
@@ -160,7 +160,7 @@ newReg def = RTL $ \ _ u -> do
 	return (Reg regRes variable varSt debugSt uq,[])
 
 -- | Declare an array. Arrays support partual updates.
-newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (CSeq c ix -> Reg s c a)
+newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (Signal c ix -> Reg s c a)
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
@@ -168,19 +168,19 @@ newArr Witness = RTL $ \ _ u -> do
 	proj <- unsafeInterleaveST $ do
 		assigns <- readSTRef varSt
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
-		let look ix = writeMemory (ass :: CSeq c (Maybe (ix,a)))
+		let look ix = writeMemory (ass :: Signal c (Maybe (ix,a)))
 					`readMemory` ix
 		return look
 	return (\ ix -> Arr (proj ix) ix varSt uq, [])
 
---assign :: Reg s c (Matrix ix a) -> CSeq c ix -> Reg s c a
+--assign :: Reg s c (Matrix ix a) -> Signal c ix -> Reg s c a
 --assign (Reg seq var uq) = Arr
 
 -------------------------------------------------------------------------------
 
 -- | match checks for a enabled value, and if so, executes the given RTL in context,
 --   by constructing the correct 'Cond'-itional.
-match :: (Rep a) => CSeq c (Enabled a) -> (CSeq c a -> RTL s c ()) -> Cond s c
+match :: (Rep a) => Signal c (Enabled a) -> (Signal c a -> RTL s c ()) -> Cond s c
 match inp fn = IF (isEnabled inp) (fn (enabledVal inp))
 -- To consider: This is almost a bind operator?
 

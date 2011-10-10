@@ -12,7 +12,7 @@ module Language.KansasLava (
     theClk, theRst, theClkEn,
 
     -- * The CSeq and Seq types
-    CSeq, Seq, 
+    Signal, Seq, 
     toSeq, toSeq', undefinedSeq, fromSeq,
     pack, unpack,
     packMatrix, unpackMatrix,
@@ -32,7 +32,6 @@ module Language.KansasLava (
     module Language.KansasLava.RTL,
 
 
-    
     module Language.KansasLava.Probes,
     module Language.KansasLava.Protocols,
     module Language.KansasLava.Rep,

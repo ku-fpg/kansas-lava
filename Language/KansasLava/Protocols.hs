@@ -30,7 +30,7 @@ import qualified Language.KansasLava.Stream as Stream
 -- MailBox's on the left to HandShake's on the right.
 -- If you need a synthesizable FIFO, you can find one in the kansas-lava-cores package.
 
-shallowFIFO :: (Rep a, Clock c, sig ~ CSeq c)
+shallowFIFO :: (Rep a, Clock c, sig ~ Signal c)
 	=> Patch (sig (Enabled a)) 		(sig (Enabled a))
 		 (sig Ready) 			(sig Ack)
 shallowFIFO = fromReadyBox `bus` toAckBox
@@ -38,7 +38,7 @@ shallowFIFO = fromReadyBox `bus` toAckBox
 
 {-
 - an idea
-packPatch :: (Clock c, sig ~ CSeq c, Rep in1, Rep in2)
+packPatch :: (Clock c, sig ~ Signal c, Rep in1, Rep in2)
 	Patch (sig in1 :> sig in2)			(sig (in1 :> in2))
 	      (sig Ready :> sig Ready)		()	(sig Ack)
 -}
@@ -46,8 +46,8 @@ packPatch :: (Clock c, sig ~ CSeq c, Rep in1, Rep in2)
 --------------------------------------------------
 
 {-
-liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
-              => (forall c' . (Clock c', sig' ~ CSeq c') => sig' a -> sig' (Enabled b))
+liftHandShake1 :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
+              => (forall c' . (Clock c', sig' ~ Signal c') => sig' a -> sig' (Enabled b))
 	      -> Patch (sig (Enabled a))		(sig (Enabled b))
 		       (sig (Ready))		()	(sig (Ack))
 liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
@@ -59,7 +59,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
 
  (Seq s_Ready d_Ready) = res
    where
-        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick, we can use *any* clock
+        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick, we can use *any* clock
 
 	ty = bitTypeOf (undefined :: Seq a)
 
@@ -97,7 +97,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
 
 -}
 
-upFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ CSeq c1, sig2 ~ CSeq c2)
+upFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ Signal c1, sig2 ~ Signal c2)
        => ( sig2 Bool, sig1 a ) -> sig2 (Enabled a)
 upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
   where
@@ -137,7 +137,7 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 		= XMaybe (pureX False, unknownX) `Cons` upsample ss readys
         upsample _ (XBool _ `Cons` _) = Stream.repeat unknownX
 
-downFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ CSeq c1, sig2 ~ CSeq c2)
+downFlux :: forall a c1 sig1 c2 sig2 . (Rep a, Clock c1, Clock c2, sig1 ~ Signal c1, sig2 ~ Signal c2)
        => sig1 (Enabled a) -> ( sig1 Bool , sig2 a )
 downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
    where
@@ -173,8 +173,8 @@ downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
 		= Stream.repeat unknownX
 
 
-fluxCapacitor :: forall a b c sig . (Rep a, Rep b, Clock c, sig ~ CSeq c)
-	=> (forall c' sig' . (Clock c', sig' ~ CSeq c') => sig' a -> sig' b)
+fluxCapacitor :: forall a b c sig . (Rep a, Rep b, Clock c, sig ~ Signal c)
+	=> (forall c' sig' . (Clock c', sig' ~ Signal c') => sig' a -> sig' b)
 	-> sig (Enabled a) -> sig (Enabled b)
 fluxCapacitor f sig = upFlux ( clk_en, f slow_a )
     where

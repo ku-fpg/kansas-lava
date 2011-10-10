@@ -112,7 +112,7 @@ cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && count
 class Traceable a where
     getSignal :: TraceStream -> a
 
-instance Rep a => Traceable (CSeq c a) where
+instance Rep a => Traceable (Signal c a) where
     getSignal ts = shallowSeq $ fromTrace ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?

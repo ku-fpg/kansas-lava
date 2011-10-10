@@ -49,14 +49,14 @@ OR
 
 -- | Take a list of shallow values and create a stream which can be sent into
 --   a FIFO, respecting the write-ready flag that comes out of the FIFO.
-toReadyBox :: (Rep a, Clock c, sig ~ CSeq c)
+toReadyBox :: (Rep a, Clock c, sig ~ Signal c)
          =>  Patch [Maybe a]  			(sig (Enabled a))
 	           ()				(sig Ready)
 toReadyBox = toReadyBox' []
 
 -- | A readybox that goes through a sequence of intermediate states after
 -- issuing each enable, and before it looks for the next Ready.
-toReadyBox' :: (Rep a, Clock c, sig ~ CSeq c)
+toReadyBox' :: (Rep a, Clock c, sig ~ Signal c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a]  			(sig (Enabled a))
 		      ()				(sig Ready)
@@ -81,14 +81,14 @@ toReadyBox' pauses ~(ys,full) = ((),toSeq (fn ys (fromSeq full) pauses))
 -- | Take stream from a FIFO and return an asynchronous read-ready flag, which
 --   is given back to the FIFO, and a shallow list of values.
 -- I'm sure this space-leaks.
-fromReadyBox :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+fromReadyBox :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ready)			()
 fromReadyBox = fromReadyBox' (repeat 0)
 
 -- | Like fromReadyBox, but which goes through a series of intermediate states
 -- after receiving an enable before issuing another Ready.
-fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ CSeq c)
+fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ready)			()
@@ -121,7 +121,7 @@ test1 xs = xs'
 test2 :: [Maybe Int] -> [Maybe Int]
 test2 xs = res
   where
-	hs :: CSeq () (Enabled Int)
+	hs :: Signal () (Enabled Int)
 	hs = toReadyBox xs full
 
 	(full, hs') = shallowReadyBoxBridge ([0..],[0..]) (hs,full')
@@ -130,7 +130,7 @@ test2 xs = res
 -}
 
 -- | Introduces protocol-compliant delays (in the shallow embedding)
-shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c, Show a)
+shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show a)
                        => ([Int],[Int])
                        -> Patch (sig (Enabled a))		(sig (Enabled a))
 				(sig Ready)		 	(sig Ready)
@@ -145,7 +145,7 @@ shallowReadyBoxBridge (lhsF,rhsF) = patch
 -- | This function takes a MVar, and gives back a ReadyBox signal that represents
 -- the continuous sequence of contents of the MVar.
 {-
-mVarToReadyBox :: (Clock c, Rep a) => MVar a -> IO (CSeq c Ready -> (CSeq c (Enabled a)))
+mVarToReadyBox :: (Clock c, Rep a) => MVar a -> IO (Signal c Ready -> (Signal c (Enabled a)))
 mVarToReadyBox sfifo = do
         xs <- getFIFOContents sfifo
         return (toReadyBox xs)
@@ -156,7 +156,7 @@ mVarToReadyBox sfifo = do
  	        xs <- getFIFOContents var
  	        return (x:xs)
 
-mailBoxToMVar :: (Clock c, Rep a) => MVar a -> (CSeq c Ready -> CSeq c (Enabled a)) -> IO ()
+mailBoxToMVar :: (Clock c, Rep a) => MVar a -> (Signal c Ready -> Signal c (Enabled a)) -> IO ()
 mailBoxToMVar sfifo sink = do
         sequence_
                 $ map (putMVar sfifo)
@@ -169,7 +169,7 @@ mailBoxToMVar sfifo sink = do
 -- interactMVar
 interactMVar :: forall src sink
          . (Rep src, Rep sink)
-        => (forall clk sig . (Clock clk, sig ~ CSeq clk) => (sig (Enabled src),sig Ready) -> (sig Ready,sig (Enabled sink)))
+        => (forall clk sig . (Clock clk, sig ~ Signal clk) => (sig (Enabled src),sig Ready) -> (sig Ready,sig (Enabled sink)))
         -> MVar src
         -> MVar sink
         -> IO ()
@@ -178,12 +178,12 @@ interactMVar fn varA varB = do
 
         ReadyBoxToMVar varB $ \ rhs_back ->
                 -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: CSeq () Ready)
+                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: Signal () Ready)
                     lhs_inp = inp_fifo lhs_back
                 in
                     rhs_out
 
-hInteract :: (forall clk sig . (Clock clk, sig ~ CSeq clk)
+hInteract :: (forall clk sig . (Clock clk, sig ~ Signal clk)
                 => (sig (Enabled Word8),sig Ready) -> (sig Full, sig (Enabled Word8))
              )
           -> Handle
@@ -207,14 +207,14 @@ hInteract fn inp out = do
 
 -----------------------------------------------------------------------
 
-liftReadyBox :: forall sig c a . (Rep a, Clock c, sig ~ CSeq c)
-              => (forall c' . (Clock c') => CSeq c' a)
+liftReadyBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
+              => (forall c' . (Clock c') => Signal c' a)
               -> sig Full
               -> sig (Enabled a)
 liftReadyBox seq' (Seq s_Full d_Full) = enabledS res
 
    where
-        Seq s_seq d_seq = seq' :: CSeq () a     -- because of runST trick
+        Seq s_seq d_seq = seq' :: Signal () a     -- because of runST trick
 
         res = Seq (fn s_seq s_Full)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")

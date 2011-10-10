@@ -106,7 +106,7 @@ class Probe a where
     -- circuit.
     probe' :: ProbeState -> [String] -> a -> a
 
-instance (Clock c, Rep a) => Probe (CSeq c a) where
+instance (Clock c, Rep a) => Probe (Signal c a) where
     probe' NoProbe _ sq = sq
     probe' TraceProbe (n:_) (Seq s (D d)) = Seq (obs s) (D d)
         where obs = foldr (\ (i,x) xs -> trace (show n ++ "(" ++ show i ++ ")" ++ showRep x) $ S.Cons x xs) (error "never done")
