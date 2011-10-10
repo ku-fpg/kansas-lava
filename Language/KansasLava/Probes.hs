@@ -16,7 +16,6 @@ import qualified Data.Graph.Inductive as G
 
 import qualified Data.Sized.Matrix as M
 
-import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Seq
@@ -116,13 +115,6 @@ instance (Clock c, Rep a) => Probe (CSeq c a) where
     probe' CaptureProbe (n:_) (Seq s (D d)) = Seq s (D (insertProbe n strm d))
         where strm = toTrace s
     probe' _ [] _ = error "Can't add probe: no name supply available (Seq)"
-
-instance Rep a => Probe (Comb a) where
-    probe' NoProbe _ sq = sq
-    probe' TraceProbe _ sq = sq
-    probe' CaptureProbe (n:_) (Comb s (D d)) = Comb s (D (insertProbe n strm d))
-        where strm = toTrace $ S.fromList $ repeat s
-    probe' _ [] _ = error "Can't add probe: no name supply available (Comb)"
 
 instance (Probe a, Probe b) => Probe (a,b) where
     probe' m names (x,y) = (probe' m (addSuffixToProbes names "-fst") x,

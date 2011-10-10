@@ -36,7 +36,6 @@ Library
                  fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
   Exposed-modules:
        Language.KansasLava
-       Language.KansasLava.Comb
        Language.KansasLava.DOT
        Language.KansasLava.Entity
        Language.KansasLava.Fabric

@@ -11,10 +11,6 @@ module Language.KansasLava (
     outStdLogic, outStdLogicVector,
     theClk, theRst, theClkEn,
 
-    -- * The Comb type
-    Comb, 
-    toComb, undefinedComb, fromComb,
-
     -- * The CSeq and Seq types
     CSeq, Seq, 
     toSeq, toSeq', undefinedSeq, fromSeq,
@@ -45,7 +41,6 @@ module Language.KansasLava (
 
      ) where
 
-import Language.KansasLava.Comb
 import Language.KansasLava.DOT
 import Language.KansasLava.Fabric
 import Language.KansasLava.Optimization

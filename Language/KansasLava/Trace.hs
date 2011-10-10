@@ -28,7 +28,6 @@ module Language.KansasLava.Trace
     , mkTraceCM
     ) where
 
-import Language.KansasLava.Comb
 import Language.KansasLava.Fabric
 import Language.KansasLava.Probes
 import Language.KansasLava.Rep
@@ -115,9 +114,6 @@ class Traceable a where
 
 instance Rep a => Traceable (CSeq c a) where
     getSignal ts = shallowSeq $ fromTrace ts
-
-instance Rep a => Traceable (Comb a) where
-    getSignal ts = shallowComb $ S.head $ fromTrace ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
