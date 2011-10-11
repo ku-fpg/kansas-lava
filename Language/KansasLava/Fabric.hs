@@ -34,8 +34,6 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 import Data.Ord(comparing)
 
-import Data.Sized.Unsigned
-
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
@@ -177,9 +175,8 @@ outStdLogicVector
      (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
 outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfSignal sq) of
-		    SLV _ -> output nm (StdLogicVector sq)
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
-		    _     -> output nm $ StdLogicVector
+		    _    -> output nm $ StdLogicVector
 		    	     	       $ (bitwise sq :: Seq (ExternalStdLogicVector (W a)))
 
 -------------------------------------------------------------------------------
@@ -395,17 +392,21 @@ data EntityClock = EntityClock (Driver Unique)
 
 ---------------------------------------------------------------------------------
 
-newtype ExternalStdLogicVector x = ExternalStdLogicVector { unExternalStdLogicVector :: Unsigned x }
+newtype ExternalStdLogicVector x = ExternalStdLogicVector RepValue
         deriving Show
 
 instance (Size ix) => Rep (ExternalStdLogicVector ix) where
     type W (ExternalStdLogicVector ix) = ix
-    data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (Maybe (ExternalStdLogicVector ix))
-    optX (Just b)       = XExternalStdLogicVector $ return b
-    optX Nothing        = XExternalStdLogicVector $ fail "Wire Int"
-    unX (XExternalStdLogicVector (Just a))     = return a
-    unX (XExternalStdLogicVector Nothing)   = fail "Wire Int"
+    data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (ExternalStdLogicVector ix)
+
+    optX (Just b)       = XExternalStdLogicVector $ b
+    optX Nothing        = XExternalStdLogicVector 
+                        $ ExternalStdLogicVector
+                        $ RepValue
+                        $ replicate (size (error "Rep/ExternalStdLogicVector" :: ix)) Nothing
+    unX (XExternalStdLogicVector a) = return a
+    
     repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
-    toRep (XExternalStdLogicVector a) = toRepFromIntegral (optX (fmap unExternalStdLogicVector a))
-    fromRep rep = optX (fmap ExternalStdLogicVector (unX (fromRepToIntegral rep)))
+    toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
+    fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
     showRep = showRepDefault
