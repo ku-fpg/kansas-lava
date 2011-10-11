@@ -362,9 +362,9 @@ refinesFrom :: forall sig a i . ( sig ~ Signal i, Rep a) => sig a -> sig a -> si
 refinesFrom a b = shallowSignal (S.zipWith fn (seqValue a) (seqValue b))
    where
            fn a' b' = let res =  and  [ case (vut,ref) of
-                                           (_,Nothing)       -> True
+                                           (_,Nothing)     -> True
                                            (Just x,Just y) -> x == y
-                                           _                     -> False
+                                           _               -> False
                                       | (vut,ref) <- zip (unRepValue (toRep a'))
                                                          (unRepValue (toRep b'))
                                       ]

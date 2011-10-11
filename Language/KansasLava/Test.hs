@@ -52,6 +52,7 @@ import qualified System.Random as R
 import Data.Sized.Ix
 --import System.Random
 
+import qualified Language.KansasLava.Stream as S
 
 
 -------------------------------------------------------------------------------------
@@ -680,8 +681,13 @@ matchExpected out_name ref = do
         o0 <- inStdLogicVector out_name
         let sq = o0 `refinesFrom` ref
         return $ \ count ->
-                case [ i::Int
-                     | (i,v) <- take (fromIntegral count) $ zip [0..] (fromSignal sq)
+                case [ (i::Int,o,r)
+                     | (i,v,o,r) <- take (fromIntegral count) 
+                                $ zip4 [0..] 
+                                  (fromSignal sq)
+                                  (S.toList (fmap (show . unRepValue . toRep) (seqValue o0))) 
+                                  (S.toList (fmap (show . unRepValue . toRep) (seqValue ref)))
+
                      , v /= Just True
                      ] of
                      [] -> Nothing
