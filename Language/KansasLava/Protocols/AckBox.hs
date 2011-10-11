@@ -62,7 +62,7 @@ toAckBox' :: (Rep a, Clock c, sig ~ Signal c)
              -> Patch [Maybe a] 		(sig (Enabled a))
 		      ()			(sig Ack)
 
-toAckBox' pauses ~(ys,ack) = ((),toSignal (fn ys (fromSignal ack) pauses))
+toAckBox' pauses ~(ys,ack) = ((),toS (fn ys (fromS ack) pauses))
         where
 --           fn xs cs | trace (show ("fn",take  5 cs,take 5 cs)) False = undefined
 	   -- send the value *before* checking the Ack
@@ -97,9 +97,9 @@ fromAckBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ack)			()
-fromAckBox' pauses ~(inp,_) = (toSignal (map fst internal), map snd internal)
+fromAckBox' pauses ~(inp,_) = (toS (map fst internal), map snd internal)
    where
-        internal = fn (fromSignal inp) pauses
+        internal = fn (fromS inp) pauses
 
 	-- pretty simple API
 	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ack,Maybe a)]
@@ -249,8 +249,8 @@ liftAckBox seq' (Signal s_ack d_ack) = enabledS res
 
         res = Signal (fn s_seq s_ack)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
-                                        [("o0",bitTypeOf res)]
-                                        [("i0",bitTypeOf res, unD d_seq)
+                                        [("o0",typeOfS res)]
+                                        [("i0",typeOfS res, unD d_seq)
                                         ,("pulse",B, unD d_ack)
                                         ]
                   )

@@ -2,7 +2,7 @@
 module Others (tests) where
 
 import Language.KansasLava
-import Language.KansasLava.Signal(shallowSignal)
+import Language.KansasLava.Signal(mkShallowS)
 
 import qualified Language.KansasLava.Stream as S
 
@@ -123,13 +123,13 @@ testUniOp :: forall a b .
           -> IO ()
 testUniOp (TestSeq test _) nm opr lavaOp us0 = do
         let driver = do
-                outStdLogicVector "i0" (toSignal us0)
+                outStdLogicVector "i0" (toS us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = lavaOp (i0)
                 outStdLogicVector "o0" (o0)
                 
-            res = toSignal (fmap opr us0)
+            res = toS (fmap opr us0)
 
         test nm (length us0) dut (driver >> matchExpected "o0" res)
 
@@ -147,14 +147,14 @@ testBinOp :: forall a b c .
 testBinOp (TestSeq test _) nm opr lavaOp gen = do
         let (us0,us1) = unzip gen
             driver = do
-                outStdLogicVector "i0" (toSignal us0)
-                outStdLogicVector "i1" (toSignal us1)
+                outStdLogicVector "i0" (toS us0)
+                outStdLogicVector "i1" (toS us1)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
                 let o0 = lavaOp (i0) (i1)
                 outStdLogicVector "o0" (o0)
-            res = toSignal (Prelude.zipWith opr us0 us1)
+            res = toS (Prelude.zipWith opr us0 us1)
 
         test nm (length gen) dut (driver >> matchExpected "o0" res)
 
@@ -172,16 +172,16 @@ testTriOp :: forall a b c d .
 testTriOp (TestSeq test _) nm opr lavaOp gen = do
         let (us0,us1,us2) = unzip3 gen
             driver = do
-                outStdLogicVector "i0" (toSignal us0)
-                outStdLogicVector "i1" (toSignal us1)
-                outStdLogicVector "i2" (toSignal us2)
+                outStdLogicVector "i0" (toS us0)
+                outStdLogicVector "i1" (toS us1)
+                outStdLogicVector "i2" (toS us2)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 i1 <- inStdLogicVector "i1"
                 i2 <- inStdLogicVector "i2"
                 let o0 = lavaOp (i0) (i1) (i2)
                 outStdLogicVector "o0" (o0)
-            res = toSignal (Prelude.zipWith3 opr us0 us1 us2)
+            res = toS (Prelude.zipWith3 opr us0 us1 us2)
         test nm (length gen) dut (driver >> matchExpected "o0" res)
 
 ------------------------------------------------------------------------------------------------
@@ -314,12 +314,12 @@ testRegister :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> Strin
 testRegister  (TestSeq test _) tyName ~(u0:us0) = do
         let r = register :: a -> Seq a -> Seq a
             driver = do
-                outStdLogicVector "i0" (toSignal us0)
+                outStdLogicVector "i0" (toS us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = r u0 $ i0
                 outStdLogicVector "o0" o0
-            res = toSignal (u0 : us0)
+            res = toS (u0 : us0)
         test ("register/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
@@ -327,13 +327,13 @@ testDelay :: forall a . (Show a, Eq a, Rep a, Size (W a)) => TestSeq -> String -
 testDelay  (TestSeq test _) tyName (us0) = do
         let dlay = delay :: Seq a -> Seq a
             driver = do
-                outStdLogicVector "i0" (toSignal us0)
+                outStdLogicVector "i0" (toS us0)
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = dlay $ i0
                 outStdLogicVector "o0" o0
                 
-            res = shallowSignal (S.Cons unknownX (S.fromList (map pureX us0)))
+            res = mkShallowS (S.Cons unknownX (S.fromList (map pureX us0)))
 
         test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
@@ -345,7 +345,7 @@ testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       let xs = toL ws
       
           driver = do
-      	    outStdLogicVector "i0" (toSignal xs :: Seq (Maybe a))
+      	    outStdLogicVector "i0" (toS xs :: Seq (Maybe a))
           dut = do
       	    i0 <- inStdLogicVector "i0" :: Fabric (Seq (Maybe a))
 	    let o0 = fluxCapacitor seqOp i0 :: Seq (Maybe a)
@@ -354,7 +354,7 @@ testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
 
 	  -- just the results from the internal function
 	  ys :: [Maybe a]
-	  ys = fromSeq (seqOp (toSignal [ x | Just x <- xs ]) :: Seq a)
+	  ys = fromSeq (seqOp (toS [ x | Just x <- xs ]) :: Seq a)
 
 	  -- The xs0 Nothing => not enabled, for ys0 Nothing => Unknown.
 	  fn :: [Maybe a] -> [Maybe a] -> Stream (X (Maybe a))

@@ -61,7 +61,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
    where
         Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick, we can use *any* clock
 
-	ty = bitTypeOf (undefined :: Signal a)
+	ty = typeOfS (undefined :: Signal a)
 
 	e = Entity (External "flux")
                    [("o_en",B)
@@ -76,7 +76,7 @@ liftHandShake1 fn ~(en_a,ack) = (ready,(),en_b)
         res = Signal (fn0 s_seq s_Ready)
                   (D $ Port "o0" $ E $
 			Entity (Prim "pair")
-				[("o0",bitTypeOf res)]
+				[("o0",typeOfS res)]
 				[("i0",B,Port "o_en" $ E $ e)
 				,("i1",ty,Port "o_val" $ E $ e)
 				]
@@ -106,12 +106,12 @@ upFlux ~( ~(Seq s_b d_b) , ~(Seq s_a d_a)) = res
 	s_enB = upsample0 s_a s_b
 	d_enB = D $ Port "o0" $ E $
 			Entity (Prim "pair")
-				[("o0",bitTypeOf res)]
+				[("o0",typeOfS res)]
 				[("i0",B,Port "o_en" $ E $ e)
 				,("i1",ty,Port "o0" $ E $ e)
 				]
 
-	ty = bitTypeOf (undefined :: Seq a)
+	ty = typeOfS (undefined :: Seq a)
 
 	e = Entity (External "upflux")
                    [("o_en",B)
@@ -143,7 +143,7 @@ downFlux sig = (Seq s_out_b d_out_b, Seq s_out_a d_out_a )
    where
 	(Seq s_in_b d_in_b,Seq s_in_a d_in_a) = unpack sig
 
-	ty = bitTypeOf (undefined :: Seq a)
+	ty = typeOfS (undefined :: Seq a)
 
 
 	s_out_b = s_in_b	-- pass through for shallow

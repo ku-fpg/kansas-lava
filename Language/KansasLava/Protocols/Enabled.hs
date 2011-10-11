@@ -45,7 +45,7 @@ enabledS s = pack (pureS True,s)
 
 -- | Create a signal that's never enabled.
 disabledS :: (Rep a, sig ~ Signal clk) => sig (Enabled a)
-disabledS = pack (pureS False,undefinedSignal)
+disabledS = pack (pureS False,undefinedS)
 
 -- | Combine a boolean control signal and an data signal into an enabled signal.
 packEnabled :: (Rep a, sig ~ Signal clk) => sig Bool -> sig a -> sig (Enabled a)

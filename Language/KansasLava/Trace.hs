@@ -113,7 +113,7 @@ class Traceable a where
     getSignal :: TraceStream -> a
 
 instance Rep a => Traceable (Signal c a) where
-    getSignal ts = shallowSignal $ fromTrace ts
+    getSignal ts = mkShallowS $ fromTrace ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
@@ -264,11 +264,11 @@ addStream :: forall w. (Rep w) => String -> [(String,TraceStream)] -> S.Stream (
 addStream key m stream = m ++ [(key,toTrace stream)]
 
 addSeq :: forall w. (Rep w) => String -> Seq w -> [(String,TraceStream)] -> [(String,TraceStream)]
-addSeq key iseq m = addStream key m (seqValue iseq :: S.Stream (X w))
+addSeq key iseq m = addStream key m (shallowS iseq :: S.Stream (X w))
 
 padToTraceStream :: Pad -> TraceStream
-padToTraceStream (StdLogic s) = toTrace $ seqValue s
-padToTraceStream (StdLogicVector s) = toTrace $ seqValue s
+padToTraceStream (StdLogic s) = toTrace $ shallowS s
+padToTraceStream (StdLogicVector s) = toTrace $ shallowS s
 padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 
 -- | Used by 'mkTraceCM' to add internal probes to the Trace.

@@ -34,108 +34,84 @@ data Signal (c :: *) a = Signal (S.Stream (X a)) (D a)
 -- | Signal in some implicit clock domain.
 type Seq a = Signal () a
 
---apS :: (Rep a, Rep b) => Signal c (a -> b) -> Signal c a -> Signal c b
---apS (Signal f fe) (Signal a ae) = Signal (S.zipWith apX f a) (fe `apD` ae)
-
-idD :: forall a sig clk . (Rep a, sig ~ Signal clk) => Id -> sig a -> sig a
-idD id' (Signal a ae) = Signal a $ D $ Port "o0" $ E 
-                     $ Entity id'
-                         [("o0",repType (Witness :: Witness a))]
-                         [("i0",repType (Witness :: Witness a),unD $ ae)]
-
--- wrong location (To Move)
-entityD :: forall a . (Rep a) => String -> D a
-entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
-                                                  []
-
-entityD1 :: forall a1 a . (Rep a, Rep a1) => String -> D a1 -> D a
-entityD1 nm (D a1) 
-        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
-                                               [("i0",repType (Witness :: Witness a1),a1)]
-
-entityD2 :: forall a1 a2 a . (Rep a, Rep a1, Rep a2) => String -> D a1 -> D a2 -> D a
-entityD2 nm (D a1) (D a2) 
-        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
-                                               [("i0",repType (Witness :: Witness a1),a1)
-                                               ,("i1",repType (Witness :: Witness a2),a2)]
-                                               
-entityD3 :: forall a1 a2 a3 a . (Rep a, Rep a1, Rep a2, Rep a3) => String -> D a1 -> D a2 -> D a3 -> D a
-entityD3 nm (D a1) (D a2) (D a3) 
-        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
-                                               [("i0",repType (Witness :: Witness a1),a1)
-                                               ,("i1",repType (Witness :: Witness a2),a2)
-                                               ,("i2",repType (Witness :: Witness a3),a3)]
-
-pureD :: (Rep a) => a -> D a
-pureD a = pureXD (pureX a)
-
-pureXD :: (Rep a) => X a -> D a
-pureXD a = D $ Lit $ toRep a
-
-apD :: D (a -> b) -> D a -> D b
-apD (D (Port "o0" (E (Entity nm [("o0",FunctionTy t1 t2)] xs)))) (D e) 
-        = D $ Port "o0" $ E $ Entity nm [("o0",t2)] (xs ++ [ (i,t1,e) ])
-      where i = "i" ++ show (List.length xs)
-apD other f = error $ "internal error with apD: " ++ show (other,f)
-
-
 -- | Extract the shallow portion of a Signal.
-seqValue :: Signal c a -> S.Stream (X a)
-seqValue (Signal a _) = a
+shallowS :: Signal c a -> S.Stream (X a)
+shallowS (Signal a _) = a
 
 -- | Extract the deep portion of a Signal.
-seqDriver :: Signal c a -> D a
-seqDriver (Signal _ d) = d
+deepS :: Signal c a -> D a
+deepS (Signal _ d) = d
 
 pureS :: (Rep a) => a -> Signal i a
 pureS a = Signal (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
 -- | Inject a deep value into a Signal. The shallow portion of the Signal will be an
 -- error, if it is every used.
-deepSignal :: D a -> Signal c a
-deepSignal = Signal (error "incorrect use of shallow Signal")
+mkDeepS :: D a -> Signal c a
+mkDeepS = Signal (error "incorrect use of shallow Signal")
 
 -- | Inject a shallow value into a Signal. The deep portion of the Signal will be an
 -- Error if it is ever used.
-shallowSignal :: S.Stream (X a) -> Signal c a
-shallowSignal s = Signal s (D $ Error "incorrect use of deep Signal")
+mkShallowS :: S.Stream (X a) -> Signal c a
+mkShallowS s = Signal s (D $ Error "incorrect use of deep Signal")
 
 -- | Create a Signal with undefined for both the deep and shallow elements.
-undefinedSignal ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
-undefinedSignal = Signal (pure $ optX Nothing)
+undefinedS ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
+undefinedS = Signal (pure $ optX Nothing)
 		      (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
 
-comment :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
-comment msg = idD (Comment [msg])
+-- | Attach a comment to a 'Signal'.
+commentS :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
+commentS msg = idS (Comment [msg])
 
+-----------------------------------------------------------------------
+-- primitive builders
 
-primS :: (Rep a) => a -> String -> Signal i a
-primS a nm = primXS (pureX a) nm
+-- | 'idS' create an identity function, with a given 'Id' tag.
 
-primS1 :: (Rep a, Rep b) => (a -> b) -> String -> Signal i a -> Signal i b
-primS1 f nm = primXS1 (\ a -> optX $ liftM f (unX a)) nm
+idS :: forall a sig clk . (Rep a, sig ~ Signal clk) => Id -> sig a -> sig a
+idS id' (Signal a ae) = Signal a $ D $ Port "o0" $ E 
+                     $ Entity id'
+                         [("o0",repType (Witness :: Witness a))]
+                         [("i0",repType (Witness :: Witness a),unD $ ae)]
 
-primS2 :: (Rep a, Rep b, Rep c) => (a -> b -> c) -> String -> Signal i a -> Signal i b ->  Signal i c
-primS2 f nm = primXS2 (\ a b -> optX $ liftM2 f (unX a) (unX b)) nm
-
-primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> Signal i a -> Signal i b -> Signal i c -> Signal i d
-primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
-
+-- | create a zero-arity Signal value from an 'X' value.
 primXS :: (Rep a) => X a -> String -> Signal i a
 primXS a nm = Signal (pure a) (entityD nm)
 
+-- | create an arity-1 Signal function from an 'X' function.
 primXS1 :: forall a b i . (Rep a, Rep b) => (X a -> X b) -> String -> Signal i a -> Signal i b
 primXS1 f nm (Signal a1 ae1) = Signal (fmap f a1) (entityD1 nm  ae1)
 
+-- | create an arity-2  Signal function from an 'X' function.
 primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> Signal i a -> Signal i b ->  Signal i c
 primXS2 f nm (Signal a1 ae1) (Signal a2 ae2) 
         = Signal (S.zipWith f a1 a2) 
               (entityD2 nm ae1 ae2)
 
+-- | create an arity-3 Signal function from an 'X' function.
 primXS3 :: forall a b c d i . (Rep a, Rep b, Rep c, Rep d)
         => (X a -> X b -> X c -> X d) -> String ->  Signal i a -> Signal i b -> Signal i c -> Signal i d
 primXS3 f nm (Signal a1 ae1) (Signal a2 ae2)  (Signal a3 ae3)  = Signal (S.zipWith3 f a1 a2 a3)
               (entityD3 nm  ae1  ae2  ae3)
+
+-- | create a zero-arity Signal value from a value.
+primS :: (Rep a) => a -> String -> Signal i a
+primS a nm = primXS (pureX a) nm
+
+-- | create an arity-1 Signal function from a function.
+primS1 :: (Rep a, Rep b) => (a -> b) -> String -> Signal i a -> Signal i b
+primS1 f nm = primXS1 (\ a -> optX $ liftM f (unX a)) nm
+
+-- | create an arity-2 Signal function from a function.
+primS2 :: (Rep a, Rep b, Rep c) => (a -> b -> c) -> String -> Signal i a -> Signal i b ->  Signal i c
+primS2 f nm = primXS2 (\ a b -> optX $ liftM2 f (unX a) (unX b)) nm
+
+-- | create an arity-3 Signal function from a function.
+primS3 :: (Rep a, Rep b, Rep c, Rep d) => (a -> b -> c -> d) -> String -> Signal i a -> Signal i b -> Signal i c -> Signal i d
+primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
+
+---------------------------------------------------------------------------------
 
 instance (Rep a, Show a) => Show (Signal c a) where
 	show (Signal vs _)
@@ -169,8 +145,8 @@ instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     s1 `rotateL` n = primS2 (rotateL) "rotateL"  s1  (pureS n)
     s1 `rotateR` n = primS2 (rotateR) "rotateR"  s1  (pureS n)
     complement s   = primS1 (complement) "complement"  s
-    bitSize s      = typeWidth (bitTypeOf s)
-    isSigned s     = isTypeSigned (bitTypeOf s)
+    bitSize s      = typeWidth (typeOfS s)
+    isSigned s     = isTypeSigned (typeOfS s)
 
 instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where
     s1 / s2 = primS2 (/) "/"  s1  s2
@@ -204,80 +180,46 @@ instance (Rep a, Integral a) => Integral (Signal i a) where
         divMod num dom  = (div num dom, mod num dom)
         toInteger = error "toInteger (Signal {})"
 
-
-{-
-instance Signal (Signal c) where
-  liftS0 c = Signal (pure (combValue c)) (combDriver c)
-
-  liftS1 f (Signal a ea) = {-# SCC "liftS1Signal" #-}
-    let deep = combDriver (f (deepComb ea))
-	f' = combValue . f . shallowComb
-   in Signal (fmap f' a) deep
-
-  -- We can not replace this with a version that uses packing,
-  -- because *this* function is used by the pack/unpack stuff.
-  liftS2 f (Signal a ea) (Signal b eb) = Signal (S.zipWith f' a b) ec
-      where
-	ec = combDriver $ f (deepComb ea) (deepComb eb)
-	f' x y = combValue (f (shallowComb x) (shallowComb y))
-
-  liftS3 f (Signal a ea) (Signal b eb) (Signal c ec) = Signal (S.zipWith3 f' a b c) ed
-      where
-	ed = combDriver $ f (deepComb ea) (deepComb eb) (deepComb ec)
-	f' x y z = combValue (f (shallowComb x) (shallowComb y) (shallowComb z))
-
-  liftSL f ss = Signal (S.fromList
-		    [ combValue $ f [ shallowComb x | x <- xs ]
-		    | xs <- List.transpose [ S.toList x | Signal x _ <- ss ]
-		    ])
-		    (combDriver (f (map (deepComb . seqDriver) ss)))
-
-  deepS (Signal _ d) = d
--}
 ----------------------------------------------------------------------------------------------------
 
 -- Small DSL's for declaring signals
 
 -- | Convert a list of values into a Signal. The shallow portion of the resulting
 -- Signal will begin with the input list, then an infinite stream of X unknowns.
-toSignal :: (Rep a) => [a] -> Signal c a
-toSignal xs = shallowSignal (S.fromList (map optX (map Just xs ++ repeat Nothing)))
+toS :: (Rep a) => [a] -> Signal c a
+toS xs = mkShallowS (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
 -- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
-toSignal' :: (Rep a) => [Maybe a] -> Signal c a
-toSignal' xs = shallowSignal (S.fromList (map optX (xs ++ repeat Nothing)))
+toS' :: (Rep a) => [Maybe a] -> Signal c a
+toS' xs = mkShallowS (S.fromList (map optX (xs ++ repeat Nothing)))
 
 -- | Convert a list of X values to a Signal. Pad the end with an infinite list of X unknowns.
-toSignalX :: forall a c . (Rep a) => [X a] -> Signal c a
-toSignalX xs = shallowSignal (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
+toSX :: forall a c . (Rep a) => [X a] -> Signal c a
+toSX xs = mkShallowS (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
 -- | Convert a Signal of values into a list of Maybe values.
-fromSignal :: (Rep a) => Signal c a -> [Maybe a]
-fromSignal = fmap unX . S.toList . seqValue
+fromS :: (Rep a) => Signal c a -> [Maybe a]
+fromS = fmap unX . S.toList . shallowS
 
 -- | Convret a Signal of values into a list of representable values.
-fromSignalX :: (Rep a) => Signal c a -> [X a]
-fromSignalX = S.toList . seqValue
+fromSX :: (Rep a) => Signal c a -> [X a]
+fromSX = S.toList . shallowS
 
 -- | Compare the first depth elements of two Signals.
 cmpSignalRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
 cmpSignalRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
-								(seqValue s1)
-								(seqValue s2)
+								(shallowS s1)
+								(shallowS s2)
 
 -----------------------------------------------------------------------------------
 
 instance Dual (Signal c a) where
-    dual c d = Signal (seqValue c) (seqDriver d)
-
--- alias
-bitTypeOf :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
-bitTypeOf = typeOfSignal
+    dual c d = Signal (shallowS c) (deepS d)
 
 -- | Return the Lava type of a representable signal.
-typeOfSignal :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
-typeOfSignal _ = repType (Witness :: Witness w)
+typeOfS :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
+typeOfS _ = repType (Witness :: Witness w)
 
 -- | The Pack class allows us to move between signals containing compound data
 -- and signals containing the elements of the compound data. This is done by
@@ -365,7 +307,7 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                         $ fmap M.fromList       -- [Matrix ix (X a)]
                         $ List.transpose        -- [[X a]]
                         $ fmap S.toList         -- [[X a]]
-                        $ fmap seqValue         -- [Stream (X a)]
+                        $ fmap shallowS         -- [Stream (X a)]
                         $ M.toList              -- [sig a]
                         $ m                     -- Matrix ix (sig a)
 
@@ -375,7 +317,7 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                      $ E 
                      $ Entity (Prim "concat")
                                  [("o0",repType (Witness :: Witness (Matrix ix a)))]
-                                 [ ("i" ++ show i,repType (Witness :: Witness a),unD $ seqDriver $ x)
+                                 [ ("i" ++ show i,repType (Witness :: Witness a),unD $ deepS $ x)
                                  | (x,i) <- zip (M.toList m) ([0..] :: [Int])
                                  ]
 
@@ -390,10 +332,10 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                         $ Entity (Prim "index")
                                  [("o0",repType (Witness :: Witness a))]
                                  [("i0",GenericTy,Generic (mx ! i))
-                                 ,("i1",repType (Witness :: Witness (Matrix ix a)),unD $ seqDriver ms)
+                                 ,("i1",repType (Witness :: Witness (Matrix ix a)),unD $ deepS ms)
                                  ]
 
-                 shallow i = fmap (liftX (M.! i)) (seqValue ms)
+                 shallow i = fmap (liftX (M.! i)) (shallowS ms)
 
 ----------------------------------------------------------------
 
@@ -410,8 +352,8 @@ delay ~(Signal line eline) = res
 	sres1 = S.Cons def sres0
 
         entity = Entity (Prim "delay")
-                    [("o0", bitTypeOf res)]
-                    [("i0", bitTypeOf res, unD eline),
+                    [("o0", typeOfS res)]
+                    [("i0", typeOfS res, unD eline),
 		     ("clk",ClkTy, Pad "clk"),
 		     ("rst",B,     Pad "rst")
 		    ]
@@ -433,8 +375,8 @@ register first  ~(Signal line eline) = res
 	sres1 = S.Cons def sres0
 
         entity = Entity (Prim "register")
-                    [("o0", bitTypeOf res)]
-                    [("i0", bitTypeOf res, unD eline),
+                    [("o0", typeOfS res)]
+                    [("i0", typeOfS res, unD eline),
                      ("def",GenericTy,Generic (fromRepToInteger rep)),
 		     ("clk",ClkTy, Pad "clk"),
 		     ("rst",B,     Pad "rst")
@@ -442,3 +384,37 @@ register first  ~(Signal line eline) = res
 -- | registers generates a serial sequence of n registers, all with the same initial value.
 registers :: forall a clk .  (Rep a, Clock clk) => Int -> a -> Signal clk a -> Signal clk a
 registers n def ss = iterate (register def) ss !! n
+
+
+-----------------------------------------------------------------------------------
+-- The 'deep' combinators, used to build the deep part of a signal.
+
+
+entityD :: forall a . (Rep a) => String -> D a
+entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+                                                  []
+
+entityD1 :: forall a1 a . (Rep a, Rep a1) => String -> D a1 -> D a
+entityD1 nm (D a1) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+                                               [("i0",repType (Witness :: Witness a1),a1)]
+
+entityD2 :: forall a1 a2 a . (Rep a, Rep a1, Rep a2) => String -> D a1 -> D a2 -> D a
+entityD2 nm (D a1) (D a2) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
+                                               [("i0",repType (Witness :: Witness a1),a1)
+                                               ,("i1",repType (Witness :: Witness a2),a2)]
+                                               
+entityD3 :: forall a1 a2 a3 a . (Rep a, Rep a1, Rep a2, Rep a3) => String -> D a1 -> D a2 -> D a3 -> D a
+entityD3 nm (D a1) (D a2) (D a3) 
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
+                                               [("i0",repType (Witness :: Witness a1),a1)
+                                               ,("i1",repType (Witness :: Witness a2),a2)
+                                               ,("i2",repType (Witness :: Witness a3),a3)]
+
+pureD :: (Rep a) => a -> D a
+pureD a = pureXD (pureX a)
+
+pureXD :: (Rep a) => X a -> D a
+pureXD a = D $ Lit $ toRep a
+

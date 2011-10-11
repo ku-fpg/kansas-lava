@@ -72,8 +72,8 @@ testAsyncMemory (TestSeq test _) tyName ws = do
         mem = asyncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 
         driver = do
-                outStdLogicVector "writes" (toSignal writes)
-                outStdLogicVector "reads" (toSignal rds)
+                outStdLogicVector "writes" (toS writes)
+                outStdLogicVector "reads" (toS rds)
         dut = do
                 ws' <- inStdLogicVector "writes"
                 rs <- inStdLogicVector "reads"
@@ -87,7 +87,7 @@ testAsyncMemory (TestSeq test _) tyName ws = do
         -- If we find a write to another address, we keep looking.
         -- In this way, writing an unknown value invalidates the whole memory.
         shallow :: Seq w2
-        shallow = toSignal' $
+        shallow = toS' $
                     [ List.head
                      [ val
                      | maybe_ab <- reverse $ take i (Nothing:writes) -- note this gets i-1 writes (up to previous cycle)
@@ -112,8 +112,8 @@ testSyncMemory (TestSeq test _) tyName ws = do
         mem = syncRead . writeMemory :: Seq (Maybe (w1,w2)) -> Seq w1 -> Seq w2
 
         driver = do
-                outStdLogicVector "writes" (toSignal writes)
-                outStdLogicVector "reads" (toSignal rds)
+                outStdLogicVector "writes" (toS writes)
+                outStdLogicVector "reads" (toS rds)
         dut = do
                 ws' <- inStdLogicVector "writes"
                 rs <- inStdLogicVector "reads"
@@ -123,7 +123,7 @@ testSyncMemory (TestSeq test _) tyName ws = do
 
         -- see note in testAsyncMemory for semantics of generating expected output
         shallow :: Seq w2
-        shallow = toSignal' $
+        shallow = toS' $
                     [ Nothing ] ++
                     [ List.head
                      [ val
@@ -149,7 +149,7 @@ testMatrixMemory (TestSeq test _) tyName ws = do
         mem = memoryToMatrix . writeMemory :: Seq (Maybe (w1,w2)) -> Seq (M.Matrix w1 w2)
 
         driver = do
-                outStdLogicVector "i0" (toSignal writes)
+                outStdLogicVector "i0" (toS writes)
         dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = mem (i0)
@@ -160,7 +160,7 @@ testMatrixMemory (TestSeq test _) tyName ws = do
         shallow :: Seq (M.Matrix w1 w2)
         shallow = pack
                 $ M.matrix
-                $ [ toSignal' $
+                $ [ toS' $
                     [ List.head
                      [ val
                      | maybe_ab <- reverse $ take i (Nothing:writes) -- note this gets i-1 writes (up to previous cycle)
@@ -191,12 +191,12 @@ testRomMemory (TestSeq test _) tyName ws = do
         m :: Matrix w1 w2
         m = matrix $ take (size (error "" :: w1)) (cycle $ List.nub vals)
         driver = do
-                outStdLogicVector "i0" (toSignal addr)
+                outStdLogicVector "i0" (toS addr)
         dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = mem (i0)
                 outStdLogicVector "o0" (o0)
-        res = toSignal [ m M.! a | a <- addr ] :: Seq w2
+        res = toS [ m M.! a | a <- addr ] :: Seq w2
 
 
         mem = funMap (\ a -> return (m M.! a)) :: Seq w1 -> Seq w2

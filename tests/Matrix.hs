@@ -60,12 +60,12 @@ testMatrix1 (TestSeq test _) tyName ws = do
         let ms = ws
             cir = sum . M.toList . unpack :: Seq (M.Matrix w1 w2) -> Seq w2
             driver = do
-                outStdLogicVector "i0" (bitwise (toSignal ms) :: Seq (Unsigned (MUL w1 (W w2))))
+                outStdLogicVector "i0" (bitwise (toS ms) :: Seq (Unsigned (MUL w1 (W w2))))
             dut = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir i0
                 outStdLogicVector "o0" o0
-            res = toSignal [ sum $ M.toList m | m <- ms ] :: Seq w2
+            res = toS [ sum $ M.toList m | m <- ms ] :: Seq w2
 
         test ("matrix/1/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
 
@@ -82,13 +82,13 @@ testMatrix2 (TestSeq test _) tyName ws = do
             cir = pack . (\ m -> M.forAll $ \ i -> m M.! i) . unpack :: Seq (M.Matrix w1 w2) -> Seq (M.Matrix w1 w2)
             driver = do
 		return ()
-                outStdLogicVector "i0" (bitwise (toSignal ms) :: Seq (Unsigned (MUL w1 (W w2))))
+                outStdLogicVector "i0" (bitwise (toS ms) :: Seq (Unsigned (MUL w1 (W w2))))
             dut = do
 		return ()
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir i0
                 outStdLogicVector "o0" o0
-            res = toSignal [ m | m <- ms ] :: Seq (M.Matrix w1 w2)
+            res = toS [ m | m <- ms ] :: Seq (M.Matrix w1 w2)
 
         test ("matrix/2/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
 
@@ -106,12 +106,12 @@ testMatrix3 (TestSeq test _) tyName ws = do
 		. mapEnabled (\ x -> packMatrix (M.matrix [ x, x ]))
             driver = do
 		return ()
-                outStdLogicVector "i0" (bitwise (toSignal ms) :: Seq (Enabled w1))
+                outStdLogicVector "i0" (bitwise (toS ms) :: Seq (Enabled w1))
             dut = do
 		return ()
                 i0 <- inStdLogicVector "i0"
                 let o0 = cir i0
                 outStdLogicVector "o0" o0
-            res = toSignal [ m | m <- ms ] :: Seq (Enabled w1)
+            res = toS [ m | m <- ms ] :: Seq (Enabled w1)
 
         test ("matrix/3/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 

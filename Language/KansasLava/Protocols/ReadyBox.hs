@@ -60,7 +60,7 @@ toReadyBox' :: (Rep a, Clock c, sig ~ Signal c)
              => [Int]		    -- ^ list wait states after every succesful post
              -> Patch [Maybe a]  			(sig (Enabled a))
 		      ()				(sig Ready)
-toReadyBox' pauses ~(ys,full) = ((),toSignal (fn ys (fromSignal full) pauses))
+toReadyBox' pauses ~(ys,full) = ((),toS (fn ys (fromS full) pauses))
         where
 --           fn xs cs ps | trace (show ("fn",take 5 ps)) False = undefined
 	   -- send the value *before* checking the Ready
@@ -92,9 +92,9 @@ fromReadyBox' :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
            => [Int]
            -> Patch (sig (Enabled a))		[Maybe a]
 		    (sig Ready)			()
-fromReadyBox' ps ~(inp,_) = (toSignal (map fst internal), map snd internal)
+fromReadyBox' ps ~(inp,_) = (toS (map fst internal), map snd internal)
    where
-        internal = fn (fromSignal inp) ps
+        internal = fn (fromS inp) ps
 
 	-- pretty simple API
 	fn :: [Maybe (Enabled a)] -> [Int] -> [(Ready,Maybe a)]
@@ -218,8 +218,8 @@ liftReadyBox seq' (Signal s_Full d_Full) = enabledS res
 
         res = Signal (fn s_seq s_Full)
                   (D $ Port "o0" $ E $ Entity (Prim "retime")
-                                        [("o0",bitTypeOf res)]
-                                        [("i0",bitTypeOf res, unD d_seq)
+                                        [("o0",typeOfS res)]
+                                        [("i0",typeOfS res, unD d_seq)
                                         ,("pulse",B, unD d_Full)
                                         ]
                   )

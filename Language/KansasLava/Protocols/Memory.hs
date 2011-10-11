@@ -63,7 +63,7 @@ writeMemory pipe = res
                                             Just v -> optX (Just v)
                           )
 			<*> mem -- (emptyMEM :~ mem)
---			    <*> ({- optX Nothing :~ -} seqValue addr2)
+--			    <*> ({- optX Nothing :~ -} shallowS addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
@@ -82,9 +82,9 @@ writeMemory pipe = res
 			      		addr' <- unX a
 			      		dat'  <- unX b
 			      		return $ Just (addr',dat')
-		       ) <*> seqValue wEn
-			 <*> seqValue addr
-			 <*> seqValue dat
+		       ) <*> shallowS wEn
+			 <*> shallowS addr
+			 <*> shallowS dat
 
 	-- mem
 {-
@@ -116,12 +116,12 @@ writeMemory pipe = res
     	entity :: Entity E
     	entity =
 		Entity (Prim "write")
-			[ ("o0",bitTypeOf res)]
+			[ ("o0",typeOfS res)]
 			[ ("clk",ClkTy, Pad "clk")
    		        , ("rst",B,     Pad "rst")
-			, ("wEn",bitTypeOf wEn,unD $ seqDriver wEn)
-			, ("wAddr",bitTypeOf addr,unD $ seqDriver addr)
-			, ("wData",bitTypeOf dat,unD $ seqDriver dat)
+			, ("wEn",typeOfS wEn,unD $ deepS wEn)
+			, ("wAddr",typeOfS addr,unD $ deepS addr)
+			, ("wData",typeOfS dat,unD $ deepS dat)
                         , ("element_count"
                           , GenericTy
                           , Generic (fromIntegral (M.size (error "witness" :: a)))

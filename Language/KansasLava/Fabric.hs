@@ -121,7 +121,7 @@ output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 -- | Generate a named std_logic input port.
 inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
-        pad <- input nm (StdLogic $ deepSignal $ D $ Pad nm)
+        pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
           StdLogic sq -> bitwise sq
           _           -> error "internal type error in inStdLogic"
@@ -137,7 +137,7 @@ inGeneric nm = do
 -- | Generate a named std_logic_vector port input.
 inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
-	let seq' = deepSignal $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
+	let seq' = mkDeepS $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
         return $ case pad of
                      -- This unsigned is hack, but the sizes should always match.
@@ -174,7 +174,7 @@ outStdLogicVector
   :: forall a .
      (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
 outStdLogicVector nm sq =
-		  case toStdLogicType (typeOfSignal sq) of
+		  case toStdLogicType (typeOfS sq) of
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
 		    _    -> output nm $ StdLogicVector
 		    	     	       $ (bitwise sq :: Seq (ExternalStdLogicVector (W a)))
@@ -214,8 +214,8 @@ reifyFabric (Fabric circuit) = do
 	       where
 	       	     ty = repType (Witness :: Witness a)
 
-        let top_outs = [ (nm, B,    unD $ seqDriver s) | (nm,StdLogic s) <- outs0 ] ++
-                       [ (nm, mkU s, unD $ seqDriver s) | (nm,StdLogicVector s) <- outs0 ]
+        let top_outs = [ (nm, B,    unD $ deepS s) | (nm,StdLogic s) <- outs0 ] ++
+                       [ (nm, mkU s, unD $ deepS s) | (nm,StdLogicVector s) <- outs0 ]
 
         let o = Port "top"
                 $ E
