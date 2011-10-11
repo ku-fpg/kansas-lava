@@ -147,7 +147,13 @@ syncRead mem addr = delay (asyncRead mem addr)
 -- | Read a series of addresses.
 asyncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
-asyncRead = primS2 ($) "asyncRead"
+asyncRead = primXS2 fn "asyncRead"
+   where fn (XFunction f) a = 
+           -- We need to case of XFunction, rather than use unX,
+           -- because the function may not be total.
+           case unX a of
+                Just a' -> f a'
+                Nothing -> optX Nothing
 
 -- | memoryToMatrix should be used with caution/simulation  only,
 -- because this actually clones the memory to allow this to work,

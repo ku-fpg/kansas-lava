@@ -21,7 +21,7 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
-import qualified Data.Maybe as Maybe
+--import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
 
@@ -235,10 +235,12 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
     data X (ix -> a) = XFunction (ix -> X a)
 
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
-    optX Nothing    = XFunction $ const (optX Nothing)
+    optX Nothing  = XFunction $ const $ unknownX
 
-    -- assumes total function
-    unX (XFunction f) = return (Maybe.fromJust . unX . f)
+    unX (XFunction f) = return (\ a -> 
+        let fromJust' (Just x) = x
+            fromJust' _ = error $ show ("X",repType (Witness :: Witness (ix -> a)), showRep (optX (Just a) :: X ix))
+        in (fromJust' . unX . f) a)
 
     repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
 
