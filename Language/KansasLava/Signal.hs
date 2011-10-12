@@ -38,10 +38,11 @@ type Seq a = Signal () a
 shallowS :: Signal c a -> S.Stream (X a)
 shallowS (Signal a _) = a
 
--- | Extract the deep portion of a Signal.
+-- | Extract the deep portion of a 'Signal'.
 deepS :: Signal c a -> D a
 deepS (Signal _ d) = d
 
+-- | A pure 'Signal'.
 pureS :: (Rep a) => a -> Signal i a
 pureS a = Signal (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
