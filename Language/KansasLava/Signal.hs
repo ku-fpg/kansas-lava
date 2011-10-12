@@ -34,7 +34,7 @@ data Signal (c :: *) a = Signal (S.Stream (X a)) (D a)
 -- | Signal in some implicit clock domain.
 type Seq a = Signal () a
 
--- | Extract the shallow portion of a Signal.
+-- | Extract the shallow portion of a 'Signal'.
 shallowS :: Signal c a -> S.Stream (X a)
 shallowS (Signal a _) = a
 
