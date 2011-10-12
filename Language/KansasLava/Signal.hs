@@ -57,13 +57,13 @@ mkDeepS = Signal (error "incorrect use of shallow Signal")
 
 -- | Inject a shallow value into a Signal. The deep portion of the Signal will be an
 -- Error if it is ever used.
-mkShallowS :: S.Stream (X a) -> Signal c a
+mkShallowS :: (Clock c) => S.Stream (X a) -> Signal c a
 mkShallowS s = Signal s (D $ Error "incorrect use of deep Signal")
 
 -- | Create a Signal with undefined for both the deep and shallow elements.
 undefinedS ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
-undefinedS = Signal (pure $ optX Nothing)
-		      (D $ Lit $ toRep (optX (Nothing :: Maybe a)))
+undefinedS = Signal (pure $ (unknownX :: X a))
+		    (D $ Lit $ toRep (unknownX :: X a))
 
 -- | Attach a comment to a 'Signal'.
 commentS :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
@@ -191,16 +191,16 @@ instance (Rep a, Integral a) => Integral (Signal i a) where
 
 -- | Convert a list of values into a Signal. The shallow portion of the resulting
 -- Signal will begin with the input list, then an infinite stream of X unknowns.
-toS :: (Rep a) => [a] -> Signal c a
+toS :: (Clock c, Rep a) => [a] -> Signal c a
 toS xs = mkShallowS (S.fromList (map optX (map Just xs ++ repeat Nothing)))
 
 -- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
-toS' :: (Rep a) => [Maybe a] -> Signal c a
+toS' :: (Clock c, Rep a) => [Maybe a] -> Signal c a
 toS' xs = mkShallowS (S.fromList (map optX (xs ++ repeat Nothing)))
 
 -- | Convert a list of X values to a Signal. Pad the end with an infinite list of X unknowns.
-toSX :: forall a c . (Rep a) => [X a] -> Signal c a
+toSX :: forall a c . (Clock c, Rep a) => [X a] -> Signal c a
 toSX xs = mkShallowS (S.fromList (xs ++ map (optX :: Maybe a -> X a) (repeat Nothing)))
 
 -- | Convert a Signal of values into a list of Maybe values.

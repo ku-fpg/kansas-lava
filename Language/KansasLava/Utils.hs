@@ -358,7 +358,7 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- the second is our reference value.
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
-refinesFrom :: forall sig a i . ( sig ~ Signal i, Rep a) => sig a -> sig a -> sig Bool
+refinesFrom :: forall sig a i . (Clock i, sig ~ Signal i, Rep a) => sig a -> sig a -> sig Bool
 refinesFrom a b = mkShallowS (S.zipWith fn (shallowS a) (shallowS b))
    where
            fn a' b' = let res =  and  [ case (vut,ref) of
