@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs, TypeOperators #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs, TypeOperators, EmptyDataDecls #-}
 
 -- | This module contains the key internal types for Kansas Lava,
 -- and some basic utilities (like Show instances) for these types.
@@ -20,8 +20,9 @@ module Language.KansasLava.Types (
         -- * Driver
         , Driver(..)
         , D(..)
-        -- * Clock
-        , Clock(..)     -- type class
+        -- * Ways of intepreting 'Signal'
+        , Clock      -- type class
+        , CLK
         -- * RepValue
         , RepValue(..)
         , appendRepValue
@@ -370,12 +371,11 @@ newtype D a = D { unD :: Driver E } deriving Show
 
 ---------------------------------------------------------------------------------------------------------
 -- | class 'Clock' is a type that can be be used to represent a clock.
-class Clock clk where
-        clock :: D clk
+class Clock clk where {}
 
--- '()' is the default/standard/vanilla clock.
-instance Clock () where
-        clock = D $ ClkDom "unit"
+-- | generic/default/board/standard/vanilla clock.
+data CLK 
+instance Clock CLK where {}
 
 ---------------------------------------------------------------------------------------------------------
 -- | A RepValue is a value that can be represented using a bit encoding.  The
