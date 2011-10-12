@@ -862,7 +862,7 @@ cyclePatch m ~(_,ack) = ((),out)
   where
 	ix :: sig ix
 	ix = register 0
-	   $ cASE [ (fromAck ack, loopingInc ix) ]
+	   $ cASE [ (fromAck ack, loopingIncS ix) ]
 		  ix
 
 	out = packEnabled high
@@ -884,7 +884,7 @@ constPatch m ~(_,ackOut) = ((),out)
   where
 	ix :: sig ix
 	ix = register 0
-	   $ cASE [ (fromAck ackOut, loopingInc ix) ]
+	   $ cASE [ (fromAck ackOut, loopingIncS ix) ]
 		  ix
 
 	st :: sig Bool
@@ -917,7 +917,7 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
   where
 	ix :: sig ix
 	ix = register 0
-	   $ cASE [ (fromAck ackOut, loopingInc ix) ]
+	   $ cASE [ (fromAck ackOut, loopingIncS ix) ]
 		  ix
 
 	st :: sig Bool
@@ -987,7 +987,7 @@ matrixMergePatch plan ~(mInp, ackOut) = (mAckInp, out)
 		RoundRobinMerge -> let reg = register 0 (mux ((isEs .!. reg) .&&. bitNot (fromAck ackOut))
 								-- stop looking if found enable
 								-- an no ack
-							     (loopingInc reg,reg)) in reg
+							     (loopingIncS reg,reg)) in reg
 
    mAckInp = forEach mInp $ \ x _inp -> toAck $ ((pureS x) .==. inpIndex) .&&. (fromAck ackOut)
    out = (pack mInp) .!. inpIndex

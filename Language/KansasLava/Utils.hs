@@ -343,14 +343,14 @@ unsafeId a = primXS1 (fromRep . toRep) "coerce"  a
 
 ----------------------------------------------------------------------------
 -- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
-{-
-factor :: forall a a1 a2 sig . ( sig ~ Signal i, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
-factor a = unpack (bitwise a :: sig (a1,a2))
+
+
+unappendS :: forall a a1 a2 sig clk . ( sig ~ Signal clk, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+unappendS a = unpack (bitwise a :: sig (a1,a2))
 
 -- | given two signals of a1 and a2 width, respectively, pack them into a signal of a1 + a2 width.
-append :: forall sig a b c . ( sig ~ Signal i, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
-append x y = bitwise (pack (x,y) :: sig (a,b))
--}
+appendS :: forall sig a b c  clk . ( sig ~ Signal clk, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
+appendS x y = bitwise (pack (x,y) :: sig (a,b))
 
 
 ----------------------------------------------------------------------------
@@ -358,6 +358,9 @@ append x y = bitwise (pack (x,y) :: sig (a,b))
 -- the second is our reference value.
 -- If the reference is undefined, then the VUT *can* also be under test.
 -- This only works for shallow circuits, and is used when creating test benches.
+
+-- TODO: this is an internal thing. We need an internals module.
+
 refinesFrom :: forall sig a i . (Clock i, sig ~ Signal i, Rep a) => sig a -> sig a -> sig Bool
 refinesFrom a b = mkShallowS (S.zipWith fn (shallowS a) (shallowS b))
    where
@@ -382,9 +385,9 @@ iterateS f start = out where
 ---------------------------------------------------------------------
 
 -- These varients of succ/pred can handle bounded values and do proper looping.
-loopingInc :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
-loopingInc a = mux2 (a .==. maxBound) (pureS 0,a + 1)
+loopingIncS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
+loopingIncS a = mux2 (a .==. maxBound) (pureS 0,a + 1)
 
-loopingDec :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
-loopingDec a = mux2 (a .==. 0) (pureS maxBound,a - 1)
+loopingDecS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
+loopingDecS a = mux2 (a .==. 0) (pureS maxBound,a - 1)
 
