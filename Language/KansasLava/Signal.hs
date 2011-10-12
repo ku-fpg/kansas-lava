@@ -259,6 +259,14 @@ instance (Rep a, Rep b) => Pack i (a,b) where
 		    , primS1 (snd) "snd"  ab
 		    )
 
+instance (Rep a, Rep b, Rep c) => Pack i (a,b,c) where
+	type Unpacked i (a,b,c) = (Signal i a,Signal i b, Signal i c)
+	pack (a,b,c) = primS3 (,,) "triple"  a b c
+	unpack abc = ( primS1 (\(x,_,_) -> x) "fst3" abc
+		     , primS1 (\(_,x,_) -> x) "snd3" abc
+		     , primS1 (\(_,_,x) -> x) "thd3" abc
+		     )
+
 
 instance (Rep a) => Pack i (Maybe a) where
 	type Unpacked i (Maybe a) = (Signal i Bool, Signal i a)
