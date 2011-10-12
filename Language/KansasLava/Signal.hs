@@ -45,6 +45,10 @@ deepS (Signal _ d) = d
 pureS :: (Rep a) => a -> Signal i a
 pureS a = Signal (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
 
+-- | A 'Signal' witness identity function. Useful when typing things.
+witnessS :: (Rep a) => Witness a -> Signal i a -> Signal i a
+witnessS (Witness) = id
+
 -- | Inject a deep value into a Signal. The shallow portion of the Signal will be an
 -- error, if it is every used.
 mkDeepS :: D a -> Signal c a
