@@ -15,6 +15,7 @@ module Language.KansasLava (
     Signal, Seq, 
     toS, toS', undefinedS, fromS,
     pureS, witnessS,
+    commentS,
     pack, unpack,
     packMatrix, unpackMatrix,
     register, registers, delay, delays,
