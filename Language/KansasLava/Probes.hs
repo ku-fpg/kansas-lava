@@ -2,10 +2,10 @@
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
 module Language.KansasLava.Probes (
-      -- * inserting probes
+      -- * Probes
       probeS, unpackedProbe,
 
-      -- * setting up the debugging mode
+      -- * Setting up the debugging mode for probes
       setProbesAsTrace, setShallowProbes, setProbes
  ) where
 
@@ -23,39 +23,41 @@ import Data.IORef
 probeS :: (Clock c, Rep a) => String -> Signal c a -> Signal c a
 probeS str sig = unsafePerformIO $ do
         (ProbeFn fn) <- readIORef probeFn
-        fn str sig
+        return (fn str sig)
 
 -- | 'unpackedProbe' is an unpacked version of 'probeS'.
 unpackedProbe :: forall c a . (Clock c, Rep a, Pack c a) => String -> Unpacked c a -> Unpacked c a
 unpackedProbe nm a = unpack (probeS nm (pack a) :: Signal c a)
 
-data ProbeFn = ProbeFn (forall a i . (Rep a, Clock i) => String -> Signal i a -> IO (Signal i a))
+data ProbeFn = ProbeFn (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a)
 
 {-# NOINLINE probeFn #-}
 probeFn :: IORef ProbeFn
-probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> return s
+probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 
--- | unsafe function; used internally for initializing debugging hooks.
-setProbes :: (forall a i . (Rep a, Clock i) => String -> Signal i a -> IO (Signal i a)) -> IO ()
+-- | Used internally for initializing debugging hooks, replaces all future calls to probe 
+-- with the given function.
+setProbes :: (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a) -> IO ()
 setProbes = writeIORef probeFn . ProbeFn
 
--- | The callback is called for every value of every probed value, in evaluation order.
-setShallowProbes :: (forall a . (Rep a) => String -> Integer -> X a -> IO ()) -> IO ()
-setShallowProbes write = setProbes $ \ nm sig -> 
-        return $ dual (mkShallowS (probe_shallow nm (shallowS sig))) sig
+-- | The callback is called for every element of every probed value, in evaluation order.
+-- The arguments are fully evaluted (so printing them will not cause any side-effects of evaluation.
+setShallowProbes :: (forall a . (Rep a) => String -> Integer -> X a -> X a) -> IO ()
+setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) sig
   where
         probe_shallow :: forall a . (Rep a) => String -> S.Stream (X a) -> S.Stream (X a)
         probe_shallow nm = id
                       . S.fromList
-                      . map (\ (i,a) -> unsafePerformIO $ do
-                                                write nm i a
-                                                return a)
+                      . map (\ (i,a) -> write nm i a)
                       . zip [1..]
                       . S.toList
 
+-- | A simplified API, where each internal probe event is represented
+-- as a newline-terminated String, and can be printed, or appended to a file.
 setProbesAsTrace :: (String -> IO ()) -> IO ()
-setProbesAsTrace write = setShallowProbes $ \ nm i x -> 
-        write $ nm ++ "(" ++ show i ++ ")" ++ showRep x ++ "\n"
+setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
+        write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
+        return a
 
 --setVCDProbes :: IO VCD
 --setVCDProbes = undefined

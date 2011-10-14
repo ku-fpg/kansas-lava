@@ -42,6 +42,12 @@ shallowS (Signal a _) = a
 deepS :: Signal c a -> D a
 deepS (Signal _ d) = d
 
+deepMapS :: (D a -> D a) -> Signal c a -> Signal c a
+deepMapS f (Signal a d) = (Signal a (f d))
+
+shallowMapS :: (S.Stream (X a) -> S.Stream (X a)) -> Signal c a -> Signal c a
+shallowMapS f (Signal a d) = (Signal (f a) d)
+
 -- | A pure 'Signal'.
 pureS :: (Rep a) => a -> Signal i a
 pureS a = Signal (pure (pureX a)) (D $ Lit $ toRep $ pureX a)
