@@ -113,7 +113,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Signal
-import Language.KansasLava.Probes
+--import Language.KansasLava.Probes
 
 import Data.Sized.Unsigned (U8)
 import Data.Sized.Matrix as M
@@ -512,15 +512,16 @@ unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = fromReady ready_in
 
+{-
 -- | 'probePatch' creates a patch with a named probe, probing both data and control outputs.
-probePatch :: (Probe a, Probe b)
+probePatch :: forall a b . (Probe a, Probe b)
    => String
-   -> Patch    a   a
-               b   b
+   -> Patch    a a 
+               b b
 probePatch probeName ~(inp1, inp2) = (out2, out1)
    where
        (out1, out2) = id
-                    $ probe probeName
+                    $ (probe probeName)
                     $ (inp1, inp2)
 
 -- | 'probeDataPatch' creates a patch with a named probe, probing the data input.
@@ -576,7 +577,7 @@ probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
 
         probed :: sig (Enabled a, Ready)
         probed = probe probeName $ pack (inp, ready_in)
-
+-}
 ---------------------------------------------------------------------------------
 -- Functions that fork streams.
 ---------------------------------------------------------------------------------
