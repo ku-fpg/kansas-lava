@@ -54,6 +54,7 @@ Library
        Language.KansasLava.VCD
        Language.KansasLava.Trace
   Other-modules:
+       Language.KansasLava.Internal
        Language.KansasLava.Rep.TH
        Language.KansasLava.Rep.Class
        Language.KansasLava.Netlist.Decl

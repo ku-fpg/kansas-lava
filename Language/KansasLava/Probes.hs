@@ -6,10 +6,7 @@ module Language.KansasLava.Probes (
       probeS, unpackedProbe,
 
       -- * setting up the debugging mode
-      setProbesAsTrace, setProbes,
-
-      -- * Utilities, regarding tracestream
-      toTraceStream, fromTraceStream
+      setProbesAsTrace, setProbes
  ) where
 
 import Language.KansasLava.Rep
@@ -19,15 +16,6 @@ import Language.KansasLava.Types
 
 import System.IO.Unsafe
 import Data.IORef
-
--- basic conversion to trace representation
--- | Convert a Stream to a TraceStream.
-toTraceStream :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
-toTraceStream stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- S.toList stream ]
-
--- | Convert a TraceStream to a Stream.
-fromTraceStream :: (Rep w) => TraceStream -> S.Stream (X w)
-fromTraceStream (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
 
 {-# NOINLINE probeS #-}

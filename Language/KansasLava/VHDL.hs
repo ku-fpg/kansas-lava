@@ -13,8 +13,9 @@ import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixSt
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
 
-import Language.Netlist.AST
+import Language.KansasLava.Internal
 
+import Language.Netlist.AST
 import Language.Netlist.GenVHDL
 
 import qualified Data.Map as M
@@ -410,6 +411,3 @@ preprocessNetlistCircuit cir = res
                                              _ -> error "fixUp"
                                  other -> other
                                  ) | (o,t,d) <- outs ])
-
-takeMaybe :: Maybe Int -> [a] -> [a]
-takeMaybe = maybe id take

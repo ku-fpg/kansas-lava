@@ -29,10 +29,10 @@ module Language.KansasLava.Trace
     ) where
 
 import Language.KansasLava.Fabric
-import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
+import Language.KansasLava.Internal
 
 import qualified Language.KansasLava.Stream as S
 
@@ -277,6 +277,12 @@ addProbes rc t = t { probes = ps }
     where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
           ps = [ (show nid ++ nm, strm) | (nid, nm, strm) <- pdata ]
 
-takeMaybe :: Maybe Int -> [a] -> [a]
-takeMaybe = maybe id take
+-- basic conversion to trace representation
+-- | Convert a Stream to a TraceStream.
+toTraceStream :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
+toTraceStream stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- S.toList stream ]
+
+-- | Convert a TraceStream to a Stream.
+fromTraceStream :: (Rep w) => TraceStream -> S.Stream (X w)
+fromTraceStream (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
