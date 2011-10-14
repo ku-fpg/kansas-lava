@@ -155,7 +155,7 @@ newReg def = RTL $ \ _ u -> do
 		    v_new = foldr (.) id (reverse assigns) v_old
 	    	    v_old' = case debugs of
 			       Nothing -> v_old
-			       Just msg -> probe msg v_old
+			       Just msg -> probeS msg v_old
 		return (v_old',v_new)
 	return (Reg regRes variable varSt debugSt uq,[])
 

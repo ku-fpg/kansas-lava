@@ -57,7 +57,7 @@ mkTraceCM :: Maybe Int               -- ^ Nothing means infinite trace, Just x s
           -> (KLEG -> IO KLEG) -- KLEG Mod
           -> IO (Trace, KLEG)
 mkTraceCM c fabric input circuitMod = do
-    rc <- (reifyFabric >=> mergeProbesIO >=> circuitMod) fabric
+    rc <- (reifyFabric >=> circuitMod) fabric
 
     let (_,output) = runFabric fabric input
         tr = Trace { len = c
@@ -113,7 +113,7 @@ class Traceable a where
     getSignal :: TraceStream -> a
 
 instance (Clock c, Rep a) => Traceable (Signal c a) where
-    getSignal ts = mkShallowS $ fromTrace ts
+    getSignal ts = mkShallowS $ fromTraceStream ts
 
 -- instance Functor TraceStream where -- can we do this with proper types?
 
@@ -261,14 +261,14 @@ readMap ls = (go thismap, rest)
                    )
 
 addStream :: forall w. (Rep w) => String -> [(String,TraceStream)] -> S.Stream (X w) -> [(String,TraceStream)]
-addStream key m stream = m ++ [(key,toTrace stream)]
+addStream key m stream = m ++ [(key,toTraceStream stream)]
 
 addSeq :: forall w. (Rep w) => String -> Seq w -> [(String,TraceStream)] -> [(String,TraceStream)]
 addSeq key iseq m = addStream key m (shallowS iseq :: S.Stream (X w))
 
 padToTraceStream :: Pad -> TraceStream
-padToTraceStream (StdLogic s) = toTrace $ shallowS s
-padToTraceStream (StdLogicVector s) = toTrace $ shallowS s
+padToTraceStream (StdLogic s) = toTraceStream $ shallowS s
+padToTraceStream (StdLogicVector s) = toTraceStream $ shallowS s
 padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 
 -- | Used by 'mkTraceCM' to add internal probes to the Trace.
