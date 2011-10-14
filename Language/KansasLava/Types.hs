@@ -82,9 +82,6 @@ data Type
 	-- TODO: change to StdLogicTy, because it is clock independent
         | ClkTy         -- ^ Clock Signal
 
-        | ClkDomTy      -- ^ The clock domain type, which has a clock, a clock enable,
-                        -- and an hybrid asyncronized/syncronized reset.
-
         | GenericTy     -- ^ generics in VHDL, argument must be integer
 
         | RomTy Int     -- ^ a constant array of values.
@@ -93,9 +90,6 @@ data Type
                         -- ^ Tuple, represented as a larger std_logic_vector
         | MatrixTy Int Type
                         -- ^ Matrix, for example a vhdl array.
-
-        | FunctionTy Type Type
-                        -- ^ functions; not realizable in VHDL.
 
         -- TODO: Call this FixedPointTy
         | SampledTy Int Int
@@ -108,7 +102,6 @@ data Type
 typeWidth :: Type -> Int
 typeWidth B  = 1
 typeWidth ClkTy = 1
-typeWidth ClkDomTy = 3
 typeWidth (S x) = x
 typeWidth (U x) = x
 typeWidth (V x) = x
@@ -126,17 +119,14 @@ isTypeSigned (S _) = True
 isTypeSigned (U _) = False
 isTypeSigned (V _) = False
 isTypeSigned (SampledTy {}) = True
-isTypeSigned ClkDomTy = False
 isTypeSigned GenericTy = False
 isTypeSigned (RomTy _) = False
 isTypeSigned (TupleTy _) = False
 isTypeSigned (MatrixTy _ _) = False
-isTypeSigned (FunctionTy {}) = False
 
 instance Show Type where
         show B          = "B"
         show ClkTy      = "Clk"
-        show ClkDomTy   = "ClkDom"
         show GenericTy  = "G"
         show (RomTy i)  = show i ++ "R"
         show (S i)      = show i ++ "S"
@@ -144,7 +134,6 @@ instance Show Type where
         show (V i)      = show i ++ "V"
         show (TupleTy tys) = show tys
         show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
-        show (FunctionTy r d) = "(" ++ show r ++ "->" ++ show d ++ ")"
         show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
 
 -- This is required for the deserialization of Trace objects.
@@ -175,9 +164,9 @@ instance Read Type where
               (n,rest) = span isDigit r2
     readsPrec _ xs | foldr (\s b -> b || s `isPrefixOf` xs) False strs =
                         concat [ maybe [] (\rest -> [(con,rest)]) (stripPrefix str xs)
-                               | (con,str) <- zip [B  , ClkTy, ClkDomTy, GenericTy] strs
+                               | (con,str) <- zip [B  , ClkTy, GenericTy] strs
                                ]
-        where strs = ["B", "Clk", "ClkDom", "G"]
+        where strs = ["B", "Clk", "G"]
     readsPrec _ xs@('[':_) = [ (TupleTy tys,rest)| (tys,rest) <- readList xs ]
     readsPrec _ what = error $ "read Type - can't parse: " ++ what
 
