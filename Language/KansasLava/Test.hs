@@ -203,12 +203,12 @@ simCompare path report verb = do
         then do -- transcript <- Strict.readFile (path </> "transcript")
                 success <- doesFileExist $ path </> localname <.> "deep"
                 if success
-                    then do shallow <- lines <$> Strict.readFile (path </> localname <.> "shallow")
-                            deep    <- lines <$> Strict.readFile (path </> localname <.> "deep")
+                    then do shallow <- lines <$> Strict.readFile (path </> localname <.> "in.tbf")
+                            deep    <- lines <$> Strict.readFile (path </> localname <.> "out.tbf")
                             sig     <- read  <$> Strict.readFile (path </> localname <.> "sig")
 
-                            let t1 = fromASCII shallow sig
-                                t2 = fromASCII deep sig
+                            let t1 = readTBF shallow sig
+                                t2 = readTBF deep sig
                             if cmpTraceIO t1 t2
                                 then do verb 3 "simulation passed"
                                         report $ Pass -- t1 t2 transcript

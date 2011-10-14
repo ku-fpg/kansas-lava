@@ -1,6 +1,5 @@
 import Language.KansasLava.Trace
 import Language.KansasLava.VCD
-import Language.KansasLava.VHDL
 
 import Control.Applicative
 import System.Environment
@@ -27,7 +26,7 @@ main = do
                 deep    <- lines <$> readFile rightfile
                 sig     <- read  <$> readFile sigfile
 
-                let t1 = fromASCII shallow sig
-                    t2 = fromASCII deep sig
+                let t1 = readTBF shallow sig
+                    t2 = readTBF deep sig
 
                 writeFile "diff.vcd" $ vcdDiff t1 t2

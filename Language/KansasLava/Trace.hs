@@ -26,6 +26,9 @@ module Language.KansasLava.Trace
     , readFromFile
     , mkTrace
     , mkTraceCM
+    -- * Reading and Writing the Test Bench Format (.tfb)
+    , readTBF
+    , writeTBF
     ) where
 
 import Language.KansasLava.Fabric
@@ -286,3 +289,44 @@ toTraceStream stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal 
 fromTraceStream :: (Rep w) => TraceStream -> S.Stream (X w)
 fromTraceStream (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
+--------------------------------------------
+
+-- | Convert the inputs and outputs of a Trace to the textual format expected
+-- by a testbench.
+writeTBF :: String -> Trace -> IO ()
+writeTBF filename = writeFile filename . unlines . mergeWith (++) . asciiStrings
+
+-- | Inverse of showTBF, needs a signature for the shape of the desired Trace.
+-- Creates a Trace from testbench signal files.
+readTBF :: [String] -> Signature -> Trace
+readTBF ilines sig = et { inputs = ins, outputs = outs }
+    where et = setCycles (length ilines) $ fromSignature sig
+          widths = [ typeWidth ty
+                   | (_,TraceStream ty _) <- inputs et ++ outputs et
+                   ]
+          (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
+          addToMap sigs m = [ (k,TraceStream ty $ map unASCII strm)
+                            | (strm,(k,TraceStream ty _)) <- zip sigs m
+                            ]
+          (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
+          -- this needs to do the inverse of what asciiStrings does below
+          unASCII :: String -> RepValue
+          unASCII vals = RepValue [ case v of
+                                        'X' -> Nothing
+                                        '1' -> Just True
+                                        '0' -> Just False
+                                        _   -> error "readTBF: bad character!"
+                                  | v <- reverse vals ]
+
+-- | Convert a Trace into a list of lists of Strings, each String is a value,
+-- each list of Strings is a signal.
+asciiStrings :: Trace -> [[String]]
+asciiStrings (Trace c ins outs _) = [ map showRep' $ takeMaybe c s
+                                    | (_,TraceStream _ s) <- ins ++ outs ]
+  where showRep' (RepValue vals) = [ case v of
+                                      Nothing   -> 'X'
+                                      Just True  -> '1'
+                                      Just False -> '0'
+                                    | v <- reverse vals
+                                  ]
+-- Note the reverse here is crucial due to way vhdl indexes stuff

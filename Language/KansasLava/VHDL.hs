@@ -2,7 +2,7 @@
 {-# LANGUAGE ParallelListComp #-}
 
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench, toASCII, fromASCII) where
+module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench) where
 
 import Data.List(mapAccumL)
 
@@ -12,8 +12,6 @@ import Language.KansasLava.Types
 import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixStdLogicTy, sizedRange)
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
-
-import Language.KansasLava.Internal
 
 import Language.Netlist.AST
 import Language.Netlist.GenVHDL
@@ -48,71 +46,13 @@ mkTestbench path cycles circuitMod fabric input = do
 
     (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
 
-    writeFile (path </> name <.> "shallow") $ toASCII trace
-    writeFile (path </> name <.> "info") $ toInfo trace
+    writeTBF (path </> name <.> "input.tbf") trace
     writeFile (path </> name <.> "sig") $ show $ toSignature trace
     writeFile (path </> name <.> "kleg") $ show rc
 
     writeTestbench name path rc
 
     return trace
-
--- | Convert the inputs and outputs of a Trace to the textual format expected
--- by a testbench.
-toASCII :: Trace -> String
-toASCII = unlines . mergeWith (++) . asciiStrings
-
--- | Inverse of toASCII, needs a signature for the shape of the desired Trace.
--- Creates a Trace from testbench signal files.
-fromASCII :: [String] -> Signature -> Trace
-fromASCII ilines sig = et { inputs = ins, outputs = outs }
-    where et = setCycles (length ilines) $ fromSignature sig
-          widths = [ typeWidth ty
-                   | (_,TraceStream ty _) <- inputs et ++ outputs et
-                   ]
-          (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
-          addToMap sigs m = [ (k,TraceStream ty $ map unASCII strm)
-                            | (strm,(k,TraceStream ty _)) <- zip sigs m
-                            ]
-          (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
-          -- this needs to do the inverse of what asciiStrings does below
-          unASCII :: String -> RepValue
-          unASCII vals = RepValue [ case v of
-                                        'X' -> Nothing
-                                        '1' -> Just True
-                                        '0' -> Just False
-                                        _   -> error "fromASCII: bad character!"
-                                  | v <- reverse vals ]
-
--- | Generate a human readable format for a trace.
-toInfo :: Trace -> String
-toInfo t = unwords names ++ "\n"
-         ++ unlines [ "(" ++ show i ++ ") " ++ l
-                   | (i::Int,l) <- zip [1..] lines' ]
-    where lines' = mergeWith (\ x y -> x ++ " " ++ y) $ asciiStrings t
-          names  = case t of (Trace _ ins outs _) -> map show (map fst (ins ++ outs))
-
--- | Convert a Trace into a list of lists of Strings, each String is a value,
--- each list of Strings is a signal.
-asciiStrings :: Trace -> [[String]]
-asciiStrings (Trace c ins outs _) = [ map showRep $ takeMaybe c s
-                                    | (_,TraceStream _ s) <- ins ++ outs ]
-  where showRep (RepValue vals) = [ case v of
-                                      Nothing   -> 'X'
-                                      Just True  -> '1'
-                                      Just False -> '0'
-                                    | v <- reverse vals
-                                  ]
--- Note the reverse here is crucial due to way vhdl indexes stuff
-
--- surely this exists in the prelude?
-mergeWith :: (a -> a -> a) -> [[a]] -> [a]
-mergeWith _ [] = []
-mergeWith f ls = foldr1 (Prelude.zipWith f) ls
-
-splitLists :: [[a]] -> [Int] -> [[[a]]]
-splitLists xs (i:is) = map (take i) xs : splitLists (map (drop i) xs) is
-splitLists _  []     = [[]]
 
 writeTestbench :: String -> FilePath -> KLEG -> IO ()
 writeTestbench name path circuit = do
@@ -169,8 +109,8 @@ dut name ins outs sequentials = unlines $ [
 stimulus :: String -> [(a, Type)] -> [(a, Type)] -> String
 stimulus name ins outs = unlines $ [
   "runtest: process  is",
-  "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".shallow\";",
-  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".deep\";",
+  "\tFILE " ++ inputfile ++  " : TEXT open read_mode IS \"" ++ name ++ ".in.tbf\";",
+  "\tFILE " ++ outputfile ++ " : TEXT open write_mode IS \"" ++ name ++ ".out.tbf\";",
   "\tVARIABLE line_in,line_out  : LINE;",
   "\tvariable input_var : " ++ portType (ins ++ outs) ++ ";",
   "\tvariable output_var : " ++ portType (ins ++ outs) ++ ";",
@@ -381,22 +321,6 @@ preprocessNetlistCircuit cir = res
                    ]
 
         --------------------------------------------------------------------------------------------
-
-{- ACF: Here is original, before removing OVars, because I'm not sure I'm doing this right.
-        fixUp :: (Unique,Entity Unique) -> (Unique, Entity Unique)
-        fixUp (i,Entity e ins outs) = (i,
-                Entity e ins
-                         [ (o,t,case d of
-                                 Pad o2@(OVar _ nm)
-                                     -> case [ u | (u,(o3,_)) <- extras1, o2 == o3 ] of
-                                             [u] -> Port "o0" u
-                                             []  -> case [ j | (OVar j nm',_) <- srcs', nm == nm' ] of
-                                                      [k] -> Pad (OVar k nm)
-                                                      _ -> error "fixUp find"
-                                             _ -> error "fixUp"
-                                 other -> other
-                                 ) | (o,t,d) <- outs ])
--}
 
         fixUp :: (Unique,Entity Unique) -> (Unique, Entity Unique)
         fixUp (i,Entity e ins outs) = (i,
