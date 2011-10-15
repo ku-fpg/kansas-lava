@@ -164,4 +164,40 @@ runAckBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
 runAckBoxP p as = [ b | Just b <- bs' ]
   where
 	as' = map Just as
-	bs' = runPatch (unitPatch as' $$ toAckBox $$ unitClockPatch $$ p $$ fromAckBox)
+	bs' = runP (outputP as' $$ toAckBox $$ unitClockP $$ p $$ fromAckBox)
+
+
+-- | A sink patch throws away its data input (generating a () data
+-- output). 'sinkReadyP' uses an enabled/ack protocol.
+sinkAckP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
+    => Patch    (sig (Enabled a))           ()
+                (sig Ack)                   ()
+sinkAckP ~(inp, ()) = (toAck ack, ())
+  where
+        (ack,_) = unpack inp
+
+-------------------------------------------------------------------------------
+-- Source Patches - generate a stream of constant values
+-------------------------------------------------------------------------------
+
+
+-- | A source patch takes no input and generates a stream of values. It
+-- corresponds to a top-level input port. 'sourceReadyP' uses the enabled/ack
+-- protocol.
+
+alwaysAckP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
+    => a
+    -> Patch    ()           (sig (Enabled a))
+                ()           (sig Ack)
+alwaysAckP baseVal ~((), _) = ((), out)
+  where
+        out = packEnabled high (pureS baseVal)
+
+------------------------------------------------
+
+-- | stub, no data ever sent.
+neverAckP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
+    => Patch    ()           (sig (Enabled a))
+                ()           (sig Ack)
+neverAckP (_,_) = ((),disabledS)
+

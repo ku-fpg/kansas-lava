@@ -39,19 +39,19 @@ tests test = do
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
 
-	testStream test "U5"   (fifoTest "idPatch" idPatch :: StreamTest U5 U5)
-	testStream test "Bool" (fifoTest "idPatch" idPatch :: StreamTest Bool Bool)
+	testStream test "U5"   (fifoTest "emptyP" emptyP :: StreamTest U5 U5)
+	testStream test "Bool" (fifoTest "emptyP" emptyP :: StreamTest Bool Bool)
 	testStream test "U5"   (fifoTest "fifo1" fifo1 :: StreamTest U5 U5)
 	testStream test "Bool" (fifoTest "fifo1" fifo1 :: StreamTest Bool Bool)
 	testStream test "U5"   (fifoTest "fifo2" fifo2 :: StreamTest U5 U5)
 	testStream test "Bool" (fifoTest "fifo2" fifo2 :: StreamTest Bool Bool)
 
 
-	-- This tests dupPatch and zipPatch
+	-- This tests dupP and zipP
         let patchTest1 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
 		      => StreamTest w (w,w)
             patchTest1 = StreamTest
-                        { theStream = dupPatch $$ fstPatch (forwardPatch $ mapEnabled (+1)) $$ zipPatch
+                        { theStream = dupP $$ fstP (forwardP $ mapEnabled (+1)) $$ zipP
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
 --				trace (show (ins,outs)) $ 
                                 case () of
@@ -62,7 +62,7 @@ tests test = do
 
 	    		, theStreamTestCount  = count
 	    		, theStreamTestCycles = 10000
-                        , theStreamName = "dupPatch-zipPatch"
+                        , theStreamName = "dupP-zipP"
                         }
 	   	where
 			count = 100
@@ -70,15 +70,15 @@ tests test = do
 	testStream test "U5" (patchTest1 :: StreamTest U5 (U5,U5))
 
 
-	-- This tests matrixDupPatch and matrixZipPatch
+	-- This tests matrixDupP and matrixZipP
         let patchTest2 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
 		      => StreamTest w (Matrix X3 w)
             patchTest2 = StreamTest
-                        { theStream = matrixDupPatch $$ matrixStack (matrix [ 
-								forwardPatch $ mapEnabled (+0),
-								forwardPatch $ mapEnabled (+1),
-								forwardPatch $ mapEnabled (+2)]								
-								) $$ matrixZipPatch
+                        { theStream = matrixDupP $$ matrixStackP (matrix [ 
+								forwardP $ mapEnabled (+0),
+								forwardP $ mapEnabled (+1),
+								forwardP $ mapEnabled (+2)]								
+								) $$ matrixZipP
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
 --				trace (show (ins,outs)) $ 
                                 case () of
@@ -90,25 +90,25 @@ tests test = do
 
 	    		, theStreamTestCount  = count
 	    		, theStreamTestCycles = 10000
-                        , theStreamName = "matrixDupPatch-matrixZipPatch"
+                        , theStreamName = "matrixDupP-matrixZipP"
                         }
 	   	where
 			count = 100
 
 	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix X3 U5))
 
-	-- This tests muxPatch (and matrixMuxPatch)
+	-- This tests muxP (and matrixMuxP)
         let patchTest3 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
 		      => StreamTest w w
             patchTest3 = StreamTest
                         { theStream = 
 				fifo1 $$
-				dupPatch $$ 
-				stack (forwardPatch (mapEnabled (*2)) $$ fifo1)
-				      (forwardPatch (mapEnabled (*3)) $$ fifo1) $$
-				openPatch $$
-				fstPatch (cyclePatch (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
-				muxPatch
+				dupP $$ 
+				stackP (forwardP (mapEnabled (*2)) $$ fifo1)
+				      (forwardP (mapEnabled (*3)) $$ fifo1) $$
+				openP $$
+				fstP (cycleP (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
+				muxP
 
 
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
@@ -121,23 +121,23 @@ tests test = do
 
 	    		, theStreamTestCount  = count
 	    		, theStreamTestCycles = 10000
-                        , theStreamName = "muxPatch"
+                        , theStreamName = "muxP"
                         }
 	   	where
 			count = 100
 
 	testStream test "U5" (patchTest3 :: StreamTest U5 U5)
 
-	-- This tests deMuxPatch (and matrixDeMuxPatch), and zipPatch
+	-- This tests deMuxP (and matrixDeMuxP), and zipP
         let patchTest4 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
 		      => StreamTest w (w,w)
             patchTest4 = StreamTest
                         { theStream = 
-				openPatch $$
-				fstPatch (cyclePatch (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
-				deMuxPatch $$
-				stack (fifo1) (fifo1) $$
-				zipPatch 
+				openP $$
+				fstP (cycleP (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
+				deMuxP $$
+				stackP (fifo1) (fifo1) $$
+				zipP 
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
 --				trace (show (ins,outs)) $ 
                                 case () of
@@ -148,7 +148,7 @@ tests test = do
 
 	    		, theStreamTestCount  = count
 	    		, theStreamTestCycles = 10000
-                        , theStreamName = "deMuxPatch-zipPatch"
+                        , theStreamName = "deMuxP-zipP"
                         }
 	   	where
 			count = 100

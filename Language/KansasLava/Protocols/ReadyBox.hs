@@ -16,6 +16,7 @@ import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Protocols.Patch
 import Language.KansasLava.Probes
+import Language.KansasLava.Utils
 
 ------------------------------------------------------------------------------------
 
@@ -105,11 +106,11 @@ shallowReadyBoxBridge (lhsF,rhsF) = patch
 
 -- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
 -- signals in a Ready interface.  
-probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c)
+probeReadyBoxP :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c)
     => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
              (sig Ready)         (sig Ready)
-probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
+probeReadyBoxP probeName ~(inp, ready_in) = (ready_out, out)
     where
         (out, _)  = unpack probed
         ready_out = ready_in
@@ -125,5 +126,30 @@ runReadyBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep 
 runReadyBoxP p as = [ b | Just b <- bs' ]
   where
 	as' = map Just as
-	bs' = runPatch (unitPatch as' $$ toReadyBox $$ unitClockPatch $$ p $$ fromReadyBox)
+	bs' = runP (outputP as' $$ toReadyBox $$ unitClockP $$ p $$ fromReadyBox)
 
+-- | A sink patch throws away its data input (generating a () data
+-- output). 'sinkReadyP' uses an enabled/ready protocol.
+sinkReadyP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
+    => Patch    (sig (Enabled a))           ()
+                (sig Ready)                 ()
+sinkReadyP ~(_, ()) = (toReady ready, ())
+  where
+        ready = high
+
+-- | A source patch takes no input and generates a stream of values. It
+-- corresponds to a top-level input port. 'alwaysReadyP' uses the
+-- ready/enabled protocol.
+alwaysReadyP :: forall a c sig . ( Rep a, Clock c, sig ~ Signal c)
+    => a
+    -> Patch    ()           (sig (Enabled a))
+                ()           (sig Ready)
+alwaysReadyP baseVal ~((), ready_in) = ((), out)
+  where
+        out = packEnabled (fromReady ready_in) (pureS baseVal)
+
+-- | stub, no data ever sent.
+neverReadyP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
+    => Patch    ()           (sig (Enabled a))
+                ()           (sig Ready)
+neverReadyP (_,_) = ((),disabledS)

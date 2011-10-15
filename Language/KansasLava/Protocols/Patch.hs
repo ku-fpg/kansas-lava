@@ -1,8 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
 module Language.KansasLava.Protocols.Patch
   -- (Patch, bus, ($$),
-  -- idPatch,forwardPatch, backwardPatch,dupPatch,zipPatch,
-  -- fstPatch,matrixDupPatch,matrixStack,matrixZipPatch,
+  -- emptyP,forwardP, backwardP,dupP,zipPatch,
+  -- fstP,matrixDupP,matrixStackP,matrixZipPatch,
   -- fifo1, fifo2)
   where
 
@@ -40,49 +40,46 @@ type Patch lhs_in 	   rhs_out
 
 -- | Unitpatch produces a constant data output. The control inputs/outputs are
 -- unit, so they contain no data.
-unitPatch :: a -> Patch () a
+outputP :: a -> Patch () a
 		        () ()
-unitPatch a = \ _ -> ((),a)
+outputP a = \ _ -> ((),a)
 
 
-runPatch :: (Unit u1, Unit u2)
+runP :: (Unit u1, Unit u2)
  	 => Patch u1   a
 	 	  u2  () -> a
-runPatch p = a
+runP p = a
  where
    (_,a) = p (unit,unit)
 
-execPatch :: Patch a b
+execP :: Patch a b
  		   c d
  	  -> (a,d) -> (c,b)
-execPatch = id
+execP = id
 
--- TODO: rm
-nullPatch :: Patch a  a
-	         b  b
-nullPatch = idPatch -- ~(a,b) = (b,a)
 
 -- | A patch that passes through data and control.
-idPatch :: Patch a  a
+emptyP :: Patch a  a
 	         b  b
-idPatch ~(a,b) = (b,a)
+emptyP ~(a,b) = (b,a)
 
 -- | Given a patch, add to the data and control inputs/outputs a second set of
--- signals that are passed-through. The signals of the argument patch to fstPatch
+-- signals that are passed-through. The signals of the argument patch to fstP
 -- will appear as the first element of the pair in the resulting patch.
-fstPatch :: Patch a   b
+fstP :: Patch a   b
 		  c   e -> Patch (a :> f) (b :> f)
 				 (c :> g) (e :> g)
-fstPatch p = p `stack` nullPatch
+fstP p = p `stackP` emptyP
 
 -- | Given a patch, add to the data and control inputs/outputs a second set of
--- signals that are passed-through. The signals of the argument patch to sndPatch
+-- signals that are passed-through. The signals of the argument patch to sndP
 -- will appear as the second element of the pair in the resulting patch.
-sndPatch :: Patch a   b
+sndP :: Patch a   b
 		  c   d -> Patch (f :> a) (f :> b)
 				 (g :> c) (g :> d)
-sndPatch p = nullPatch `stack` p
+sndP p = emptyP `stackP` p
 
+{-
 -- | 'matrixSplicePatch' splices/inserts a patch into a matrix of signals at the position
 -- given by index.  (Note:  The first position is index 0)
 matrixSplicePatch :: (Size x, Integral x)
@@ -100,30 +97,31 @@ matrixSplicePatch index p ~(mlhs_in, mrhs_in) = (mlhs_out, mrhs_out)
     indexInt = (fromIntegral index) :: Int
     mlhs_out = M.matrix $ (take indexInt $ M.toList mrhs_in) ++ lhs_out:(drop (indexInt+1) $ M.toList mrhs_in)
     mrhs_out = M.matrix $ (take indexInt $ M.toList mlhs_in) ++ rhs_out:(drop (indexInt+1) $ M.toList mlhs_in)
+-}
 
 -- | Lift a function to a patch, applying the function to the data input.
-forwardPatch :: (li -> ro)
+forwardP :: (li -> ro)
 	    -> Patch li ro
 	             b  b
-forwardPatch f1 ~(li,ri) = (ri,f1 li)
+forwardP f1 ~(li,ri) = (ri,f1 li)
 
 -- | Lift a function to a patch, applying the function to the control input.
-backwardPatch :: (ri -> lo)
+backwardP :: (ri -> lo)
 	    -> Patch a  a
 	             lo ri
-backwardPatch f2 ~(li,ri) = (f2 ri,li)
+backwardP f2 ~(li,ri) = (f2 ri,li)
 
 -- TODO: above or ??
 
-infixr 3 `stack`
+infixr 3 `stackP`
 -- | Given two patches, tuple their data/control inputs and outputs.
-stack :: Patch li1		ro1
+stackP :: Patch li1		ro1
                lo1    		ri1
       -> Patch li2		ro2
                lo2    		ri2
       -> Patch (li1 :> li2)			(ro1 :> ro2)
                (lo1 :> lo2)   			(ri1 :> ri2)
-stack p1 p2 inp = (lo1 :> lo2,ro1 :> ro2)
+stackP p1 p2 inp = (lo1 :> lo2,ro1 :> ro2)
    where
 	(li1 :> li2,ri1 :> ri2)	     = inp
 	(lo1,ro1)		     = p1 (li1,ri1)
@@ -131,12 +129,12 @@ stack p1 p2 inp = (lo1 :> lo2,ro1 :> ro2)
 
 -- | Given a homogeneous list (Matrix) of patches, combine them into a single
 -- patch, collecting the data/control inputs/outputs into matrices.
-matrixStack :: (m ~ (Matrix x), Size x)
+matrixStackP :: (m ~ (Matrix x), Size x)
  	=> m (Patch li   ro
 	   	    lo   ri)
 	-> Patch (m li)         (m ro)
 		 (m lo)         (m ri)
-matrixStack m inp = ( fmap (\ (l,_) -> l) m'
+matrixStackP m inp = ( fmap (\ (l,_) -> l) m'
 		    , fmap (\ (_,r) -> r) m'
 		    )
    where
@@ -144,87 +142,30 @@ matrixStack m inp = ( fmap (\ (l,_) -> l) m'
 	m' = (\ p li ri -> p (li,ri)) <$> m <*> m_li <*> m_ri
 
 
--- | loopPatch is a fixpoint style combinator, for backedges.
-loopPatch :: Patch (a :> b) (a :> c)
+-- | loopP is a fixpoint style combinator, for backedges.
+loopP :: Patch (a :> b) (a :> c)
 		   (d :> e) (d :> f)
 	  -> Patch b c
 		   e f
-loopPatch g ~(b,f) = (e,c)
+loopP g ~(b,f) = (e,c)
   where
     (d:>e,a:>c) = g (a:>b,d:>f)
 
 
-openPatch :: Patch c (() :> c)
+openP :: Patch c (() :> c)
 	           d (() :> d)
-openPatch = forwardPatch (\ a -> (() :> a)) $$
-	    backwardPatch (\ ~(_ :> a) -> a)
+openP = forwardP (\ a -> (() :> a)) $$
+	    backwardP (\ ~(_ :> a) -> a)
 
 -------------------------------------------------------------------------------
--- Sink Patches - throw away (ignore) data
+-- maping a combinatorial circuit over a protocol.
 -------------------------------------------------------------------------------
 
-mapPatch :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ Signal c)
+mapP :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ Signal c)
 	 => (forall clk' . Signal clk' a -> Signal clk' b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
-mapPatch = forwardPatch . mapEnabled
-
-
--------------------------------------------------------------------------------
--- Sink Patches - throw away (ignore) data
--------------------------------------------------------------------------------
-
--- | A sink patch throws away its data input (generating a () data
--- output). sinkReadyPatch uses an enabled/ready protocol.
-sinkReadyPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
-    => Patch    (sig (Enabled a))           ()
-                (sig Ready)                 ()
-sinkReadyPatch ~(_, ()) = (toReady ready, ())
-  where
-        ready = high
--- | A sink patch throws away its data input (generating a () data
--- output). sinkReadyPatch uses an enabled/ack protocol.
-sinkAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
-    => Patch    (sig (Enabled a))           ()
-                (sig Ack)                   ()
-sinkAckPatch ~(inp, ()) = (toAck ack, ())
-  where
-        (ack,_) = unpack inp
-
--------------------------------------------------------------------------------
--- Source Patches - generate a stream of constant values
--------------------------------------------------------------------------------
-
--- | A source patch takes no input and generates a stream of values. It
--- corresponds to a top-level input port. sourceReadyPatch uses the
--- ready/enabled protocol.
-sourceReadyPatch :: forall a c sig . ( Rep a, Clock c, sig ~ Signal c)
-    => a
-    -> Patch    ()           (sig (Enabled a))
-                ()           (sig Ready)
-sourceReadyPatch baseVal ~((), ready_in) = ((), out)
-  where
-        out = packEnabled (fromReady ready_in) (pureS baseVal)
-
--- | A source patch takes no input and generates a stream of values. It
--- corresponds to a top-level input port. sourceReadyPatch uses the enabled/ack
--- protocol.
-
-alwaysAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
-    => a
-    -> Patch    ()           (sig (Enabled a))
-                ()           (sig Ack)
-alwaysAckPatch baseVal ~((), _) = ((), out)
-  where
-        out = packEnabled high (pureS baseVal)
-
-------------------------------------------------
-
--- no data ever sent
-neverAckPatch :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
-    => Patch    ()           (sig (Enabled a))
-                ()           (sig Ack)
-neverAckPatch (_,_) = ((),disabledS)
+mapP = forwardP . mapEnabled
 
 ------------------------------------------------
 -- Unit
@@ -244,81 +185,83 @@ instance (Unit a,Size x) => Unit (Matrix x a) where unit = pure unit
 -- File I/O for Patches
 ------------------------------------------------
 
--- | 'rawReadPatch' reads a binary file into Patch, which will become the
+-- | 'rawReadP' reads a binary file into Patch, which will become the
 -- lefthand side of a chain of patches.
-rawReadPatch :: FilePath -> IO (Patch ()			[Maybe U8]
-			              ()			())
-rawReadPatch fileName = do
+rawReadP :: FilePath -> IO (Patch ()			[Maybe U8]
+			          ()			())
+rawReadP fileName = do
      fileContents <- B.readFile fileName
-     return $ unitPatch $ map (Just . fromIntegral) $ B.unpack fileContents
+     return $ outputP $ map (Just . fromIntegral) $ B.unpack fileContents
 
 -- | 'readPatch' reads an encoded file into Patch, which will become the
 -- lefthand side of a chain of patches.
-readPatch :: (Read a)
-		  => FilePath -> IO (Patch ()	[Maybe a]
-	  		                   ()	())
-readPatch fileName = do
+readP :: (Read a)
+	  => FilePath -> IO (Patch ()	[Maybe a]
+	                           ()	())
+readP fileName = do
      fileContents <- readFile fileName
-     return $ unitPatch $ map (Just . read) $ words $ fileContents
+     return $ outputP $ map (Just . read) $ words $ fileContents
 
--- | 'rawWritePatch' runs a complete circuit for the given
+-- | 'rawWriteP' runs a complete circuit for the given
 -- number of cycles, writing the result to a given file in binary format.
-rawWritePatch :: (Unit u1, Unit u2)
+rawWriteP :: (Unit u1, Unit u2)
            => FilePath
 	   -> Int
 	   -> Patch u1 		[Maybe U8]
 	 	    u2		()
 	   -> IO ()
-rawWritePatch fileName n patch = do
-  B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runPatch patch ]
+rawWriteP fileName n patch = do
+  B.writeFile fileName $ B.pack [ fromIntegral x  | Just x <- take n $ runP patch ]
 
--- | 'writePatch' runs a complete circuit for the given
+-- | 'writeP' runs a complete circuit for the given
 -- number of cycles, writing the result to a given file in string format.
-writePatch :: (Show a, Unit u1, Unit u2)
+writeP :: (Show a, Unit u1, Unit u2)
 	   => FilePath
 	   -> Int
 	   -> Patch u1 		[Maybe a]
 	 	    u2	 	()
 	   -> IO ()
-writePatch fileName n patch = do
-  writeFile fileName $ unlines [ show x | Just x <- take n $ runPatch patch ]
+writeP fileName n patch = do
+  writeFile fileName $ unlines [ show x | Just x <- take n $ runP patch ]
 
--- | 'comparePatch' compares the input to the contents of a file, if there
+{-
+-- | 'compareP' compares the input to the contents of a file, if there
 -- there a mismatch, it will print a message giving the element number that
 -- failed.  If everything matches, it prints out a "Passed" message
-comparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
+compareP :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => FilePath
              -> Int
              -> Patch u1     [Maybe a]
                       u2     ()
              -> IO (Patch ()     [Maybe a]
                           ()     () )
-comparePatch fileName n patch = do
+compareP fileName n patch = do
      fileContents <- readFile fileName
      let expectedVals = map read $ words $ fileContents
-     listComparePatch expectedVals n patch
+     listCompareP expectedVals n patch
 
--- | 'listComparePatch' compares the input to the contents of a list, if
+-- | 'listCompareP' compares the input to the contents of a list, if
 -- there is a mismatch, it will print a message giving the element number
 -- that failed.  If everything matches, it prints out a "Passed" message
-listComparePatch :: (Read a, Show a, Eq a, Unit u1, Unit u2)
+listCompareP :: (Read a, Show a, Eq a, Unit u1, Unit u2)
              => [a]
              -> Int
              -> Patch u1     [Maybe a]
                       u2     ()
              -> IO (Patch ()     [Maybe a]
                           ()     () )
-listComparePatch expectedVals n patch = do
-     let inp = runPatch patch
+listCompareP expectedVals n patch = do
+     let inp = runP patch
      let incomingVals = [ x | Just x <- take n $ inp ]
      putStr $ checkAgainstList 0 expectedVals incomingVals
-     return $ unitPatch inp
+     return $ outputP inp
   where
      checkAgainstList :: (Show a, Eq a) => Int -> [a] -> [a] -> String
      checkAgainstList elemNum []      _                = "Passed, quantity compared:  " ++ (show elemNum)
      checkAgainstList elemNum _       []               = "Passed, but some data in file was not reached, quantity compared:  " ++ (show elemNum)
      checkAgainstList elemNum (e:exs) (i:ins) | (e==i) = checkAgainstList (elemNum+1) exs ins
      checkAgainstList elemNum (e:_)   (i:_)            = "Failed:  Element " ++ (show (elemNum+1)) ++ ": \tExpected:  " ++ (show e) ++ " \tActual:  " ++ (show i)
+-}
 
 ---------------------------------------------------------------------------
 -- Functions that connect streams
@@ -394,11 +337,11 @@ ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
 -- This has the behavior that neither branch sees the value
 -- until both can recieve it.
 
-dupPatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
+dupP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))
 	          (sig Ack)             (sig Ack          :> sig Ack)
 
-dupPatch ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2) 
+dupP ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2) 
   where
 	have_read = (state .==. 0) .&&. isEnabled inp
 	written1  = (state ./=. 0) .&&. fromAck ack1
@@ -421,57 +364,51 @@ dupPatch ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2)
 
 	out1 = packEnabled (state .==. 1 .||. state .==. 2) store
 	out2 = packEnabled (state .==. 1 .||. state .==. 3) store
-{-
-dupPatch =
-	matrixDupPatch $$
-	forwardPatch (\ m -> (m M.! 0 :> m M.! 1)) $$
-	backwardPatch (\ ~(a :> b) -> matrix [a,b] :: Matrix X2 (sig Ack))
--}
 
 -- | This duplicate the incoming datam over many handshaken streams.
-matrixDupPatch :: (Clock c, sig ~ Signal c, Rep a, Size x)
+matrixDupP :: (Clock c, sig ~ Signal c, Rep a, Size x)
          => Patch (sig (Enabled a))     (Matrix x (sig (Enabled a)))
 	          (sig Ack)             (Matrix x (sig Ack))
-matrixDupPatch = ackToReadyBridge $$ matrixDupPatch' $$ matrixStack (pure readyToAckBridge) where
- matrixDupPatch' ~(inp,readys) = (toReady go, pure out)
+matrixDupP = ackToReadyBridge $$ matrixDupP' $$ matrixStackP (pure readyToAckBridge) where
+ matrixDupP' ~(inp,readys) = (toReady go, pure out)
     where
 	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
--- | unzipPatch creates a patch that takes in an Enabled data pair, and produces a
+-- | unzipP creates a patch that takes in an Enabled data pair, and produces a
 -- pair of Enabled data outputs.
-unzipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep b)
+unzipP :: (Clock c, sig ~ Signal c, Rep a, Rep b)
          => Patch (sig (Enabled (a,b)))     (sig (Enabled a) :> sig (Enabled b))
 	          (sig Ack)                 (sig Ack       :> sig Ack)
-unzipPatch = dupPatch $$
-		stack (forwardPatch $ mapEnabled (fst . unpack))
-		      (forwardPatch $ mapEnabled (snd . unpack))
+unzipP = dupP $$
+		stackP (forwardP $ mapEnabled (fst . unpack))
+		      (forwardP $ mapEnabled (snd . unpack))
 
--- | matrixUnzipPatch is the generalization of unzipPatch to homogeneous matrices.
-matrixUnzipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
+-- | matrixUnzipP is the generalization of unzipP to homogeneous matrices.
+matrixUnzipP :: (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
          => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
 	          (sig Ack)          		  (Matrix x (sig Ack))
-matrixUnzipPatch =
-	matrixDupPatch $$
-	matrixStack (forAll $ \ x ->  forwardPatch (mapEnabled $ \ v -> v .!. pureS x))
+matrixUnzipP =
+	matrixDupP $$
+	matrixStackP (forAll $ \ x ->  forwardP (mapEnabled $ \ v -> v .!. pureS x))
 
 -- | TODO: Andy write docs for this.
-deMuxPatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
+deMuxP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
   => Patch (sig (Enabled Bool)    :> sig (Enabled a)) 		  (sig (Enabled a) :> sig (Enabled a))
 	   (sig Ack               :> sig Ack)		          (sig Ack	   :> sig Ack)
-deMuxPatch = fe $$ matrixDeMuxPatch $$ be
+deMuxP = fe $$ matrixDeMuxP $$ be
   where
---	fe = fstPatch (forwardPatch ((unsigned)))
-	fe = fstPatch (mapPatch (unsigned))
-	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) $$
-	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
+--	fe = fstP (forwardP ((unsigned)))
+	fe = fstP (mapP (unsigned))
+	be = backwardP (\ ~(b :> c) -> matrix [c,b]) $$
+	     forwardP (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
 
--- | matrixDeMuxPatch is the generalization of deMuxPatch to a matrix of signals.
-matrixDeMuxPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
+-- | matrixDeMuxP is the generalization of deMuxP to a matrix of signals.
+matrixDeMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
 	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ack))
-matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) where
- matrixDeMuxPatch' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
+matrixDeMuxP = matrixDeMuxP' $$ matrixStackP (pure readyToAckBridge) where
+ matrixDeMuxP' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
     where
 	-- set when ready to try go
 	go = isEnabled ix .&&. isEnabled inp .&&. fromReady (pack m_ready .!. enabledVal ix)
@@ -485,24 +422,24 @@ matrixDeMuxPatch = matrixDeMuxPatch' $$ matrixStack (pure readyToAckBridge) wher
 -- Functions that combine streams
 ---------------------------------------------------------------------------------
 
--- no unDup (requires some function / operation, use zipPatch).
+-- no unDup (requires some function / operation, use zipP).
 
 -- | Combine two enabled data inputs into a single Enabled tupled data input.
-zipPatch :: (Clock c, sig ~ Signal c, Rep a, Rep b)
+zipP :: (Clock c, sig ~ Signal c, Rep a, Rep b)
   => Patch (sig (Enabled a)  :> sig (Enabled b))	(sig (Enabled (a,b)))
 	   (sig Ack          :> sig Ack)	  	(sig Ack)
-zipPatch ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
+zipP ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
     where
 	try = isEnabled in1 .&&. isEnabled in2
 	ack = try .&&. fromAck outReady
 
 	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
--- | Extension of zipPatch to homogeneous matrices.
-matrixZipPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
+-- | Extension of zipP to homogeneous matrices.
+matrixZipP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
          => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))
 	          (Matrix x (sig Ack))		(sig Ack)
-matrixZipPatch ~(mIn, outReady) = (mAcks, out)
+matrixZipP ~(mIn, outReady) = (mAcks, out)
    where
 	try    = foldr1 (.&&.) (map isEnabled $ M.toList mIn)
 
@@ -510,22 +447,22 @@ matrixZipPatch ~(mIn, outReady) = (mAcks, out)
 	mIn'  = fmap enabledVal mIn
 	out   = packEnabled try (pack mIn' :: sig (Matrix x a))
 
--- | 'muxPatch' chooses a the 2nd or 3rd value, based on the Boolean value.
-muxPatch :: (Clock c, sig ~ Signal c, Rep a)
+-- | 'muxP' chooses a the 2nd or 3rd value, based on the Boolean value.
+muxP :: (Clock c, sig ~ Signal c, Rep a)
   => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
 	   (sig Ack            :> sig Ack          :> sig Ack)	  	(sig Ack)
 
-muxPatch = fe $$ matrixMuxPatch
+muxP = fe $$ matrixMuxP
    where
-	fe = forwardPatch (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) $$
-	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
+	fe = forwardP (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) $$
+	     backwardP (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
 
 
--- | 'matrixMuxPatch' chooses the n-th value, based on the index value.
-matrixMuxPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
+-- | 'matrixMuxP' chooses the n-th value, based on the index value.
+matrixMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
   => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
-matrixMuxPatch  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
+matrixMuxP  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
    where
 	-- set when conditional value on cond port
  	try = isEnabled cond
@@ -624,39 +561,39 @@ fifo2 = ackToReadyBridge $$ fifo2' where
 -- Retiming
 ---------------------------------------------------------------------------------
 
-matrixExpandPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixExpandP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
-matrixExpandPatch =
-	   openPatch
-	$$ stack
-		 (cyclePatch (coord :: Matrix x x))
-		 (matrixUnzipPatch)
-	$$ matrixMuxPatch
+matrixExpandP =
+	   openP
+	$$ stackP
+		 (cycleP (coord :: Matrix x x))
+		 (matrixUnzipP)
+	$$ matrixMuxP
 
-matrixContractPatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixContractP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
-matrixContractPatch =
-	   openPatch
-	$$ fstPatch (cyclePatch (coord :: Matrix x x))
-	$$ matrixDeMuxPatch
-	$$ matrixZipPatch
+matrixContractP =
+	   openP
+	$$ fstP (cycleP (coord :: Matrix x x))
+	$$ matrixDeMuxP
+	$$ matrixZipP
 
 ---------------------------------------------------------------------------------
 -- Other stuff
 ---------------------------------------------------------------------------------
 
--- | unitClockPatch forces the handshaking to use the unit clock. Which is useful for testing.
-unitClockPatch :: (sig ~ Signal ()) =>
+-- | unitClockP forces the handshaking to use the unit clock. Which is useful for testing.
+unitClockP :: (sig ~ Signal ()) =>
 	Patch (sig a)		(sig a)
 	      (sig b)           (sig b)
-unitClockPatch ~(li,ri) = (ri,li)
+unitClockP ~(li,ri) = (ri,li)
 
 
--- | cyclePatch cycles through a constant list (actually a matrix) of values.
+-- | cycleP cycles through a constant list (actually a matrix) of values.
 -- Generates an async ROM on hardware.
-cyclePatch :: forall a c ix sig .
+cycleP :: forall a c ix sig .
         ( Size ix
         , Rep a
         , Rep ix
@@ -667,7 +604,7 @@ cyclePatch :: forall a c ix sig .
 	=> Matrix ix a
 	-> Patch ()		(sig (Enabled a))
 	         ()		(sig Ack)
-cyclePatch m ~(_,ack) = ((),out)
+cycleP m ~(_,ack) = ((),out)
   where
 	ix :: sig ix
 	ix = register 0
@@ -678,7 +615,7 @@ cyclePatch m ~(_,ack) = ((),out)
             $ funMap (\ x -> return (m M.! x))
 		     ix
 
-constPatch :: forall a c ix sig .
+constP :: forall a c ix sig .
         ( Size ix
         , Rep a
         , Rep ix
@@ -689,7 +626,7 @@ constPatch :: forall a c ix sig .
 	=> Matrix ix a
 	-> Patch ()	(sig (Enabled a))
 	         ()	(sig Ack)
-constPatch m ~(_,ackOut) = ((),out)
+constP m ~(_,ackOut) = ((),out)
   where
 	ix :: sig ix
 	ix = register 0
@@ -708,10 +645,10 @@ constPatch m ~(_,ackOut) = ((),out)
 		)
 
 
--- appendPatch appends constant list (matrix) before
+-- appendP appends constant list (matrix) before
 -- a stream of handshaken values.
 
-appendPatch :: forall a c ix sig .
+appendP :: forall a c ix sig .
         ( Size ix
         , Rep a
         , Rep ix
@@ -722,7 +659,7 @@ appendPatch :: forall a c ix sig .
 	=> Matrix ix a
 	-> Patch (sig (Enabled a))	(sig (Enabled a))
 	         (sig Ack)		(sig Ack)
-appendPatch m ~(inp,ackOut) = (ackIn,out)
+appendP m ~(inp,ackOut) = (ackIn,out)
   where
 	ix :: sig ix
 	ix = register 0
@@ -747,44 +684,45 @@ appendPatch m ~(inp,ackOut) = (ackIn,out)
 
 ---------------------------------------------------
 -- These are patch order swappers : re-wiring only
+{- To be finished
 
 exp2Stack :: Patch ((a :> b) :> c)	(a :> b :> c)
 	           ((d :> e) :> f)	(d :> e :> f)
-exp2Stack = forwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c)) $$
-	    backwardPatch (\ (a :> b :> c) -> ((a :> b) :> c))
+exp2Stack = forwardP (\ ((a :> b) :>  c) -> (a :> b :> c)) $$
+	    backwardP (\ (a :> b :> c) -> ((a :> b) :> c))
 
 con2Stack :: Patch (a :> b :> c)	((a :> b) :> c)
 	           (d :> e :> f)	((d :> e) :> f)
-con2Stack = forwardPatch (\ (a :> b :> c) -> ((a :> b) :> c)) $$
-	    backwardPatch (\ ((a :> b) :>  c) -> (a :> b :> c))
+con2Stack = forwardP (\ (a :> b :> c) -> ((a :> b) :> c)) $$
+	    backwardP (\ ((a :> b) :>  c) -> (a :> b :> c))
 
 swapPatch :: Patch (a :> b)	(b :> a)
 	           (c :> d)	(d :> c)
-swapPatch = forwardPatch (\ (a :> b) -> (b :> a)) $$
-	    backwardPatch (\ (b :> a) -> (a :> b))
-
+swapPatch = forwardP (\ (a :> b) -> (b :> a)) $$
+	    backwardP (\ (b :> a) -> (a :> b))
+-}
 ----------------------------------------------------
 
 
 data MergePlan = PriorityMerge		-- The first element always has priority
 	       | RoundRobinMerge	-- turn about
 
-mergePatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
+mergeP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
  => MergePlan
  -> Patch ((sig (Enabled a)) :> (sig (Enabled a)))    (sig (Enabled a))
 	   ((sig Ack)         :> (sig Ack))            (sig Ack)
 
-mergePatch plan = fe $$ matrixMergePatch plan
+mergeP plan = fe $$ matrixMergeP plan
   where
-	fe = forwardPatch (\ ~(b :> c) -> (matrix [b,c])) $$
-	     backwardPatch (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
+	fe = forwardP (\ ~(b :> c) -> (matrix [b,c])) $$
+	     backwardP (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
 
 
-matrixMergePatch :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixMergeP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
   => MergePlan
   -> Patch (Matrix x (sig (Enabled a)))		(sig (Enabled a))
 	   (Matrix x (sig Ack))		  	(sig Ack)
-matrixMergePatch plan ~(mInp, ackOut) = (mAckInp, out)
+matrixMergeP plan ~(mInp, ackOut) = (mAckInp, out)
  where
    isEs :: sig (Matrix x Bool)
    isEs = pack (fmap isEnabled mInp)
