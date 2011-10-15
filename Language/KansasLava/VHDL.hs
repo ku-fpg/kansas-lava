@@ -46,7 +46,7 @@ mkTestbench path cycles circuitMod fabric input = do
 
     (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
 
-    writeTBF (path </> name <.> "input.tbf") trace
+    writeTBF (path </> name <.> "in.tbf") trace
     writeFile (path </> name <.> "sig") $ show $ toSignature trace
     writeFile (path </> name <.> "kleg") $ show rc
 
