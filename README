@@ -1,19 +1,17 @@
 Kansas Lava
 
-If you want to run the tests in GHCi, use 
-
-% ghci XXX.hs -i../..
+Kansas Lava is a Haskell library which allows the specification and
+simulation of hardware, and hardware level concerns.  Haskell
+functions written in Kansas Lava can be interpreted as having the
+semantics of a specific circuit, or compiled into VHDL, for
+compilation and synthesis using standard HDL tools.
 
 To run tests
 
-% make tests
+% cd tests
+% make test		-- use --gensim if you want to generate VHDL
+% make simulate		-- [optional] if you want to test the VHDL using modelsim
+% make report		-- generate test report
 
-The test script places the output in ./run, and compares it with files of the same name in ./ref.
-
-If you want to remaster a test, copy the output from the ./run directory, into the ./ref directory,
-and the add-and-commit the ./ref copy.
-
-Pushing testing branch.
-  * create a remote branch to recieve incomming deltas
 
 
