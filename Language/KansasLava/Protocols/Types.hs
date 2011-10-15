@@ -28,6 +28,9 @@ instance Show Ack where
 	show (Ack True)  = "A"
 	show (Ack False) = "~"
 
+
+-- TODO: use $(repSynonym ''Ack ''Bool)
+
 instance Rep Ack where
   data X Ack = XAckRep { unXAckRep :: X Bool }
   type W Ack = W Bool
