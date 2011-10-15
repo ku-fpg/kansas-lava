@@ -8,13 +8,14 @@ import Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Internal
 
 import Data.Sized.Matrix as M
 import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
 import Control.Monad
 
-import Prelude hiding (tail, lookup)
+import Prelude hiding (tail)
 
 -- | A Pipe combines an address, data, and an Enabled control line.
 type Pipe a d = Enabled (a,d)
@@ -58,7 +59,7 @@ writeMemory pipe = res
         shallowRes = pure (\ m -> XFunction $ \ ix ->
                         case getValidRepValue (toRep (optX (Just ix))) of
                                Nothing -> optX Nothing
-                               Just a' -> case lookup a' m of
+                               Just a' -> case find a' m of
                                             Nothing -> optX Nothing
                                             Just v -> optX (Just v)
                           )
@@ -168,40 +169,8 @@ enabledToPipe f se = pack (en, f x)
    where (en,x) = unpack se
 
 
-{-
--- to move into a counters module
--- Count the number of ticks on a signal. Notice that we start at zero (no ticks),
--- and bump the counter at each sighting.
-countTicks :: forall clk x . (Rep x) => x -> (Comb x -> Comb x) ->  Signal clk Bool -> Signal clk (Enabled x)
-countTicks init succ sysEnv enable = packEnabled enable ctr
-   where
-        ctr :: Signal clk x
-        ctr = register sysEnv (pureS init) val
-
-        val :: Signal clk x
-        val = mux2 enable (liftS1 succ ctr,ctr)
-
-
--- compare with my previous value
-cmp :: (Wire a) =>  (Comb a -> Comb a -> Comb b) -> Signal clk a -> Signal clk b
-cmp env f inp = liftS2 f (delay env inp) inp
-
--}
--- Apply a function to the data output of a Pipe.
---mapPipe :: (sig ~ Signal clk, Rep a, Rep b, Rep x) => (Comb a -> Comb b) -> sig (Pipe x a) -> sig (Pipe x b)
---mapPipe f = mapEnabled (mapPacked $ \ (a0,b0) -> (a0,f b0))
-
-
-{-
--- | only combines pipes when both inputs are enabled, and *assumes* the
--- x addresses are the same.
-zipPipe :: (sig ~ Signal clk, Rep a, Rep b, Rep c, Rep x) => (Comb a -> Comb b -> Comb c) -> sig (Pipe x a) -> sig (Pipe x b) -> sig (Pipe x c)
-zipPipe f = zipEnabled (zipPacked $ \ (a0,b0) (a1,b1) -> (a0 `phi` a1,f b0 b1))
--}
-
 
 --------------------------------------------------
-
 
 -- The order here has the function *last*, because it allows
 -- for a idiomatic way of writing things
@@ -213,76 +182,3 @@ rom :: (Rep a, Rep b, Clock clk) => Signal clk a -> (a -> Maybe b) -> Signal clk
 rom inp fn = delay $ funMap fn inp
 
 ---------------------------------
-
-
--- | Stepify allows us to make a stream element-strict.
-class Stepify a where
-  stepify :: a -> a
-
---class Rep a => Eval a where
-
---instance (Rep a) => Stepify (Seq a) where
---  stepify (Seq a d) = Seq (stepify a) d
-
--- one step behind, to allow knot tying.
---instance (Rep a) => Stepify (Stream a) where
---  stepify (a :~ r) = a :~ (eval a `seq` stepify r)
--- | Strictly apply a function to each element of a Stream.
-stepifyStream :: (a -> ()) -> Stream a -> Stream a
-stepifyStream f (Cons a r) = Cons a (f a `seq` stepifyStream f r)
-
---instance Wire (Map [Bool] d) where {}
-
--- instance Rep (Map (M.Matrix x Bool) d) where {}
-
-
-{-
-
-instance Eval (WireVal a) where
-    eval WireUnknown = ()
-    eval (WireVal a) = a `seq` ()
-
-instance (Eval a) => Eval (Maybe a) where
-    eval (Just a)  = eval a
-    eval (Nothing) = ()
-
-instance (Eval a, Eval b) => Eval (a,b) where
-	eval (a,b) = eval a `seq` eval b `seq` ()
--}
-
-
-
--- | A 'Radix' is a trie indexed by bitvectors.
-data Radix a
-  = Res !a -- ^ A value stored in the tree
-  | NoRes -- ^ Non-present value
-  -- | A split-node, left corresponds to 'True' key bit, right corresponds to 'False' key bit.
-  | Choose !(Radix a) !(Radix a)
-	deriving Show
-
--- | The empty tree
-empty :: Radix a
-empty = NoRes
-
--- | Add a value (keyed by the list of bools) into a tree
-insert :: [Bool] -> a -> Radix a -> Radix a
-insert []    y (Res _) = Res $! y
-insert []    y NoRes   = Res $! y
-insert []    _ (Choose _ _) = error "inserting with short key"
-insert xs     y NoRes   = insert xs y (Choose NoRes NoRes)
-insert _  _ (Res _) = error "inserting with too long a key"
-insert (True:a) y (Choose l r) = Choose (insert a y l) r
-insert (False:a) y (Choose l r) = Choose l (insert a y r)
-
-
--- | Find a value in a radix tree
-lookup :: [Bool] -> Radix a -> Maybe a
-lookup [] (Res v) = Just v
-lookup [] NoRes   = Nothing
-lookup [] _       = error "lookup error with short key"
-lookup (_:_) (Res _) = error "lookup error with long key"
-lookup (_:_) NoRes   = Nothing
-lookup (True:a) (Choose l _) = lookup a l
-lookup (False:a) (Choose _ r) = lookup a r
-
-
