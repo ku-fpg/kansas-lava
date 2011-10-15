@@ -11,25 +11,11 @@ module Language.KansasLava.Protocols.ReadyBox where
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
---import Language.KansasLava.Signal
---import Language.KansasLava.Stream (Stream(..))
---import qualified Language.KansasLava.Stream as Stream
 import Language.KansasLava.Types
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Protocols.Patch
-
-import Data.Maybe  as Maybe
--- import Language.KansasLava.Radix as Radix
---import Control.Concurrent
---import System.IO
---import Control.Monad
---import System.IO.Unsafe (unsafeInterleaveIO)
-
-import qualified Prelude
-import Prelude hiding (tail, lookup)
-
---import Debug.Trace
+import Language.KansasLava.Probes
 
 ------------------------------------------------------------------------------------
 
@@ -107,27 +93,6 @@ fromReadyBox' ps ~(inp,_) = (toS (map fst internal), map snd internal)
 			[]                   -> error "fromReadyBox: Ready sequences should never end"
         fn xs (p:ps') = (Ready False,Nothing) : fn (Prelude.tail xs) (pred p:ps')
 	fn xs []      = fn xs (repeat 0)
-{-
-test1 xs = xs'
-    where
-	e = toReadyBox' (repeat 0) xs (full :: Signal Ready)
- 	(full,xs') = fromReadyBox' [0..] e
--}
-
----------------------------------------------------------------------------
-
-
-{-
-test2 :: [Maybe Int] -> [Maybe Int]
-test2 xs = res
-  where
-	hs :: Signal () (Enabled Int)
-	hs = toReadyBox xs full
-
-	(full, hs') = shallowReadyBoxBridge ([0..],[0..]) (hs,full')
-
-	(full',res) = fromReadyBox hs'
--}
 
 -- | Introduces protocol-compliant delays (in the shallow embedding)
 shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show a)
@@ -136,99 +101,29 @@ shallowReadyBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show 
 				(sig Ready)		 	(sig Ready)
 shallowReadyBoxBridge (lhsF,rhsF) = patch
   where
-	patch = fromReadyBox' lhsF `bus` toReadyBox' rhsF
+	patch = fromReadyBox' lhsF $$ toReadyBox' rhsF
 
+-- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
+-- signals in a Ready interface.  
+probeReadyBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c)
+    => String
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ready)         (sig Ready)
+probeReadyBoxPatch probeName ~(inp, ready_in) = (ready_out, out)
+    where
+        (out, _)  = unpack probed
+        ready_out = ready_in
 
-----------------------------------------------------------------------------------------------------
--- These are functions that are used to thread together Hand shaking and FIFO.
+        probed :: sig (Enabled a, Ready)
+        probed = probeS probeName $ pack (inp, ready_in)
 
--- | This function takes a MVar, and gives back a ReadyBox signal that represents
--- the continuous sequence of contents of the MVar.
-{-
-mVarToReadyBox :: (Clock c, Rep a) => MVar a -> IO (Signal c Ready -> (Signal c (Enabled a)))
-mVarToReadyBox sfifo = do
-        xs <- getFIFOContents sfifo
-        return (toReadyBox xs)
- where
-        getFIFOContents :: MVar a -> IO [Maybe a]
-        getFIFOContents var = unsafeInterleaveIO $ do
- 	        x <- tryTakeMVar var
- 	        xs <- getFIFOContents var
- 	        return (x:xs)
-
-mailBoxToMVar :: (Clock c, Rep a) => MVar a -> (Signal c Ready -> Signal c (Enabled a)) -> IO ()
-mailBoxToMVar sfifo sink = do
-        sequence_
-                $ map (putMVar sfifo)
-                $ Maybe.catMaybes
-                $ (let (back,res) = fromReadyBox $ sink back in res)
-        return ()
--}
-
-{-
--- interactMVar
-interactMVar :: forall src sink
-         . (Rep src, Rep sink)
-        => (forall clk sig . (Clock clk, sig ~ Signal clk) => (sig (Enabled src),sig Ready) -> (sig Ready,sig (Enabled sink)))
-        -> MVar src
-        -> MVar sink
-        -> IO ()
-interactMVar fn varA varB = do
-        inp_fifo <- mVarToReadyBox varA
-
-        ReadyBoxToMVar varB $ \ rhs_back ->
-                -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: Signal () Ready)
-                    lhs_inp = inp_fifo lhs_back
-                in
-                    rhs_out
-
-hInteract :: (forall clk sig . (Clock clk, sig ~ Signal clk)
-                => (sig (Enabled Word8),sig Ready) -> (sig Full, sig (Enabled Word8))
-             )
-          -> Handle
-          -> Handle
-          -> IO ()
-hInteract fn inp out = do
-        inp_fifo_var <- newEmptyMVar
-        out_fifo_var <- newEmptyMVar
-
-        -- send the inp handle to the inp fifo
-        _ <- forkIO $ forever $ do
-                bs <- BS.hGetContents inp
-                sequence_ $ map (putMVar inp_fifo_var) $ BS.unpFull bs
-
-        -- send the out fifo to the out handle
-        _ <- forkIO $ forever $ do
-                x <- takeMVar out_fifo_var
-                BS.hPutStr out $ BS.pFull [x]
-
-        interactMVar fn inp_fifo_var out_fifo_var
-
------------------------------------------------------------------------
-
-liftReadyBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
-              => (forall c' . (Clock c') => Signal c' a)
-              -> sig Full
-              -> sig (Enabled a)
-liftReadyBox seq' (Signal s_Full d_Full) = enabledS res
-
-   where
-        Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick
-
-        res = Signal (fn s_seq s_Full)
-                  (D $ Port "o0" $ E $ Entity (Prim "retime")
-                                        [("o0",typeOfS res)]
-                                        [("i0",typeOfS res, unD d_seq)
-                                        ,("pulse",B, unD d_Full)
-                                        ]
-                  )
-
-        -- drop the head, when the Full comes back.
-        fn (s `Cons` ss) Full = s `Cons` case Full of
-                                 (XFullRep (XBool (WireVal True))  `Cons` Fulls) -> fn ss Fulls
-                                 (XFullRep (XBool (WireVal False)) `Cons` Fulls) -> fn (s `Cons` ss) Fulls
-                                 (XFullRep _               `Cons` _) -> Stream.repeat unknownX
-
--}
+-- A simple way of running a patch
+runReadyBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
+	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
+		 (sig Ready)		(sig Ready)
+	-> [a] -> [b]
+runReadyBoxP p as = [ b | Just b <- bs' ]
+  where
+	as' = map Just as
+	bs' = runPatch (unitPatch as' $$ toReadyBox $$ unitClockPatch $$ p $$ fromReadyBox)
 

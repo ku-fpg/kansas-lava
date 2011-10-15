@@ -424,19 +424,6 @@ listComparePatch expectedVals n patch = do
 -- Functions that connect streams
 ---------------------------------------------------------------------------
 
-
-infixr 5 `bus`
-
--- | bus is a synonym for ($$). TODO: Remove this alias.
-bus  ::
-  	 Patch li1 	o
-	       lo1  	i
-      -> Patch o 	ro2
-	       i 	ri2
-      -> Patch li1	ro2
-	       lo1 	ri2
-bus = ($$)
-
 -- | ($$) composes two patches serially, sharing a common control protocol. The
 -- data output of the first patch is fed to the data input of the second
 -- patch. The control output of the second patch is fed to the control input of
@@ -452,7 +439,7 @@ infixr 5 $$
 	       lo1 	ri2
 (p1 $$ p2) inp = (lhs_out1,rhs_out2)
    where
-	(lhs_in,rhs_in) 	     = inp
+	(lhs_in,rhs_in)     = inp
 	(lhs_out1,rhs_out1) = p1 (lhs_in,lhs_out2)
 	(lhs_out2,rhs_out2) = p2 (rhs_out1,rhs_in)
 
@@ -499,19 +486,6 @@ ackToReadyBridge ~(inp, ready_in) = (toAck ack, out)
         out = inp
         ack = (fromReady ready_in) .&&. (isEnabled inp)
 
--- | 'unsafeAckToReadyBridge' converts from a Ack interface to an Ready interface
--- by running the ready signal from the receiving component to the Ack input for
--- the sending component.  This may unsafe if the sending component does not
--- ignore Acks when no data is sent.  Otherwise, this should be safe.  This
--- bridge is fine for deep embedding (can be represented in hardware).
-unsafeAckToReadyBridge :: (Rep a, Clock c, sig ~ Signal c)
-    => Patch    (sig (Enabled a))           (sig (Enabled a))
-                (sig Ack)                 (sig Ready)
-unsafeAckToReadyBridge ~(inp, ready_in) = (toAck ack, out)
-    where
-        out = inp
-        ack = fromReady ready_in
-
 {-
 -- | 'probePatch' creates a patch with a named probe, probing both data and control outputs.
 probePatch :: forall a b . (Probe a, Probe b)
@@ -548,20 +522,6 @@ probeHandshakePatch probeName ~(inp1, inp2) = (out2, out1)
              $ probe probeName
              $ inp2
 
--- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack
--- signals in an Ack interface.  Probe prints output is in a packed format, so it is
--- easier to read than using the probeDataPatch.
-probeAckBoxPatch :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c, Probe (sig a))
-    => String
-    -> Patch (sig (Enabled a))   (sig (Enabled a))
-             (sig Ack)           (sig Ack)
-probeAckBoxPatch probeName ~(inp, ack_in) = (ack_out, out)
-  where
-      out          = inp
-      (_, ack_out) = unpack probed
-
-      probed :: sig (Enabled a, Ack)
-      probed = probe probeName $ pack (inp, ack_in)
 
 -- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
 -- signals in a Ready interface.  Probe prints output is in a packed format, so it is
@@ -655,7 +615,7 @@ deMuxPatch = fe $$ matrixDeMuxPatch $$ be
   where
 --	fe = fstPatch (forwardPatch ((unsigned)))
 	fe = fstPatch (mapPatch (unsigned))
-	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) `bus`
+	be = backwardPatch (\ ~(b :> c) -> matrix [c,b]) $$
 	     forwardPatch (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
 
 -- | matrixDeMuxPatch is the generalization of deMuxPatch to a matrix of signals.
@@ -707,9 +667,9 @@ muxPatch :: (Clock c, sig ~ Signal c, Rep a)
   => Patch (sig (Enabled Bool) :> sig (Enabled a)  :> sig (Enabled a))	(sig (Enabled a))
 	   (sig Ack            :> sig Ack          :> sig Ack)	  	(sig Ack)
 
-muxPatch = fe `bus` matrixMuxPatch
+muxPatch = fe $$ matrixMuxPatch
    where
-	fe = forwardPatch (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) `bus`
+	fe = forwardPatch (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) $$
 	     backwardPatch (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
 
 
@@ -968,7 +928,7 @@ mergePatch :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
 
 mergePatch plan = fe $$ matrixMergePatch plan
   where
-	fe = forwardPatch (\ ~(b :> c) -> (matrix [b,c])) `bus`
+	fe = forwardPatch (\ ~(b :> c) -> (matrix [b,c])) $$
 	     backwardPatch (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
 
 

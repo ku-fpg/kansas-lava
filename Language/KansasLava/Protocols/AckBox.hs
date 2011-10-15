@@ -18,14 +18,9 @@ import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Protocols.Patch
 import Language.KansasLava.Utils
+import Language.KansasLava.Probes
 
 import Data.Maybe  as Maybe
--- import Language.KansasLava.Radix as Radix
---import Control.Concurrent
---import System.IO
---import Control.Monad
---import System.IO.Unsafe (unsafeInterleaveIO)
---import System.Random
 
 import qualified Prelude
 import Prelude hiding (tail, lookup)
@@ -133,30 +128,7 @@ ackBoxToEnabled ~(inp,_) = (toAck ack,out)
 	out = inp
 	ack = isEnabled inp
 
-{-
-beat :: (Clock c, sig ~ Signal c) =>
-	Patch ()		(sig (Enabled ()))
-	      ()	()	(sig Ack)
-beat ~(_,_) = ((),(),enabledS (pureS ()))
--}
----------------------------------------------------------------------------
 
-{-
-test1 :: [Maybe Int] -> [Maybe Int]
-test1 xs = res
-  where
-	hs :: Signal () (Enabled Int)
-	hs = toAckBox xs ack
-
-	(ack, hs') = shallowAckBoxBridge (lhs_rs,rhs_rs) (hs,ack')
-
-        (lhs_r,rhs_r) = split (mkStdGen 0)
-
-        lhs_rs = [ floor (c * 10) | c <- randoms lhs_r :: [Float] ]
-        rhs_rs = [ floor (c * 10) | c <- randoms rhs_r :: [Float] ]
-
-	(ack',res) = fromAckBox hs'
--}
 
 -- | This introduces protocol-compliant delays (in the shallow embedding)
 shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show a)
@@ -165,110 +137,31 @@ shallowAckBoxBridge :: forall sig c a . (Rep a, Clock c, sig ~ Signal c, Show a)
 				(sig Ack)		 	(sig Ack)
 shallowAckBoxBridge (lhsF,rhsF) = patch
   where
-	patch = fromAckBox' lhsF `bus` toAckBox' rhsF
-
-----------------------------------------------------------------------------------------------------
--- These are functions that are used to thread together Hand shaking and FIFO.
-
--- | This function takes a MVar, and gives back a Handshaken signal that represents
--- the continuous sequence of contents of the MVar.
-{-
-mVarToAckBox :: (Clock c, Rep a) => MVar a -> IO (Signal c Ack -> (Signal c (Enabled a)))
-mVarToAckBox sfifo = do
-        xs <- getFIFOContents sfifo
-        return (toAckBox xs)
- where
-        getFIFOContents :: MVar a -> IO [Maybe a]
-        getFIFOContents var = unsafeInterleaveIO $ do
- 	        x <- tryTakeMVar var
- 	        xs <- getFIFOContents var
- 	        return (x:xs)
-
-handShakeToMVar :: (Clock c, Rep a) => MVar a -> (Signal c Ack -> Signal c (Enabled a)) -> IO ()
-handShakeToMVar sfifo sink = do
-        sequence_
-                $ map (putMVar sfifo)
-                $ Maybe.catMaybes
-                $ (let (back,res) = fromAckBox $ sink back in res)
-        return ()
-
--}
+	patch = fromAckBox' lhsF $$ toAckBox' rhsF
 
 
+-- | 'probeAckBoxPatch' creates a patch with a named probe, probing the data and ack
+-- signals in an Ack interface.
 
-{-
--- interactMVar
-interactMVar :: forall src sink
-         . (Rep src, Rep sink)
-        => (forall clk sig . (Clock clk, sig ~ Signal clk) => (sig (Enabled src),sig Ack) -> (sig Ack,sig (Enabled sink)))
-        -> MVar src
-        -> MVar sink
-        -> IO ()
-interactMVar fn varA varB = do
-        inp_fifo <- mVarToAckBox varA
+probeAckBoxP :: forall sig a c . (Rep a, Clock c, sig ~ Signal c)
+    => String
+    -> Patch (sig (Enabled a))   (sig (Enabled a))
+             (sig Ack)           (sig Ack)
+probeAckBoxP probeName ~(inp, ack_in) = (ack_out, out)
+  where
+      out          = inp
+      (_, ack_out) = unpack probed
 
-        handShakeToMVar varB $ \ rhs_back ->
-                -- use fn at a specific (unit) clock
-                let (lhs_back,rhs_out) = fn (lhs_inp,rhs_back :: Signal () Ack)
-                    lhs_inp = inp_fifo lhs_back
-                in
-                    rhs_out
+      probed :: sig (Enabled a, Ack)
+      probed = probeS probeName $ pack (inp, ack_in)
 
-hInteract :: (forall clk sig . (Clock clk, sig ~ Signal clk)
-                => (sig (Enabled Word8),sig Ack) -> (sig Ack, sig (Enabled Word8))
-             )
-          -> Handle
-          -> Handle
-          -> IO ()
-hInteract fn inp out = do
-        inp_fifo_var <- newEmptyMVar
-        out_fifo_var <- newEmptyMVar
-
-        -- send the inp handle to the inp fifo
-        _ <- forkIO $ forever $ do
-                bs <- BS.hGetContents inp
-                sequence_ $ map (putMVar inp_fifo_var) $ BS.unpack bs
-
-        -- send the out fifo to the out handle
-        _ <- forkIO $ forever $ do
-                x <- takeMVar out_fifo_var
-                BS.hPutStr out $ BS.pack [x]
-
-        interactMVar fn inp_fifo_var out_fifo_var
-
------------------------------------------------------------------------
-
-liftAckBox :: forall sig c a . (Rep a, Clock c, sig ~ Signal c)
-              => (forall c' . (Clock c') => Signal c' a)
-              -> sig Ack
-              -> sig (Enabled a)
-liftAckBox seq' (Signal s_ack d_ack) = enabledS res
-
-   where
-        Signal s_seq d_seq = seq' :: Signal () a     -- because of runST trick
-
-        res = Signal (fn s_seq s_ack)
-                  (D $ Port "o0" $ E $ Entity (Prim "retime")
-                                        [("o0",typeOfS res)]
-                                        [("i0",typeOfS res, unD d_seq)
-                                        ,("pulse",B, unD d_ack)
-                                        ]
-                  )
-
-        -- drop the head, when the ack comes back.
-        fn (s `Cons` ss) ack = s `Cons` case ack of
-                                 (XAckRep (XBool (WireVal True))  `Cons` acks) -> fn ss acks
-                                 (XAckRep (XBool (WireVal False)) `Cons` acks) -> fn (s `Cons` ss) acks
-                                 (XAckRep _               `Cons` _) -> Stream.repeat unknownX
-
--}
 
 -- A simple way of running a patch
-runAckBoxPatch :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
+runAckBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
 	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
 		 (sig Ack)		(sig Ack)
 	-> [a] -> [b]
-runAckBoxPatch p as = [ b | Just b <- bs' ]
+runAckBoxP p as = [ b | Just b <- bs' ]
   where
 	as' = map Just as
 	bs' = runPatch (unitPatch as' $$ toAckBox $$ unitClockPatch $$ p $$ fromAckBox)

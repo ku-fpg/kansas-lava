@@ -33,7 +33,7 @@ import Language.KansasLava.Signal
 shallowFIFO :: (Rep a, Clock c, sig ~ Signal c)
 	=> Patch (sig (Enabled a)) 		(sig (Enabled a))
 		 (sig Ready) 			(sig Ack)
-shallowFIFO = fromReadyBox `bus` toAckBox
+shallowFIFO = fromReadyBox $$ toAckBox
 
 
 {-

@@ -20,10 +20,6 @@ import Language.KansasLava.Rep
 -- | Enabled is a synonym for Maybe.
 type Enabled a = Maybe a
 
-
-
-
-
 -- | This is lifting *Comb* because Comb is stateless, and the 'en' Bool being
 -- passed on assumes no history, in the 'a -> b' function.
 mapEnabled :: (Rep a, Rep b, sig ~ Signal clk) 
@@ -32,12 +28,6 @@ mapEnabled :: (Rep a, Rep b, sig ~ Signal clk)
 mapEnabled f en = pack (en_bool,f en_val)
    where (en_bool,en_val) = unpack en
 
-{-
-zipEnabled :: (Rep a, Rep b, Rep c, sig ~ Signal clk) => (Comb a -> Comb b -> Comb c) -> sig (Enabled a) -> sig (Enabled b) -> sig (Enabled c)
-zipEnabled f en1 en2 = pack (en_bool1 `phi` en_bool2,liftS2 f en_val1 en_val2)
-   where (en_bool1,en_val1) = unpack en1
-	 (en_bool2,en_val2) = unpack en2
--}
 
 -- | Lift a data signal to be an Enabled signal, that's always enabled.
 enabledS :: (Rep a, sig ~ Signal clk) => sig a -> sig (Enabled a)
