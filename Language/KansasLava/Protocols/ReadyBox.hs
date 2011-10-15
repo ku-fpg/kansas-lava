@@ -119,14 +119,14 @@ probeReadyBoxP probeName ~(inp, ready_in) = (ready_out, out)
         probed = probeS probeName $ pack (inp, ready_in)
 
 -- A simple way of running a patch
-runReadyBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
+runReadyBoxP :: forall sig c a b . (c ~ CLK, sig ~ Signal c, Rep a, Rep b)
 	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
 		 (sig Ready)		(sig Ready)
 	-> [a] -> [b]
 runReadyBoxP p as = [ b | Just b <- bs' ]
   where
 	as' = map Just as
-	bs' = runP (outputP as' $$ toReadyBox $$ unitClockP $$ p $$ fromReadyBox)
+	bs' = runP (outputP as' $$ toReadyBox $$ globalClockP $$ p $$ fromReadyBox)
 
 -- | A sink patch throws away its data input (generating a () data
 -- output). 'sinkReadyP' uses an enabled/ready protocol.

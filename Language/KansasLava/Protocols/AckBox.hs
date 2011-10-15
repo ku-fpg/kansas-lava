@@ -157,14 +157,14 @@ probeAckBoxP probeName ~(inp, ack_in) = (ack_out, out)
 
 
 -- A simple way of running a patch
-runAckBoxP :: forall sig c a b . (Clock c, sig ~ Signal c, c ~ (), Rep a, Rep b)
+runAckBoxP :: forall sig c a b . (c ~ CLK, sig ~ Signal c, Rep a, Rep b)
 	=> Patch (sig (Enabled a)) 	(sig (Enabled b))
 		 (sig Ack)		(sig Ack)
 	-> [a] -> [b]
 runAckBoxP p as = [ b | Just b <- bs' ]
   where
 	as' = map Just as
-	bs' = runP (outputP as' $$ toAckBox $$ unitClockP $$ p $$ fromAckBox)
+	bs' = runP (outputP as' $$ toAckBox $$ globalClockP $$ p $$ fromAckBox)
 
 
 -- | A sink patch throws away its data input (generating a () data

@@ -584,12 +584,11 @@ matrixContractP =
 -- Other stuff
 ---------------------------------------------------------------------------------
 
--- | unitClockP forces the handshaking to use the unit clock. Which is useful for testing.
-unitClockP :: (sig ~ Signal ()) =>
+-- | globalClockP forces the handshaking to use the CLK clock. Which is useful for testing.
+globalClockP :: (clk ~ CLK, sig ~ Signal clk) =>
 	Patch (sig a)		(sig a)
 	      (sig b)           (sig b)
-unitClockP ~(li,ri) = (ri,li)
-
+globalClockP ~(li,ri) = (ri,li)
 
 -- | cycleP cycles through a constant list (actually a matrix) of values.
 -- Generates an async ROM on hardware.
@@ -645,10 +644,10 @@ constP m ~(_,ackOut) = ((),out)
 		)
 
 
--- appendP appends constant list (matrix) before
+-- prependP appends constant list (matrix) before
 -- a stream of handshaken values.
 
-appendP :: forall a c ix sig .
+prependP :: forall a c ix sig .
         ( Size ix
         , Rep a
         , Rep ix
@@ -659,7 +658,7 @@ appendP :: forall a c ix sig .
 	=> Matrix ix a
 	-> Patch (sig (Enabled a))	(sig (Enabled a))
 	         (sig Ack)		(sig Ack)
-appendP m ~(inp,ackOut) = (ackIn,out)
+prependP m ~(inp,ackOut) = (ackIn,out)
   where
 	ix :: sig ix
 	ix = register 0
