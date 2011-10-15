@@ -9,7 +9,7 @@ compilation and synthesis using standard HDL tools.
 To run tests
 
 % cd tests
-% make test		-- use --gensim if you want to generate VHDL
+% make test		-- use 'make ARGS=--gensim' if you want to generate VHDL
 % make simulate		-- [optional] if you want to test the VHDL using modelsim
 % make report		-- generate test report
 
