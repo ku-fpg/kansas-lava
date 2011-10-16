@@ -118,7 +118,7 @@ testFabrics
         -> IO ()
 testFabrics opts simMods name count f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = (do
-        
+
 
         verb 2 $ "testing(" ++ show count ++ ")"
 
@@ -185,8 +185,8 @@ testFabrics opts simMods name count f_dut f_expected
 --                  verb 4 $ show $ take count shallow
 --                  verb 4 "EXPECT OUT MESSAGE:"
                   verb 4 $ msg
-                  report name $ ShallowFail) `E.catch` 
-                (\ (e :: E.SomeException) -> do verb 2 $ ("SomeException: " ++ show e) 
+                  report name $ ShallowFail) `E.catch`
+                (\ (e :: E.SomeException) -> do verb 2 $ ("SomeException: " ++ show e)
                                                 report name TestAborted)
   | otherwise = return ()
  where
@@ -201,7 +201,7 @@ simCompare path report verb = do
     ran <- doesFileExist $ path </> "transcript"
     if ran
         then do -- transcript <- Strict.readFile (path </> "transcript")
-                success <- doesFileExist $ path </> localname <.> "deep"
+                success <- doesFileExist $ path </> localname <.> "out.tbf"
                 if success
                     then do shallow <- lines <$> Strict.readFile (path </> localname <.> "in.tbf")
                             deep    <- lines <$> Strict.readFile (path </> localname <.> "out.tbf")
@@ -682,10 +682,10 @@ matchExpected out_name ref = do
         let sq = o0 `refinesFrom` ref
         return $ \ count ->
                 case [ (i::Int,o,r)
-                     | (i,v,o,r) <- take (fromIntegral count) 
-                                $ zip4 [0..] 
+                     | (i,v,o,r) <- take (fromIntegral count)
+                                $ zip4 [0..]
                                   (fromS sq)
-                                  (S.toList (fmap (show . unRepValue . toRep) (shallowS o0))) 
+                                  (S.toList (fmap (show . unRepValue . toRep) (shallowS o0)))
                                   (S.toList (fmap (show . unRepValue . toRep) (shallowS ref)))
 
                      , v /= Just True
