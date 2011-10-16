@@ -96,23 +96,6 @@ Executable kansas-lava-unittest
                  -fno-warn-orphans -fcontext-stack=256
                  -threaded -rtsopts
 
-Executable kansas-lava-tracediff
-    if flag(unit)
-      -- Build-Depends: base, strict, kansas-lava
-      Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.2.20110831,
-                 directory, random, netlist==0.3, netlist-to-vhdl==0.3, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
-      buildable: True
-      Other-modules:
-    else
-      Build-depends: base
-      buildable: False
-    Main-Is:        Diff.hs
-    Hs-Source-Dirs: ., tests
-    Ghc-Options: -Wall  -Werror  -fno-warn-incomplete-patterns
-                 -fno-warn-orphans -fcontext-stack=256
-
 Executable kansas-lava-testreport
     if flag(unit)
       -- Build-Depends: base, strict, kansas-lava
@@ -132,7 +115,7 @@ Executable kansas-lava-testreport
                  -fno-warn-orphans -fcontext-stack=256
 
 
-Executable bits2vcd
+Executable tbf2vcd
     if flag(tools)
       Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types == 0.3.2.20110831,
@@ -143,7 +126,7 @@ Executable bits2vcd
     else
       Build-depends: base
       buildable: False
-    Main-Is:        Bits2VCD.hs
+    Main-Is:        TBF2VCD.hs
     Hs-Source-Dirs: ., tools
     Ghc-Options: -Wall  -Werror -fno-warn-orphans
 

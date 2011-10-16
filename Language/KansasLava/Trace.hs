@@ -29,6 +29,8 @@ module Language.KansasLava.Trace
     -- * Reading and Writing the Test Bench Format (.tfb)
     , readTBF
     , writeTBF
+    , tbw2rep
+    , rep2tbw
     ) where
 
 import Language.KansasLava.Fabric
@@ -305,28 +307,31 @@ readTBF ilines sig = et { inputs = ins, outputs = outs }
                    | (_,TraceStream ty _) <- inputs et ++ outputs et
                    ]
           (inSigs, outSigs) = splitAt (length $ inputs et) $ splitLists ilines widths
-          addToMap sigs m = [ (k,TraceStream ty $ map unASCII strm)
+          addToMap sigs m = [ (k,TraceStream ty $ map tbw2rep strm)
                             | (strm,(k,TraceStream ty _)) <- zip sigs m
                             ]
           (ins, outs) = (addToMap inSigs $ inputs et, addToMap outSigs $ outputs et)
-          -- this needs to do the inverse of what asciiStrings does below
-          unASCII :: String -> RepValue
-          unASCII vals = RepValue [ case v of
-                                        'X' -> Nothing
-                                        '1' -> Just True
-                                        '0' -> Just False
-                                        _   -> error "readTBF: bad character!"
-                                  | v <- reverse vals ]
 
 -- | Convert a Trace into a list of lists of Strings, each String is a value,
 -- each list of Strings is a signal.
 asciiStrings :: Trace -> [[String]]
-asciiStrings (Trace c ins outs _) = [ map showRep' $ takeMaybe c s
+asciiStrings (Trace c ins outs _) = [ map rep2tbw $ takeMaybe c s
                                     | (_,TraceStream _ s) <- ins ++ outs ]
-  where showRep' (RepValue vals) = [ case v of
-                                      Nothing   -> 'X'
-                                      Just True  -> '1'
-                                      Just False -> '0'
-                                    | v <- reverse vals
-                                  ]
+
+-- | Convert string representation used in testbench files to a RepValue
 -- Note the reverse here is crucial due to way vhdl indexes stuff
+tbw2rep :: String -> RepValue
+tbw2rep vals = RepValue [ case v of
+                            'X' -> Nothing
+                            '1' -> Just True
+                            '0' -> Just False
+                            _   -> error "tbw2rep: bad character!"
+                        | v <- reverse vals ]
+
+-- | Convert a RepValue to the string representation used in testbench files
+rep2tbw :: RepValue -> String
+rep2tbw (RepValue vals) = [ case v of
+                              Nothing   -> 'X'
+                              Just True  -> '1'
+                              Just False -> '0'
+                          | v <- reverse vals ]

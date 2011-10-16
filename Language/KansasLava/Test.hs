@@ -304,7 +304,7 @@ localMake relativePath = unlines
     ,"\tvsim -c -do " ++ name ++ ".do"
     ,""
     ,"diff:"
-    ,"\t" ++ dots </> "dist/build/kansas-lava-tracediff/kansas-lava-tracediff " ++ name ++ ".shallow " ++ name ++ ".deep " ++ name ++ ".sig"
+    ,"\t" ++ dots </> "dist/build/tbf2vcd/tbf2vcd --diff " ++ name ++ ".sig " ++ name ++ ".in.tbf " ++ name ++ ".out.tbf"
     ,"\tgtkwave diff.vcd"
     ,""
     ,"vcd:"
