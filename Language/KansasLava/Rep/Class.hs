@@ -11,6 +11,7 @@ module Language.KansasLava.Rep.Class where
 import Language.KansasLava.Types
 import Control.Monad (liftM)
 import Data.Sized.Ix
+import qualified Data.Map as Map
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
 -- wire. The general idea is that instances of Rep should have a width (for the
@@ -127,23 +128,50 @@ fromRepToInteger (RepValue xs) =
 cmpRep :: (Rep a) => X a -> X a -> Bool
 cmpRep g v = toRep g `cmpRepValue` toRep v
 
--- TODO: optimize this
-bitRepToRep :: forall w . (BitRep w) => X w -> RepValue
-bitRepToRep w = 
+-------------------------------------------------------------------
+
+-- | Helper for generating the bit pattern mappings.
+bitRepEnum  :: (Rep a, Enum a, Bounded a, Size (W a)) => [(a,BitPat (W a))]
+bitRepEnum = map (\ a -> (a,fromIntegral (fromEnum a))) [minBound .. maxBound]
+
+{-# INLINE bitRepToRep #-}
+bitRepToRep :: forall w . (BitRep w, Ord w) => X w -> RepValue
+bitRepToRep = bitRepToRep' (Map.fromList $ map (\(a,b) -> (b,a)) $ Map.toList bitRepMap)
+
+bitRepToRep' :: forall w . (BitRep w, Ord w) => Map.Map w RepValue -> X w -> RepValue
+bitRepToRep' mp w =
 	case unX w of
 	  Nothing -> unknownRepValue (Witness :: Witness w)
-	  Just val -> case Prelude.lookup val bitRep of
-			Nothing -> unknownRepValue (Witness :: Witness w)
-		        Just pat -> chooseRepValue $ bitPatToRepValue pat
+	  Just val -> 
+	    case Map.lookup val mp of
+	      Nothing -> unknownRepValue (Witness :: Witness w)
+	      Just pat -> pat -- chooseRepValue $ bitPatToRepValue pat
 
+{-# INLINE bitRepFromRep #-}
+bitRepFromRep :: forall w . (Ord w, BitRep w) => RepValue -> X w
+bitRepFromRep = bitRepFromRep' bitRepMap
 
--- TODO: optimize this
-bitRepFromRep :: forall w . (BitRep w) => RepValue -> X w
-bitRepFromRep rep =
-    case [ a
-	 | (a,b) <- bitRep
-	 , bitPatToRepValue  b `cmpRepValue` rep
-	 ] of
-	[] ->    optX Nothing
-	(i:_) -> optX (Just i)	-- first matches
+bitRepFromRep' :: forall w . (Ord w, BitRep w) => Map.Map RepValue w -> RepValue -> X w
+bitRepFromRep' mp rep = optX $ Map.lookup rep mp
 
+bitRepMap :: forall w . (BitRep w, Ord w) => Map.Map RepValue w
+bitRepMap = Map.fromList
+        [ (rep,a)
+        | (a,BitPat repX) <- bitRep
+        , rep <- expandBitRep repX
+        ]
+
+expandBitRep :: RepValue -> [RepValue]
+expandBitRep (RepValue bs) = map RepValue $ expand bs
+  where
+          expand []      = [[]] 
+          expand (x:xs)  = [ (Just y:ys) 
+                           | ys <- expand xs
+                           , y <- case x of
+                                    Nothing -> [False,True]
+                                    Just v  -> [v]
+                           ]
+
+        
+        
+        
