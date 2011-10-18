@@ -9,10 +9,14 @@ import Data.Char
 import Data.List
 
 -- | Convert a 'Trace' to a VCD representation of the trace.
-toVCD :: Trace -> String
-toVCD (Trace Nothing _ _ _)  = error "can't turn infinite trace into vcd"
-toVCD (Trace (Just n) i o p) = unlines
-    [ "$timescale 10ns $end"
+toVCD :: Bool    -- ^ Whether to include the clock signal in the list of signals
+      -> Integer -- ^ Timescale in nanoseconds
+      -> Trace
+      -> String
+toVCD _       _  (Trace Nothing  _ _ _) = error "can't turn infinite trace into vcd"
+toVCD _incClk ts (Trace (Just n) i o p) = unlines
+    [ "$version\n   Kansas Lava\n$end"
+    , "$timescale " ++ show ts ++ "ns $end"
     , "$scope top $end"
     ]
     ++ unlines [ unwords ["$var wire", show l, ident, show k, "$end"]
@@ -26,13 +30,14 @@ toVCD (Trace (Just n) i o p) = unlines
 
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
 vcdIds :: [String]
-vcdIds = res
-    where chars = [(chr 33)..(chr 126)]
-          ids@(_:res) = [] : concatMap (\i -> [c:i | c <- chars]) ids
+vcdIds = map code [0..]
+    where code :: Int -> String
+          code i | i < 0 = ""
+          code i         = [chr (33 + mod i 94)] ++ code (div i 94 - 1)
 
 vcdVal :: RepValue -> String -> String
-vcdVal r@(RepValue bs) ident | length bs == 1 = show r ++ ident
-                             | otherwise      = "b" ++ show r ++ " " ++ ident
+vcdVal r@(RepValue bs) ident | length bs == 1 = rep2tbw r ++ ident
+                             | otherwise      = "b" ++ rep2tbw r ++ " " ++ ident
 
 values :: Int -> [(String, (String, TraceStream))] -> String
 values n sigs = dumpVars initials ++ eventList initials (zip [0..] rest)
@@ -51,4 +56,4 @@ eventList prev rest = case next of
 -- the assumption is that these lists are parallel by id
 valChange :: [(RepValue, String)] -> [(RepValue, String)] -> String
 valChange prev cur = unlines [ vcdVal val ident | (p,c@(val,ident)) <- zip prev cur
-                                             , p /= c ]
+                                                , p /= c ]
