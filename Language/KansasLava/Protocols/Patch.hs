@@ -561,20 +561,23 @@ fifo2 = ackToReadyBridge $$ fifo2' where
 -- Retiming
 ---------------------------------------------------------------------------------
 
-matrixExpandP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+-- | 'matrixToElementsP' turns a matrix into a sequences of elements from the array, in ascending order.
+matrixToElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
-matrixExpandP =
+matrixToElementsP =
 	   openP
 	$$ stackP
 		 (cycleP (coord :: Matrix x x))
 		 (matrixUnzipP)
 	$$ matrixMuxP
 
-matrixContractP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+-- | 'matrixFromElementsP' turns a sequence of elements (in ascending order) into a matrix.
+-- ascending order.
+matrixFromElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
          => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
 	          (sig Ack)	    (sig Ack)
-matrixContractP =
+matrixFromElementsP =
 	   openP
 	$$ fstP (cycleP (coord :: Matrix x x))
 	$$ matrixDeMuxP
@@ -703,8 +706,8 @@ swapPatch = forwardP (\ (a :> b) -> (b :> a)) $$
 ----------------------------------------------------
 
 
-data MergePlan = PriorityMerge		-- The first element always has priority
-	       | RoundRobinMerge	-- turn about
+data MergePlan = PriorityMerge		-- | The first element always has priority
+	       | RoundRobinMerge	-- | Turn about, can be slower
 
 mergeP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
  => MergePlan
