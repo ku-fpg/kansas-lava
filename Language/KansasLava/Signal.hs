@@ -196,7 +196,7 @@ instance (Rep a, Integral a) => Integral (Signal i a) where
 -- | Convert a list of values into a Signal. The shallow portion of the resulting
 -- Signal will begin with the input list, then an infinite stream of X unknowns.
 toS :: (Clock c, Rep a) => [a] -> Signal c a
-toS xs = mkShallowS (S.fromList (map optX (map Just xs ++ repeat Nothing)))
+toS xs = mkShallowS (S.fromFiniteList (map pureX xs) unknownX)
 
 -- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
