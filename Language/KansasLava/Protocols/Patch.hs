@@ -706,8 +706,8 @@ swapPatch = forwardP (\ (a :> b) -> (b :> a)) $$
 ----------------------------------------------------
 
 
-data MergePlan = PriorityMerge		-- | The first element always has priority
-	       | RoundRobinMerge	-- | Turn about, can be slower
+data MergePlan = PriorityMerge		-- ^ The first element always has priority
+	       | RoundRobinMerge	-- ^ Turn about, can be slower
 
 mergeP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
  => MergePlan
