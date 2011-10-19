@@ -17,9 +17,8 @@ import Data.Bits
 import Data.Sized.Ix
 import Data.Sized.Matrix as M
 
--- import Language.KansasLava.Comb
+import Language.KansasLava.Stream (Stream(Cons))
 import Language.KansasLava.Rep
---import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
@@ -125,10 +124,9 @@ primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
 ---------------------------------------------------------------------------------
 
 instance (Rep a, Show a) => Show (Signal c a) where
-	show (Signal vs _)
-         	= concat [ showRep x ++ " "
-                         | x <- take 20 $ S.toList vs
-                         ] ++ "..."
+	show (Signal vs _) = show' vs
+	  where
+	     show' (Cons a opt_as) = showRep a ++ " " ++ maybe "" show' opt_as
 
 instance (Rep a, Eq a) => Eq (Signal c a) where
 	-- Silly question; never True; can be False.
@@ -368,7 +366,7 @@ delay ~(Signal line eline) = res
 	res = Signal sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
-	sres1 = S.Cons def sres0
+	sres1 = S.Cons def (Just sres0)
 
         entity = Entity (Prim "delay")
                     [("o0", typeOfS res)]
@@ -391,7 +389,7 @@ register first  ~(Signal line eline) = res
 	res = Signal sres1 (D $ Port ("o0") $ E $ entity)
 
 	sres0 = line
-	sres1 = S.Cons def sres0
+	sres1 = S.Cons def (Just sres0)
 
         entity = Entity (Prim "register")
                     [("o0", typeOfS res)]

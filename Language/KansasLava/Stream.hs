@@ -10,64 +10,64 @@ import Control.Applicative
 import Control.Monad
 import Prelude hiding (zipWith,zipWith3, repeat)
 import Data.Monoid
+import qualified Data.List as List
 import Data.Dynamic
 
 -- | Set the precedence of infix `Cons`.
 infixr 5 `Cons`
 
 -- | A stream is an infinite sequence of values.
-data Stream a = Cons !a (Stream a) -- ^ Cons takes a head and a tail.
+data Stream a = Cons !a (Maybe (Stream a)) 
+        -- ^ Cons takes a head and an optional tail.
+        -- If the tail is empty, then the last value is repeated.
     deriving (Typeable)
 
 instance Show a => Show (Stream a) where
-   show = showStream 20
-
--- | Print out a Stream.
-showStream :: Show a => Int -> Stream a -> String
-showStream i vs           = unwords [ show x ++ " `Cons` "
-                                | x <- take i $ toList vs
-                                ] ++ "..."
+   show (Cons a opt_as) = show a ++ " " ++ maybe "" show opt_as
 
 instance Applicative Stream where
-        pure a = a `Cons` pure a
-        (h1 `Cons` t1) <*> (h2 `Cons` t2) = h1 h2 `Cons` (t1 <*> t2)
-
+        pure a = a `Cons` Nothing
+        (h1 `Cons` t1) <*> (h2 `Cons` t2) = h1 h2 `Cons` (t1 `opt_ap` t2)
+           where
+                   Nothing  `opt_ap` Nothing  = Nothing
+                   Nothing  `opt_ap` (Just x) = Just (pure h1 <*> x)
+                   (Just f) `opt_ap` Nothing  = Just (f <*> pure h2)
+                   (Just f) `opt_ap` (Just x) = Just (f <*> x)
+                   
 instance Functor Stream where
-   fmap f (a `Cons` as) = f a `Cons` fmap f as
-
--- | Get the first element of the stream.
-head :: Stream a -> a
-head (a `Cons` _) = a
-
--- | Get the remainder of the stream.
-tail :: Stream a -> Stream a
-tail (_ `Cons` as) = as
+   fmap f (a `Cons` opt_as) = f a `Cons` maybe Nothing (Just . fmap f) opt_as
 
 -- | Lift a value to be a constant stream.
-repeat :: a -> Stream a
-repeat a = a `Cons` repeat a
+--repeat :: a -> Stream a
+--repeat a = a `Cons` repeat a
 
 -- | Zip two streams together.
 zipWith :: (a -> b -> c) -> Stream a -> Stream b -> Stream c
-zipWith f (x `Cons` xs) (y `Cons` ys) = f x y `Cons` zipWith f xs ys
+zipWith f xs ys = f <$> xs <*> ys
 
 -- | Zip three streams together.
 zipWith3 :: (a -> b -> c -> d) -> Stream a -> Stream b -> Stream c -> Stream d
-zipWith3 f (x `Cons` xs) (y `Cons` ys) (z `Cons` zs) = f x y z `Cons` zipWith3 f xs ys zs
+zipWith3 f xs ys zs = f <$> xs <*> ys <*> zs
 
 -- | Convert a list to a stream. If the list is finite, then the last element of
 -- the stream will be an error.
+fromFiniteList :: [a] -> a -> Stream a
+fromFiniteList (x : xs) end = x `Cons` (Just (fromFiniteList xs end))
+fromFiniteList []       end = end `Cons` Nothing
+
 fromList :: [a] -> Stream a
-fromList (x : xs) = x `Cons` fromList xs
-fromList []       = error "Stream.fromList"
+fromList xs = fromFiniteList xs (error "found end of infinite list")
+
 
 -- | Convert a Stream to a lazy list.
 toList :: Stream a -> [a]
-toList (x `Cons` xs) = x : toList xs
+toList (x `Cons` opt_xs) = x : maybe (List.repeat x) toList opt_xs 
 
 instance F.Foldable Stream where
-  foldMap f (a `Cons` as) = f a `mappend` F.foldMap f as
+  foldMap f (a `Cons` opt_as) = f a `mappend` maybe (F.foldMap f (a `Cons` opt_as))
+                                                    (F.foldMap f)
+                                                    opt_as
 
 instance Traversable Stream where
-  traverse f (a `Cons` as) = Cons <$> f a <*> traverse f as
+  traverse f (a `Cons` opt_as) = Cons <$> f a <*> maybe (pure Nothing) (\ as -> Just <$> traverse f as) opt_as
 

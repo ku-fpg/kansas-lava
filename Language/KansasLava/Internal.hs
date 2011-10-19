@@ -25,7 +25,9 @@ class Stepify a where
 
 -- | Strictly apply a function to each element of a Stream.
 stepifyStream :: (a -> ()) -> Stream a -> Stream a
-stepifyStream f (Cons a r) = Cons a (f a `seq` stepifyStream f r)
+stepifyStream f (Cons a opt_r) = Cons a (f a `seq` case opt_r of
+                                                     Nothing -> Nothing
+                                                     Just r -> Just $! stepifyStream f r)
 
 -- | A 'Radix' is a trie indexed by bitvectors.
 data Radix a

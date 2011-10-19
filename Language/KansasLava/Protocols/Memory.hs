@@ -102,7 +102,7 @@ writeMemory pipe = res
 -}
 	mem :: Stream (Radix d)
 	mem = stepifyStream (\ a -> a `seq` ())
-	    $ Cons empty $ Stream.fromList
+	    $ Cons empty $ Just $ Stream.fromList
 		[ case u of
 		    Nothing           -> empty	-- unknown again
 		    Just Nothing      -> m
