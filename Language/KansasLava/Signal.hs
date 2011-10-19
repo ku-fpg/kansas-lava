@@ -126,7 +126,7 @@ primS3 f nm = primXS3 (\ a b c -> optX $ liftM3 f (unX a) (unX b) (unX c)) nm
 instance (Rep a, Show a) => Show (Signal c a) where
 	show (Signal vs _) = show' vs
 	  where
-	     show' (Cons a opt_as) = showRep a ++ " " ++ maybe "" show' opt_as
+	     show' (Cons a opt_as) = showRep a ++ maybe "" (\ as -> " | " ++ show' as) opt_as
 
 instance (Rep a, Eq a) => Eq (Signal c a) where
 	-- Silly question; never True; can be False.
