@@ -215,6 +215,7 @@ fromS = fmap unX . S.toList . shallowS
 fromSX :: (Rep a) => Signal c a -> [X a]
 fromSX = S.toList . shallowS
 
+-- | take the first n elements of a 'Signal'; the rest is undefined.
 takeS :: (Rep a, Clock c) => Int -> Signal c a -> Signal c a
 takeS n s = mkShallowS (S.fromFiniteList (take n (S.toList (shallowS s))) unknownX)
 
