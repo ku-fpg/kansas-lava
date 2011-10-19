@@ -146,9 +146,9 @@ instance (Bounded a, Rep a) => Bounded (Signal i a) where
     maxBound = pureS $ maxBound
 
 instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
-    s1 .&. s2      = primS2 (.&.) ".&."   s1  s2
-    s1 .|. s2      = primS2 (.|.) ".|."   s1  s2
-    s1 `xor` s2    = primS2 (xor) ".^."   s1  s2
+    s1 .&. s2      = primS2 (.&.) "and"   s1  s2
+    s1 .|. s2      = primS2 (.|.) "or"   s1  s2
+    s1 `xor` s2    = primS2 (xor) "xor"   s1  s2
     s1 `shiftL` n  = primS2 (shiftL) "shiftL"    s1  (pureS n)
     s1 `shiftR` n  = primS2 (shiftR) "shiftR"    s1  (pureS n)
     s1 `rotateL` n = primS2 (rotateL) "rotateL"  s1  (pureS n)
