@@ -215,6 +215,9 @@ fromS = fmap unX . S.toList . shallowS
 fromSX :: (Rep a) => Signal c a -> [X a]
 fromSX = S.toList . shallowS
 
+takeS :: (Rep a, Clock c) => Int -> Signal c a -> Signal c a
+takeS n s = mkShallowS (S.fromFiniteList (take n (S.toList (shallowS s))) unknownX)
+
 -- | Compare the first depth elements of two Signals.
 cmpSignalRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
 cmpSignalRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep

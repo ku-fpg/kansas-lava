@@ -13,7 +13,7 @@ module Language.KansasLava (
 
     -- * The CSeq and Seq types
     Signal, Seq, 
-    toS, toS', undefinedS, fromS,
+    toS, toS', undefinedS, fromS, takeS,
     pureS, witnessS,
     commentS,
     pack, unpack,
