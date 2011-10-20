@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
+{-# LANGUAGE DoRec, ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
 module Language.KansasLava.Protocols.Patch
   -- (Patch, bus, ($$),
   -- emptyP,forwardP, backwardP,dupP,zipPatch,
@@ -20,6 +20,7 @@ import Data.Sized.Matrix as M
 
 import qualified Data.ByteString.Lazy as B
 import Control.Applicative
+import Control.Monad.Fix
 
 ---------------------------------------------------------------------------
 -- The Patch.
@@ -740,3 +741,43 @@ matrixMergeP plan ~(mInp, ackOut) = (mAckInp, out)
 
    mAckInp = forEach mInp $ \ x _inp -> toAck $ ((pureS x) .==. inpIndex) .&&. (fromAck ackOut)
    out = (pack mInp) .!. inpIndex
+
+---------------------------------------------------------------------------
+-- FabricPatch, the IO version of Patch
+---------------------------------------------------------------------------
+
+type FabricPatch fab
+           lhs_in 	   rhs_out
+	   lhs_out         rhs_in
+	= (lhs_in,rhs_in) -> fab (lhs_out,rhs_out)
+
+patchF :: (MonadFix fab)
+            => Patch a b
+                     c d -> FabricPatch fab a b 
+                                            c d
+patchF patch inp = return (patch inp)
+        
+infixr 4 |$|
+(|$|) :: (MonadFix fab)
+      => FabricPatch fab a b
+                         d e
+      -> FabricPatch fab b c
+                         e f
+      -> FabricPatch fab a c
+                         d f
+f1 |$| f2 = \ ~(lhs_in,rhs_in) -> do
+	rec ~(lhs_out1,rhs_out1) <- f1 (lhs_in,lhs_out2)
+	    ~(lhs_out2,rhs_out2) <- f2 (rhs_out1,rhs_in)
+        return (lhs_out1,rhs_out2)
+
+runF :: (MonadFix fab)
+ 	 => FabricPatch fab  ()   a
+	 	             ()   () -> fab a
+runF p = do 
+   ~(_,a) <- p ((),())
+   return a
+
+{-
+f1 |$ f2 = f1 |$| fabricPatch f2
+f1 $| f2 = fabricPatch f1 |$| f2
+-}
