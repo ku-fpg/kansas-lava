@@ -22,7 +22,7 @@ genInst' :: M.Map Unique (Entity Unique)
          -> Entity Unique
          -> [Decl]
 genInst' env i e =
-	(CommentDecl $ show (i,e)):
+--	(CommentDecl $ show (i,e)):
 	genInst env i e
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
