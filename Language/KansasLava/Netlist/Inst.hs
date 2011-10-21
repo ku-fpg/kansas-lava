@@ -450,13 +450,20 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
 	[ NetAssign  (sigName "o0" i) $ mkExprConcat $ [(tI,ExprVar nm)]
 	]
         | typeWidth tI == typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ ExprVar nm
+	[ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w
 	]
         | typeWidth tI > typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
-                ExprSlice nm (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) (ExprLit Nothing (ExprNum 0))
+                case toStdLogicExpr tI w of
+                  ExprVar nm' -> ExprSlice nm' (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) 
+                                               (ExprLit Nothing (ExprNum 0))
+                  ExprLit _ (ExprNum n) -> 
+                                toTypedExpr
+                                        tO
+                                        n -- TODO: should mod with 2^(width of tO)
+                  other -> error $ "(signed) problem , tI > tO, "  ++ show (w,tI,tO,other)
 	]
-        | otherwise =
+        | typeWidth tI < typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $	ExprConcat
 		[ ExprLit (Just zeros) $ ExprBitVector $ replicate zeros F
 		, ExprVar nm
@@ -466,8 +473,18 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
      zeros = typeWidth tO - typeWidth tI
      nm = case toStdLogicExpr tI w of
 	    ExprVar n -> n
-	    other -> error $ " problem with unsigned: " ++ show (w,tI,other)
+	    other -> error $ " problem with unsigned: " ++ show (w,tI,tO,other)
+{-
+     lit = case opt_lit of
+            Just v -> v
+            _ -> error "not lit"
 
+     isLit = isJust opt_lit 
+
+     opt_lit = case toStdLogicExpr tI w of
+	          (ExprLit _ (ExprNum n)) -> return n
+                  _ -> fail "not ExprLit _ (ExprNum _)"
+-}
 
 genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
         | isMatrixStdLogicTy tI = error "input of signed uses matrix representation"
@@ -476,7 +493,7 @@ genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
 	[ NetAssign  (sigName "o0" i) $ mkExprConcat $ [(tI,ExprVar nm)]
 	]
         | typeWidth tI == typeWidth tO =
-	[ NetAssign  (sigName "o0" i) $ ExprVar nm
+	[ NetAssign  (sigName "o0" i) $ toStdLogicExpr tI w
 	]
         | typeWidth tI > typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
@@ -494,8 +511,7 @@ genInst _ i (Entity (Prim "signed") [("o0",tO)] [("i0",tI,w)])
      zeros = typeWidth tO - typeWidth tI
      nm = case toStdLogicExpr tI w of
 	    ExprVar n -> n
-	    other -> error $ " problem with unsigned: " ++ show (w,tI,other)
-
+	    other -> error $ " problem with signed: " ++ show (w,tI,tO,other)
 
 
 --------------------------------------------------------------------------------
