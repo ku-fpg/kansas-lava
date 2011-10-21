@@ -26,7 +26,7 @@ probeS str sig = unsafePerformIO $ do
         return (fn str sig)
 
 -- | 'unpackedProbe' is an unpacked version of 'probeS'.
-unpackedProbe :: forall c a . (Clock c, Rep a, Pack c a) => String -> Unpacked c a -> Unpacked c a
+unpackedProbe :: forall c a p . (Clock c, Rep a, Pack c a, p ~ Unpacked c a) => String -> p -> p
 unpackedProbe nm a = unpack (probeS nm (pack a) :: Signal c a)
 
 data ProbeFn = ProbeFn (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a)
@@ -54,12 +54,21 @@ setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) 
 
 -- | A simplified API, where each internal probe event is represented
 -- as a newline-terminated String, and can be printed, or appended to a file.
+--
+-- To append to a debugging file, use
+--
+-- >ghci> setProbes $ appendFile "DEBUG.out"
+--
+-- To write to the screen, use
+--
+-- >ghci> setProbes $ putStr
+--
+-- You will need to re-execute your program after calling any probe function,
+-- so typically this done on the command line, or by puting setProbeAsTrace inside main.
+
 setProbesAsTrace :: (String -> IO ()) -> IO ()
 setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
         write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
         return a
-
---setVCDProbes :: IO VCD
---setVCDProbes = undefined
 
 
