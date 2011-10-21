@@ -12,10 +12,13 @@ module Language.KansasLava.Protocols.Enabled
   enabledVal, isEnabled,
   mapEnabled,
   enabledS, disabledS,
+  registerEnabled
   ) where
 
 import Language.KansasLava.Signal
 import Language.KansasLava.Rep
+import Language.KansasLava.Utils
+import Language.KansasLava.Types
 
 -- | Enabled is a synonym for Maybe.
 type Enabled a = Maybe a
@@ -55,4 +58,11 @@ enabledVal = snd .  unpackEnabled
 isEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
 
+-- | Optionally updatable register, based on the value of the enabled signal.
+registerEnabled :: (Rep a, Clock clk, sig ~ Signal clk) => a -> sig (Enabled a) -> sig a
+registerEnabled a inp = res
+   where
+	res = register a
+	    $ cASE [ (isEnabled inp,enabledVal inp)
+		   ] res
 
