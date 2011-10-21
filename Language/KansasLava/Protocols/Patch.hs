@@ -152,11 +152,17 @@ loopP g ~(b,f) = (e,c)
   where
     (d:>e,a:>c) = g (a:>b,d:>f)
 
-
 openP :: Patch c (() :> c)
 	           d (() :> d)
 openP = forwardP (\ a -> (() :> a)) $$
 	    backwardP (\ ~(_ :> a) -> a)
+{-
+swapP :: (a :> b) -> (b :> a) 
+assocP :: ((a :> b) :> c) -> (a :> b :> c)
+unassocP :: (a :> b :> c) -> ((a :> b) :> c)
+closeP :: (() :> b) -> b
+copyP  :: a -> (a :> a) -- is DUP
+-}
 
 -------------------------------------------------------------------------------
 -- maping a combinatorial circuit over a protocol.
@@ -176,6 +182,10 @@ mapP = forwardP . mapEnabled
 class Unit unit where
   -- | The name of the specific value.
   unit :: unit
+
+
+unUnit :: (Unit unit) => unit -> ()
+unUnit _ = ()
 
 instance Unit () where unit = ()
 instance (Unit a,Unit b) => Unit (a,b) where unit = (unit,unit)
@@ -776,6 +786,37 @@ runF :: (MonadFix fab)
 runF p = do 
    ~(_,a) <- p ((),())
    return a
+
+buildF :: (MonadFix fab)
+       => ((a,d) -> fab (c,b))
+       -> FabricPatch fab a b
+                          c d
+buildF = id
+
+
+-- | A fabric patch that passes through data and control.
+emptyF :: (MonadFix fab)
+       => FabricPatch 
+                fab a  a
+	            b  b
+emptyF = patchF emptyP
+
+infixr 3 `stackF`
+-- | Given two fabric patches, tuple their data/control inputs and outputs.
+stackF :: (MonadFix fab)
+       => FabricPatch fab 
+               li1		ro1
+               lo1    		ri1
+      -> FabricPatch fab 
+               li2		ro2
+               lo2    		ri2
+      -> FabricPatch fab 
+               (li1 :> li2)			(ro1 :> ro2)
+               (lo1 :> lo2)   			(ri1 :> ri2)
+stackF p1 p2 ~(li1 :> li2,ri1 :> ri2) = do 
+	(lo1,ro1)		     <- p1 (li1,ri1)
+	(lo2,ro2)		     <- p2 (li2,ri2)
+        return $ (lo1 :> lo2,ro1 :> ro2)
 
 {-
 f1 |$ f2 = f1 |$| fabricPatch f2
