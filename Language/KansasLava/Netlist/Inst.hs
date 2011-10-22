@@ -902,8 +902,7 @@ specials =
 	, ("/", Divide)
 	]
    ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
-        [ (".|.",Or), (".&.",And), (".^.",Xor)
-	, ("or2",Or), ("and2",And), ("xor2",Xor)
+        [ ("or2",Or), ("and2",And), ("xor2",Xor)
 	]
    ++ mkSpecialUnary  toStdLogicExpr toTypedExpr
 	[("negate",Neg)]
