@@ -108,7 +108,7 @@ infixr 2 .^.
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
 funMap :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
-funMap fn (Signal a ae) = Signal (fmap fn' a) 
+funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a) 
                             (D $ Port ("o0")
 			       $ E
 			       $ Entity (Prim "asyncRead")
@@ -335,16 +335,33 @@ unsignedX = id
 unsigned :: (Rep a, Rep b, Num b,  sig ~ Signal i)  => sig a -> sig b
 unsigned a = primXS1 unsignedX "unsigned"  a
 
+--overStdLogic
 
-----------------------------------------------------------------------------
+--generalToStd :: (Rep a, Rep b, sig ~ Signal i)  => sig a -> sig b
+--generalToStd a = primXS1 (fromRep . toRep) "coerce"  a
+
+-- | force the representation of the incoming argument to be a StdLogicVector.
+-- Assumes the argument is an entity; a real hack.
+-- We need a type checking pass, instead.
+mustAssignSLV :: (Rep a,  sig ~ Signal i)  => sig a -> sig a
+mustAssignSLV (Signal a (D (Port "o0" (E (Entity (Prim nm) [("o0",tA)] inps)))))
+             = res
+  where
+        res = Signal a (D coer)
+
+        coer = Port "o0" (E (Entity (Prim "coerce") [("o0",tA)] [("i0",V width,new)]))
+        new  = Port "o0" (E (Entity (Prim nm) [("o0",V width)] inps))
+        
+        width = typeWidth tA
+mustAssignSLV _ = error "mustAssignSLV: internal error"
+
+---------------------------------------------------------------------------
 -- | translate using raw underlying bits, type  *must* be the same, but is not statically checked.
 unsafeId :: forall sig a b i . ( sig ~ Signal i, Rep a, Rep b) => sig a -> sig b
 unsafeId a = primXS1 (fromRep . toRep) "coerce"  a
 
 ----------------------------------------------------------------------------
 -- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
-
-
 unappendS :: forall a a1 a2 sig clk . ( sig ~ Signal clk, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
 unappendS a = unpack (bitwise a :: sig (a1,a2))
 
