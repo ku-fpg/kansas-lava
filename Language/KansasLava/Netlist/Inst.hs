@@ -735,15 +735,15 @@ genInst _ i (Entity (Prim "asyncRead")
                 [ ("i0",ty1@MatrixTy {},dr1)
                 , ("i1",ty2,dr2)
                 ]) =
-   case dr1 of
-     Port v n ->
+   case (dr1,toStdLogicType ty) of
+     (Port v n,SLV _) ->
         [NetAssign  (sigName "o0" i)
                     (memToStdLogic ty $
                        ExprIndex (sigName v (fromIntegral n))
                                   (toMemIndex ty2 dr2)
                     )
-      ]
-     _ -> error "bad array as input to asyncRead"
+        ]
+     _ -> error "bad array as input to asyncRead or strange output type"
  where
     MatrixTy _ (V _) = toStdLogicTy ty1
 
