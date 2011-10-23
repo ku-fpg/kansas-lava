@@ -857,7 +857,7 @@ mkSpecialBinary coerceR coerceF ops =
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
 
-mkSpecialShifts :: [(String,BinaryOp)] -> [(Id, NetlistOperation)]
+mkSpecialShifts :: [(String, Ident)] -> [(Id, NetlistOperation)]
 mkSpecialShifts ops =
     [(Prim lavaName
       , NetlistOp 2 (binop funName)
@@ -866,8 +866,8 @@ mkSpecialShifts ops =
     ]
   where
     binop op fTy [(lty,l),(rty,r)] =
---      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
-      toStdLogicExpr fTy $ ExprBinary op (toTypedExpr lty l) (toIntegerExpr rty r)
+      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
+--      toStdLogicExpr fTy $ ExprBinary op (toTypedExpr lty l) (toIntegerExpr rty r)
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
 
@@ -912,13 +912,14 @@ specials =
 	,("complement",LNeg)
 	]
    ++   mkSpecialTestBit
+-- See: http://homepage.ntlworld.com/jonathan.deboynepollard/FGA/bit-shifts-in-vhdl.html
    ++   mkSpecialShifts
-        [ ("shiftL", ShiftLeft)
-        , ("shiftR", ShiftRight)
-        , ("shiftLA", ShiftLeftArith)
-        , ("shiftRA", ShiftRightArith)
-        , ("rotateL", RotateLeft)
-        , ("rotateR", RotateRight)
+        [ ("shiftL", "shift_left")
+        , ("shiftR", "shift_right")
+        , ("shiftLA", "shift_left")	-- overloaded in VHDL
+        , ("shiftRA", "shift_right")	-- overloaded in VHDL
+        , ("rotateL", "rotate_left")
+        , ("rotateR", "rotate_right")
         ]
 
 
