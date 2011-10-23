@@ -865,8 +865,9 @@ mkSpecialShifts ops =
     | (lavaName, funName) <- ops
     ]
   where
-    binop op fTy [(lty,l),(rty,r)] =
-      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
+    binop op _fTy [(lty,l),(rty,r)] =
+--      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
+      ExprBinary op (toStdLogicExpr lty l) (toIntegerExpr rty r)
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
 
@@ -912,10 +913,12 @@ specials =
 	]
    ++   mkSpecialTestBit
    ++   mkSpecialShifts
-        [ ("shiftL", "shift_left")
-        , ("shiftR", "shift_right")
-        , ("rotateL", "rotate_left")
-        , ("rotateR", "rotate_right")
+        [ ("shiftL", ShiftLeft)
+        , ("shiftR", ShiftRight)
+        , ("shiftLA", ShiftLeftArith)
+        , ("shiftRA", ShiftRightArith)
+        , ("rotateL", RotateLeft)
+        , ("rotateR", RotateRight)
         ]
 
 

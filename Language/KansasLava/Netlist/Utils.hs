@@ -159,7 +159,8 @@ class ToIntegerExpr v where
   toIntegerExpr :: Type -> v -> Expr
 
 instance (Integral i) => ToIntegerExpr (Driver i) where
-  toIntegerExpr ty (Lit v) = toStdLogicExpr ty v
+        -- can assume a small (shift-by) number
+  toIntegerExpr _ (Lit v)      = ExprLit Nothing $ ExprNum (fromRepToInteger v)
   toIntegerExpr GenericTy other = toTypedExpr GenericTy other -- HACK
   toIntegerExpr ty other        = to_integer (toTypedExpr ty other)
 

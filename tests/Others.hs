@@ -33,10 +33,15 @@ tests test = do
         let t2 :: (Ord a, Bits a, Rep a, Size (W a)) => String -> List a -> IO ()
             t2 str arb = testOpsBits test str arb
 
-        t2 "U1" (allCases :: List U1)
-        t2 "U2" (allCases :: List U2)
-        t2 "U3" (allCases :: List U3)
-        t2 "U4" (allCases :: List U4)
+
+	-- tests Bits, inc the shifts
+        let t2' :: (Ord a, Bits a, Rep a, Size (W a)) => String -> List a -> IO ()
+            t2' str arb = testOpsBits2 test str arb
+
+        t2' "U1" (allCases :: List U1)
+        t2' "U2" (allCases :: List U2)
+        t2' "U3" (allCases :: List U3)
+        t2' "U4" (allCases :: List U4)
         t2 "U5" (allCases :: List U5)
         t2 "U6" (allCases :: List U6)
         t2 "U7" (allCases :: List U7)
@@ -47,9 +52,9 @@ tests test = do
 -}
 
         -- no S1
-        t2 "S2" (allCases :: List S2)
-        t2 "S3" (allCases :: List S3)
-        t2 "S4" (allCases :: List S4)
+        t2' "S2" (allCases :: List S2)
+        t2' "S3" (allCases :: List S3)
+        t2' "S4" (allCases :: List S4)
         t2 "S5" (allCases :: List S5)
         t2 "S6" (allCases :: List S6)
         t2 "S7" (allCases :: List S7)
@@ -305,6 +310,34 @@ testOpsBits test tyName ws = do
           ]
 
         return ()
+
+
+testOpsBits2 :: forall w .
+        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> List w -> IO ()
+testOpsBits2 test tyName ws = do
+	testOpsBits test tyName ws
+
+        sequence_
+          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot1) 
+	    	      opr
+		      lavaOp
+		      ws
+          | rot0 <- take (bitSize (error "witness" :: w)) [0..] :: [Int]
+	  , rot1 <- if rot0 == 0 then [rot0] else [rot0,-rot0]
+	  , let f :: (Bits a) => (a -> Int -> a) -> (a -> a)
+	        f fn = flip fn (fromIntegral rot1)
+	  , TestUni name opr lavaOp <-
+		[ TestUni "shift" (f shift) (f shift)
+		, TestUni "rotate" (f rotate) (f rotate)	    
+		] ++ if rot1 >= 0 then 
+                [ TestUni "shiftL" (f shiftL) (f shiftL)
+		, TestUni "shiftR" (f shiftR) (f shiftR)
+		, TestUni "rotateL" (f rotateL) (f rotateL)
+		, TestUni "rotateR" (f rotateR) (f rotateR)
+                ] else []
+          ]
+        return ()
+
 pair :: [a] -> [(a, a)]
 pair ws = [ (a,b) | a <- ws, b <- ws ]
 
