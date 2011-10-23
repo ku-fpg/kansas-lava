@@ -857,7 +857,7 @@ mkSpecialBinary coerceR coerceF ops =
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
 
-mkSpecialShifts :: [(String, Ident)] -> [(Id, NetlistOperation)]
+mkSpecialShifts :: [(String,BinaryOp)] -> [(Id, NetlistOperation)]
 mkSpecialShifts ops =
     [(Prim lavaName
       , NetlistOp 2 (binop funName)
