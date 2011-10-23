@@ -22,7 +22,7 @@ genInst' :: M.Map Unique (Entity Unique)
          -> Entity Unique
          -> [Decl]
 genInst' env i e =
---	(CommentDecl $ show (i,e)):
+	(CommentDecl $ show (i,e)):
 	genInst env i e
 genInst :: M.Map Unique (Entity Unique) -> Unique -> Entity Unique -> [Decl]
 
@@ -865,9 +865,9 @@ mkSpecialShifts ops =
     | (lavaName, funName) <- ops
     ]
   where
-    binop op _fTy [(lty,l),(rty,r)] =
+    binop op fTy [(lty,l),(rty,r)] =
 --      toStdLogicExpr fTy $ ExprFunCall op [toTypedExpr lty l, toIntegerExpr rty r]
-      ExprBinary op (toStdLogicExpr lty l) (toIntegerExpr rty r)
+      toStdLogicExpr fTy $ ExprBinary op (toTypedExpr lty l) (toIntegerExpr rty r)
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
 
