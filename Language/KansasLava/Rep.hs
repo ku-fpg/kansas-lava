@@ -21,6 +21,8 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
+import Data.Bits
+
 --import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
@@ -54,7 +56,7 @@ instance Rep Bool where
     showRep (XBool (Just True))  = "high"
     showRep (XBool (Just False)) = "low"
 
-$(repIntegral ''Int     (S 32)) -- a lie on 64-bit machines??
+$(repIntegral ''Int     (S $ bitSize $ (error "witness" :: Int)))
 
 $(repIntegral ''Word8   (U  8))
 $(repIntegral ''Word32  (U 32))
