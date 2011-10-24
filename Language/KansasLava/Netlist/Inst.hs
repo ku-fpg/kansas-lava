@@ -904,6 +904,7 @@ specials =
 	]
    ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
         [ ("or2",Or), ("and2",And), ("xor2",Xor)
+        , ("nand2",Nand), ("nor2",Nor)
 	]
    ++ mkSpecialUnary  toStdLogicExpr toTypedExpr
 	[("negate",Neg)]

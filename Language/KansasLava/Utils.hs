@@ -64,7 +64,28 @@ xor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
              _                 -> optX $ Nothing ) "or2"
          s1
          s2
-        
+
+-- | 1-bit nand gate.
+nand2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
+nand2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
+	     (Just True,Just True) -> optX $ Just False
+	     (Just False,_)        -> optX $ Just True
+	     (_,Just False)        -> optX $ Just True
+	     _                     -> optX $ Nothing) "nand2"
+         s1
+         s2
+
+-- | 1-bit nor gate.
+nor2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
+nor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
+	     (Just False,Just False) -> optX $ Just True
+	     (Just True,_)           -> optX $ Just False
+	     (_,Just True)           -> optX $ Just False
+             _                       -> optX $ Nothing ) "nor2"
+         s1
+         s2
+
+
 -- | 1 bit inverter.
 bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
