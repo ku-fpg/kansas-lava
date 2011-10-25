@@ -12,31 +12,26 @@ import Data.Maybe
 
 -- | Convert a VCD file to a Trace.
 -- TODO: use sig file to recover types and input/output designation
--- fromVCD :: String -> Signature -> Trace
-fromVCD :: String -> Trace
-fromVCD vcd = Trace (Just longest) [ ('i':nm,ts) | ('i':nm,ts) <- streams ]
-                                   [ ('o':nm,ts) | ('o':nm,ts) <- streams ]
-                                   streams
+fromVCD :: String -> Signature -> Trace
+fromVCD vcd sig = Trace (Just longest) [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigInputs sig ]
+                                       [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigOutputs sig ]
+                                       []
     where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trim vcd
           vals = uncurry changes . dumpvars $ ls
-          streams = [ (nm, TraceStream ty $ extendTo longest vs) | (i, (nm,ty)) <- signames, let vs = fromJust $ lookup i vals ]
+          streams = [ (nm, extendTo longest vs) | (i, nm) <- signames, let vs = fromJust $ lookup i vals ]
           longest = maximum . map (length . snd) $ vals
 
           trim = let f = reverse . dropWhile isSpace in f . f
 
-defs2map :: [String] -> ([(String,(String,Type))],[String])
+defs2map :: [String] -> ([(String,String)],[String])
 defs2map = go []
     where go m (l:ls) | head ws == "$enddefinitions" = (m,ls)
-                      | head ws == "$var" = go ((ws !! 3, (trimQuot $ ws !! 4, tyCase . read $ ws !! 2)):m) ls
+                      | head ws == "$var" = go ((ws !! 3, trimQuot $ ws !! 4):m) ls
                       | otherwise = error "defs2map: parse error!"
             where ws = words l
           go _ _ = error "defs2map: parse error, no lines!"
 
           trimQuot = let f = reverse . dropWhile (== '"') in f . f
-
-          -- not sure how to better recover type from VCD
-          tyCase 1 = B
-          tyCase n = U n
 
 dumpvars :: [String] -- ^ remaining lines of the vcd file
          -> ([(String,RepValue)],[String]) -- ^ map of vcdIds to initial values
