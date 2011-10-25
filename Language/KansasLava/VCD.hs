@@ -118,7 +118,7 @@ vcdIds :: [String]
 vcdIds = map code [0..]
     where code :: Int -> String
           code i | i < 0 = ""
-          code i         = [chr (33 + mod i 94)] ++ code (div i 94 - 1)
+          code i         = chr (33 + mod i 94) : code (div i 94 - 1)
 
 vcdVal :: RepValue -> String -> String
 vcdVal r@(RepValue bs) ident | length bs == 1 = rep2tbw r ++ ident
