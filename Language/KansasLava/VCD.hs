@@ -11,7 +11,6 @@ import Data.List
 import Data.Maybe
 
 -- | Convert a VCD file to a Trace.
--- TODO: use sig file to recover types and input/output designation
 fromVCD :: String -> Signature -> Trace
 fromVCD vcd sig = Trace (Just longest) [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigInputs sig ]
                                        [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigOutputs sig ]
