@@ -4,22 +4,10 @@ module Language.KansasLava.Trace
     ( Trace(..)
     , toSignature
     , fromSignature
-    , setCycles
-    , addInput
-    , getInput
-    , remInput
-    , addOutput
-    , getOutput
-    , remOutput
-    , addProbe
-    , getProbe
-    , remProbe
     , cmpTrace
     , cmpTraceIO
     , diff
     , emptyTrace
-    , takeTrace
-    , dropTrace
     , serialize
     , deserialize
     , writeToFile
@@ -44,7 +32,7 @@ import qualified Language.KansasLava.Stream as S
 import Control.Monad
 
 import Data.List
-import Data.Maybe
+-- import Data.Maybe
 
 -- | Make a 'Trace' from a 'Fabric' and its input.
 mkTrace :: Maybe Int      -- ^ Nothing means infinite trace, Just x sets trace length to x cycles.
@@ -133,47 +121,6 @@ fromSignature :: Signature -> Trace
 fromSignature (Signature inps outps _) = Trace Nothing (convert inps) (convert outps) []
     where convert l = [ (nm, TraceStream ty [])  | (nm, ty) <- l ]
 
--- Combinators to change a trace
--- | Set the length of the trace, in cycles.
-setCycles :: Int -> Trace -> Trace
-setCycles i t = t { len = Just i }
-
--- | Add a named input to a Trace.
-addInput :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
-addInput key iseq t@(Trace _ ins _ _) = t { inputs = addSeq key iseq ins }
-
--- | Get a named input from a Trace.
-getInput :: (Rep w) => String -> Trace -> Seq w
-getInput key trace = getSignal $ fromJust $ lookup key (inputs trace)
-
--- | Remove a named input from a Trace.
-remInput :: String -> Trace -> Trace
-remInput key t@(Trace _ ins _ _) = t { inputs = filter ((== key) . fst) ins }
-
--- | Add a named output to a Trace.
-addOutput :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
-addOutput key iseq t@(Trace _ _ outs _) = t { outputs = addSeq key iseq outs }
-
--- | Get a named output from a Trace
-getOutput :: (Rep w) => String -> Trace -> Seq w
-getOutput key trace = getSignal $ fromJust $ lookup key (outputs trace)
-
--- | Remove a named output from a Trace.
-remOutput :: String -> Trace -> Trace
-remOutput key t@(Trace _ _ outs _) = t { outputs = filter ((== key) . fst) outs }
-
--- | Add a named internal probe to a Trace.
-addProbe :: forall a. (Rep a) => String -> Seq a -> Trace -> Trace
-addProbe key iseq t@(Trace _ _ _ ps) = t { probes = addSeq key iseq ps }
-
--- | Get a named internal probe from a Trace.
-getProbe :: (Rep w) => String -> Trace -> Seq w
-getProbe key trace = getSignal $ fromJust $ lookup key (probes trace)
-
--- | Remove a named internal probe from a Trace.
-remProbe :: String -> Trace -> Trace
-remProbe key t@(Trace _ _ _ ps) = t { probes = filter ((== key) . fst) ps }
-
 -- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
 cmpTrace :: Trace -> Trace -> Bool
 cmpTrace (Trace Nothing _ _ _)     _                           = False
@@ -196,24 +143,6 @@ diff t1 t2 = t1 == t2
 -- | A default, empty Trace.
 emptyTrace :: Trace
 emptyTrace = Trace { len = Nothing, inputs = [], outputs = [], probes = [] }
-
--- | Get the first i elements of a Trace.
-takeTrace :: Int -> Trace -> Trace
-takeTrace i t = t { len = Just newLen }
-    where newLen = case len t of
-                    Just x -> min i x
-                    Nothing -> i
-
--- | Drop the first i elements of a Trace.
-dropTrace :: Int -> Trace -> Trace
-dropTrace i t@(Trace c ins outs ps)
-    | newLen > 0 = t { len = Just newLen
-                     , inputs = dropStream ins
-                     , outputs = dropStream outs
-                     , probes = dropStream ps }
-    | otherwise = emptyTrace
-    where dropStream m = [ (k,TraceStream ty (drop i s)) | (k,TraceStream ty s) <- m ]
-          newLen = maybe i (\x -> x - i) c
 
 -- | Convert a trace to a textual form.
 serialize :: Trace -> String
@@ -265,12 +194,6 @@ readMap ls = (go thismap, rest)
                           in (k,TraceStream (read ty) [read v | v <- words strm])
                    )
 
-addStream :: forall w. (Rep w) => String -> [(String,TraceStream)] -> S.Stream (X w) -> [(String,TraceStream)]
-addStream key m stream = m ++ [(key,toTraceStream stream)]
-
-addSeq :: forall w. (Rep w) => String -> Seq w -> [(String,TraceStream)] -> [(String,TraceStream)]
-addSeq key iseq m = addStream key m (shallowS iseq :: S.Stream (X w))
-
 padToTraceStream :: Pad -> TraceStream
 padToTraceStream (StdLogic s) = toTraceStream $ shallowS s
 padToTraceStream (StdLogicVector s) = toTraceStream $ shallowS s
@@ -302,7 +225,7 @@ writeTBF filename = writeFile filename . unlines . mergeWith (++) . asciiStrings
 -- Creates a Trace from testbench signal files.
 readTBF :: [String] -> Signature -> Trace
 readTBF ilines sig = et { inputs = ins, outputs = outs }
-    where et = setCycles (length ilines) $ fromSignature sig
+    where et = (fromSignature sig) { len = Just (length ilines) }
           widths = [ typeWidth ty
                    | (_,TraceStream ty _) <- inputs et ++ outputs et
                    ]
