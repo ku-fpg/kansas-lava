@@ -1,12 +1,80 @@
 -- | The VCD module transforms a Trace into the Verilog Value Change Dump
 -- format for viewing in a waveform viewer.
-module Language.KansasLava.VCD(toVCD) where
+module Language.KansasLava.VCD (toVCD,fromVCD) where
 
 import Language.KansasLava.Trace
 import Language.KansasLava.Types
 
 import Data.Char
+import Data.Function
 import Data.List
+import Data.Maybe
+
+-- | Convert a VCD file to a Trace.
+-- TODO: use sig file to recover types and input/output designation
+-- fromVCD :: String -> Signature -> Trace
+fromVCD :: String -> Trace
+fromVCD vcd = Trace (Just longest) [ ('i':nm,ts) | ('i':nm,ts) <- streams ]
+                                   [ ('o':nm,ts) | ('o':nm,ts) <- streams ]
+                                   streams
+    where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trim vcd
+          vals = uncurry changes . dumpvars $ ls
+          streams = [ (nm, TraceStream ty $ extendTo longest vs) | (i, (nm,ty)) <- signames, let vs = fromJust $ lookup i vals ]
+          longest = maximum . map (length . snd) $ vals
+
+          trim = let f = reverse . dropWhile isSpace in f . f
+
+defs2map :: [String] -> ([(String,(String,Type))],[String])
+defs2map = go []
+    where go m (l:ls) | head ws == "$enddefinitions" = (m,ls)
+                      | head ws == "$var" = go ((ws !! 3, (trimQuot $ ws !! 4, tyCase . read $ ws !! 2)):m) ls
+                      | otherwise = error "defs2map: parse error!"
+            where ws = words l
+          go _ _ = error "defs2map: parse error, no lines!"
+
+          trimQuot = let f = reverse . dropWhile (== '"') in f . f
+
+          -- not sure how to better recover type from VCD
+          tyCase 1 = B
+          tyCase n = U n
+
+dumpvars :: [String] -- ^ remaining lines of the vcd file
+         -> ([(String,RepValue)],[String]) -- ^ map of vcdIds to initial values
+dumpvars ("$dumpvars":ls) = go ls []
+    where go ("$end":rest) m = (m,rest)
+          go (line:rest)   m = let (vcdId,val) = parseVal line
+                                   (m',rest')  = go rest m
+                               in ((vcdId,val):m',rest')
+          go [] _ = error $ "dumpvars: no $end!"
+dumpvars other = error $ "dumpvars: bad parse! " ++ show other
+
+changes :: [(String,RepValue)] -> [String] -> [(String, [RepValue])]
+changes initVals ls = foldl fromEvList [ (i,[v]) | (i,v) <- initVals ]
+                          $ sortBy (compare `on` snd3) $ snd $ foldl go (0,[]) ls
+    where go :: (Int,[(String, Int, RepValue)]) -> String -> (Int,[(String, Int, RepValue)])
+          go (_,m) ('#':time) = (read time, m)
+          go (t,m) line       = (t, let (vcdId,val) =  parseVal line
+                                    in (vcdId, t, val):m)
+
+          fromEvList :: [(String,[RepValue])] -> (String, Int, RepValue) -> [(String, [RepValue])]
+          fromEvList m (i,t,v) = [ (i',if i == i'
+                                       then extendTo t vs ++ [v]
+                                       else vs
+                                   )
+                                 | (i',vs) <- m ]
+
+          snd3 (_,y,_) = y
+
+extendTo :: Show a => Int -> [a] -> [a]
+extendTo _ [] = error "extendTo: empty list"
+extendTo i xs | 1 + i >= length xs = xs ++ (replicate (1 + i - length xs) (last xs))
+              | otherwise = error $ "extendTo: i < xs - i: " ++ show i ++ " xs: " ++ show xs
+
+parseVal :: String -> (String, RepValue)
+parseVal = go . words
+    where go [bitVal] | length bitVal > 1   = (tail bitVal, tbw2rep $ take 1 bitVal)
+          go [t:vals,ident] | t `elem` "bB" = (ident      , tbw2rep vals           )
+          go other                          = error $ "parseVal: can't parse! " ++ unwords other
 
 -- | Convert a 'Trace' to a VCD representation of the trace.
 toVCD :: Bool    -- ^ Whether to include the clock signal in the list of signals
