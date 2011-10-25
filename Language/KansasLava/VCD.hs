@@ -197,7 +197,7 @@ instance Show VCD where
                           ++ ["END"]
         where showMap :: [(String,TraceStream)] -> [String]
               showMap m = [intercalate "\t" [k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
-              showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- s]
+              showStrm = unwords . map show
 
               boxIn = take 20 . map (take 75)
 
@@ -243,7 +243,6 @@ cmpVCD (VCD i1 o1 p1) (VCD i2 o2 p2) =
         | (m1, m2) <- zip [i1,o1,p1] [i2,o2,p2]
         , ((k1,s1),(k2,s2)) <- zip m1 m2
         ]
-
     where tslen (TraceStream _ s) = length s
 
 -- | Like cmpVCD but only compares inputs and outputs.
