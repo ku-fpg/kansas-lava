@@ -4,6 +4,12 @@ RUN := env KANSAS_LAVA_ROOT=$(KANSAS_LAVA_ROOT)
 N:=2
 ARGS:=
 
+runall:
+	make clean
+	make test ARGS=--gensim
+	make simulate
+	make report
+
 test:
 	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest +RTS -N$(N) -RTS $(ARGS)
 
