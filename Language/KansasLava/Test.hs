@@ -18,14 +18,14 @@ module Language.KansasLava.Test
         , testStream
         ) where
 
-import Language.KansasLava.Trace
-import Language.KansasLava.Types
 import Language.KansasLava.Fabric
-import Language.KansasLava.Rep
-import Language.KansasLava.Utils
-import Language.KansasLava.Signal
-import Language.KansasLava.VHDL
 import Language.KansasLava.Protocols
+import Language.KansasLava.Rep
+import Language.KansasLava.Signal
+import Language.KansasLava.Types
+import Language.KansasLava.Utils
+import Language.KansasLava.VCD
+import Language.KansasLava.VHDL
 import Control.Concurrent.MVar
 import Control.Concurrent (forkIO)
 import Control.Exception

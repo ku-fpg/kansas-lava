@@ -7,11 +7,11 @@ module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench) where
 import Data.List(mapAccumL)
 
 import Language.KansasLava.Fabric
-import Language.KansasLava.Trace
-import Language.KansasLava.Types
 import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixStdLogicTy, sizedRange)
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
+import Language.KansasLava.Types
+import Language.KansasLava.VCD
 
 import Language.Netlist.AST
 import Language.Netlist.GenVHDL

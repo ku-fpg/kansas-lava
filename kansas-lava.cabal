@@ -52,7 +52,6 @@ Library
        Language.KansasLava.Stream
        Language.KansasLava.Dynamic
        Language.KansasLava.VCD
-       Language.KansasLava.Trace
   Other-modules:
        Language.KansasLava.Internal
        Language.KansasLava.Rep.TH

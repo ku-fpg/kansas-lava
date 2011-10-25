@@ -1,6 +1,5 @@
 module Main where
 
-import Language.KansasLava.Trace
 import Language.KansasLava.VCD
 import Control.Applicative
 import Data.Char as C
