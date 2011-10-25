@@ -10,11 +10,11 @@ import Data.Function
 import Data.List
 import Data.Maybe
 
--- | Convert a VCD file to a Trace.
-fromVCD :: String -> Signature -> Trace
-fromVCD vcd sig = Trace (Just longest) [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigInputs sig ]
-                                       [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigOutputs sig ]
-                                       []
+-- | Convert a VCD file to a VCD object.
+fromVCD :: String -> Signature -> VCD
+fromVCD vcd sig = VCD [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigInputs sig ]
+                      [ (nm,TraceStream ty $ fromJust $ lookup nm streams) | (nm,ty) <- sigOutputs sig ]
+                      []
     where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trim vcd
           vals = uncurry changes . dumpvars $ ls
           streams = [ (nm, extendTo longest vs) | (i, nm) <- signames, let vs = fromJust $ lookup i vals ]
@@ -70,13 +70,12 @@ parseVal = go . words
           go [t:vals,ident] | t `elem` "bB" = (ident      , tbw2rep vals           )
           go other                          = error $ "parseVal: can't parse! " ++ unwords other
 
--- | Convert a 'Trace' to a VCD representation of the trace.
+-- | Convert a 'VCD' to a VCD file.
 toVCD :: Bool    -- ^ Whether to include the clock signal in the list of signals
       -> Integer -- ^ Timescale in nanoseconds
-      -> Trace
+      -> VCD
       -> String
-toVCD _       _  (Trace Nothing  _ _ _) = error "can't turn infinite trace into vcd"
-toVCD _incClk ts (Trace (Just n) i o p) = unlines
+toVCD _incClk ts (VCD i o p) = unlines
     [ "$version\n   Kansas Lava\n$end"
     , "$timescale " ++ show ts ++ "ns $end"
     , "$scope top $end"
@@ -89,6 +88,8 @@ toVCD _incClk ts (Trace (Just n) i o p) = unlines
     ++ values n signals
 
     where signals = zip vcdIds $ foldr union [] [i,o,p]
+          n = case snd $ head i of
+                TraceStream _ s -> length s
 
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
 vcdIds :: [String]

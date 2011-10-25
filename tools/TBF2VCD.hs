@@ -37,9 +37,9 @@ main4 sigfile leftfile rightfile = do
 
     writeFile "diff.vcd" $ vcdDiff t1 t2
 
-vcdDiff :: Trace -> Trace -> String
-vcdDiff (Trace c1 i1 o1 p1) (Trace _ i2 o2 p2) = toVCD False 10 t
-    where t = Trace c1 (mergeMaps i1 i2) (mergeMaps o1 o2) (mergeMaps p1 p2)
+vcdDiff :: VCD -> VCD -> String
+vcdDiff (VCD i1 o1 p1) (VCD i2 o2 p2) = toVCD False 10 t
+    where t = VCD (mergeMaps i1 i2) (mergeMaps o1 o2) (mergeMaps p1 p2)
           mergeMaps m1 m2 = [ ("trace1_" ++ k,v) | (k,v) <- m1 ]
                             ++
                             [ ("trace2_" ++ k,v) | (k,v) <- m2 ]
