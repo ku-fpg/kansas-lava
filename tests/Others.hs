@@ -89,7 +89,7 @@ tests test = do
 
 {- We are not ready for this yet
 	-- Test the flux capacitor
-        let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1)) 
+        let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1))
 	       => String -> List (Maybe a) -> (forall c. (Clock c) => Signal c a -> Signal c a) -> IO ()
             t5 str arb op = testFluxCapacitor test str arb op
 
@@ -133,7 +133,7 @@ testUniOp (TestSeq test _) nm opr lavaOp us0 = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = lavaOp (i0)
                 outStdLogicVector "o0" (o0)
-                
+
             res = toS (fmap opr us0)
 
         test nm (length us0) dut (driver >> matchExpected "o0" res)
@@ -213,7 +213,7 @@ testOpsEq test tyName ws = do
           ]
 
         return ()
-        
+
 ------------------------------------------------------------------------------------------------
 
 testOpsOrd :: (Rep w, Ord w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
@@ -247,7 +247,7 @@ testOpsNum test tyName ws = do
         sequence_
           [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
           | TestUni name opr lavaOp <-
-                [ TestUni "negate" negate negate 
+                [ TestUni "negate" negate negate
                 , TestUni "abs"    abs    abs
                 , TestUni "signum" signum signum
                 ]
@@ -283,7 +283,7 @@ testOpsFractional test tyName ws = do
           ]
 
         return ()
-        
+
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
@@ -318,7 +318,7 @@ testOpsBits2 test tyName ws = do
 	testOpsBits test tyName ws
 
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot1) 
+          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot1)
 	    	      opr
 		      lavaOp
 		      ws
@@ -328,12 +328,15 @@ testOpsBits2 test tyName ws = do
 	        f fn = flip fn (fromIntegral rot1)
 	  , TestUni name opr lavaOp <-
 		[ TestUni "shift" (f shift) (f shift)
-		, TestUni "rotate" (f rotate) (f rotate)	    
-		] ++ if rot1 >= 0 then 
+		, TestUni "rotate" (f rotate) (f rotate)
+		] ++ if rot1 >= 0 then
                 [ TestUni "shiftL" (f shiftL) (f shiftL)
 		, TestUni "shiftR" (f shiftR) (f shiftR)
 		, TestUni "rotateL" (f rotateL) (f rotateL)
 		, TestUni "rotateR" (f rotateR) (f rotateR)
+		, TestUni "clearBit" (f clearBit) (f clearBit)
+		, TestUni "setBit" (f setBit) (f setBit)
+		, TestUni "complementBit" (f complementBit) (f complementBit)
                 ] else []
           ]
         return ()
@@ -365,18 +368,18 @@ testDelay  (TestSeq test _) tyName (us0) = do
                 i0 <- inStdLogicVector "i0"
                 let o0 = dlay $ i0
                 outStdLogicVector "o0" o0
-                
+
             res = mkShallowS (S.Cons unknownX (Just (S.fromList (map pureX us0))))
 
         test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
 {-
-testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1)) 
+testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1))
 	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => Signal c a -> Signal c a) -> IO ()
 testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       let xs = toL ws
-      
+
           driver = do
       	    outStdLogicVector "i0" (toS xs :: Seq (Maybe a))
           dut = do
@@ -397,8 +400,8 @@ testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
 
 	  res :: Seq (Maybe a)
           res = shallowSeq (Cons (pureX Nothing) (fn xs ys))
-	
-	
+
+
 
 
       test ("flux-capacitor/" ++ tyName ++ "/") (length xs)
