@@ -43,9 +43,7 @@ writeDotCircuit filename (KLEG nodes circInputs circOutputs) = do
                                                     [ (v,ty) |(v,ty,_) <- ins ]
                                                     [ (v,ty) | (v,ty) <- outs] )
                                         , ("shape","record")
-                                        , ("style",case nm of
-                                                     TraceVal _ _ -> "rounded,filled"
-                                                     _ -> "rounded")
+                                        , ("style","rounded")
                                         ]
                              return (n,nd)
                           | (n,Entity nm outs ins) <- nodes ]

@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 -- | This module contains functions for manipulating (extending, querying, modifying) debugging Traces. It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.Trace
     ( VCD(..)
@@ -6,12 +6,6 @@ module Language.KansasLava.Trace
     , fromSignature
     , cmpVCD
     , cmpVCDIO
-    , diff
-    , emptyVCD
-    , serialize
-    , deserialize
-    , writeToFile
-    , readFromFile
     , mkVCD
     , mkVCDCM
     -- * Reading and Writing the Test Bench Format (.tfb)
@@ -48,7 +42,7 @@ mkVCD c fabric input = do
 mkVCDCM :: Int               -- ^ number of cycles to capture
         -> Fabric ()         -- ^ Fabric we are tracing
         -> [(String, Pad)]   -- ^ Inputs to the Fabric
-        -> (KLEG -> IO KLEG) -- KLEG Mod
+        -> (KLEG -> IO KLEG) -- ^ KLEG Mod
         -> IO (VCD, KLEG)
 mkVCDCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> circuitMod) fabric
@@ -68,7 +62,7 @@ mkVCDCM c fabric input circuitMod = do
                  , probes = []
                  }
 
-    return (addProbes rc tr, rc)
+    return (tr, rc)
 
 -- | 'VCD' is a primary bit-wise record of an interactive session with some circuit
 -- The inputs and outputs are in the order of the parent KLEG.
@@ -79,10 +73,26 @@ data VCD = VCD { inputs :: [(String,TraceStream)]
 
 -- instances for VCD
 instance Show VCD where
-    show = serialize
+    show (VCD ins outs ps) = unlines
+                           $ ["INPUTS"]
+                          ++ boxIn (showMap ins)
+                          ++ ["OUTPUTS"]
+                          ++ boxIn (showMap outs)
+                          ++ ["PROBES"]
+                          ++ boxIn (showMap ps)
+                          ++ ["END"]
+        where showMap :: [(String,TraceStream)] -> [String]
+              showMap m = [intercalate "\t" [k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
+              showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- s]
+
+              boxIn = take 20 . map (take 75)
 
 instance Read VCD where
-    readsPrec _ = deserialize
+    readsPrec _ str = [(VCD { inputs = ins, outputs = outs, probes = ps },unlines rest)]
+        where ("INPUTS":ls) = lines str
+              (ins,"OUTPUTS":r1) = readMap ls
+              (outs,"PROBES":r2) = readMap r1
+              (ps,"END":rest) = readMap r2
 
 -- | Two traces are equal if they have the same length and all the streams are equal over that length
 instance Eq VCD where
@@ -100,15 +110,6 @@ cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && count
     where countLTs1 = count <= (length $ take count s1)
           s1LTs2 = (length $ take count s1) <= (length $ take count s2)
           eql = and $ take count $ zipWith cmpRepValue s1 s2
-
--- | To turn a TraceStream back into a shallow KL signal.
-class Traceable a where
-    getSignal :: TraceStream -> a
-
-instance (Clock c, Rep a) => Traceable (Signal c a) where
-    getSignal ts = mkShallowS $ fromTraceStream ts
-
--- instance Functor TraceStream where -- can we do this with proper types?
 
 -- | Generate a signature from a trace.
 -- TODO: support generics in both these functions?
@@ -135,51 +136,6 @@ cmpVCD (VCD i1 o1 p1) (VCD i2 o2 p2) =
 cmpVCDIO :: VCD -> VCD -> Bool
 cmpVCDIO (VCD i1 o1 _) (VCD i2 o2 _) = cmpVCD (VCD i1 o1 []) (VCD i2 o2 [])
 
--- something more intelligent someday?
--- | Determine if two traces are equal.
-diff :: VCD -> VCD -> Bool
-diff t1 t2 = t1 == t2
-
--- | A default, empty Trace.
-emptyVCD :: VCD
-emptyVCD = VCD { inputs = [], outputs = [], probes = [] }
-
--- | Convert a trace to a textual form.
-serialize :: VCD -> String
-serialize (VCD ins outs ps) = unlines
-                                $ ["INPUTS"]
-                               ++ boxIn (showMap ins)
-                               ++ ["OUTPUTS"]
-                               ++ boxIn (showMap outs)
-                               ++ ["PROBES"]
-                               ++ boxIn (showMap ps)
-                               ++ ["END"]
-    where showMap :: [(String,TraceStream)] -> [String]
-          showMap m = [intercalate "\t" [k, show ty, showStrm strm] | (k,TraceStream ty strm) <- m]
-          showStrm s = unwords [concatMap ((showRep) . XBool) $ val | RepValue val <- s]
-
-          boxIn = take 20 . map (take 75)
-
-
-
--- | Parse a textual representation of a VCD. Return the VCD and the remainder of the unparsed output.
-deserialize :: String -> [(VCD,String)]
-deserialize str = [(VCD { inputs = ins, outputs = outs, probes = ps },unlines rest)]
-    where ("INPUTS":ls) = lines str
-          (ins,"OUTPUTS":r1) = readMap ls
-          (outs,"PROBES":r2) = readMap r1
-          (ps,"END":rest) = readMap r2
-
--- | Serialize a VCD to a file.
-writeToFile :: FilePath -> VCD -> IO ()
-writeToFile fp t = writeFile fp $ serialize t
-
--- | Deserialize a VCD from a file.
-readFromFile :: FilePath -> IO VCD
-readFromFile fp = do
-    str <- readFile fp
-    return $ fst $ head $ deserialize str
-
 -- Functions below are not exported.
 
 readMap :: [String] -> ([(String,TraceStream)], [String])
@@ -199,20 +155,10 @@ padToTraceStream (StdLogic s) = toTraceStream $ shallowS s
 padToTraceStream (StdLogicVector s) = toTraceStream $ shallowS s
 padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 
--- | Used by 'mkVCDCM' to add internal probes to the VCD.
-addProbes :: KLEG -> VCD -> VCD
-addProbes rc t = t { probes = ps }
-    where pdata = [ (nid,k,v) | (nid,Entity (TraceVal ks v) _ _) <- theCircuit rc, k <- ks ]
-          ps = [ (show nid ++ nm, strm) | (nid, nm, strm) <- pdata ]
-
 -- basic conversion to trace representation
 -- | Convert a Stream to a TraceStream.
 toTraceStream :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
 toTraceStream stream = TraceStream (repType (Witness :: Witness w)) [toRep xVal | xVal <- S.toList stream ]
-
--- | Convert a TraceStream to a Stream.
-fromTraceStream :: (Rep w) => TraceStream -> S.Stream (X w)
-fromTraceStream (TraceStream _ list) = S.fromList [fromRep val | val <- list]
 
 --------------------------------------------
 

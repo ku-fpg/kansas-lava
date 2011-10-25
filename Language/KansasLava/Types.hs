@@ -210,14 +210,6 @@ data Id = Prim String                           -- ^ built in thing
         | External String                       -- ^ VHDL entity
         | Function [(RepValue,RepValue)]        -- ^ anonymous function
 
-
-                                                --
-        | TraceVal [String] TraceStream         -- ^ trace (probes, etc)
-                                                -- may have multiple names matching same data
-                                                -- This is type of identity
-                                                -- that records its shallow value,
-                                                -- for later inspection
-
         | ClockId String                        -- ^ An environment box
 
         | Comment [String]                      -- ^ An identity; also a multi-line comments
@@ -240,7 +232,6 @@ data Id = Prim String                           -- ^ built in thing
 instance Show Id where
     show (External nm) = '$':nm
     show (Prim nm)     = nm
-    show (TraceVal ovar _) = '^':show ovar
     show (ClockId nm)    = '@':nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
@@ -363,7 +354,7 @@ newtype D a = D { unD :: Driver E } deriving Show
 class Clock clk where {}
 
 -- | generic/default/board/standard/vanilla clock.
-data CLK 
+data CLK
 instance Clock CLK where {}
 
 ---------------------------------------------------------------------------------------------------------

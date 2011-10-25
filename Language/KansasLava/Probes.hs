@@ -12,6 +12,7 @@ module Language.KansasLava.Probes (
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
+-- import Language.KansasLava.Trace
 import Language.KansasLava.Types
 
 import System.IO.Unsafe
@@ -35,7 +36,7 @@ data ProbeFn = ProbeFn (forall a i . (Rep a, Clock i) => String -> Signal i a ->
 probeFn :: IORef ProbeFn
 probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 
--- | Used internally for initializing debugging hooks, replaces all future calls to probe 
+-- | Used internally for initializing debugging hooks, replaces all future calls to probe
 -- with the given function.
 setProbes :: (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a) -> IO ()
 setProbes = writeIORef probeFn . ProbeFn
@@ -57,18 +58,19 @@ setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) 
 --
 -- To append to a debugging file, use
 --
--- >ghci> setProbes $ appendFile "DEBUG.out"
+-- >ghci> setProbesAsTrace $ appendFile "DEBUG.out"
 --
 -- To write to the screen, use
 --
--- >ghci> setProbes $ putStr
+-- >ghci> setProbesAsTrace $ putStr
 --
 -- You will need to re-execute your program after calling any probe function,
 -- so typically this done on the command line, or by puting setProbeAsTrace inside main.
-
 setProbesAsTrace :: (String -> IO ()) -> IO ()
 setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
-        write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
-        return a
+    write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
+    return a
 
+-- setProbesAsVCD :: VCD -> IO ()
+-- setProbesAsVCD vcd = setShallowProbes $ \ nm i a -> do
 
