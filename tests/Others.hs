@@ -111,6 +111,7 @@ tests test = do
 
 data TestMux a = TestMux String (Bool -> a -> a -> a) (forall clk . Signal clk Bool -> Signal clk a -> Signal clk a -> Signal clk a)
 data TestCmp a = TestCmp String (a -> a -> Bool) (forall clk . Signal clk a -> Signal clk a -> Signal clk Bool)
+data TestPred a = TestPred String (a -> Bool) (forall clk . Signal clk a -> Signal clk Bool)
 data TestUni a = TestUni String (a -> a) (forall clk . Signal clk a -> Signal clk a)
 data TestBin a = TestBin String (a -> a -> a) (forall clk . Signal clk a -> Signal clk a -> Signal clk a)
 
@@ -339,6 +340,18 @@ testOpsBits2 test tyName ws = do
 		, TestUni "complementBit" (f complementBit) (f complementBit)
                 ] else []
           ]
+
+        sequence_
+          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot0) 
+	    	      opr
+		      lavaOp
+		      ws
+          | rot0 <- take (bitSize (error "witness" :: w)) [0..] :: [Int]
+	  , TestPred name opr lavaOp <-
+		[ TestPred "testABit" (flip testBit (fromIntegral rot0)) (flip testABit (fromIntegral rot0))
+                ] 
+          ]
+
         return ()
 
 pair :: [a] -> [(a, a)]
