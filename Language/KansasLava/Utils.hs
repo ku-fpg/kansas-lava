@@ -94,7 +94,7 @@ bitNot s1 = primS1 not "not"  s1
 testABit :: forall sig a i . (Bits a, Rep a,  sig ~ Signal i) => sig a -> Int -> sig Bool
 testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
                             (entityD2 "testBit"  ae
-                                                 (pureD (fromIntegral i :: Integer)))
+                                                 (pureD (i :: Int)))
 
 -- | Predicate to see if a Signed value is positive.
 isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix) => sig (Signed ix) -> sig Bool
