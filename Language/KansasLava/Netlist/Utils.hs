@@ -82,6 +82,15 @@ fromIntegerToExpr t i =
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
 	-- NOTE: We use Integer here as a natural, and assume overflow
+	toTypedExpr (S n) r = ExprFunCall "to_signed" 
+	                        [ ExprLit Nothing $ ExprNum $ fromRepToInteger r
+	                        , ExprLit Nothing $ ExprNum $ fromIntegral n
+	                        ]
+	toTypedExpr (U n) r = ExprFunCall "to_unsigned" 
+	                        [ ExprLit Nothing $ ExprNum $ fromRepToInteger r
+	                        , ExprLit Nothing $ ExprNum $ fromIntegral n
+	                        ]
+        -- suspect generic call here
 	toTypedExpr t r = toTypedExpr t (fromRepToInteger r)
 
 -- | Type-directed converstion between Lava values and Netlist expressions.
