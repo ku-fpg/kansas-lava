@@ -35,7 +35,7 @@ tests test = do
 
 
 	-- tests Bits, inc the shifts
-        let t2' :: (Ord a, Bits a, Rep a, Size (W a)) => String -> List a -> IO ()
+        let t2' :: (Ord a, Bits a, Rep a, Size (W a), Integral (W a), Rep (W a), Size (W (W a))) => String -> List a -> IO ()
             t2' str arb = testOpsBits2 test str arb
 
         t2' "U1" (allCases :: List U1)
@@ -111,9 +111,10 @@ tests test = do
 
 data TestMux a = TestMux String (Bool -> a -> a -> a) (forall clk . Signal clk Bool -> Signal clk a -> Signal clk a -> Signal clk a)
 data TestCmp a = TestCmp String (a -> a -> Bool) (forall clk . Signal clk a -> Signal clk a -> Signal clk Bool)
-data TestPred a = TestPred String (a -> Bool) (forall clk . Signal clk a -> Signal clk Bool)
+--data TestPred a = TestPred String (a -> Bool) (forall clk . Signal clk a -> Signal clk Bool)
 data TestUni a = TestUni String (a -> a) (forall clk . Signal clk a -> Signal clk a)
 data TestBin a = TestBin String (a -> a -> a) (forall clk . Signal clk a -> Signal clk a -> Signal clk a)
+data TestIx a b = TestIx String (a -> b -> Bool) (forall clk . Signal clk a -> Signal clk b -> Signal clk Bool)
 
 
 -- This only tests at the *value* level, and ignores testing unknowns.
@@ -310,11 +311,12 @@ testOpsBits test tyName ws = do
                 ]
           ]
 
+
         return ()
 
 
 testOpsBits2 :: forall w .
-        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> List w -> IO ()
+        (Ord w, Rep w, Bits w, Size (W w), Integral (W w), Rep (W w), Size (W (W w))) => TestSeq -> String -> List w -> IO ()
 testOpsBits2 test tyName ws = do
 	testOpsBits test tyName ws
 
@@ -341,14 +343,16 @@ testOpsBits2 test tyName ws = do
                 ] else []
           ]
 
+        let ws2 :: List (w,W w) 
+            ws2 = zip ws (cycle [0..maxBound])
+            
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot0) 
+          [ testBinOp test (name ++ "/" ++ tyName)
 	    	      opr
 		      lavaOp
-		      ws
-          | rot0 <- take (bitSize (error "witness" :: w)) [0..] :: [Int]
-	  , TestPred name opr lavaOp <-
-		[ TestPred "testABit" (flip testBit (fromIntegral rot0)) (flip testABit (fromIntegral rot0))
+		      ws2
+	  | TestIx name opr lavaOp <-
+		[ TestIx "testABit" (\ a b -> testBit a (fromIntegral b)) (testABit)
                 ] 
           ]
 

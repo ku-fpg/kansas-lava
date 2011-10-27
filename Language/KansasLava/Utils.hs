@@ -91,14 +91,24 @@ bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
+testABit :: forall a i w sig . (Bits a, Rep a, Size w, Rep w, w ~ (W a), sig ~ Signal i) 
+          => sig a -> sig w -> sig Bool
+testABit sig0 ix = sig1 .!. ix
+  where
+          sig1 :: sig (Matrix w Bool) 
+          sig1 = (bitwise) sig0
+
+{-
+ - old test-a-bit
 testABit :: forall sig a i . (Bits a, Rep a,  sig ~ Signal i) => sig a -> Int -> sig Bool
 testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
                             (entityD2 "testBit"  ae
                                                  (pureD (i :: Int)))
+-}
 
 -- | Predicate to see if a Signed value is positive.
-isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix) => sig (Signed ix) -> sig Bool
-isPositive a = bitNot $ testABit a msb
+isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix, Rep ix) => sig (Signed ix) -> sig Bool
+isPositive a = bitNot $ testABit a (fromIntegral msb)
     where msb = bitSize a - 1
 
 infixr 3 .&&.
