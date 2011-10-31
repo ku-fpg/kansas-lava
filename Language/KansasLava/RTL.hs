@@ -68,8 +68,8 @@ andPred (Pred (Just c1)) c2 = Pred (Just (c1 .&&. c2))
 -- | If the first predicate is false, then return the first element of the
 -- predicate. Otherwise, return the second element.
 muxPred :: (Rep a) => Pred c -> (Signal c a, Signal c a) -> Signal c a
-muxPred (Pred Nothing) (t,_) = t
-muxPred (Pred (Just p)) (t,f) = mux p (t,f)
+muxPred (Pred Nothing) (_,t) = t
+muxPred (Pred (Just p)) (f,t) = mux p (f,t)
 
 -------------------------------------------------------------------------------
 
