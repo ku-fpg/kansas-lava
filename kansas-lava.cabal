@@ -10,7 +10,7 @@ License-file:        LICENSE
 Author:              Andy Gill
 Maintainer:          Andy Gill <andygill@ku.edu>
 Copyright:           (c) 2009 The University of Kansas
-Homepage:            http://ittc.ku.edu/~andygill/kansas-lava.php
+Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
 Stability:	     alpha
 build-type: 	     Simple
 Cabal-Version:       >= 1.10
