@@ -3,6 +3,7 @@
 module Protocols where
 
 import Language.KansasLava
+import Language.KansasLava.Test
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned

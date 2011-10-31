@@ -3,6 +3,7 @@
 module Matrix where
 
 import Language.KansasLava
+import Language.KansasLava.Test
 
 import Data.Sized.Arith
 import Data.Sized.Unsigned

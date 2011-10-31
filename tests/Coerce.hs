@@ -3,6 +3,7 @@
 module Coerce where
 
 import Language.KansasLava
+import Language.KansasLava.Test
 
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
