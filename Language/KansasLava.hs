@@ -33,13 +33,17 @@ module Language.KansasLava (
     -- * RTL sub-DSL
     module Language.KansasLava.RTL,
 
-
+    -- * Probes
     module Language.KansasLava.Probes,
-    module Language.KansasLava.Protocols,
-    module Language.KansasLava.Rep,
-    module Language.KansasLava.Test,
-    module Language.KansasLava.Utils
 
+    -- * Protocols
+    module Language.KansasLava.Protocols,
+
+    -- * Rep
+    module Language.KansasLava.Rep,
+
+    -- * Kansas Lava User-level Utils
+    module Language.KansasLava.Utils
      ) where
 
 import Language.KansasLava.DOT
@@ -51,7 +55,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.RTL
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
-import Language.KansasLava.Test
 import Language.KansasLava.Utils
 import Language.KansasLava.VHDL
 
