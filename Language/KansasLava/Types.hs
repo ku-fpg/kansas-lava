@@ -37,8 +37,6 @@ module Language.KansasLava.Types (
 	, bool
 	, every
 	, bitPatToInteger
-        -- * Tracing
-        , TraceStream(..)
         -- * KLEG
         , KLEG(..)
         , visitEntities
@@ -508,18 +506,6 @@ every = [ BitPat $ RepValue (fmap Just count) | count <- counts n ]
     counts :: Int -> [[Bool]]
     counts 0 = [[]]
     counts num = [ x : xs |  xs <- counts (num-1), x <- [False,True] ]
-
----------------------------------------------------------------------------------------------------------
--- | The TraceStream is used for capturing traces of shallow-embedded
--- streams. It combines the bitwise representation of a stream along with the
--- type of the stream.
-data TraceStream = TraceStream Type [RepValue] -- to recover type, eventually clock too?
-    deriving (Eq, Ord, Read)
-
--- ACF: This is a hack to prevent infinite printing,
---      but for now we obey the rules here, so we can derive Read above
-instance Show TraceStream where
-    show (TraceStream ty strm) = "TraceStream " ++ show ty ++ " " ++ show (take 1000 strm)
 
 ---------------------------------------------------------------------------------------------------------
 -- | 'KLEG' (Kansas Lava Entity Graph) is our primary way of representing a graph of entities.
