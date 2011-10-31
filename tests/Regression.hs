@@ -11,11 +11,15 @@ import Data.Sized.Matrix
 
 tests :: TestSeq -> IO ()
 tests (TestSeq test _) = do
-        let driver = outStdLogicVector "i0" res
+        let driver1 = outStdLogicVector "i0" res1
 
-	    res = undefinedS :: Seq X0
+	    res1 = undefinedS :: Seq X0
 
-        test "regression/1/funMap/Matrix" 1000 fab1 (driver >> matchExpected "o0" res)
+        test "regression/1/funMap/Matrix" 1000 fab1 (driver1 >> matchExpected "o0" res1)
+        
+        let res2 = toS $ cycle (True : replicate 15 False)
+
+        test "regression/2/RTL" 1000 fab2 (return () >> matchExpected "o0" res2)        
 
 cir1 :: Signal CLK X0 -> Signal CLK (Matrix X16 U8)
 cir1 = funMap fn 
@@ -27,3 +31,12 @@ fab1 = do
     let b = cir1 a 
     outStdLogicVector "o0" b
 
+cir2 :: Seq Bool
+cir2 = runRTL $ do
+	count <- newReg (0 :: (Unsigned X4))
+--        CASE [ OTHERWISE $ do count := reg count + 1 ]  -- TODO: fix this
+	count := reg count + 1 
+	return  (reg count .==. 0)
+
+fab2 :: Fabric ()
+fab2 = outStdLogicVector "o0" cir2
