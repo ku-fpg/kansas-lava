@@ -23,7 +23,7 @@ main3 :: Bool -> Integer -> FilePath -> FilePath -> IO ()
 main3 ifClk clkRate sigName bitsName = do
 	sig <- read <$> readFile sigName
 	str <- lines <$> readFile bitsName
-	putStrLn $ toVCD ifClk clkRate $ readTBF str sig
+	putStrLn $ toVCDFile ifClk clkRate $ readTBF str sig
 
 main4 :: FilePath -> FilePath -> FilePath -> IO ()
 main4 sigfile leftfile rightfile = do
@@ -37,7 +37,7 @@ main4 sigfile leftfile rightfile = do
     writeFile "diff.vcd" $ vcdDiff t1 t2
 
 vcdDiff :: VCD -> VCD -> String
-vcdDiff (VCD m1) (VCD m2) = toVCD False 10 t
+vcdDiff (VCD m1) (VCD m2) = toVCDFile False 10 t
     where t = VCD $ [ ("trace1_" ++ k,v) | (k,v) <- m1 ]
                     ++
                     [ ("trace2_" ++ k,v) | (k,v) <- m2 ]

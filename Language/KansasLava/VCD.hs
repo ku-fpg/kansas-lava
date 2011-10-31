@@ -1,18 +1,23 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
--- | This module contains functions for manipulating (extending, querying, modifying) debugging Traces. It also provides functionality for (de)serializing Traces.
+-- | This module contains functions for generating VCD debug traces.
+-- It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.VCD
     ( VCD(..)
-    , toVCD
-    , fromVCD
+    , toVCDFile
+    , fromVCDFile
+    -- * Generate a Signature from a VCD trace
     , toSignature
     , fromSignature
+    -- * Compare two VCDs
     , cmpVCD
     , cmpVCDIO
+    -- * Make a VCD trace from a Fabric and input Pads
     , mkVCD
     , mkVCDCM
-    -- * Reading and Writing the Test Bench Format (.tfb)
+    -- * Reading and Writing the Test Bench Format (.tbf)
     , readTBF
     , writeTBF
+    -- * Convert Rep to Test Bench Word
     , tbw2rep
     , rep2tbw
     ) where
@@ -30,8 +35,9 @@ import Control.Monad
 import Data.Char
 import Data.Function
 import Data.List
-import Data.Maybe
+import qualified Data.Map as M
 
+----------------------------------------------------------------------------------------
 -- | 'VCD' is a primary bit-wise record of an interactive session with some circuit
 -- Map from module/name to stream.
 newtype VCD = VCD [(String,TraceStream)]
@@ -67,27 +73,58 @@ instance Read VCD where
               (ps,"END":rest) = readMap r2
 -}
 
+-- | Generate a signature from a trace.
+-- TODO: support generics in both these functions?
+toSignature :: VCD -> Signature
+toSignature vcd = Signature (convert $ inputs vcd) (convert $ outputs vcd) []
+    where convert m = [ (dropModName nm,ty) | (nm,TraceStream ty _) <- m ]
+          dropModName = reverse . takeWhile (/= '/') . reverse
+
+-- | Creates an (empty) trace from a signature
+fromSignature :: Signature -> VCD
+fromSignature (Signature inps outps _) = VCD $ convert "inputs" inps ++ convert "outputs" outps
+    where convert mnm l = [ (mnm ++ "/" ++ nm, TraceStream ty $ fromList [])  | (nm, ty) <- l ]
+
+scope :: VCD -> String -> [(String,TraceStream)]
+scope vcd s = scopes vcd [s]
+
+scopes :: VCD -> [String] -> [(String,TraceStream)]
+scopes (VCD m) s = [ (nm,ts) | (nm,ts) <- m
+                             , s' <- s
+                             , s' `isPrefixOf` nm ]
+
+inputs :: VCD -> [(String,TraceStream)]
+inputs = flip scope "inputs"
+
+outputs :: VCD -> [(String,TraceStream)]
+outputs = flip scope "outputs"
+
+----------------------------------------------------------------------------------------
+
 -- | Convert a VCD file to a VCD object.
-fromVCD :: String -> Signature -> VCD
-fromVCD vcd sig = VCD $ [ ("inputs/" ++ nm,TraceStream ty $ fromList $ fromJust $ lookup nm streams) | (nm,ty) <- sigInputs sig ]
-                      ++ [ ("outputs/" ++ nm,TraceStream ty $ fromList $ fromJust $ lookup nm streams) | (nm,ty) <- sigOutputs sig ]
-    where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trim vcd
+fromVCDFile :: String -> Signature -> VCD
+fromVCDFile vcd sig = VCD $ [ ("inputs/" ++ nm, TraceStream ty s)
+                            | (nm,ty) <- sigInputs sig, (snm,s) <- streams, nm == snm ]
+                         ++ [ ("outputs/" ++ nm, TraceStream ty s)
+                            | (nm,ty) <- sigOutputs sig, (snm, s) <- streams, nm == snm ]
+    where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trimWhile isSpace vcd
           vals = uncurry changes . dumpvars $ ls
-          streams = [ (nm, extendTo longest vs) | (i, nm) <- signames, let vs = fromJust $ lookup i vals ]
-          longest = maximum . map (length . snd) $ vals
+          streams = [ (nm, vs) | (i, nm) <- signames, (i',vs) <- vals, i == i' ]
 
-          trim = let f = reverse . dropWhile isSpace in f . f
-
-defs2map :: [String] -> ([(String,String)],[String])
+-- | Parse definitions section, getting map of VCDIDs to signal names.
+defs2map :: [String] -> ([(VCDID,String)],[String])
 defs2map = go []
     where go m (l:ls) | head ws == "$enddefinitions" = (m,ls)
-                      | head ws == "$var" = go ((ws !! 3, trimQuot $ ws !! 4):m) ls
+                      | head ws == "$var" = go ((ws !! 3, trimWhile (== '"') $ ws !! 4):m) ls
                       | otherwise = error "defs2map: parse error!"
             where ws = words l
           go _ _ = error "defs2map: parse error, no lines!"
 
-          trimQuot = let f = reverse . dropWhile (== '"') in f . f
+trimWhile :: (Char -> Bool) -> String -> String
+trimWhile p = f . f
+    where f = reverse . dropWhile p
 
+-- | Parse $dumpvars section, getting initial values for each signal.
 dumpvars :: [String] -- ^ remaining lines of the vcd file
          -> ([(VCDID,RepValue)],[String]) -- ^ map of vcdIds to initial values
 dumpvars ("$dumpvars":ls) = go ls []
@@ -98,27 +135,26 @@ dumpvars ("$dumpvars":ls) = go ls []
           go [] _ = error $ "dumpvars: no $end!"
 dumpvars other = error $ "dumpvars: bad parse! " ++ show other
 
-changes :: [(String,RepValue)] -> [String] -> [(String, [RepValue])]
-changes initVals ls = foldl fromEvList [ (i,[v]) | (i,v) <- initVals ]
-                          $ sortBy (compare `on` snd3) $ snd $ foldl go (0,[]) ls
-    where go :: (Int,[(String, Int, RepValue)]) -> String -> (Int,[(String, Int, RepValue)])
-          go (_,m) ('#':time) = (read time, m)
-          go (t,m) line       = (t, let (vcdId,val) =  parseVal line
-                                    in (vcdId, t, val):m)
+addEvent :: (Int, a) -> EventList a -> EventList a
+addEvent p (EL evs) = EL $ evs ++ [p]
 
-          fromEvList :: [(String,[RepValue])] -> (String, Int, RepValue) -> [(String, [RepValue])]
-          fromEvList m (i,t,v) = [ (i',if i == i'
-                                       then extendTo t vs ++ [v]
-                                       else vs
-                                   )
-                                 | (i',vs) <- m ]
+-- | Parse list of changes into an EventList
+changes :: [(VCDID,RepValue)] -> [String] -> [(String, EventList RepValue)]
+-- changes initVals ls = foldl fromEvList [ (i,[(0,v)]) | (i,v) <- initVals ]
+changes initVals ls = [ (nm, EL $ evs' ++ [(len,v)])
+                      | (nm,EL evs') <- M.toList $ unMerge evs
+                      , let v = case evs' of [] -> undefined; _ -> snd . last $ evs' ]
+    where (_,EL evs) = foldl go (0,fromList []) ls
+          len = maximum . map fst $ evs
 
-          snd3 (_,y,_) = y
+          go :: (Int,EventList (String, RepValue)) -> String -> (Int,EventList (String, RepValue))
+          go (_,el) ('#':time) = (read time, el)
+          go (t,el) line       = (t, addEvent (t, parseVal line) el)
 
-extendTo :: Show a => Int -> [a] -> [a]
-extendTo _ [] = error "extendTo: empty list"
-extendTo i xs | 1 + i >= length xs = xs ++ (replicate (1 + i - length xs) (last xs))
-              | otherwise = error $ "extendTo: i < xs - i: " ++ show i ++ " xs: " ++ show xs
+          unMerge :: [(Int,(String,RepValue))] -> M.Map String (EventList RepValue)
+          unMerge = foldr f $ M.fromList [ (i,fromList [v]) | (i,v) <- initVals ]
+            where f (i,(nm,v)) m | M.member nm m = M.adjust (addEvent (i,v)) nm m
+                                 | otherwise     = M.insert nm (EL [(i,v)]) m
 
 parseVal :: String -> (String, RepValue)
 parseVal = go . words
@@ -126,12 +162,14 @@ parseVal = go . words
           go [t:vals,ident] | t `elem` "bB" = (ident      , tbw2rep vals           )
           go other                          = error $ "parseVal: can't parse! " ++ unwords other
 
+----------------------------------------------------------------------------------------
+
 -- | Convert a 'VCD' to a VCD file.
-toVCD :: Bool    -- ^ Whether to include the clock signal in the list of signals
-      -> Integer -- ^ Timescale in nanoseconds
-      -> VCD
-      -> String
-toVCD _incClk ts (VCD m) = unlines
+toVCDFile :: Bool    -- ^ Whether to include the clock signal in the list of signals
+          -> Integer -- ^ Timescale in nanoseconds
+          -> VCD
+          -> String
+toVCDFile _incClk ts (VCD m) = unlines
     [ "$version\n   Kansas Lava\n$end"
     , "$timescale " ++ show ts ++ "ns $end"
     , "$scope top $end"
@@ -154,8 +192,6 @@ vcdIds = map code [0..]
 values :: [(VCDID, EventList RepValue)] -> String
 values sigs = dumpVars initials ++ eventList rest
     where (initials,rest) = unzip [ ((i, v), (i, EL xs)) | (i, EL ((_,v):xs)) <- sigs ]
---          rest = [ (i, EL xs') | (i, EL xs) <- sigs
---                               , let xs' = dropWhile ((== 0) . fst) xs ]
 
 dumpVars :: [(VCDID, RepValue)] -> String
 dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
@@ -169,70 +205,30 @@ vcdVal :: VCDID -> RepValue -> String
 vcdVal i r@(RepValue bs) | length bs == 1 = rep2tbw r ++ i
                          | otherwise      = "b" ++ rep2tbw r ++ " " ++ i
 
--- | A list of changes, indexed from 0
-newtype EventList a = EL { unEL :: [(Int,a)] }
-    deriving (Eq,Show,Read)
+----------------------------------------------------------------------------------------
 
-instance (Ord a) => Ord (EventList a) where
-    compare exs eys = compare (toList exs) (toList eys)
+-- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
+cmpVCD :: VCD -> VCD -> Bool
+cmpVCD (VCD m1) (VCD m2) =
+    and [ k1 == k2 && cmpTraceStream (tslen s1) s1 s2
+        | ((k1,s1),(k2,s2)) <- zip (sorted m1) (sorted m2)
+        ]
+    where tslen (TraceStream _ el) = lengthEL el
+          sorted = sortBy ((compare) `on` fst)
 
-instance Functor EventList where
-    fmap f (EL evs) = EL [ (i,f v) | (i,v) <- evs ]
+-- | Like cmpVCD but only compares inputs and outputs.
+cmpVCDIO :: VCD -> VCD -> Bool
+cmpVCDIO vcd1 vcd2 = cmpVCD (VCD $ inputs vcd1 ++ outputs vcd1)
+                            (VCD $ inputs vcd2 ++ outputs vcd2)
 
-{-
-instance (Show a) => Show (EventList a) where
-    show = show . toList
-
-instance (Eq a, Read a) => Read (EventList a) where
-    readsPrec p str = [ (fromList l,r) | (l,r) <- readsPrec p str ]
--}
-
-toList :: EventList a -> [a]
-toList = toList' $ error "toList: no initial value!"
-
--- | Like toList, but accepts initial value for case that
--- first event is not at timestep 0
-toList' :: a -> EventList a -> [a]
-toList' iv (EL xs) = go (0,iv) xs
-    where go _      []          = []
-          go (p,px) ((i,x):xs') = replicate (i-p) px ++ go (i,x) xs'
-
-fromList :: (Eq a) => [a] -> EventList a
-fromList xs = EL (go (0,undefined) xs)
-    where go :: (Eq a) => (Int,a) -> [a] -> [(Int,a)]
-          go (0,_) [] = []
-          go (i,p) [] = [(i,p)] -- this tracks length, value is thrown away by toList
-          go (i,p) (x:xs') | checkpoint i || p /= x = (i,x) : go (i+1,x) xs'
-                           | otherwise              =         go (i+1,x) xs'
-
-          checkpoint = (== 0) . (`mod` 1000)
-
-lengthEL :: EventList a -> Int
-lengthEL (EL []) = 0
-lengthEL (EL xs) = fst $ last xs
-
-takeEL :: Int -> EventList a -> EventList a
-takeEL i (EL evs) = EL $ evs' ++ final
-    where evs' = takeWhile ((<= i) . fst) evs
-          final = [(i, case evs' of [] -> undefined; _ -> snd $ last evs')]
-
-zipWithEL :: (Eq c) => (a -> b -> c) -> EventList a -> EventList b -> EventList c
--- zipWithEL f xs ys = fromList $ zipWith f (toList xs) (toList ys)
-zipWithEL f xs ys = EL $ go (ea,eb) (unEL $ takeEL l xs) (unEL $ takeEL l ys)
-    where l = min (lengthEL xs) (lengthEL ys)
-          trunc = takeWhile ((<= l) . fst)
-          ea = error "zipWithEL: no initial value in a-list"
-          eb = error "zipWithEL: no initial value in b-list"
-          go (pa,_) [] bs = [ (i,f pa b) | (i,b) <- trunc bs ]
-          go (_,pb) as [] = [ (i,f a pb) | (i,a) <- trunc as ]
-          go (pa,pb) ((i,a):as) ((i',b):bs) | i < i'    = (i ,f a  pb) : go (a,pb) as         ((i',b):bs)
-                                            | i == i'   = (i ,f a  b ) : go (a,b ) as         bs
-                                            | otherwise = (i',f pa b ) : go (pa,b) ((i,a):as) bs
-
-mergeWithEL :: (Eq a) => (a -> a -> a) -> [EventList a] -> EventList a
--- mergeWithEL f = fromList . mergeWith f . map toList
-mergeWithEL _ [] = fromList []
-mergeWithEL f ls = foldr1 (zipWithEL f) ls
+-- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
+-- uses 'cmpRepValue' under the hood, so the first argument is considered the
+-- golden trace.
+cmpTraceStream :: Int -> TraceStream -> TraceStream -> Bool
+cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
+    where countLTs1 = count <= lengthEL s1
+          s1LTs2 = lengthEL s1 <= lengthEL s2
+          eql = and $ map snd . unEL $ zipWithEL cmpRepValue (takeEL count s1) (takeEL count s2)
 
 -- | Make a 'VCD' from a 'Fabric' and its input.
 mkVCD :: Int            -- ^ number of cycles to capture
@@ -265,6 +261,7 @@ mkVCDCM c fabric input circuitMod = do
 
     return (tr, rc)
 
+-- | Convert a Pad to a Tracestream
 padToTraceStream :: Pad -> TraceStream
 padToTraceStream (StdLogic s) = toTraceStream $ shallowS s
 padToTraceStream (StdLogicVector s) = toTraceStream $ shallowS s
@@ -275,71 +272,7 @@ padToTraceStream other = error $ "fix padToTraceStream for " ++ show other
 toTraceStream :: forall w . (Rep w) => S.Stream (X w) -> TraceStream
 toTraceStream stream = TraceStream (repType (Witness :: Witness w)) $ fromList $ map toRep $ S.toList stream
 
--- | 'cmpTraceStream' compares two traces to determine equivalence. Note this
--- uses 'cmpRepValue' under the hood, so the first argument is considered the
--- golden trace.
-cmpTraceStream :: Int -> TraceStream -> TraceStream -> Bool
-cmpTraceStream count (TraceStream t1 s1) (TraceStream t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
-    where countLTs1 = count <= lengthEL s1
-          s1LTs2 = lengthEL s1 <= lengthEL s2
-          eql = and $ map snd . unEL $ zipWithEL cmpRepValue (takeEL count s1) (takeEL count s2)
-
-scope :: VCD -> String -> [(String,TraceStream)]
-scope vcd s = scopes vcd [s]
-
-scopes :: VCD -> [String] -> [(String,TraceStream)]
-scopes (VCD m) s = [ (nm,ts) | (nm,ts) <- m
-                             , s' <- s
-                             , s' `isPrefixOf` nm ]
-
-inputs :: VCD -> [(String,TraceStream)]
-inputs = flip scope "inputs"
-
-outputs :: VCD -> [(String,TraceStream)]
-outputs = flip scope "outputs"
-
--- | Generate a signature from a trace.
--- TODO: support generics in both these functions?
-toSignature :: VCD -> Signature
-toSignature vcd = Signature (convert $ inputs vcd) (convert $ outputs vcd) []
-    where convert m = [ (dropModName nm,ty) | (nm,TraceStream ty _) <- m ]
-          dropModName = reverse . takeWhile (/= '/') . reverse
-
--- | Creates an (empty) trace from a signature
-fromSignature :: Signature -> VCD
-fromSignature (Signature inps outps _) = VCD $ convert "inputs" inps ++ convert "outputs" outps
-    where convert mnm l = [ (mnm ++ "/" ++ nm, TraceStream ty $ fromList [])  | (nm, ty) <- l ]
-
--- | Compare two trace objects. First argument is the golden value. See notes for cmpRepValue
-cmpVCD :: VCD -> VCD -> Bool
-cmpVCD (VCD m1) (VCD m2) =
-    and [ k1 == k2 && cmpTraceStream (tslen s1) s1 s2
-        | ((k1,s1),(k2,s2)) <- zip (sorted m1) (sorted m2)
-        ]
-    where tslen (TraceStream _ el) = lengthEL el
-          sorted = sortBy ((compare) `on` fst)
-
--- | Like cmpVCD but only compares inputs and outputs.
-cmpVCDIO :: VCD -> VCD -> Bool
-cmpVCDIO vcd1 vcd2 = cmpVCD (VCD $ inputs vcd1 ++ outputs vcd1)
-                            (VCD $ inputs vcd2 ++ outputs vcd2)
-
--- Functions below are not exported.
-{-
-readMap :: [String] -> ([(String,TraceStream)], [String])
-readMap ls = (go thismap, rest)
-    where cond = (not . (flip elem) ["INPUTS","OUTPUTS","PROBES","END"])
-          (thismap, rest) = span cond ls
-          tabsplit l = let (k,'\t':r1) = span (/= '\t') l
-                           (ty,'\t':r) = span (/= '\t') r1
-                       in (k,ty,r)
-          go :: [String] -> [(String,TraceStream)]
-          go = map (\l -> let (k,ty,strm) = tabsplit l
-                          in (k,TraceStream (read ty) $ fromList [read v | v <- words strm])
-                   )
--}
-
---------------------------------------------
+----------------------------------------------------------------------------------------
 
 -- | Convert the inputs and outputs of a VCD to the textual format expected
 -- by a testbench.
@@ -384,3 +317,78 @@ rep2tbw (RepValue vals) = [ case v of
                               Just True  -> '1'
                               Just False -> '0'
                           | v <- reverse vals ]
+
+----------------------------------------------------------------------------------------
+
+-- | A list of changes, indexed from 0, stored in reverse order.
+newtype EventList a = EL { unEL :: [(Int,a)] }
+    deriving (Eq,Show,Read)
+
+instance (Ord a) => Ord (EventList a) where
+    compare exs eys = compare (toList exs) (toList eys)
+
+instance Functor EventList where
+    fmap f (EL evs) = EL [ (i,f v) | (i,v) <- evs ]
+
+{-
+instance (Show a) => Show (EventList a) where
+    show = show . toList
+
+instance (Eq a, Read a) => Read (EventList a) where
+    readsPrec p str = [ (fromList l,r) | (l,r) <- readsPrec p str ]
+-}
+
+-- | Convert an event list to a normal list
+toList :: EventList a -> [a]
+toList = toList' $ error "toList: no initial value!"
+
+-- | Like toList, but accepts initial value for case that
+-- first event is not at timestep 0
+toList' :: a -> EventList a -> [a]
+toList' iv (EL xs) = go (0,iv) xs
+    where go _      []          = []
+          go (p,px) ((i,x):xs') = replicate (i-p) px ++ go (i,x) xs'
+
+-- | Convert a list to an event list
+fromList :: (Eq a) => [a] -> EventList a
+fromList xs = EL (go (0,undefined) xs)
+    where go :: (Eq a) => (Int,a) -> [a] -> [(Int,a)]
+          go (0,_) [] = []
+          go (i,p) [] = [(i,p)] -- this tracks length, value is thrown away by toList
+          go (i,p) (x:xs') | checkpoint i || p /= x = (i,x) : go (i+1,x) xs'
+                           | otherwise              =         go (i+1,x) xs'
+
+          -- to deal with the case of an infinitely repeating list
+          -- i.e. fromList $ repeat 1
+          -- we record the value every 1000 entries
+          checkpoint = (== 0) . (`mod` 1000)
+
+-- | length for event lists.
+lengthEL :: EventList a -> Int
+lengthEL (EL []) = 0
+lengthEL (EL xs) = fst $ last xs
+
+-- | take for event lists.
+takeEL :: Int -> EventList a -> EventList a
+takeEL i (EL evs) = EL $ evs' ++ if null r then [] else final
+    where (evs',r) = span ((<= i) . fst) evs
+          final = [(i, case evs' of [] -> undefined; _ -> snd $ last evs')]
+
+-- | zipWith for event lists.
+-- zipWithEL f xs ys = fromList $ zipWith f (toList xs) (toList ys)
+zipWithEL :: (Eq c) => (a -> b -> c) -> EventList a -> EventList b -> EventList c
+zipWithEL f xs ys = EL $ go (ea,eb) (unEL $ takeEL l xs) (unEL $ takeEL l ys)
+    where l = min (lengthEL xs) (lengthEL ys)
+          ea = error "zipWithEL: no initial value in a-list"
+          eb = error "zipWithEL: no initial value in b-list"
+
+          go (pa,_) [] bs = [ (i,f pa b) | (i,b) <- bs ]
+          go (_,pb) as [] = [ (i,f a pb) | (i,a) <- as ]
+          go (pa,pb) ((i,a):as) ((i',b):bs) | i < i'    = (i ,f a  pb) : go (a,pb) as         ((i',b):bs)
+                                            | i == i'   = (i ,f a  b ) : go (a,b ) as         bs
+                                            | otherwise = (i',f pa b ) : go (pa,b) ((i,a):as) bs
+
+-- | Like zipWithEL, but generalized to a list of event lists.
+mergeWithEL :: (Eq a) => (a -> a -> a) -> [EventList a] -> EventList a
+mergeWithEL _ [] = fromList []
+mergeWithEL f ls = foldr1 (zipWithEL f) ls
