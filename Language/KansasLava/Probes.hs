@@ -4,7 +4,8 @@
 module Language.KansasLava.Probes (
       -- * Probes
       probeS, unpackedProbe,
-
+      resetProbesForVCD, snapProbesAsVCD,
+      
       -- * Setting up the debugging mode for probes
       setProbesAsTrace, setShallowProbes, setProbes
  ) where
@@ -70,5 +71,13 @@ setProbesAsTrace :: (String -> IO ()) -> IO ()
 setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
         write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
         return a
+
+
+resetProbesForVCD :: IO ()
+resetProbesForVCD = return ()
+
+snapProbesAsVCD :: IO ()
+snapProbesAsVCD = return $ undefined
+
 
 
