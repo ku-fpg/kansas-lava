@@ -16,6 +16,7 @@ import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.VCD
 import Language.KansasLava.Types
 
+import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Data.IORef
 
@@ -39,11 +40,13 @@ probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 
 -- | Used internally for initializing debugging hooks, replaces all future calls to probe
 -- with the given function.
+{-# NOINLINE setProbes #-}
 setProbes :: (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a) -> IO ()
 setProbes = writeIORef probeFn . ProbeFn
 
 -- | The callback is called for every element of every probed value, in evaluation order.
 -- The arguments are fully evaluted (so printing them will not cause any side-effects of evaluation.
+{-# NOINLINE setShallowProbes #-}
 setShallowProbes :: (forall a . (Rep a) => String -> Integer -> X a -> X a) -> IO ()
 setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) sig
   where
@@ -67,6 +70,7 @@ setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) 
 --
 -- You will need to re-execute your program after calling any probe function,
 -- so typically this done on the command line, or by puting setProbeAsTrace inside main.
+{-# NOINLINE setProbesAsTrace #-}
 setProbesAsTrace :: (String -> IO ()) -> IO ()
 setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
     write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
@@ -75,11 +79,25 @@ setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
 -- setProbesAsVCD :: VCD -> IO ()
 -- setProbesAsVCD vcd = setShallowProbes $ \ nm i a -> do
 
-resetProbesForVCD :: IO ()
-resetProbesForVCD = return ()
+-- We keep this thread-safe, just in case.
+{-# NOINLINE vcdOfProbes #-}
+vcdOfProbes :: MVar VCD
+vcdOfProbes = unsafePerformIO $ newEmptyMVar
 
+{-# NOINLINE resetProbesForVCD #-}
+resetProbesForVCD :: IO ()
+resetProbesForVCD = do
+        _ <- tryTakeMVar vcdOfProbes -- for interative use, throw away the old one
+        putMVar vcdOfProbes $ VCD []
+        setShallowProbes $ \ _nm _clkNo x -> unsafePerformIO $ do
+                vcd <- takeMVar vcdOfProbes
+                putMVar vcdOfProbes $ vcd -- adding event to VCD here
+                return x
+        return ()
+
+{-# NOINLINE snapProbesAsVCD #-}
 snapProbesAsVCD :: IO VCD
-snapProbesAsVCD = return $ VCD []
+snapProbesAsVCD = readMVar vcdOfProbes
 
 
 
