@@ -58,9 +58,11 @@ fromList xs = EL (go (0,undefined) xs)
           -- we record the value every 1000 entries
           checkpoint = (== 0) . (`mod` 1000)
 
-insert :: (Int, a) -> EventList a -> EventList a
-insert p@(i,_) (EL evs) = EL $ b ++ (p:a)
-    where (b,a) = span ((<= i) . fst) evs
+insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
+insert p@(i,v) (EL evs) = EL $ b ++ a''
+    where (b,a) = span ((< i) . fst) evs
+          a' = dropWhile ((== i) . fst) a -- an existing event at time i is replaced
+          a'' = if null b || v /= (snd $ last b) then p:a' else a
 
 -- | length for event lists.
 length :: EventList a -> Int
