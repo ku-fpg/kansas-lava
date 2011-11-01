@@ -70,17 +70,22 @@ newtype VCD = VCD [(String,VC)]
     deriving (Eq)
 
 instance Show VCD where
-    show (VCD m) = unlines $ map (pr widths) table
-        where (headers, strms) = unzip m
-              elists = [fmap show el | VC _ el <- strms]
-              ticks = case elists of [] -> ["0"]; (x:_) -> map show [0..(E.length x - 1)]
-              table = ("clk" : headers) : transpose (ticks : map E.toList elists)
-              clkwidth = max 3 (maximum $ map length ticks)
-              widths = map (+1) $ clkwidth : zipWith max (map length headers)
-                                                         [ length v | E.EL ((_,v):_) <- elists ]
+    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- E.unEL rows ]
+        where wMaxLens :: [E.EventList (String,Int)]
+              wMaxLens = [ let maxlen = max $ length h
+                           in fmap (\v -> let str = show v in (str, maxlen $ length str)) el
+                         | (h, VC _ el) <- m ]
 
-              pr :: [Int] -> [String] -> String
-              pr ws ss = concat [ s ++ replicate (w - length s) ' ' | (w,s) <- zip ws ss ]
+              rows = fmap fst
+                   $ E.mergeWith (\(s1,l1) (s2,l2) -> (pr s1 l1 s2, l1 + l2))
+                                 wMaxLens
+
+              clkwidth = max 3 $ length $ show $ E.length rows
+
+              widths = [ l | E.EL ((_,(_,l)):_) <- wMaxLens ]
+              headers = foldr (\(h,l) r -> pr h l r) "" $ zip ("clk" : map fst m) (clkwidth : widths)
+
+              pr s1 l1 s2 = s1 ++ replicate (1 + l1 - length s1) ' ' ++ s2
 
 addEvent :: forall w . (Rep w) => String -> Int -> (X w) -> VCD -> VCD
 addEvent nm i v (VCD m) | nm `elem` map fst m = VCD [ (n,if n == nm then addVC vc i (toRep v) else vc) | (n,vc) <- m ]
