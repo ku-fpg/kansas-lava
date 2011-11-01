@@ -209,7 +209,7 @@ simCompare path report verb = do
 
                             let t1 = readTBF shallow sig
                                 t2 = readTBF deep sig
-                            if cmpVCDIO t1 t2
+                            if cmpVCD (ioOnly t1) (ioOnly t2)
                                 then do verb 3 "simulation passed"
                                         report $ Pass -- t1 t2 transcript
                                 else do verb 3 "simulation failed"
