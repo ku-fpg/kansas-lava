@@ -65,6 +65,7 @@ Library
        Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
        Language.KansasLava.Protocols.Patch
+       Language.KansasLava.VCD.EventList
        Paths_kansas_lava
 
 
