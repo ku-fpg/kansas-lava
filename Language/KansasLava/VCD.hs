@@ -70,7 +70,7 @@ newtype VCD = VCD [(String,VC)]
     deriving (Eq)
 
 instance Show VCD where
-    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- E.unEL rows ]
+    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- init $ E.unEL rows ]
         where wMaxLens :: [E.EventList (String,Int)]
               wMaxLens = [ let maxlen = max $ length h
                            in fmap (\v -> let str = show v in (str, maxlen $ length str)) el
