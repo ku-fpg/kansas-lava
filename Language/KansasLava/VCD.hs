@@ -49,6 +49,9 @@ data VC = VC Type (E.EventList RepValue)
 addVC :: VC -> Int -> RepValue -> VC
 addVC (VC ty el) i v = VC ty $ E.insert (i,v) el
 
+newVC :: forall w . (Rep w) => Witness w -> VC
+newVC _ = VC (repType (Witness :: Witness w)) $ E.fromList []
+
 -- | Convert a Pad to a Tracestream
 padToVC :: Pad -> VC
 padToVC (StdLogic s) = streamToVC $ shallowS s
@@ -57,7 +60,8 @@ padToVC other = error $ "fix padToVC for " ++ show other
 
 -- | Convert a Stream to a VC. Note this can force evaluation.
 streamToVC :: forall w . (Rep w) => S.Stream (X w) -> VC
-streamToVC stream = VC (repType (Witness :: Witness w)) $ E.fromList $ map toRep $ S.toList stream
+streamToVC stream = VC ty $ E.fromList $ map toRep $ S.toList stream
+    where (VC ty _) = newVC (Witness :: Witness w)
 
 ----------------------------------------------------------------------------------------
 -- | 'VCD' is a primary bit-wise record of an interactive session with some circuit
@@ -65,23 +69,22 @@ streamToVC stream = VC (repType (Witness :: Witness w)) $ E.fromList $ map toRep
 newtype VCD = VCD [(String,VC)]
     deriving (Eq)
 
-addEvent :: String -> Int -> RepValue -> VCD -> VCD
-addEvent nm i v (VCD m) = VCD [ (n,if n == nm then addVC vc i v else vc) | (n,vc) <- m ]
-
--- instances for VCD
 instance Show VCD where
-    show (VCD m) = pr Nothing sorted
-        where sorted = [ (mnm,nm,ts) | (fnm,ts) <- sortBy ((compare) `on` fst) m
-                                     , let (mnm,nm) = modnames fnm ]
-              pr :: Maybe String -> [(String,String,VC)] -> String
-              pr _       [] = ""
-              pr Nothing r@((mnm,_,_):_) = pr (Just $ '_' : mnm) r
-              pr (Just p) ((mnm,nm,ts):r) = (if p /= mnm
-                                             then mnm ++ "\n"
-                                             else "") ++ nm ++ ": " ++ show ts ++ "\n" ++ pr (Just mnm) r
+    show (VCD m) = unlines $ map (pr widths) table
+        where (headers, strms) = unzip m
+              elists = [fmap show el | VC _ el <- strms]
+              ticks = case elists of [] -> ["0"]; (x:_) -> map show [0..(E.length x - 1)]
+              table = ("clk" : headers) : transpose (ticks : map E.toList elists)
+              clkwidth = max 3 (maximum $ map length ticks)
+              widths = map (+1) $ clkwidth : zipWith max (map length headers)
+                                                         [ length v | E.EL ((_,v):_) <- elists ]
 
-              modnames :: String -> (String,String)
-              modnames = (\(nm,mn) -> (reverse nm, reverse $ tail mn)) . span (/= '/') . reverse
+              pr :: [Int] -> [String] -> String
+              pr ws ss = concat [ s ++ replicate (w - length s) ' ' | (w,s) <- zip ws ss ]
+
+addEvent :: forall w . (Rep w) => String -> Int -> (X w) -> VCD -> VCD
+addEvent nm i v (VCD m) | nm `elem` map fst m = VCD [ (n,if n == nm then addVC vc i (toRep v) else vc) | (n,vc) <- m ]
+                        | otherwise           = VCD $ (nm, addVC (newVC (Witness :: Witness w)) i (toRep v)) : m
 
 -- | Generate a signature from a trace.
 -- TODO: support generics in both these functions?

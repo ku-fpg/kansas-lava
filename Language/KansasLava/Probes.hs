@@ -5,7 +5,7 @@ module Language.KansasLava.Probes (
       -- * Probes
       probeS, unpackedProbe,
       resetProbesForVCD, snapProbesAsVCD,
-      
+
       -- * Setting up the debugging mode for probes
       setProbesAsTrace, setShallowProbes, setProbes
  ) where
@@ -54,7 +54,7 @@ setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) 
         probe_shallow nm = id
                       . S.fromList
                       . map (\ (i,a) -> write nm i a)
-                      . zip [1..]
+                      . zip [0..]
                       . S.toList
 
 -- | A simplified API, where each internal probe event is represented
@@ -76,9 +76,6 @@ setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
     write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
     return a
 
--- setProbesAsVCD :: VCD -> IO ()
--- setProbesAsVCD vcd = setShallowProbes $ \ nm i a -> do
-
 -- We keep this thread-safe, just in case.
 {-# NOINLINE vcdOfProbes #-}
 vcdOfProbes :: MVar VCD
@@ -89,15 +86,12 @@ resetProbesForVCD :: IO ()
 resetProbesForVCD = do
         _ <- tryTakeMVar vcdOfProbes -- for interative use, throw away the old one
         putMVar vcdOfProbes $ VCD []
-        setShallowProbes $ \ _nm _clkNo x -> unsafePerformIO $ do
+        setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
                 vcd <- takeMVar vcdOfProbes
-                putMVar vcdOfProbes $ vcd -- adding event to VCD here
+                putMVar vcdOfProbes $ addEvent nm (fromIntegral clkNo) x vcd
                 return x
         return ()
 
 {-# NOINLINE snapProbesAsVCD #-}
 snapProbesAsVCD :: IO VCD
 snapProbesAsVCD = readMVar vcdOfProbes
-
-
-
