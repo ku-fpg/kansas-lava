@@ -7,11 +7,11 @@ module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench) where
 import Data.List(mapAccumL)
 
 import Language.KansasLava.Fabric
-import Language.KansasLava.Trace
-import Language.KansasLava.Types
 import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixStdLogicTy, sizedRange)
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
+import Language.KansasLava.Types
+import Language.KansasLava.VCD
 
 import Language.Netlist.AST
 import Language.Netlist.GenVHDL
@@ -38,21 +38,21 @@ mkTestbench :: FilePath                 -- ^ Directory where we should place tes
             -> (KLEG -> IO KLEG)  -- ^ any operations on the circuit before VHDL generation
             -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
             -> [(String,Pad)]           -- ^ Inputs to the Fabric
-            -> IO Trace
+            -> IO VCD
 mkTestbench path cycles circuitMod fabric input = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
 
-    (trace, rc) <- mkTraceCM (return cycles) fabric input circuitMod
+    (vcd, rc) <- mkVCDCM cycles fabric input circuitMod
 
-    writeTBF (path </> name <.> "in.tbf") trace
-    writeFile (path </> name <.> "sig") $ show $ toSignature trace
+    writeTBF (path </> name <.> "in.tbf") vcd
+    writeFile (path </> name <.> "sig") $ show $ toSignature vcd
     writeFile (path </> name <.> "kleg") $ show rc
 
     writeTestbench name path rc
 
-    return trace
+    return vcd
 
 writeTestbench :: String -> FilePath -> KLEG -> IO ()
 writeTestbench name path circuit = do

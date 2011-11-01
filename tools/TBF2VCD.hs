@@ -1,6 +1,5 @@
 module Main where
 
-import Language.KansasLava.Trace
 import Language.KansasLava.VCD
 import Control.Applicative
 import Data.Char as C
@@ -24,7 +23,7 @@ main3 :: Bool -> Integer -> FilePath -> FilePath -> IO ()
 main3 ifClk clkRate sigName bitsName = do
 	sig <- read <$> readFile sigName
 	str <- lines <$> readFile bitsName
-	putStrLn $ toVCD ifClk clkRate $ readTBF str sig
+	putStrLn $ toVCDFile ifClk clkRate $ readTBF str sig
 
 main4 :: FilePath -> FilePath -> FilePath -> IO ()
 main4 sigfile leftfile rightfile = do
@@ -37,10 +36,9 @@ main4 sigfile leftfile rightfile = do
 
     writeFile "diff.vcd" $ vcdDiff t1 t2
 
-vcdDiff :: Trace -> Trace -> String
-vcdDiff (Trace c1 i1 o1 p1) (Trace _ i2 o2 p2) = toVCD False 10 t
-    where t = Trace c1 (mergeMaps i1 i2) (mergeMaps o1 o2) (mergeMaps p1 p2)
-          mergeMaps m1 m2 = [ ("trace1_" ++ k,v) | (k,v) <- m1 ]
-                            ++
-                            [ ("trace2_" ++ k,v) | (k,v) <- m2 ]
+vcdDiff :: VCD -> VCD -> String
+vcdDiff (VCD m1) (VCD m2) = toVCDFile False 10 t
+    where t = VCD $ [ ("trace1_" ++ k,v) | (k,v) <- m1 ]
+                    ++
+                    [ ("trace2_" ++ k,v) | (k,v) <- m2 ]
 

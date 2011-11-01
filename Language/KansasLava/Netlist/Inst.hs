@@ -55,11 +55,6 @@ genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 =
 -}
 
 
--- Probes are turned into id nodes, add comments to indicate
--- which probes are on which signals in the vhdl.
-genInst env i (Entity (TraceVal _ _) ins outs) =
-	genInst env i (Entity (Prim "id") ins outs) -- TODO: add [Comment (intercalate ", " $ map show nms)])
-
 -- Blackbox nodes should have been removed by reification, but alas, no.
 genInst env i (Entity (BlackBox _) ins outs) =
   genInst env i (Entity (Prim "id") ins outs)
@@ -455,9 +450,9 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
         | typeWidth tI > typeWidth tO =
 	[ NetAssign  (sigName "o0" i) $
                 case toStdLogicExpr tI w of
-                  ExprVar nm' -> ExprSlice nm' (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1)))) 
+                  ExprVar nm' -> ExprSlice nm' (ExprLit Nothing (ExprNum (fromIntegral (typeWidth tO - 1))))
                                                (ExprLit Nothing (ExprNum 0))
-                  ExprLit _ (ExprNum n) -> 
+                  ExprLit _ (ExprNum n) ->
                                 toTypedExpr
                                         tO
                                         n -- TODO: should mod with 2^(width of tO)
@@ -479,7 +474,7 @@ genInst _ i (Entity (Prim "unsigned") [("o0",tO)] [("i0",tI,w)])
             Just v -> v
             _ -> error "not lit"
 
-     isLit = isJust opt_lit 
+     isLit = isJust opt_lit
 
      opt_lit = case toStdLogicExpr tI w of
 	          (ExprLit _ (ExprNum n)) -> return n
