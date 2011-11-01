@@ -58,11 +58,31 @@ fromList xs = EL (go (0,undefined) xs)
           -- we record the value every 1000 entries
           checkpoint = (== 0) . (`mod` 1000)
 
+-- | Insert/update an event in an EventList
+-- This implementation is easy to understand, but is probably
+-- really inefficient if deforestation isn't miraculous
 insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
-insert p@(i,v) (EL evs) = EL $ b ++ a''
-    where (b,a) = span ((< i) . fst) evs
-          a' = dropWhile ((== i) . fst) a -- an existing event at time i is replaced
-          a'' = if null b || v /= (snd $ last b) then p:a' else a
+insert (i,v) el = fromList $ b ++ (v : a)
+    where (b,a) = splitAt i $ toList el
+
+{- certainly exposes the flaw in having length encoded the way we do.
+ - TODO: fix length encoding
+insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
+insert p@(i,v) (EL evs) = EL $ evs'
+    where (b',a') = span ((< i) . fst) evs
+          a = dropWhile ((== i) . fst) a' -- an existing event at time i is replaced
+          (eq,b) = span ((== v) . snd) $ reverse b'
+          -- b: events strictly before i, not equal to v, in reverse order
+          -- eq: events strictly before i, equal to v, in reverse order
+          -- a: events strictly after i
+          evs' = reverse b ++ (if null eq
+                                  then if null a
+                                          then [p,(i+1,v)]
+                                          else [p]
+                                  else if null a
+                                          then [last eq,(i+1,v)]
+                                          else [last eq]) ++ a
+-}
 
 -- | length for event lists.
 length :: EventList a -> Int
