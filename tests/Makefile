@@ -5,7 +5,7 @@ N:=2
 ARGS:=
 
 runall:
-	make clean
+	-make clean
 	make test ARGS=--gensim
 	make simulate
 	make report
@@ -20,8 +20,8 @@ report:
 	$(RUN) ../dist/build/kansas-lava-testreport/kansas-lava-testreport $(DIR)
 
 clean:
-	mv sims XX.sims
-	rm -Rf XX.sims &
+	mv $(DIR) XX.$(DIR)
+	rm -Rf XX.$(DIR) &
 
 locks:
 	find sims -name _lock -print
