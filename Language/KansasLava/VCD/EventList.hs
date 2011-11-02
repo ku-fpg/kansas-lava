@@ -1,21 +1,28 @@
 module Language.KansasLava.VCD.EventList
     ( EventList(..)
     , toList
-    , toList'
     , fromList
     , length
     , take
+    , drop
     , mergeWith
     , zipWith
     , insert
+    , last
+    , head
+    , snoc
+    , append
     ) where
 
 import Control.Monad
-import Prelude hiding (take,length,zipWith)
+import Prelude hiding (take,length,zipWith,last,head,drop)
+import qualified Prelude as Prelude
 
 ----------------------------------------------------------------------------------------
 
--- | A list of changes, indexed from 0
+-- | A list of changes, indexed from 0, stored in reverse order.
+-- Obviously, don't try to represent an infinite list.
+-- [(6,A),(0,B)]
 newtype EventList a = EL { unEL :: [(Int,a)] }
     deriving (Eq,Show,Read)
 
@@ -35,77 +42,68 @@ instance (Eq a, Read a) => Read (EventList a) where
 
 -- | Convert an event list to a normal list
 toList :: EventList a -> [a]
-toList = toList' $ error "toList: no initial value!"
-
--- | Like toList, but accepts initial value for case that
--- first event is not at timestep 0
-toList' :: a -> EventList a -> [a]
-toList' iv (EL xs) = go (0,iv) xs
-    where go _      []          = []
-          go (p,px) ((i,x):xs') = replicate (i-p) px ++ go (i,x) xs'
+toList (EL xs) = foldr f [] xs
+    where f :: (Int,a) -> [a] -> [a]
+          f (i,v) l = l ++ replicate (1 + i - Prelude.length l) v
 
 -- | Convert a list to an event list
 fromList :: (Eq a) => [a] -> EventList a
-fromList xs = EL (go (0,undefined) xs)
-    where go :: (Eq a) => (Int,a) -> [a] -> [(Int,a)]
-          go (0,_) [] = []
-          go (i,p) [] = [(i,p)] -- this tracks length, value is thrown away by toList
-          go (i,p) (x:xs') | checkpoint i || p /= x = (i,x) : go (i+1,x) xs'
-                           | otherwise              =         go (i+1,x) xs'
+fromList = foldl snoc (EL [])
 
-          -- to deal with the case of an infinitely repeating list
-          -- i.e. fromList $ repeat 1
-          -- we record the value every 1000 entries
-          checkpoint = (== 0) . (`mod` 1000)
+snoc :: (Eq a) => EventList a -> a -> EventList a
+snoc el@(EL evs) v = EL $ (length el,v) : dropWhile ((== v) . snd) evs
 
 -- | Insert/update an event in an EventList
 -- This implementation is easy to understand, but is probably
 -- really inefficient if deforestation isn't miraculous
 insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
-insert (i,v) el = fromList $ b ++ (v : a)
-    where (b,a) = splitAt i $ toList el
+insert (i,v) el | i >= 0 = append (snoc (take i el) v) (drop (i+1) el)
+                | otherwise = error "EventList.insert: negative index"
 
-{- certainly exposes the flaw in having length encoded the way we do.
- - TODO: fix length encoding
-insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
-insert p@(i,v) (EL evs) = EL $ evs'
-    where (b',a') = span ((< i) . fst) evs
-          a = dropWhile ((== i) . fst) a' -- an existing event at time i is replaced
-          (eq,b) = span ((== v) . snd) $ reverse b'
-          -- b: events strictly before i, not equal to v, in reverse order
-          -- eq: events strictly before i, equal to v, in reverse order
-          -- a: events strictly after i
-          evs' = reverse b ++ (if null eq
-                                  then if null a
-                                          then [p,(i+1,v)]
-                                          else [p]
-                                  else if null a
-                                          then [last eq,(i+1,v)]
-                                          else [last eq]) ++ a
--}
+head :: EventList a -> a
+head (EL [])        = error "EventList.head: empty list"
+head (EL evs)       = snd $ Prelude.last evs
+
+last :: EventList a -> a
+last (EL [])        = error "EventList.last: empty list"
+last (EL ((_,v):_)) = v
 
 -- | length for event lists.
 length :: EventList a -> Int
 length (EL []) = 0
-length (EL xs) = fst $ last xs
+length (EL ((i,_):_)) = i + 1
 
 -- | take for event lists.
 take :: Int -> EventList a -> EventList a
-take i (EL evs) = EL $ evs' ++ if null r then [] else final
-    where (evs',r) = span ((<= i) . fst) evs
-          final = [(i, case evs' of [] -> undefined; _ -> snd $ last evs')]
+take i (EL evs) = EL $ case a of
+                        [] -> b
+                        _  | length (EL b) == i -> b
+                           | otherwise          -> (i-1,snd $ Prelude.last a) : b
+    where (a,b) = span ((>= i) . fst) evs
+
+drop :: Int -> EventList a -> EventList a
+drop i (EL evs) = EL [ (i'-i,v) | (i',v) <- takeWhile ((>= i) . fst) evs ]
+
+append :: (Eq a) => EventList a -> EventList a -> EventList a
+append el@(EL xs) (EL ys) = EL $ [ (i+l,v) | (i,v) <- ys ] ++ (fix xs ys)
+    where l = length el
+
+          fix [] _  = []
+          fix as [] = as
+          fix as bs | snd (Prelude.head as) == snd (Prelude.last bs) = tail as
+                    | otherwise = as
 
 -- | zipWith for event lists.
 -- zipWith f xs ys = fromList $ zipWith f (toList xs) (toList ys)
 zipWith :: (Eq c) => (a -> b -> c) -> EventList a -> EventList b -> EventList c
 zipWith f xs ys = EL $ go (ea,eb) (unEL $ take l xs) (unEL $ take l ys)
     where l = min (length xs) (length ys)
-          ea = error "zipWith: no initial value in a-list"
-          eb = error "zipWith: no initial value in b-list"
+          ea = error "zipWith: something is very wrong - a"
+          eb = error "zipWith: something is very wrong - b"
 
           go (pa,_) [] bs = [ (i,f pa b) | (i,b) <- bs ]
           go (_,pb) as [] = [ (i,f a pb) | (i,a) <- as ]
-          go (pa,pb) ((i,a):as) ((i',b):bs) | i < i'    = (i ,f a  pb) : go (a,pb) as         ((i',b):bs)
+          go (pa,pb) ((i,a):as) ((i',b):bs) | i > i'    = (i ,f a  pb) : go (a,pb) as         ((i',b):bs)
                                             | i == i'   = (i ,f a  b ) : go (a,b ) as         bs
                                             | otherwise = (i',f pa b ) : go (pa,b) ((i,a):as) bs
 

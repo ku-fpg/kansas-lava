@@ -53,14 +53,14 @@ newVC :: forall w . (Rep w) => Witness w -> VC
 newVC _ = VC (repType (Witness :: Witness w)) $ E.fromList []
 
 -- | Convert a Pad to a Tracestream
-padToVC :: Pad -> VC
-padToVC (StdLogic s) = streamToVC $ shallowS s
-padToVC (StdLogicVector s) = streamToVC $ shallowS s
-padToVC other = error $ "fix padToVC for " ++ show other
+padToVC :: Int -> Pad -> VC
+padToVC c (StdLogic s) = convertVC $ take c $ S.toList $ shallowS s
+padToVC c (StdLogicVector s) = convertVC $ take c $ S.toList $ shallowS s
+padToVC _ other = error $ "fix padToVC for " ++ show other
 
 -- | Convert a Stream to a VC. Note this can force evaluation.
-streamToVC :: forall w . (Rep w) => S.Stream (X w) -> VC
-streamToVC stream = VC ty $ E.fromList $ map toRep $ S.toList stream
+convertVC :: forall w . (Rep w) => [X w] -> VC
+convertVC l = VC ty $ E.fromList $ map toRep l
     where (VC ty _) = newVC (Witness :: Witness w)
 
 ----------------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ newtype VCD = VCD [(String,VC)]
     deriving (Eq)
 
 instance Show VCD where
-    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- init $ E.unEL rows ]
+    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- reverse $ E.unEL rows ]
         where wMaxLens :: [E.EventList (String,Int)]
               wMaxLens = [ let maxlen = max $ length h
                            in fmap (\v -> let str = show v in (str, maxlen $ length str)) el
@@ -262,12 +262,11 @@ mkVCDCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> circuitMod) fabric
 
     let (_,output) = runFabric fabric input
-        truncTS (VC ty (E.EL s)) = VC ty $ E.take c $ E.EL s
-        tr = VCD $ [ ("inputs/" ++ nm, truncTS $ padToVC p)
+        tr = VCD $ [ ("inputs/" ++ nm, padToVC c p)
                    | (nm,_) <- theSrcs rc
                    , (nm',p) <- input
                    , nm == nm' ]
-                 ++ [ ("outputs/" ++ nm, truncTS $ padToVC p)
+                 ++ [ ("outputs/" ++ nm, padToVC c p)
                     | (nm,_,_) <- theSinks rc
                     , (nm',p) <- output
                     , nm == nm' ]
