@@ -29,7 +29,7 @@ import Control.Monad.Fix
 -- | A Patch is a data signal with an associated control signal. The 'lhs_in'
 -- type parameter is the type of the data input, the 'rhs_out' type parameter is
 -- the type of the data output. The 'rhs_in' is the type of the control input
--- (e.g. a 'ready' signal), and the 'rhs_out' is the type of the control output
+-- (e.g. a 'ready' signal), and the 'lhs_out' is the type of the control output
 -- (e.g. 'ack').
 type Patch lhs_in 	   rhs_out
 	   lhs_out         rhs_in
@@ -39,7 +39,7 @@ type Patch lhs_in 	   rhs_out
 -- Executing the Patch, monadic style.
 ---------------------------------------------------------------------------
 
--- | Unitpatch produces a constant data output. The control inputs/outputs are
+-- | outputP produces a constant data output. The control inputs/outputs are
 -- unit, so they contain no data.
 outputP :: a -> Patch () a
 		        () ()
@@ -157,7 +157,7 @@ openP :: Patch c (() :> c)
 openP = forwardP (\ a -> (() :> a)) $$
 	    backwardP (\ ~(_ :> a) -> a)
 {-
-swapP :: (a :> b) -> (b :> a) 
+swapP :: (a :> b) -> (b :> a)
 assocP :: ((a :> b) :> c) -> (a :> b :> c)
 unassocP :: (a :> b :> c) -> ((a :> b) :> c)
 closeP :: (() :> b) -> b
@@ -352,7 +352,7 @@ dupP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
          => Patch (sig (Enabled a))     (sig (Enabled a)  :> sig (Enabled a))
 	          (sig Ack)             (sig Ack          :> sig Ack)
 
-dupP ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2) 
+dupP ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2)
   where
 	have_read = (state .==. 0) .&&. isEnabled inp
 	written1  = (state ./=. 0) .&&. fromAck ack1
@@ -513,7 +513,7 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 
 
 	store :: sig a
-	store = delay 
+	store = delay
 	      $ cASE [ (have_read,enabledVal inp)
 		     ]
 	       store
@@ -763,10 +763,10 @@ type FabricPatch fab
 
 patchF :: (MonadFix fab)
             => Patch a b
-                     c d -> FabricPatch fab a b 
+                     c d -> FabricPatch fab a b
                                             c d
 patchF patch inp = return (patch inp)
-        
+
 infixr 4 |$|
 (|$|) :: (MonadFix fab)
       => FabricPatch fab a b
@@ -783,7 +783,7 @@ f1 |$| f2 = \ ~(lhs_in,rhs_in) -> do
 runF :: (MonadFix fab)
  	 => FabricPatch fab  ()   a
 	 	             ()   () -> fab a
-runF p = do 
+runF p = do
    ~(_,a) <- p ((),())
    return a
 
@@ -796,7 +796,7 @@ buildF = id
 
 -- | A fabric patch that passes through data and control.
 emptyF :: (MonadFix fab)
-       => FabricPatch 
+       => FabricPatch
                 fab a  a
 	            b  b
 emptyF = patchF emptyP
@@ -804,16 +804,16 @@ emptyF = patchF emptyP
 infixr 3 `stackF`
 -- | Given two fabric patches, tuple their data/control inputs and outputs.
 stackF :: (MonadFix fab)
-       => FabricPatch fab 
+       => FabricPatch fab
                li1		ro1
                lo1    		ri1
-      -> FabricPatch fab 
+      -> FabricPatch fab
                li2		ro2
                lo2    		ri2
-      -> FabricPatch fab 
+      -> FabricPatch fab
                (li1 :> li2)			(ro1 :> ro2)
                (lo1 :> lo2)   			(ri1 :> ri2)
-stackF p1 p2 ~(li1 :> li2,ri1 :> ri2) = do 
+stackF p1 p2 ~(li1 :> li2,ri1 :> ri2) = do
 	(lo1,ro1)		     <- p1 (li1,ri1)
 	(lo2,ro2)		     <- p2 (li2,ri2)
         return $ (lo1 :> lo2,ro1 :> ro2)
