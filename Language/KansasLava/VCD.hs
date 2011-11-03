@@ -74,8 +74,8 @@ instance Show VCD where
     show (VCD m) = headers ++ "\n" ++ E.foldrWithTime (\(clk,str) r -> pr (show clk) clkwidth str ++ "\n" ++ r) "" rows
         where wMaxLens :: [E.EventList (String,Int)]
               wMaxLens = [ let maxlen = max $ length h
-                           in fmap (\v -> let str = show v in (str, maxlen $ length str)) el
-                         | (h, VC _ el) <- m ]
+                           in fmap (\v -> let str = showRepValue ty v in (str, maxlen $ length str)) el
+                         | (h, VC ty el) <- m ]
 
               rows = fmap fst
                    $ E.mergeWith (\(s1,l1) (s2,l2) -> (pr s1 l1 s2, l1 + l2))
