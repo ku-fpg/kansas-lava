@@ -42,7 +42,7 @@ optimizeEntity env (Entity (Prim "pair") [(o0,tO)] [(_,_,Port o0' u0),(_,_,Port 
 	      ) | o0' == o0'' && o1' == o1'' && p1 == p2 ->
 			return $ replaceWith o0 ("o0",tO,p1)
 	    _ -> Nothing
-optimizeEntity _ (Entity (Prim "mux2") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
+optimizeEntity _ (Entity (Prim "mux") [(o0,_)] [(_,_,_),(i1 ,tTy,t),(_,_,f)])
     | t == f = return $ replaceWith o0 (i1,tTy,t)
     | otherwise = Nothing
 optimizeEntity _ (Entity (BlackBox _) [(o0,_)] [(i0, ti, di)]) =

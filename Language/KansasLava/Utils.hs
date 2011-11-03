@@ -182,19 +182,15 @@ funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a)
 -- zero (false) selects the first argument of the tuple, one (true)
 -- selects the second.
 mux :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
-mux iSig (eSig,tSig) = primXS3 muxShallow "mux"  iSig  tSig  eSig
-
---- mux2 is deprecated.  Use "mux" instead (the order of alternatives is reversed).
-mux2 :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
-mux2 iSig (tSig,eSig) = mux iSig (eSig,tSig)
+mux iSig (fSig,tSig) = primXS3 muxShallow "mux" iSig fSig tSig
 
 -- | Shallow definition of a multiplexer. Deals with 3-value logic.
 muxShallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
-muxShallow i e t =
+muxShallow i f t =
    case unX i of
        Nothing -> optX Nothing
-       Just True -> e
-       Just False -> t
+       Just True -> t
+       Just False -> f
 
 
 

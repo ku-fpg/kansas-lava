@@ -203,7 +203,7 @@ testOpsEq test tyName ws = do
           [ testTriOp test (name ++ "/" ++ tyName) opr (lavaOp)
 	    	      	[ (b,w1,w2) | (b,(w1,w2)) <- zip bs ws2 ]
           | TestMux name opr lavaOp <-
-                [ TestMux "mux" (\ c a b -> if c then a else b) (\ c a b -> mux2 c (a,b))
+                [ TestMux "mux" (\ c a b -> if c then a else b) (\ c a b -> mux c (b,a))
                 ]
           ]
 
