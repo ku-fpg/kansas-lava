@@ -25,6 +25,7 @@ module Language.KansasLava.Types (
         , CLK
         -- * RepValue
         , RepValue(..)
+        , showRepValue
         , appendRepValue
         , isValidRepValue
         , getValidRepValue
@@ -383,6 +384,52 @@ instance Read RepValue where
                           ,rest)]
             where (cs,rest) = span (`elem` "01XU") xs
 	readsPrec _ other = error $ "Can't read RepValue " ++ show other
+
+showRepValue :: Type -> RepValue -> String
+showRepValue (TupleTy tys) (RepValue vals) = 
+        "(" ++ concat [ sep ++ showRepValue ty (RepValue (take (typeWidth ty) (drop len vals)))
+                      | (ty,len,sep) <- zip3 tys lens' ("" : repeat ",")
+                      ] ++ ")"
+  where
+          lens = map typeWidth tys
+          lens' = 0 : zipWith (+) lens' lens
+showRepValue (MatrixTy i ty) (RepValue vals) = 
+        "[" ++ concat [ sep ++ showRepValue ty (RepValue (take (typeWidth ty) (drop len vals)))
+                      | (len,sep) <- take i $ zip lens' ("" : repeat ",")
+                      ] ++ "]"
+  where
+          lens = map typeWidth (replicate i ty)
+          lens' = 0 : zipWith (+) lens' lens
+showRepValue ty repValue | isValidRepValue repValue = case ty of
+        B -> case vals of
+                [True] -> "high"
+                [False] -> "low"
+                _ -> sizeError
+        S n | n == length vals -> show signed_number
+        S _ | otherwise -> sizeError
+        U n | n == length vals -> show number
+        U _ | otherwise -> sizeError
+        V n | n == length vals -> show repValue
+        V _ | otherwise -> sizeError
+
+        -- We should reconsider the other cases
+        _   -> show repValue
+  where
+          sizeError = error $ "size error with " ++ show repValue ++ " (ty = " ++ show ty ++ ")"
+          Just vals = getValidRepValue repValue
+          number :: Integer
+          number   = sum [ n
+                         | (n,True) <- zip (iterate (*2) 1) vals
+                         ]
+
+          signed_number :: Integer
+          signed_number = sum 
+                         [ n
+                         | (n,True) <- zip (iterate (*2) 1) (init vals)
+                         ] * if last vals then (-1) else 1
+                  
+                        
+showRepValue _ty repValue = show repValue
 
 -- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
 -- TODO: reverse this!
