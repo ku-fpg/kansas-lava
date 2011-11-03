@@ -43,7 +43,7 @@ class {- (Size (W w)) => -} Rep w where
 
     -- show the value (in its Haskell form, default is the bits)
     showRep :: X w -> String
-    showRep x = show (toRep x)
+    showRep x = showRepValue (repType (Witness :: Witness w)) (toRep x)
 
 -- | 'Bitrep' is list of values, and their bitwise representation.
 -- It is used to derive (via Template Haskell) the Rep for user Haskell datatypes.
