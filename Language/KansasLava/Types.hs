@@ -429,7 +429,11 @@ showRepValue ty repValue | isValidRepValue repValue = case ty of
                          ] * if last vals then (-1) else 1
                   
                         
-showRepValue _ty repValue = show repValue
+-- Show the structure if there are *any* value bits.
+showRepValue _ty repValue@(RepValue xs)
+        | any isJust xs = show repValue
+-- Otherwise, just show ?
+showRepValue _ty _repValue = "?"
 
 -- | 'appendRepValue' joins two 'RepValue'; the least significant value first.
 -- TODO: reverse this!
