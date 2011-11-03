@@ -35,6 +35,7 @@ import qualified Language.KansasLava.Stream as S
 import Control.Monad
 
 import Data.Char
+import qualified Data.Foldable as F
 import Data.Function
 import Data.List
 import qualified Data.Map as M
@@ -70,7 +71,7 @@ newtype VCD = VCD [(String,VC)]
     deriving (Eq)
 
 instance Show VCD where
-    show (VCD m) = unlines $ headers : [ pr (show clk) clkwidth str | (clk,str) <- reverse $ E.unEL rows ]
+    show (VCD m) = headers ++ "\n" ++ E.foldrWithTime (\(clk,str) r -> pr (show clk) clkwidth str ++ "\n" ++ r) "" rows
         where wMaxLens :: [E.EventList (String,Int)]
               wMaxLens = [ let maxlen = max $ length h
                            in fmap (\v -> let str = show v in (str, maxlen $ length str)) el
@@ -82,7 +83,7 @@ instance Show VCD where
 
               clkwidth = max 3 $ length $ show $ E.length rows
 
-              widths = [ l | E.EL ((_,(_,l)):_) <- wMaxLens ]
+              widths = map (snd . E.head) wMaxLens
               headers = foldr (\(h,l) r -> pr h l r) "" $ zip ("clk" : map fst m) (clkwidth : widths)
 
               pr s1 l1 s2 = s1 ++ replicate (1 + l1 - length s1) ' ' ++ s2
@@ -156,20 +157,17 @@ dumpvars other = error $ "dumpvars: bad parse! " ++ show other
 -- | Parse list of changes into an EventList
 changes :: [(VCDID,RepValue)] -> [String] -> [(String, E.EventList RepValue)]
 -- changes initVals ls = foldl fromEvList [ (i,[(0,v)]) | (i,v) <- initVals ]
-changes initVals ls = [ (nm, E.EL $ evs' ++ [(len,v)])
-                      | (nm,E.EL evs') <- M.toList $ unMerge evs
-                      , let v = case evs' of [] -> undefined; _ -> snd . last $ evs' ]
-    where (_,E.EL evs) = foldl go (0,E.fromList []) ls
-          len = maximum . map fst $ evs
+changes initVals ls = M.toList $ unMerge elist
+    where (_,elist) = foldl go (0,E.fromList []) ls
 
           go :: (Int,E.EventList (String, RepValue)) -> String -> (Int,E.EventList (String, RepValue))
           go (_,el) ('#':time) = (read time, el)
           go (t,el) line       = (t, E.insert (t, parseVal line) el)
 
-          unMerge :: [(Int,(String,RepValue))] -> M.Map String (E.EventList RepValue)
-          unMerge = foldr f $ M.fromList [ (i,E.fromList [v]) | (i,v) <- initVals ]
+          unMerge :: (E.EventList (String,RepValue)) -> M.Map String (E.EventList RepValue)
+          unMerge = E.foldrWithTime f $ M.fromList [ (i,E.fromList [v]) | (i,v) <- initVals ]
             where f (i,(nm,v)) m | M.member nm m = M.adjust (E.insert (i,v)) nm m
-                                 | otherwise     = M.insert nm (E.EL [(i,v)]) m
+                                 | otherwise     = M.insert nm (E.singleton (i,v)) m
 
 parseVal :: String -> (String, RepValue)
 parseVal = go . words
@@ -206,15 +204,15 @@ vcdIds = map code [0..]
 
 values :: [(VCDID, E.EventList RepValue)] -> String
 values sigs = dumpVars initials ++ eventList rest
-    where (initials,rest) = unzip [ ((i, v), (i, E.EL xs)) | (i, E.EL ((_,v):xs)) <- sigs ]
+    where (initials,rest) = unzip [ ((i, E.head el), (i, E.drop 1 el)) | (i, el) <- sigs ]
 
 dumpVars :: [(VCDID, RepValue)] -> String
 dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
 
 eventList :: [(VCDID, E.EventList RepValue)] -> String
-eventList strms = unlines [ "#" ++ show i ++ "\n" ++ ls | (i,ls) <- evs ]
-    where (E.EL evs) = E.mergeWith (\s1 s2 -> s1 ++ ('\n':s2))
-                                 [ fmap (vcdVal ident) elist | (ident,elist) <- strms ]
+eventList strms = E.foldrWithTime (\(t,ls) r -> "#" ++ show t ++ "\n" ++ ls ++ r) "" elist
+    where elist = E.mergeWith (\s1 s2 -> s1 ++ ('\n':s2))
+                              [ fmap (vcdVal ident) elist' | (ident,elist') <- strms ]
 
 vcdVal :: VCDID -> RepValue -> String
 vcdVal i r@(RepValue bs) | length bs == 1 = rep2tbw r ++ i
@@ -241,7 +239,7 @@ cmpVC :: Int -> VC -> VC -> Bool
 cmpVC count (VC t1 s1) (VC t2 s2) = t1 == t2 && countLTs1 && s1LTs2 && eql
     where countLTs1 = count <= E.length s1
           s1LTs2 = E.length s1 <= E.length s2
-          eql = and $ map snd . E.unEL $ E.zipWith cmpRepValue (E.take count s1) (E.take count s2)
+          eql = F.foldr (&&) True $ E.zipWith cmpRepValue (E.take count s1) (E.take count s2)
 
 -- | Make a 'VCD' from a 'Fabric' and its input.
 mkVCD :: Int            -- ^ number of cycles to capture
