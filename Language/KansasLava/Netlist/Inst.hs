@@ -256,13 +256,13 @@ genInst env i e@(Entity nm outs	ins) | newName nm /= Nothing =
 -}
 
 -- Muxes
-genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",_,Lit (RepValue [Just True])),("i1",tTy,t),("i2",fTy,_)])
+genInst _ i (Entity (Prim "mux") [("o0",ty)] [("i0",_,Lit (RepValue [Just True])),("i1",tTy,t),("i2",fTy,_)])
 	| ty == tTy && ty == fTy
 	= assignDecl "o0" i ty $ \ toExpr -> toExpr t
-genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",_,Lit (RepValue [Just False])),("i1",tTy,_),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux") [("o0",ty)] [("i0",_,Lit (RepValue [Just False])),("i1",tTy,_),("i2",fTy,f)])
 	| ty == tTy && ty == fTy
 	= assignDecl "o0" i ty $ \ toExpr -> toExpr f
-genInst _ i (Entity (Prim "mux2") [("o0",ty)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
+genInst _ i (Entity (Prim "mux") [("o0",ty)] [("i0",cTy,c),("i1",tTy,t),("i2",fTy,f)])
 	| ty == tTy && ty == fTy
 	= assignDecl "o0" i ty $ \ toExpr ->
                      (ExprCond cond

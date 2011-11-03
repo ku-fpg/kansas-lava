@@ -56,7 +56,7 @@ or2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
              _                       -> optX $ Nothing ) "or2"
          s1
          s2
-        
+
 -- | 1-bit xor gate.
 xor2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 xor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
@@ -91,11 +91,11 @@ bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
-testABit :: forall a i w sig . (Bits a, Rep a, Size w, Rep w, w ~ (W a), sig ~ Signal i) 
+testABit :: forall a i w sig . (Bits a, Rep a, Size w, Rep w, w ~ (W a), sig ~ Signal i)
           => sig a -> sig w -> sig Bool
 testABit sig0 ix = sig1 .!. ix
   where
-          sig1 :: sig (Matrix w Bool) 
+          sig1 :: sig (Matrix w Bool)
           sig1 = (bitwise) sig0
 
 {-
@@ -139,7 +139,7 @@ infixr 2 .^.
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
 funMap :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
-funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a) 
+funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a)
                             (D $ Port ("o0")
 			       $ E
 			       $ Entity (Prim "asyncRead")
@@ -182,17 +182,15 @@ funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a)
 -- zero (false) selects the first argument of the tuple, one (true)
 -- selects the second.
 mux :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
-mux iSig (eSig,tSig) = primXS3 mux2shallow "mux2"  iSig  tSig  eSig
+mux iSig (eSig,tSig) = primXS3 muxShallow "mux"  iSig  tSig  eSig
 
--- mux2 uses a hack around liftS3 to eliminate an unnecessary (unpack . pack) arising from
--- the use of liftS3. This is safe, because we know the kind of node that we're building.
--- | Multiplexer with a 1-bit selector and arbitrary width data inputs.
+--- mux2 is deprecated.  Use "mux" instead (the order of alternatives is reversed).
 mux2 :: forall sig a i . ( sig ~ Signal i, Rep a) => sig Bool -> (sig a,sig a) -> sig a
 mux2 iSig (tSig,eSig) = mux iSig (eSig,tSig)
 
 -- | Shallow definition of a multiplexer. Deals with 3-value logic.
-mux2shallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
-mux2shallow i e t =
+muxShallow :: forall a . (Rep a) => X Bool -> X a -> X a -> X a
+muxShallow i e t =
    case unX i of
        Nothing -> optX Nothing
        Just True -> e
@@ -316,7 +314,7 @@ ignoring a b = primS2 const "const" a  b
 -- | Given a representable value for a discirminant and a list of input signals, generate a n-ary mux.
 cASE :: (Rep b,  sig ~ Signal i) => [(sig Bool,sig b)] -> sig b -> sig b
 cASE [] def = def
-cASE ((p,e):pes) def = mux2 p (e,cASE pes def)
+cASE ((p,e):pes) def = mux p (cASE pes def, e)
 
 
 -------------------------------------------------------------------------------------
@@ -332,7 +330,7 @@ coerce f a = primXS1 g "coerce"  a
   where
        g :: X a -> X b
        g x = y'
-          where 
+          where
             y = optX $ liftM f $ unX x
 	    y' | toRep x == toRep y = y
 	       | otherwise          = error "coerce fails to preserve bit pattern"
@@ -382,7 +380,7 @@ mustAssignSLV (Signal a (D (Port "o0" (E (Entity (Prim nm) [("o0",tA)] inps)))))
 
         coer = Port "o0" (E (Entity (Prim "coerce") [("o0",tA)] [("i0",V width,new)]))
         new  = Port "o0" (E (Entity (Prim nm) [("o0",V width)] inps))
-        
+
         width = typeWidth tA
 mustAssignSLV _ = error "mustAssignSLV: internal error"
 
@@ -425,7 +423,7 @@ refinesFrom a b = mkShallowS (S.zipWith fn (shallowS a) (shallowS b))
 -- | Create a register, pass the output of the register through some
 -- combinational logic, then pass the result back into the register input.
 iterateS :: (Rep a, Clock c, seq ~ Signal c)
-         => (forall j . Signal j a -> Signal j a) 
+         => (forall j . Signal j a -> Signal j a)
          -> a -> seq a
 iterateS f start = out where
         out = register start (f out)
@@ -434,8 +432,8 @@ iterateS f start = out where
 
 -- These varients of succ/pred can handle bounded values and do proper looping.
 loopingIncS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
-loopingIncS a = mux2 (a .==. maxBound) (pureS 0,a + 1)
+loopingIncS a = mux (a .==. maxBound) (a + 1, pureS 0)
 
 loopingDecS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
-loopingDecS a = mux2 (a .==. 0) (pureS maxBound,a - 1)
+loopingDecS a = mux (a .==. 0) (a - 1, pureS maxBound)
 

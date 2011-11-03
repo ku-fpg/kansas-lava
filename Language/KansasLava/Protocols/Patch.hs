@@ -652,9 +652,9 @@ constP m ~(_,ackOut) = ((),out)
 		  st
 
 	out :: sig (Enabled a)
-	out = mux2 st
-		( disabledS
-		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+	out = mux st
+		(packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+                , disabledS
 		)
 
 
@@ -685,14 +685,14 @@ prependP m ~(inp,ackOut) = (ackIn,out)
 		  st
 
 	ackIn :: sig Ack
-	ackIn = mux2 st
-		( ackOut
-		, toAck low -- do not acccept anything until header has been sent
+	ackIn = mux st
+		( toAck low -- do not acccept anything until header has been sent
+		, ackOut
 		)
 	out :: sig (Enabled a)
-	out = mux2 st
-		( inp
-		, packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+	out = mux st
+		( packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+		, inp
 		)
 
 ---------------------------------------------------
