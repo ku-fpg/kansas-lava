@@ -1,6 +1,5 @@
 module Language.KansasLava.VCD.EventList
     ( EventList
-    , foldrWithTime
     , toList
     , fromList
     , empty
@@ -11,12 +10,11 @@ module Language.KansasLava.VCD.EventList
     , take
     , drop
     , insert
-{-
     , snoc
     , append
--}
     , zipWith
     , mergeWith
+    , foldrWithTime
     ) where
 
 import Control.Monad
@@ -30,9 +28,7 @@ import qualified Prelude as Prelude
 
 ----------------------------------------------------------------------------------------
 
--- | A list of changes, indexed from 0, stored in reverse order.
--- Obviously, don't try to represent an infinite list.
--- [(6,A),(0,B)]
+-- | A finite list of changes, indexed from 0.
 newtype EventList a = EL { unEL :: M.IntMap a }
     deriving (Eq,Show,Read)
 
@@ -43,11 +39,8 @@ instance Functor EventList where
     fmap f (EL evs) = EL $ M.map f evs
 
 instance F.Foldable EventList where
---    foldr :: (a -> b -> b) -> b -> EventList a -> b
     foldr f z (EL m) = M.fold f z m
 
-foldrWithTime :: ((Int,a) -> b -> b) -> b -> EventList a -> b
-foldrWithTime f z (EL m) = M.foldWithKey (curry f) z m
 {-
 instance (Show a) => Show (EventList a) where
     show = show . toList
@@ -76,12 +69,12 @@ empty = EL M.empty
 
 singleton :: (Int,a) -> EventList a
 singleton = EL . uncurry M.singleton
-{-
-snoc :: (Eq a) => EventList a -> a -> EventList a
-snoc el@(EL evs) v = EL $ (length el,v) : dropWhile ((== v) . snd) evs
--}
 
--- | Insert/update an event in an EventList
+-- | snoc for event lists.
+snoc :: (Eq a) => EventList a -> a -> EventList a
+snoc el v = insert (length el,v) el
+
+-- | Insert/update an event in an EventList.
 insert :: (Eq a) => (Int, a) -> EventList a -> EventList a
 insert (i,v) (EL m) = EL $ maybe (if M.null b || last (EL b) /= v
                                   then M.insert i v m
@@ -89,11 +82,13 @@ insert (i,v) (EL m) = EL $ maybe (if M.null b || last (EL b) /= v
                                  (const m) p
     where (b,p,_) = M.splitLookup i m
 
+-- | head for event lists. O(1)
 head :: EventList a -> a
 head (EL m) | M.null m = error "EventList.head: empty list"
             | otherwise = Prelude.head $ M.elems m
 
 
+-- | last for event lists. O(n)
 last :: EventList a -> a
 last (EL m) | M.null m = error "EventList.last: empty list"
             | otherwise = Prelude.last $ M.elems m
@@ -114,29 +109,26 @@ take i (EL m) | i < 0 = error "EventList.take negative index"
     where (b,_) = M.split i m
           el' = EL b
 
--- | drop for event lists. (TODO: this is buggy, fix it)
+-- | drop for event lists.
 drop :: Int -> EventList a -> EventList a
 drop i (EL m) = EL m'
-    where (b,p,a) = M.splitLookup (i+1) m -- if first item is not at zero, add last item in b
-          m' = M.fromAscList $ (maybe [] (\v -> [(0,v)]) p)
-                            ++ case [ (i'-i,v) | (i',v) <- M.toAscList a ] of
+    where (b,p',a) = M.splitLookup i m -- if p exists, add it, otherwise add last item in b if
+                                       -- first item in a is not at zero
+          p = maybe [] (\v -> [(0,v)]) p'
+          m' = M.fromAscList $ case p ++ [ (i'-i,v) | (i',v) <- M.toAscList a ] of
                                 [] -> []
                                 l@((0,_):_) -> l
-                                l -> maybe ((0, if M.null b then undefined else last (EL b)) : l)
-                                           (const l) p
-
-{-
-drop i (EL evs) = EL [ (i'-i,v) | (i',v) <- takeWhile ((>= i) . fst) evs ]
+                                l -> (0,if M.null b then undefined else last (EL b)) : l
 
 append :: (Eq a) => EventList a -> EventList a -> EventList a
-append el@(EL xs) (EL ys) = EL $ [ (i+l,v) | (i,v) <- ys ] ++ (fix xs ys)
+append el@(EL xs) (EL ys) = EL $ M.union xs ys'
     where l = length el
+          ys' = M.fromAscList $ fix [ (i+l,v) | (i,v) <- M.toAscList ys ]
 
-          fix [] _  = []
-          fix as [] = as
-          fix as bs | snd (Prelude.head as) == snd (Prelude.last bs) = tail as
-                    | otherwise = as
--}
+          fix [] = []
+          fix bbs@(b:bs) | (not $ M.null xs) && (last el == snd b) = bs
+                         | otherwise = bbs
+
 -- | zipWith for event lists.
 -- zipWith f xs ys = fromList $ zipWith f (toList xs) (toList ys)
 zipWith :: (Eq c) => (a -> b -> c) -> EventList a -> EventList b -> EventList c
@@ -156,3 +148,7 @@ zipWith f xs ys = EL $ M.fromList $ go (ea,eb) (lst xs) (lst ys)
 mergeWith :: (Eq a) => (a -> a -> a) -> [EventList a] -> EventList a
 mergeWith _ [] = fromList []
 mergeWith f ls = foldr1 (zipWith f) ls
+
+-- | Like foldr, but gives the clock value to the function.
+foldrWithTime :: ((Int,a) -> b -> b) -> b -> EventList a -> b
+foldrWithTime f z (EL m) = M.foldWithKey (curry f) z m
