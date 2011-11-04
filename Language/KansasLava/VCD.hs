@@ -209,7 +209,7 @@ vcdIds = map code [0..]
 
 values :: [(VCDID, E.EventList RepValue)] -> String
 values sigs = dumpVars initials ++ eventList rest
-    where (initials,rest) = unzip [ ((i, E.head el), (i, E.drop 1 el)) | (i, el) <- sigs ]
+    where (initials,rest) = unzip [ ((i, E.head el), (i, el)) | (i, el) <- sigs ]
 
 dumpVars :: [(VCDID, RepValue)] -> String
 dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
