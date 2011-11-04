@@ -14,7 +14,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.VCD
-import Language.KansasLava.Types
 
 import Control.Concurrent.MVar
 import System.IO.Unsafe

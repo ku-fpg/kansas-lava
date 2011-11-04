@@ -34,7 +34,6 @@ import qualified Language.KansasLava.Stream as S
 
 import Control.Monad
 
-import System.IO
 import Data.Char
 import qualified Data.Foldable as F
 import Data.Function
