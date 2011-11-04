@@ -23,16 +23,16 @@ import Data.IORef
 
 {-# NOINLINE probeS #-}
 -- | 'probeS' adds a named probe to the front of a signal.
-probeS :: (Clock c, Rep a) => String -> Signal c a -> Signal c a
+probeS :: (Rep a) => String -> Signal c a -> Signal c a
 probeS str sig = unsafePerformIO $ do
         (ProbeFn fn) <- readIORef probeFn
         return (fn str sig)
 
 -- | 'unpackedProbe' is an unpacked version of 'probeS'.
-unpackedProbe :: forall c a p . (Clock c, Rep a, Pack c a, p ~ Unpacked c a) => String -> p -> p
+unpackedProbe :: forall c a p . (Rep a, Pack c a, p ~ Unpacked c a) => String -> p -> p
 unpackedProbe nm a = unpack (probeS nm (pack a) :: Signal c a)
 
-data ProbeFn = ProbeFn (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a)
+data ProbeFn = ProbeFn (forall a i . (Rep a) => String -> Signal i a -> Signal i a)
 
 {-# NOINLINE probeFn #-}
 probeFn :: IORef ProbeFn
@@ -41,7 +41,7 @@ probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 -- | Used internally for initializing debugging hooks, replaces all future calls to probe
 -- with the given function.
 {-# NOINLINE setProbes #-}
-setProbes :: (forall a i . (Rep a, Clock i) => String -> Signal i a -> Signal i a) -> IO ()
+setProbes :: (forall a i . (Rep a) => String -> Signal i a -> Signal i a) -> IO ()
 setProbes = writeIORef probeFn . ProbeFn
 
 -- | The callback is called for every element of every probed value, in evaluation order.
