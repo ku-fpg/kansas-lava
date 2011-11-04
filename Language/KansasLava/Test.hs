@@ -140,7 +140,7 @@ testFabrics opts simMods name count f_dut f_expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (mkTestbench (path </> modname) count (snd cmod) f_dut inp))
+                            let sims = [ (modname, (mkTestbench' (path </> modname) count (snd cmod) f_dut inp))
                                        | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
@@ -810,3 +810,26 @@ readPreludeFile fname = do
    putStrLn "to point to the root of the KsLava source directory."
    exitFailure
 
+-----------------------------------
+
+-- | Make a VHDL testbench from a 'Fabric' and its inputs.
+mkTestbench' :: FilePath                 -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
+            -> Int                      -- ^ Generate inputs for this many cycles.
+            -> (KLEG -> IO KLEG)  -- ^ any operations on the circuit before VHDL generation
+            -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
+            -> [(String,Pad)]           -- ^ Inputs to the Fabric
+            -> IO VCD
+mkTestbench' path cycles circuitMod fabric input = do
+    let name = last $ splitPath path
+
+    createDirectoryIfMissing True path
+
+    (vcd, rc) <- mkVCDCM cycles fabric input circuitMod
+
+    writeTBF (path </> name <.> "in.tbf") vcd
+    writeFile (path </> name <.> "sig") $ show $ toSignature vcd
+    writeFile (path </> name <.> "kleg") $ show rc
+
+    mkTestbench name path rc
+
+    return vcd

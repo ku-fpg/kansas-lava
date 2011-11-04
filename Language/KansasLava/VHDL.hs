@@ -6,12 +6,10 @@ module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench) where
 
 import Data.List(mapAccumL)
 
-import Language.KansasLava.Fabric
 import Language.KansasLava.Netlist.Utils(toStdLogicExpr,toStdLogicTy, isMatrixStdLogicTy, sizedRange)
 import Language.KansasLava.Netlist.Decl
 import Language.KansasLava.Netlist.Inst
 import Language.KansasLava.Types
-import Language.KansasLava.VCD
 
 import Language.Netlist.AST
 import Language.Netlist.GenVHDL
@@ -32,30 +30,9 @@ writeVhdlCircuit nm file cir = do
         -- we always use the following 'use' statements.
         mods = ["work.lava.all","work.all"]
 
--- | Make a VHDL testbench from a 'Fabric' and its inputs.
-mkTestbench :: FilePath                 -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
-            -> Int                      -- ^ Generate inputs for this many cycles.
-            -> (KLEG -> IO KLEG)  -- ^ any operations on the circuit before VHDL generation
-            -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
-            -> [(String,Pad)]           -- ^ Inputs to the Fabric
-            -> IO VCD
-mkTestbench path cycles circuitMod fabric input = do
-    let name = last $ splitPath path
 
-    createDirectoryIfMissing True path
-
-    (vcd, rc) <- mkVCDCM cycles fabric input circuitMod
-
-    writeTBF (path </> name <.> "in.tbf") vcd
-    writeFile (path </> name <.> "sig") $ show $ toSignature vcd
-    writeFile (path </> name <.> "kleg") $ show rc
-
-    writeTestbench name path rc
-
-    return vcd
-
-writeTestbench :: String -> FilePath -> KLEG -> IO ()
-writeTestbench name path circuit = do
+mkTestbench :: String -> FilePath -> KLEG -> IO ()
+mkTestbench name path circuit = do
     createDirectoryIfMissing True path
     writeVhdlCircuit name (path </> name <.> "vhd") circuit
 
