@@ -3,8 +3,8 @@
 -- It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.VCD
     ( VCD(..)
-    , toVCDFile
-    , fromVCDFile
+    , writeVCDFile
+    , readVCDFile
     , addEvent
     -- * Generate a Signature from a VCD trace
     , toSignature
@@ -34,6 +34,7 @@ import qualified Language.KansasLava.Stream as S
 
 import Control.Monad
 
+import System.IO
 import Data.Char
 import qualified Data.Foldable as F
 import Data.Function
@@ -121,14 +122,18 @@ outputs = scope "outputs"
 ----------------------------------------------------------------------------------------
 
 -- | Convert a VCD file to a VCD object.
-fromVCDFile :: String -> Signature -> VCD
-fromVCDFile vcd sig = VCD $ [ ("inputs/" ++ nm, VC ty s)
+readVCDFile :: FilePath -> Signature -> IO VCD
+readVCDFile fileName sig = do
+   vcd <- readFile fileName
+
+   let (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trimWhile isSpace vcd
+       vals = uncurry changes . dumpvars $ ls
+       streams = [ (nm, vs) | (i, nm) <- signames, (i',vs) <- vals, i == i' ]
+
+   return $ VCD $ [ ("inputs/" ++ nm, VC ty s)
                             | (nm,ty) <- sigInputs sig, (snm,s) <- streams, nm == snm ]
                          ++ [ ("outputs/" ++ nm, VC ty s)
                             | (nm,ty) <- sigOutputs sig, (snm, s) <- streams, nm == snm ]
-    where (signames, ls) = defs2map $ dropWhile (not . isPrefixOf "$var") $ lines $ trimWhile isSpace vcd
-          vals = uncurry changes . dumpvars $ ls
-          streams = [ (nm, vs) | (i, nm) <- signames, (i',vs) <- vals, i == i' ]
 
 -- | Parse definitions section, getting map of VCDIDs to signal names.
 defs2map :: [String] -> ([(VCDID,String)],[String])
@@ -178,14 +183,15 @@ parseVal = go . words
 ----------------------------------------------------------------------------------------
 
 -- | Convert a 'VCD' to a VCD file.
-toVCDFile :: Bool    -- ^ Whether to include the clock signal in the list of signals
-          -> Integer -- ^ Timescale in nanoseconds
+writeVCDFile :: Bool    -- ^ Whether to include the clock signal in the list of signals
+          -> Integer    -- ^ Timescale in nanoseconds
+          -> FilePath   -- ^ name of VCD file
           -> VCD
-          -> String
-toVCDFile _incClk ts (VCD m) = unlines
+          -> IO ()
+writeVCDFile _incClk ts fileName (VCD m) = writeFile fileName $ unlines
     [ "$version\n   Kansas Lava\n$end"
     , "$timescale " ++ show ts ++ "ns $end"
-    , "$scope top $end"
+    , "$scope module top $end"
     ]
     ++ unlines [ unwords ["$var wire", show $ typeWidth ty, ident, show k, "$end"]
                | (ident,(k,VC ty _)) <- signals ]
@@ -210,7 +216,7 @@ dumpVars :: [(VCDID, RepValue)] -> String
 dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
 
 eventList :: [(VCDID, E.EventList RepValue)] -> String
-eventList strms = E.foldrWithTime (\(t,ls) r -> "#" ++ show t ++ "\n" ++ ls ++ r) "" elist
+eventList strms = E.foldrWithTime (\(t,ls) r -> "#" ++ show t ++ "\n" ++ ls ++ "\n" ++ r) "" elist
     where elist = E.mergeWith (\s1 s2 -> s1 ++ ('\n':s2))
                               [ fmap (vcdVal ident) elist' | (ident,elist') <- strms ]
 
