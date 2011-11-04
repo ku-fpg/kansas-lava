@@ -2,17 +2,22 @@ Name:               kansas-lava
 Version:            0.2.3.0
 Synopsis:           Kansas Lava is a hardware simulator and VHDL generator.
 
-		    (c) 2009 The University of Kansas; BSD3 license.
+Description: 
+  Kansas Lava is a Domain Specific Language (DSL) for expressing
+  hardware-oriented descriptions of computations, and is hosted inside
+  the language Haskell. Kansas Lava programs are descriptions of
+  specific hardware entities, the connections between them, and other
+  computational abstractions that can compile down to these entities.
 
 Category:            Language
 License:             BSD3
 License-file:        LICENSE
 Author:              Andy Gill
 Maintainer:          Andy Gill <andygill@ku.edu>
-Copyright:           (c) 2009 The University of Kansas
+Copyright:           (c) 2009-2011 The University of Kansas
 Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
-Stability:	     alpha
-build-type: 	     Simple
+Stability:           alpha
+build-type:          Simple
 Cabal-Version:       >= 1.10
 Data-files: Prelude/VHDL/*.vhd, Prelude/HTML/*.inc
 
@@ -22,11 +27,11 @@ Flag all
 
 Flag unit
   Description: Enable unit testing binary
-  Default:     True
+  Default:     False
 
 Flag tools
   Description: Enable extra tool binary
-  Default:     True
+  Default:     False
 
 Library
 
@@ -68,14 +73,9 @@ Library
        Language.KansasLava.VCD.EventList
        Paths_kansas_lava
 
-
-
--- hack for now
---  Hs-Source-Dirs: ., ../sized-types
 -- need a module refactor to address the orphan warnings
   Ghc-Options: -Wall  -Werror -fno-warn-orphans
   default-language:    Haskell2010
-
 
 --  Ghc-Prof-options:  -auto-all
 
@@ -132,9 +132,3 @@ Executable tbf2vcd
     Ghc-Options: -Wall  -Werror -fno-warn-orphans
     default-language:    Haskell2010
 
--- Test-suite test-shallow
---     type: exitcode-stdio-1.0
---     main-is: Main.hs
---     build-depends: base, kansas-lava, sized-types, data-default
---     Ghc-Options: -Wall  -Werror -fno-warn-orphans -fcontext-stack=50
---     Hs-source-dirs: tests
