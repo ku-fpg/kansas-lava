@@ -43,7 +43,12 @@ module Language.KansasLava (
     module Language.KansasLava.Rep,
 
     -- * Kansas Lava User-level Utils
-    module Language.KansasLava.Utils
+    module Language.KansasLava.Utils,
+
+    -- * Version Change Dump
+    VCD,
+    writeVCDFile,
+    readVCDFile
      ) where
 
 import Language.KansasLava.DOT
@@ -56,6 +61,7 @@ import Language.KansasLava.RTL
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
+import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
 
 
