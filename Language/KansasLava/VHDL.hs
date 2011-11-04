@@ -34,7 +34,6 @@ writeVhdlCircuit nm file cir = do
 mkTestbench :: String -> FilePath -> KLEG -> IO ()
 mkTestbench name path circuit = do
     createDirectoryIfMissing True path
-    writeVhdlCircuit name (path </> name <.> "vhd") circuit
 
     writeFile (path </> name ++ "_tb.vhd")
             $ entity name ++ architecture name (preprocessNetlistCircuit circuit)

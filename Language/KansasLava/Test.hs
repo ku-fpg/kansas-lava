@@ -830,6 +830,7 @@ mkTestbench' path cycles circuitMod fabric input = do
     writeFile (path </> name <.> "sig") $ show $ toSignature vcd
     writeFile (path </> name <.> "kleg") $ show rc
 
+    writeVhdlCircuit name (path </> name <.> "vhd") rc
     mkTestbench name path rc
 
     return vcd
