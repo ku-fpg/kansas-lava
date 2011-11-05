@@ -2,7 +2,7 @@
 {-# LANGUAGE ParallelListComp #-}
 
 -- | This module converts a Lava circuit to a synthesizable VHDL netlist.
-module Language.KansasLava.VHDL(writeVhdlCircuit, mkTestbench) where
+module Language.KansasLava.VHDL(writeVhdlCircuit, writeVhdlPrelude, mkTestbench) where
 
 import Data.List(mapAccumL)
 
@@ -20,6 +20,7 @@ import System.FilePath.Posix
 import Data.Char
 import Data.Reify(Unique)
 
+import Paths_kansas_lava
 
 -- | The 'vhdlCircuit' function converts a Lava KLEG into a VHDL entity/architecture pair.
 writeVhdlCircuit :: String -> FilePath -> KLEG -> IO ()
@@ -30,6 +31,15 @@ writeVhdlCircuit nm file cir = do
         -- we always use the following 'use' statements.
         mods = ["work.lava.all","work.all"]
 
+-- | Write the Lava Prelude into this file.
+-- For example:
+--
+-- > writeVhdlPrelude "Lava.vhd" 
+--
+writeVhdlPrelude :: FilePath -> IO ()
+writeVhdlPrelude prel_dest = do
+        prel_src <- getDataFileName "Prelude/VHDL/Lava.vhd"
+        copyFile prel_src prel_dest
 
 mkTestbench :: String -> FilePath -> KLEG -> IO ()
 mkTestbench name path circuit = do

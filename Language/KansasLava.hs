@@ -29,6 +29,7 @@ module Language.KansasLava (
     
     -- * Outputing VHDL
     writeVhdlCircuit,
+    writeVhdlPrelude,
 
     -- * RTL sub-DSL
     module Language.KansasLava.RTL,
