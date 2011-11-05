@@ -304,7 +304,7 @@ localMake relativePath = unlines
     ,"\tvsim -c -do " ++ name ++ ".do"
     ,""
     ,"diff:"
-    ,"\t" ++ dots </> "dist/build/tbf2vcd/tbf2vcd --diff " ++ name ++ ".sig " ++ name ++ ".in.tbf " ++ name ++ ".out.tbf"
+    ,"\t" ++ dots </> "dist/build/tbf2vcd/tbf2vcd --diff " ++ name ++ ".sig " ++ name ++ ".in.tbf " ++ name ++ ".out.tbf diff.vcd"
     ,"\tgtkwave diff.vcd"
     ,""
     ,"vcd:"
