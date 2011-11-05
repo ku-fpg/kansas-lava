@@ -23,26 +23,10 @@ type Pipe a d = Enabled (a,d)
 -- | A Memory takes in a sequence of addresses, and returns a sequence of data at that address.
 type Memory clk a d = Signal clk a -> Signal clk d
 
--- | Given a Seq of addresses for reads and a memory structure, this produces a Pipe that's the memory output.
-memoryToPipe ::  forall a d clk . (Rep a, Rep d, Clock clk) =>  Signal clk (Enabled a) -> Memory clk a d -> Signal clk (Pipe a d)
-memoryToPipe enA mem = pack (delay en,pack (delay a,mem a))
-   where
-	(en,a) = unpack enA
-
--- | Given a Seq of address/data pairs as a pipe, write the data to the memory
--- at the corresponding address, and return the value at the address that is the
--- second argument.
-pipeToMemory :: forall a d clk1 . (Size a, Clock clk1, Rep a, Rep d)
-	=> Signal clk1 (Pipe a d)
-	-> Memory clk1 a d
-pipeToMemory pipe addr2 = syncRead (writeMemory (delay pipe)) addr2
-
--- Later, we will have a two clock version.
-
 -- Does not work for two clocks, *YET*
 -- call writeMemory
 -- | Write the input pipe to memory, return a circuit that does reads.
-writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
+writeMemory :: forall a d clk1 sig . (Show a, Show d, Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
 	=> sig (Pipe a d)
 	-> sig (a -> d)
 writeMemory pipe = res
