@@ -26,7 +26,7 @@ type Memory clk a d = Signal clk a -> Signal clk d
 -- Does not work for two clocks, *YET*
 -- call writeMemory
 -- | Write the input pipe to memory, return a circuit that does reads.
-writeMemory :: forall a d clk1 sig . (Show a, Show d, Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
+writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
 	=> sig (Pipe a d)
 	-> sig (a -> d)
 writeMemory pipe = res
@@ -53,7 +53,9 @@ writeMemory pipe = res
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
 	updates :: Stream (Maybe (Maybe (a,d)))
-	updates = stepifyStream (\ a -> case a of
+	updates = id
+--	        $ observeStream "updates"
+	        $ stepifyStream (\ a -> case a of
 					Nothing -> ()
 					Just b -> case b of
 						   Nothing -> ()
@@ -71,21 +73,10 @@ writeMemory pipe = res
 			 <*> shallowS addr
 			 <*> shallowS dat
 
-	-- mem
-{-
-	mem :: Stream (Map [Bool] d)
-	mem = id -- stepify
-	    $ Map.empty :~ Stream.fromList
-		[ case u of
-		    Nothing           -> Map.empty	-- unknown again
-		    Just Nothing      -> m
-		    Just (Just (a,d)) -> ((Map.insert $! (M.toList $! (fromWireRep a :: Matrix (WIDTH a) Bool))) $!) d $! m
-		| u <- Stream.toList updates
-		| m <- Stream.toList mem
-		]
--}
 	mem :: Stream (Radix d)
-	mem = stepifyStream (\ a -> a `seq` ())
+	mem = id
+--	    $ observeStream "mem"
+	    $ stepifyStream (\ a -> a `seq` ())
 	    $ Cons empty $ Just $ Stream.fromList
 		[ case u of
 		    Nothing           -> empty	-- unknown again
@@ -118,12 +109,6 @@ readMemory :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, 
 readMemory mem addr = unpack mem addr
 -}
 
--- This is an alias (TODO: remove)
--- | Read a series of addresses.
-readMemory :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
-	=> sig (a -> d) -> sig a -> sig d
-readMemory mem addr = asyncRead mem addr
-
 -- | Read a series of addresses. Respect the latency of Xilinx BRAMs.
 syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
@@ -152,7 +137,6 @@ memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 enabledToPipe :: (Rep x, Rep y, Rep z, sig ~ Signal clk) => (forall j . Signal j x -> Signal j (y,z)) -> sig (Enabled x) -> sig (Pipe y z)
 enabledToPipe f se = pack (en, f x)
    where (en,x) = unpack se
-
 
 
 --------------------------------------------------
