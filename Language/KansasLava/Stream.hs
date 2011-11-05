@@ -12,6 +12,7 @@ import Prelude hiding (zipWith,zipWith3, repeat)
 import Data.Monoid
 import qualified Data.List as List
 import Data.Dynamic
+import Debug.Trace
 
 -- | Set the precedence of infix `Cons`.
 infixr 5 `Cons`
@@ -71,3 +72,8 @@ instance F.Foldable Stream where
 instance Traversable Stream where
   traverse f (a `Cons` opt_as) = Cons <$> f a <*> maybe (pure Nothing) (\ as -> Just <$> traverse f as) opt_as
 
+observeStream :: (Show a) => String -> Stream a -> Stream a
+observeStream nm (Cons a rest) = trace (show (nm,a)) $ Cons a $
+        case rest of
+          Nothing -> trace (show (nm,".")) $ Nothing
+          Just xs -> Just $ observeStream nm xs
