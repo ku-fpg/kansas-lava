@@ -109,7 +109,7 @@ readMemory :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, 
 readMemory mem addr = unpack mem addr
 -}
 
--- | Read a series of addresses. Respect the latency of Xilinx BRAMs.
+-- | Read a series of addresses. Respects the latency of Xilinx BRAMs.
 syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
