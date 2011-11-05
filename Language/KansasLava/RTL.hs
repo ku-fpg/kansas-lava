@@ -169,7 +169,7 @@ newArr Witness = RTL $ \ _ u -> do
 		assigns <- readSTRef varSt
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
 		let look ix = writeMemory (ass :: Signal c (Maybe (ix,a)))
-					`readMemory` ix
+					`asyncRead` ix
 		return look
 	return (\ ix -> Arr (proj ix) ix varSt uq, [])
 
