@@ -167,7 +167,7 @@ instance (Rep a) => Rep (Maybe a) where
     -- not completely sure about this representation
     data X (Maybe a) = XMaybe (X Bool, X a)
     optX b      = XMaybe ( case b of
-                  Nothing -> optX (Nothing :: Maybe Bool)
+                  Nothing        -> optX (Nothing :: Maybe Bool)
                   Just Nothing   -> optX (Just False :: Maybe Bool)
                   Just (Just {}) -> optX (Just True :: Maybe Bool)
               , case b of
@@ -175,20 +175,23 @@ instance (Rep a) => Rep (Maybe a) where
                 Just Nothing  -> optX (Nothing :: Maybe a)
                 Just (Just a) -> optX (Just a :: Maybe a)
               )
-    unX (XMaybe (a,b))   = case unX a :: Maybe Bool of
+    unX (XMaybe (a,b)) = case unX a :: Maybe Bool of
                 Nothing    -> Nothing
                 Just True  -> Just $ unX b
-                Just False -> Just Nothing
+                Just False -> case unX b of
+                                Nothing -> Nothing
+                                Just {} -> Just Nothing
     repType _  = TupleTy [ B, repType (Witness :: Witness a)]
 
     toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)
         where (RepValue avals) = toRep a
               (RepValue bvals) = toRep b
-    fromRep (RepValue vs) = XMaybe ( fromRep (RepValue (take 1 vs))
+    fromRep (RepValue vs) = XMaybe 
+                  ( fromRep (RepValue (take 1 vs))
                   , fromRep (RepValue (drop 1 vs))
                   )
-    showRep (XMaybe (XBool Nothing,_a)) = "?"
-    showRep (XMaybe (XBool (Just True),a)) = "Just " ++ showRep a
+    showRep (XMaybe (XBool Nothing,_a))      = "?"
+    showRep (XMaybe (XBool (Just True),a))   = "Just " ++ showRep a
     showRep (XMaybe (XBool (Just False),_)) = "Nothing"
 
 instance (Size ix, Rep a) => Rep (Matrix ix a) where
