@@ -39,11 +39,23 @@ Flag tools
   Default:     False
 
 Library
-
-  Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types >= 0.3.4,
-                 directory, random, netlist >= 0.3.1, netlist-to-vhdl >= 0.3.1, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
+  Build-Depends: 
+        base >= 4 && < 5, 
+        dotgen >= 0.4.1,
+        containers,
+        sized-types >= 0.3.4,
+        data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs==0.8,
+        process,
+        netlist >= 0.3.1,
+        netlist-to-vhdl >= 0.3.1,
+        template-haskell, 
+        bytestring,
+        data-reify == 0.6
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.DOT
@@ -86,12 +98,24 @@ Library
 
 Executable kansas-lava-unittest
     if flag(unit) || flag(all)
-      -- Build-Depends: base,  hpc, strict, kansas-lava, sized-types, data-default
-      Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types >= 0.3.4,
-                 directory, random, netlist >= 0.3.1, netlist-to-vhdl >= 0.3.1, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
       buildable: True
+      Build-Depends:
+        base >= 4 && < 5,
+        dotgen >= 0.4.1,
+        containers,
+        sized-types >= 0.3.4,
+        data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs==0.8,
+        process,
+        netlist >= 0.3.1,
+        netlist-to-vhdl >= 0.3.1,
+        template-haskell, 
+        bytestring,
+        data-reify == 0.6
       Other-modules:
          Coerce Matrix Memory Others Protocols Regression
     else
@@ -106,12 +130,24 @@ Executable kansas-lava-unittest
 
 Executable kansas-lava-testreport
     if flag(unit) || flag(all)
-      -- Build-Depends: base, strict, kansas-lava
-      Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types >= 0.3.4,
-                 directory, random, netlist >= 0.3.1, netlist-to-vhdl >= 0.3.1, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
       buildable: True
+      Build-Depends:
+        base >= 4 && < 5,
+        dotgen >= 0.4.1,
+        containers,
+        sized-types >= 0.3.4,
+        data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs==0.8,
+        process,
+        netlist >= 0.3.1,
+        netlist-to-vhdl >= 0.3.1,
+        template-haskell, 
+        bytestring,
+        data-reify == 0.6
       Other-modules:
     else
       Build-depends: base
@@ -124,12 +160,24 @@ Executable kansas-lava-testreport
 
 Executable kltbf2vcd
     if flag(tools) || flag(all)
-      Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
-                 dotgen  >= 0.4.1, array, template-haskell, sized-types >= 0.3.4,
-                 directory, random, netlist >= 0.3.1, netlist-to-vhdl >= 0.3.1, process,
-                 fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
+      Build-Depends:
+        base >= 4 && < 5,
+        dotgen >= 0.4.1,
+        containers,
+        sized-types >= 0.3.4,
+        data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs==0.8,
+        process,
+        netlist >= 0.3.1,
+        netlist-to-vhdl >= 0.3.1,
+        template-haskell, 
+        bytestring,
+        data-reify == 0.6
       buildable: True
-      Other-modules:
     else
       Build-depends: base
       buildable: False
