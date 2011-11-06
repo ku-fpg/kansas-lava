@@ -19,7 +19,12 @@ Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
 Stability:           alpha
 build-type:          Simple
 Cabal-Version:       >= 1.10
-Data-files: Prelude/VHDL/*.vhd, Prelude/HTML/*.inc
+Data-files: 
+   Prelude/VHDL/*.vhd, 
+   Prelude/HTML/*.inc
+extra-source-files:   
+   tests/Makefile
+   README
 
 Flag all
   Description: Enable full development tree
@@ -88,6 +93,7 @@ Executable kansas-lava-unittest
                  fgl, filepath, data-default, unix, bytestring, mtl, strict, cmdargs==0.8
       buildable: True
       Other-modules:
+         Coerce Matrix Memory Others Protocols Regression
     else
       Build-depends: base
       buildable: False

@@ -8,10 +8,9 @@ compilation and synthesis using standard HDL tools.
 
 To run tests
 
+% cabal configure -fall
+% cabal build
 % cd tests
-% make test		-- use 'make ARGS=--gensim' if you want to generate VHDL
-% make simulate		-- [optional] if you want to test the VHDL using modelsim
+% make test	   	-- use 'make test ARGS=--gensim' if you want to generate VHDL
+% make simulate	-- [optional] if you want to test the VHDL using modelsim
 % make report		-- generate test report
-
-
-
