@@ -116,7 +116,7 @@ Executable kansas-lava-testreport
                  -fno-warn-orphans -fcontext-stack=256
     default-language:    Haskell2010
 
-Executable tbf2vcd
+Executable kltbf2vcd
     if flag(tools) || flag(all)
       Build-Depends: base >= 4 && < 5, containers, data-reify == 0.6, pretty,
                  dotgen  >= 0.4.1, array, template-haskell, sized-types >= 0.3.4,
@@ -132,3 +132,6 @@ Executable tbf2vcd
     Ghc-Options: -Wall  -fno-warn-orphans
     default-language:    Haskell2010
 
+source-repository head
+  type:     git
+  location: git://github.com/ku-fpg/kansas-lava.git

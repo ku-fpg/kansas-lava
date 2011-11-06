@@ -16,8 +16,8 @@ main2 ["--clock",clk,sig,bits',vcd_out] | all C.isDigit clk
 	= main3 True (read clk) sig bits' vcd_out
 main2 [clk,sig,bits',vcd_out] | all C.isDigit clk
 	= main3 False (read clk) sig bits' vcd_out
-main2 _ = error $ "usage:\n   tbf2vcd [--clock] (clockrate-in-ns) <.sig-file> <.bits-file> <vcd-file>\n" ++
-                          "   tbf2vcd --diff <.sig-file> <.left-bits-file> <.right-bits-file> <vcd-file>"
+main2 _ = error $ "usage:\n   kltbf2vcd [--clock] (clockrate-in-ns) <.sig-file> <.bits-file> <vcd-file>\n" ++
+                          "   kltbf2vcd --diff <.sig-file> <.left-bits-file> <.right-bits-file> <vcd-file>"
 
 main3 :: Bool -> Integer -> FilePath -> FilePath ->  FilePath -> IO ()
 main3 ifClk clkRate sigName bitsName vcdFile = do
