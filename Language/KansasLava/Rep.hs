@@ -177,10 +177,10 @@ instance (Rep a) => Rep (Maybe a) where
               )
     unX (XMaybe (a,b)) = case unX a :: Maybe Bool of
                 Nothing    -> Nothing
-                Just True  -> Just $ unX b
-                Just False -> case unX b of
-                                Nothing -> Nothing
-                                Just {} -> Just Nothing
+                Just True  -> case unX b of
+                                Nothing -> Nothing 
+                                Just v -> Just (Just v)
+                Just False -> Just Nothing
     repType _  = TupleTy [ B, repType (Witness :: Witness a)]
 
     toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)

@@ -282,7 +282,9 @@ instance (Rep a) => Pack i (Maybe a) where
 	pack (a,b) = primXS2 (\ a' b' -> case unX a' of
 	                                  Nothing    -> optX Nothing
 					  Just False -> optX $ Just Nothing
-					  Just True  -> optX (Just (unX b')))
+					  Just True  -> optX $ case unX b' of
+					                        Nothing -> Nothing
+					                        Just v -> Just (Just v))
                              "pair" a b
 	unpack ma = ( primXS1 (\ a -> case unX a of
 					Nothing -> optX Nothing
