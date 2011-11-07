@@ -9,7 +9,7 @@ Description:
   specific hardware entities, the connections between them, and other
   computational abstractions that can compile down to these entities.
 
-Category:            Language
+Category:            Language, Hardware
 License:             BSD3
 License-file:        LICENSE
 Author:              Andy Gill
