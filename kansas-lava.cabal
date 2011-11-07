@@ -158,7 +158,7 @@ Executable kansas-lava-testreport
                  -fno-warn-orphans -fcontext-stack=256
     default-language:    Haskell2010
 
-Executable kltbf2vcd
+Executable kansas-lava-tbf2vcd
     if flag(tools) || flag(all)
       Build-Depends:
         base >= 4 && < 5,
