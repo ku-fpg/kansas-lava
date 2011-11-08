@@ -5,7 +5,6 @@ module Language.KansasLava.Netlist.Utils
   (
    ToTypedExpr(..),
    ToStdLogicExpr(..), toStdLogicTy,
-   AddNext(..),
    toIntegerExpr,
    sizedRange, sigName,
    isHigh,
@@ -44,23 +43,17 @@ class ToTypedExpr v where
 
 instance (Integral a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
-	toTypedExpr ty (Lit n)           = toTypedExpr ty n
-	toTypedExpr ty (Generic n)       = toTypedExpr ty n
-	toTypedExpr ty (Port v n)        = toTypedExpr ty (sigName v (fromIntegral n))
-	toTypedExpr ty (Pad nm) = toTypedExpr ty nm
-        toTypedExpr _ other = error $ "toTypedExpr(Driver a): " ++ show other
-
-instance ToTypedExpr String where
-	-- From a std_logic* into a typed Expr
-	toTypedExpr B      nm = 		       ExprVar nm
-	toTypedExpr ClkTy  nm = 		       ExprVar nm
-	toTypedExpr (V _)  nm = 	   	       ExprVar nm
-	toTypedExpr (S _)  nm = 	signed $       ExprVar nm
-	toTypedExpr (U _)  nm = 	unsigned $     ExprVar nm
-	toTypedExpr (TupleTy _) nm =                   ExprVar nm
-	toTypedExpr (MatrixTy _ _) nm =		       ExprVar nm
-	toTypedExpr (SampledTy {}) nm =		       ExprVar nm
-	toTypedExpr _other nm = error $ show ("toTypedExpr",_other,nm)
+	toTypedExpr ty (Lit n)     = toTypedExpr ty n
+	toTypedExpr ty (Generic n) = toTypedExpr ty n
+	toTypedExpr ty      nm0     = case ty of
+                         S _ -> signed   $ ExprVar nm1
+                         U _ -> unsigned $ ExprVar nm1
+                         _   ->            ExprVar nm1
+           where
+                nm1 = case nm0 of
+                        Port v n -> sigName v (fromIntegral n)
+                        Pad nm   -> nm
+                        _        -> error $ "toTypedExpr(Driver a) error: " ++ show (ty,nm0)
 
 instance ToTypedExpr Integer where
 	-- From a literal into a typed Expr
@@ -317,21 +310,6 @@ addNum :: Integer -> [(String,Type,Driver Unique)] -> [(String,Type,Driver Uniqu
 addNum i [("i0",ty,d)] = [("i0",GenericTy,Generic i),("i1",ty,d)]
 addNum _ _ = error "addNum"
 -- TODO: should ty be GenericTy only here?
-
-------------------------------------------------------------------------
-
--- | The 'AddNext' class is used to uniformly generate the names of 'next' signals.
-class AddNext s where
-  -- | Given a signal, return the name of the "next" signal.
-  next :: s -> s
-
-instance AddNext String where
-   next nm = nm ++ "_next"
-
-instance AddNext (Driver i) where
-   next (Port v i) = Port (next v) i
-   next other = other
-
 ------------------------------------------------------------------------------
 
 -- | Convert a string representing a Lava operation to a VHDL-friendly name.
