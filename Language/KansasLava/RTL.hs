@@ -19,7 +19,8 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes
 import Data.Sized.Matrix
-import Control.Monad.ST
+import Control.Monad.ST (runST, ST)
+import Control.Monad.ST.Unsafe (unsafeInterleaveST)
 import Data.STRef
 import Data.List as L
 
