@@ -1,5 +1,5 @@
 Name:               kansas-lava
-Version:            0.2.4
+Version:            0.2.4.1
 Synopsis:           Kansas Lava is a hardware simulator and VHDL generator.
 
 Description: 
@@ -49,13 +49,13 @@ Library
         strict,
         filepath,
         directory,
-        cmdargs==0.8,
+        cmdargs >= 0.8,
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
         template-haskell, 
         bytestring,
-        data-reify == 0.6
+        data-reify >= 0.6
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.DOT
@@ -109,13 +109,13 @@ Executable kansas-lava-unittest
         strict,
         filepath,
         directory,
-        cmdargs==0.8,
+        cmdargs >= 0.8,
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
         template-haskell, 
         bytestring,
-        data-reify == 0.6
+        data-reify >= 0.6
       Other-modules:
          Coerce Matrix Memory Others Protocols Regression
     else
@@ -141,13 +141,13 @@ Executable kansas-lava-testreport
         strict,
         filepath,
         directory,
-        cmdargs==0.8,
+        cmdargs >= 0.8,
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
         template-haskell, 
         bytestring,
-        data-reify == 0.6
+        data-reify >= 0.6
       Other-modules:
     else
       Build-depends: base
@@ -170,13 +170,13 @@ Executable kansas-lava-tbf2vcd
         strict,
         filepath,
         directory,
-        cmdargs==0.8,
+        cmdargs >= 0.8,
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
         template-haskell, 
         bytestring,
-        data-reify == 0.6
+        data-reify >= 0.6
       buildable: True
     else
       Build-depends: base
