@@ -160,7 +160,6 @@ dumpvars other = error $ "dumpvars: bad parse! " ++ show other
 
 -- | Parse list of changes into an EventList
 changes :: [(VCDID,RepValue)] -> [String] -> [(String, E.EventList RepValue)]
--- changes initVals ls = foldl fromEvList [ (i,[(0,v)]) | (i,v) <- initVals ]
 changes initVals ls = M.toList $ unMerge elist
     where (_,elist) = foldl go (0,E.fromList []) ls
 
