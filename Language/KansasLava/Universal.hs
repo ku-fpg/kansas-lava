@@ -13,9 +13,7 @@ import Language.KansasLava.Utils
 -- TODO: rename as Pad.
 
 data Pad = StdLogic (Seq Bool)
-         | forall a x 
-                . (Size (W a), Show a, Rep a)
-                => StdLogicVector (Seq a)
+         | forall a . (Rep a) => StdLogicVector (Seq a)
          | GenericPad Integer
 	 | TheClk
 	 | TheRst
@@ -25,9 +23,7 @@ data Pad = StdLogic (Seq Bool)
 -- | Get the type of a pad.
 padStdLogicType :: Pad -> StdLogicType
 padStdLogicType (StdLogic _)       = SL
-padStdLogicType (StdLogicVector s) = SLV $ size (untype s)
-    where untype :: (Size (W a)) => Seq a -> W a
-          untype = error "untype"
+padStdLogicType (StdLogicVector s) = SLV $ widthS s
 padStdLogicType (GenericPad _)        = G
 padStdLogicType (TheClk) 	      = SL
 padStdLogicType (TheRst) 	      = SL
@@ -43,12 +39,11 @@ instance Show Pad where
 
 -- NOTE: suspect that you do not need Size or Show here
 -- NOTE: (2) Also, we need to match on Boolean.
-toUni :: (Size (W a), Show a, Rep a) => Seq a -> Pad
+toUni :: (Rep a) => Seq a -> Pad
 toUni = StdLogicVector
 
-fromUni :: forall a . (Size (W a), Show a, Rep a) => Pad -> Maybe (Seq a)
+fromUni :: forall a . (Rep a) => Pad -> Maybe (Seq a)
 fromUni (StdLogicVector sig) 
-        | size (untype sig) == size (error "witness" :: W a) =  return (unsafeId sig)
-    where untype :: forall a .  (Size (W a)) => Seq a -> W a
-          untype = error "untype"
+        | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
 fromUni _ = Nothing
+
