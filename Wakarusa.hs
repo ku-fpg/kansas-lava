@@ -160,21 +160,20 @@ prog1 = do
         o0 :: REG Int <- OUTPUT (outStdLogicVector "o0")
         VAR v0        <- ALLOC (99 :: Int)
 
+{-
+        rec loop <- thread $ do
+                PAR [ v0 := v0 + 1
+                    , o0 := v0
+                    , GOTO loop
+                    ]
+-}
+
         rec loop <- thread $ do
                 v0 := v0 + 1
---                o0 := v0
+                {-(OP1 (.==. 4) v0) :? -}
                 o0 := v0
---                o0 := 234
---                o0 := 3
---                o0 := 4
---                o0 := 5
---                o0 := 6
---                o0 := 7
---                o0 := 3
---                PAUSE (....)
-                
---                abc := OP2 (lava_fun) v0 p0
                 GOTO loop
+
         return [loop]
 
 nop :: STMT ()
@@ -352,8 +351,8 @@ addOutput f = do
         put $ st { ws_fabric = fab }
         return ()
 
-noFallThough :: WakarusaComp ()
-noFallThough = modify (\ st -> st { ws_fallthrough = False })
+noFallThrough :: WakarusaComp ()
+noFallThrough = modify (\ st -> st { ws_fallthrough = False })
 
 ------------------------------------------------------------------------------
 
@@ -382,17 +381,33 @@ compWakarusa (THREAD prog) = do
         let lab = L uq
         compThread lab $ compWakarusa prog
         return $ lab
-compWakarusa (R n := expr) = do
---        p <- getPred
-        -- connect (lab,pc) (lab,pc + 1)
+compWakarusa (reg := expr) = compWakarusaSeq (reg := expr)
+compWakarusa (GOTO lab)    = compWakarusaSeq (GOTO lab)
+compWakarusa (PAR es)      = do
+        more <- compWakarusaPar (PAR es)
+        if not more then noFallThrough else incPC
+        return ()        
+compWakarusa _ = error "compWakarusa _"
+
+-- Asymentric betwen Par and Seq, mutter mutter
+compWakarusaSeq e = do
+        more <- compWakarusaStmt e
+        if not more then noFallThrough else incPC
+        return ()
+
+compWakarusaPar (PAR es) = do
+        mores <- mapM compWakarusaPar es
+        return $ and mores
+compWakarusaPar o = compWakarusaStmt o
+        
+compWakarusaStmt (R n := expr) = do
         exprCode <- compWakarusaExpr expr
         addAssignment (R n) exprCode
-        incPC
-compWakarusa (GOTO lab) = do
+        return True
+compWakarusaStmt (GOTO lab) = do
         recordJump lab
-        noFallThough
-        return ()
-compWakarusa _ = error "compWakarusa _"
+        return False
+compWakarusaStmt _ = error "compWakarusaStmt : unsupport operation construct"
 
 {-
         IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
