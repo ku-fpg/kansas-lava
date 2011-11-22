@@ -74,6 +74,10 @@ undefinedS = Signal (pure $ (unknownX :: X a))
 commentS :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
 commentS msg = idS (Comment [msg])
 
+-- | The width in bits of the signal value.
+widthS :: forall a .  (Rep a) => Seq a -> Int
+widthS _ = repWidth (Witness :: Witness a)
+
 -----------------------------------------------------------------------
 -- primitive builders
 
