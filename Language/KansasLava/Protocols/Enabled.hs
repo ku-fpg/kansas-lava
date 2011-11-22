@@ -12,7 +12,8 @@ module Language.KansasLava.Protocols.Enabled
   enabledVal, isEnabled,
   mapEnabled,
   enabledS, disabledS,
-  registerEnabled
+  registerEnabled,
+  chooseEnabled
   ) where
 
 import Language.KansasLava.Signal
@@ -66,3 +67,6 @@ registerEnabled a inp = res
 	    $ cASE [ (isEnabled inp,enabledVal inp)
 		   ] res
 
+-- | Choose the first argument, if it is enabled, else choose the second one.
+chooseEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
+chooseEnabled e1 e2 = mux (isEnabled e1) (e2,e1)
