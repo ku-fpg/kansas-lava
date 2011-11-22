@@ -70,6 +70,7 @@ Library
        Language.KansasLava.Test
        Language.KansasLava.Types
        Language.KansasLava.Utils
+       Language.KansasLava.Universal
        Language.KansasLava.VHDL
        Language.KansasLava.Stream
        Language.KansasLava.Dynamic

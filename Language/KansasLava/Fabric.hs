@@ -38,36 +38,9 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
+import Language.KansasLava.Universal
 
--- The '_' will disappear soon from these names.
--- | A Pad represents the type of a top-level input/output port.
-data Pad = StdLogic (Seq Bool)
-         | forall a x . (Size (W a), Show a, Rep a)
-                => StdLogicVector (Seq a)
---         | TypedPad (...)
-         | GenericPad Integer
-	 | TheClk
-	 | TheRst
-	 | TheClkEn
 
--- | Get the type of a pad.
-padStdLogicType :: Pad -> StdLogicType
-padStdLogicType (StdLogic _)       = SL
-padStdLogicType (StdLogicVector s) = SLV $ size (untype s)
-    where untype :: (Size (W a)) => Seq a -> W a
-          untype = error "untype"
-padStdLogicType (GenericPad _)        = G
-padStdLogicType (TheClk) 	      = SL
-padStdLogicType (TheRst) 	      = SL
-padStdLogicType (TheClkEn) 	      = SL
-
-instance Show Pad where
-        show (StdLogic sq)       = "StdLogic " ++ show sq
-        show (StdLogicVector sq) = "StdLogicVector " ++ show sq
-        show (GenericPad i)      = "Generic " ++ show i
-        show (TheClk)            = "Clk"
-        show (TheRst)            = "Rst"
-        show (TheClkEn)          = "ClkEn"
 
          -- TODO: the 2D Array
 
