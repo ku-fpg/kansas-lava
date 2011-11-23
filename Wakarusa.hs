@@ -18,16 +18,10 @@ import Control.Monad.Identity
 import System.IO.Unsafe
 
 data REG a = R Int      deriving (Eq,Ord,Show)
---data OUT a = O Int      deriving Show
---data IN  a = I Int      deriving Show
 data LABEL = L Int      deriving (Eq,Ord,Show)
 
 infix 1 :=
 infix 0 :?
-
-data PROG :: * -> * where
-        PROC :: STMT ()               -> PROG LABEL
-        
 
 data STMT :: * -> * where
         -- syntax
@@ -51,18 +45,6 @@ data STMT :: * -> * where
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
 
-{-        
-        RETRY  :: EXPR Bool             -> STMT ()
-
-        START  :: EXPR a        -- wait for
-               -> EXPR a        -- deadline
-               -> LABEL
-               -> STMT ()
-
-
--}
---        ALWAYS :: 
-
 class VAR var where  -- something that can be both read and written to
         toVAR :: REG a -> var a
 
@@ -79,8 +61,6 @@ data EXPR :: * -> * where
         OP2 :: (Rep a, Rep b) => (forall u . Signal u a -> Signal u b -> Signal u c) -> EXPR a -> EXPR b -> EXPR c
         REG :: REG a                                                                   -> EXPR a          -- only needed internally
 
---o0 :: OUT U8
---o0 = O 0
 
 instance Monad STMT where
         return = RETURN
@@ -89,19 +69,7 @@ instance MonadFix STMT where
         mfix = MFIX
 
 instance Show (STMT a) where
---        show (ALLOC v) = "ALLOC " ++ show v
-
--- instance Show a => Show (OUT a) where
-
---showSTMT ::  (Show a) => STMT a -> String
---showSTMT (OUTPUT o e) = "OUTPUT" ++ showOUT o ++ showEXPR e
-
---showOUT :: OUT a -> String
---showOUT = undefined
-
-
-showEXPR :: EXPR a -> String
-showEXPR = undefined
+        -- should really complete this
 
 instance Eq a => Eq (EXPR a) where {}
 instance Show a => Show (EXPR a) where {}
@@ -111,29 +79,6 @@ instance (Rep a, Num a) => Num (EXPR a) where
         (*) = OP2 (*)
         fromInteger n = OP0 (fromInteger n :: Signal u a)
 
-{-
-example1 = do
-        OUTPUT o0 (0 :: EXPR U8)
-        OUTPUT o0 (OP1 (+1) (OP0 $ 0 :: EXPR U8))
---        OUTPUT o0 (OP2 (+) (0 :: EXPR U8) (0 :: EXPR U8))
-
-example2 = do
-        a <- ALLOC (0 :: Signal u U8)
-        forever $ do
-                o0 := REG a
-                a := (REG a + 1)
--}
-{-
-forever m = do 
-        rec lab <- BB $ do { m ; FORK (0 :: EXPR Int) 0 lab }
-        FORK (0 :: EXPR Int) 0 lab
-
-always m = do
-        let fork = FORK (0 :: EXPR Int) 0
-        rec lab <- BB $ PAR [m, fork lab]
-        fork lab
--}
-
 
 data StateOfWakarusa = StateOfWakarusa
         { program :: Map LABEL (STMT ())        -- static
@@ -142,22 +87,6 @@ data StateOfWakarusa = StateOfWakarusa
 
 
 
---interp :: StateOfWakarusa -> STMT () -> Fabric ()
---interp st (
-
-
-{-        
--- example o0 <- output (outStdLogicVector "o0" . latch) 
-
-output :: (Seq (Maybe a) -> Fabric ()) -> STMT (OUT a)
-output = undefined
-
-        -- example i1 <- input (inStdLogicVector "i1")
-input :: Fabric a -> STMT (IN a)
-input = undefined
-
-register' :: (Seq (Maybe a) -> Seq a) -> STMT (REG a)
--}
 
 prog1 :: STMT [LABEL]
 prog1 = do
@@ -451,24 +380,6 @@ compWakarusaStmt (e1 :? m) = do
         return True  -- if predicated, be pesamistic, and assume no jump was taken
 compWakarusaStmt _ = error "compWakarusaStmt : unsupport operation construct"
 
-{-
-        IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
-        WHILE  :: EXPR Bool -> STMT () -> STMT ()
-        (:=)   :: REG a -> EXPR a     -> STMT ()
-        (:?)   :: EXPR Bool -> STMT () -> STMT ()
-
-        RETRY  :: EXPR Bool             -> STMT ()
-        THREAD :: STMT ()               -> STMT LABEL -- needed to avoid Observable sharing
-        GOTO   :: LABEL                 -> STMT ()
-
-        START  :: EXPR a        -- wait for
-               -> EXPR a        -- deadline
-               -> LABEL
-               -> STMT ()
-        PAR    :: [STMT ()] -> STMT ()
-
--}
-
 
 compWakarusaExpr :: (Rep a) => EXPR a -> WakarusaComp (Seq a)
 compWakarusaExpr (REG (R r)) = getRegRead r
@@ -481,8 +392,6 @@ compWakarusaExpr (OP2 f e1 e2) = do
         c1 <- compWakarusaExpr e1
         c2 <- compWakarusaExpr e2
         return $ f c1 c2
-compWakarusaExpr _ = error "compWakarusaExpr"
-
 
 -- add assignment in the context of the PC
 addAssignment :: (Rep a) => REG a -> Seq a -> WakarusaComp ()
@@ -535,10 +444,6 @@ placeRegisters regMap = Map.mapWithKey (\ k p ->
           Nothing -> error $ "can not find register for " ++ show k
           Just f  -> f p)
  
-
-joinInputFabric :: Map Uniq (Fabric Pad) -> Fabric (Map Uniq Pad)
-joinInputFabric = undefined
-
 
 fab = test
 t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab []) ]) :: (Seq (Enabled Int))
