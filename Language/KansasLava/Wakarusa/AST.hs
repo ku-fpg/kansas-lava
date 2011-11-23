@@ -15,8 +15,6 @@ infix 0 :?
 
 data STMT :: * -> * where
         -- syntax
-        IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
-        WHILE  :: EXPR Bool -> STMT () -> STMT ()
         (:=)   :: (Rep a) => REG a -> EXPR a     -> STMT ()
         (:?)   :: EXPR Bool -> STMT () -> STMT ()
 
@@ -27,14 +25,34 @@ data STMT :: * -> * where
 
         -- control flow
         GOTO   :: LABEL         -> STMT ()
-        THREAD :: STMT ()       -> STMT LABEL -- needed to avoid Observable sharing
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
+
+        -- macros
+        IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
+        WHILE  :: EXPR Bool -> STMT () -> STMT ()
 
         -- Monad stuff
         RETURN :: a -> STMT a
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
+
+instance Show (STMT a) where
+        show (r := e) = show r ++ " := " ++ show e
+        show (p :? s) = show p ++ " :? " ++ show s
+        show (OUTPUT {})    = "OUTPUT"
+        show (INPUT {})     = "INPUT"
+        show (REGISTER {})  = "REGISTER"
+        show (GOTO lab)     = "GOTO " ++ show lab
+        show (LABEL)        = "LABEL"
+        show (PAR es)       = "PAR" ++ show es
+        show _ = "..."
+
+instance Monad STMT where
+        return = RETURN
+        (>>=) = BIND
+instance MonadFix STMT where
+        mfix = MFIX
 
 -----------------------------------------------------------------------------------------
 
@@ -45,17 +63,12 @@ data EXPR :: * -> * where
         REG :: REG a                                                                   -> EXPR a          -- only needed internally
 
 
-instance Monad STMT where
-        return = RETURN
-        (>>=) = BIND
-instance MonadFix STMT where
-        mfix = MFIX
-
-instance Show (STMT a) where
-        -- should really complete this
-
-instance Eq a => Eq (EXPR a) where {}
-instance Show a => Show (EXPR a) where {}
+instance Eq (EXPR a) where {}
+instance Show (EXPR a) where
+        show (OP0 _)     = "OP0"
+        show (OP1 _ a)   = "OP1 (" ++ show a ++ ")"
+        show (OP2 _ a b) = "OP1 (" ++ show a ++ ") (" ++ show b ++ ")"
+        show (REG r)     = "REG " ++ show r
 instance (Rep a, Num a) => Num (EXPR a) where
         (+) = OP2 (+)
         (-) = OP2 (-)
@@ -65,8 +78,15 @@ instance (Rep a, Num a) => Num (EXPR a) where
         fromInteger n = OP0 (fromInteger n :: Signal u a)
 -----------------------------------------------------------------------------------------
 
-data REG a = R Int      deriving (Eq,Ord,Show)
-data LABEL = L Int      deriving (Eq,Ord,Show)
+data REG a = R Int      deriving (Eq,Ord)
+
+instance Show (REG a) where
+        show (R n) = "R" ++ show n
+
+data LABEL = L Int      deriving (Eq,Ord)
+
+instance Show LABEL where
+        show (L n) = "L" ++ show n
 
 -----------------------------------------------------------------------------------------
 
@@ -85,5 +105,3 @@ instance Variable EXPR where
 nop :: STMT ()
 nop = RETURN ()
 
-thread :: STMT () -> STMT LABEL
-thread = THREAD

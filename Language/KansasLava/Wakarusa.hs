@@ -5,7 +5,6 @@ module Language.KansasLava.Wakarusa
         , LABEL(..)
         , REG(..)
         , EXPR(..)
-        , thread
         , VAR(..)
         , compileToFabric
         ) where
@@ -36,22 +35,56 @@ compileToFabric prog = do
                     , ws_assignments = Map.empty
                     , ws_inputs = Map.empty
                     , ws_pc = 0
-                    , ws_pcs = Map.empty
+                    , ws_labels = Map.empty
+                    , ws_pcs = []
                     }
         let res2 = runReaderT res1
 
+        let
+
         rec res3 <- res2 $ WakarusaEnv 
-                    { -- we_label = Nothing
-                    {-,-} we_pred  = Nothing
+                    { we_pred  = Nothing
                     , we_writes = ws_assignments st
                     , we_reads  = ws_inputs st `Map.union`
                                   (placeRegisters (ws_regs st) $ ws_assignments st)
-                    , we_pcs = Map.mapWithKey (placePC labels) $ ws_pcs st
-                    , we_labels = Map.empty
+                    , we_pcs = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
+--                    Map.mapWithKey (placePC labels) $ ws_pcs1
                     } 
             let (labels,st) = res3
+--                ws_pcs1 = Map.union (ws_pcs st)
+--                                    (Map.fromList [(lab,disabledS) | lab <- labels])
 
         return ()
+
+generatePredicates 
+        :: Map LABEL PC                         -- ^ label table
+        -> [(PC,Maybe (Seq Bool),LABEL)]        -- ^ jumps
+        -> PC                                   -- ^ last PC number + 1
+        -> [LABEL]                              -- ^ thread starts
+        -> Map PC (Seq Bool)                    -- ^ table of predicates
+                                                --   for each row of instructions
+generatePredicates label_table jumps pc threads = Map.fromList 
+        [ (n,pureS n .==. head pcs)
+        | n <- [0..(pc - 1)]
+        ]
+  where
+          -- a list of thread PC's
+          pcs :: [Seq PC]
+          pcs = [ let pc_reg = register pc
+                                        -- we are checking the match with PC twice?
+                             $ cASE [ (pureS pc_src .==. pc_reg  .&&.
+                                       (case opt_pred of
+                                          Nothing -> high
+                                          Just p -> p),         pureS dest_pc)
+
+                                    | (pc_src,opt_pred,dest_label) <- jumps
+                                    , let Just dest_pc = Map.lookup dest_label label_table
+                                    ]
+                                    (pc_reg + 1)
+                  in pc_reg
+                | th_label <- threads
+                , let Just pc = Map.lookup th_label label_table
+                ]
 
 placePC :: [LABEL] -> LABEL -> Seq (Enabled (Enabled PC)) -> Seq (Enabled PC)
 placePC starts lab inp = out
@@ -105,12 +138,6 @@ compWakarusa (INPUT fab) = do
         let reg = R u
         addInput reg inp
         return (REG reg)
-compWakarusa (THREAD prog) = do
-        -- get the number of the thread
-        uq <- getUniq
-        let lab = L uq
-        compThread lab $ compWakarusa prog
-        return $ lab
 compWakarusa (LABEL) = do
         -- get the number of the thread
         uq <- getUniq
@@ -138,6 +165,7 @@ compWakarusaPar e = do
         if not more then noFallThrough else incPC
         return ()        
   where
+          -- can be replaced with compWakarusaStmt?
    compWakarusaPar' (PAR es) = do
         mores <- mapM compWakarusaPar' es
         return $ and mores
@@ -158,7 +186,10 @@ compWakarusaStmt (e1 :? m) = do
         predCode <- compWakarusaExpr e1
         _ <- setPred predCode $ compWakarusaStmt m
         return True  -- if predicated, be pesamistic, and assume no jump was taken
-compWakarusaStmt _ = error "compWakarusaStmt : unsupport operation construct"
+compWakarusaStmt (PAR es) = do
+        mores <- mapM compWakarusaStmt es
+        return $ and mores        
+compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct : \n" ++ show s
 
 ------------------------------------------------------------------------------
 

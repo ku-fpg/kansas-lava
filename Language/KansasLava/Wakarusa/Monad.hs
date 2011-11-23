@@ -22,18 +22,21 @@ data WakarusaState = WakarusaState
         { ws_uniq     :: Uniq
         , ws_label    :: Maybe LABEL   
                 -- ^ current thread (after GOTO this is Nothing)
-        , ws_regs     :: Map Uniq (Pad -> Pad)       
+
+
+        
+        , ws_regs     :: Map Uniq (Pad -> Pad)
           -- ^ add the register, please, 
         , ws_assignments :: Map Uniq Pad
           -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
         , ws_inputs      :: Map Uniq Pad                -- sig a
-        , ws_pc     :: PC               -- ^ The PC 
+
+        , ws_pc       :: PC               -- ^ The PC 
+        , ws_labels   :: Map LABEL PC   -- where the labels are
 
 
-        , ws_pcs    :: Map LABEL (Seq (Enabled (Enabled PC)))     
-                        -- assign your way into a new thread
-                        -- The outermost enabled is if there is a write command
-                        -- The inner one allow the writing of a STOP command
+        , ws_pcs    :: [(PC,Maybe (Seq Bool),LABEL)]
+                        -- if conditional holds, then jump to the given label
         }
 --        deriving Show
 
@@ -56,10 +59,8 @@ data WakarusaEnv = WakarusaEnv
         -- These are 2nd pass things
         , we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
         , we_writes   :: Map Uniq Pad           -- register input   (2nd pass)
-        , we_labels  :: Map LABEL (Seq Bool)
-        , we_pcs     :: Map LABEL (Seq (Enabled PC))
-                -- ^ is this basic block being executed right now?
-                -- ^ and each block has a PC (where maxBound == no execution happending)
+        , we_pcs      :: Map PC (Seq Bool)
+                -- ^ is this instruction being executed right now?
         }
         deriving Show
 
@@ -96,13 +97,9 @@ incPC = do
         
 recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
-        p <- getPred
-        st <- get
-        let m = insertWith chooseEnabled
-                           lab
-                           (commentS "recordJump" $ packEnabled p (enabledS 0))
-                           (ws_pcs st)
-        put (st { ws_pcs = m })
+        pc <- getPC
+        env <- ask 
+        modify (\ st -> st { ws_pcs = (pc,we_pred env,lab) : ws_pcs st })
         return ()
 
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
@@ -140,17 +137,12 @@ addInput (R k) inp = do
 -- get the predicate for *this* instruction
 getPred :: WakarusaComp (Seq Bool)
 getPred = do
-        lab <- getLabel
-        case lab of
-          Nothing -> error "actions are possible outside basic blocks"
-          Just l  -> do
             pc <- getPC
             env <- ask
-            return $ case Map.lookup l (we_pcs env) of
-              Nothing     -> error $ "can not find the PC for " ++ show lab
-              Just pc_sig -> foldr1 (.&&.) $
-                                [ isEnabled pc_sig 
-                                , enabledVal pc_sig .==. pureS pc
+            return $ case Map.lookup pc (we_pcs env) of
+              Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
+              Just pc_pred -> foldr1 (.&&.) $
+                                [ pc_pred
                                 ] ++ case we_pred env of
                                         Nothing -> []
                                         Just local_pred -> [ local_pred ]
@@ -189,31 +181,15 @@ getRegWrite k = do
                         Nothing -> error $ "getRegWrite, coerce error in : " ++ show k
                         Just e -> e
 
-compThread :: LABEL -> WakarusaComp () -> WakarusaComp ()
-compThread lab m = error "thead"
-{-
-        do
-        st0 <- get
-        put (st0 { ws_pc = 0, ws_fallthrough = True })
-        local f m
-        st1 <- get
-        if ws_fallthrough st1 then error $ " label " ++ show lab ++ " falls through"
-                              else put (st1 { ws_pc = ws_pc st0
---                                            , ws_pcs = Map.insertWith choose lab disabledS (ws_pcs st1)
-                                            })
-        return ()
-  where
-          f env = env { we_label = Just lab }
--}
 
 newLabel :: LABEL -> WakarusaComp ()
 newLabel lab = do
         -- patch the current control to the new label
-        old_lab <- getLabel
-        case old_lab of
-          Nothing -> return ()
-          Just {} -> recordJump lab
-        modify (\ st0 -> st0 { ws_pc = 0, ws_label = Just lab })
+--        old_lab <- getLabel
+--        case old_lab of
+--          Nothing -> return ()
+--          Just {} -> recordJump lab
+        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) })
 
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)

@@ -14,18 +14,59 @@ import Data.Maybe
 
 prog1 :: STMT [LABEL]
 prog1 = do
-        o0 :: REG Int            <- OUTPUT (outStdLogicVector "o0")
-        i0 :: EXPR (Int) <- INPUT (inStdLogicVector "i0")
-        VAR v0                   <- REGISTER (99 :: Int)
+--        oA :: REG Int            <- OUTPUT (outStdLogicVector "o0")
+--        iA :: EXPR (Maybe Int)   <- INPUT (inStdLogicVector "i0")
 
+        iA :: EXPR (Maybe Int)   <- INPUT  (inStdLogicVector "iA")
+        oA :: REG ()             <- OUTPUT (outStdLogic "oA" . isEnabled)
+
+        iB :: EXPR Bool          <- INPUT  (inStdLogic "iB")
+        oB :: REG (Int)          <- OUTPUT (outStdLogicVector "oB")
+
+        VAR v0                   <- REGISTER (Nothing :: Maybe Int)
 
         -- 
 
-        foo <- LABEL -- #######################
-        PAR [ o0 := v0
-            , v0 := v0 + 1
-            , GOTO foo
-            ]
+        foo <- LABEL
+        do PAR [ OP1 (bitNot . isEnabled) iA :? GOTO foo
+               , OP1 (         isEnabled) iA :? do
+                       PAR [ oA := OP0 (pureS ())
+                           , v0 := iA
+                           ]
+               ]
+        bar <- LABEL 
+        do PAR [ oB := OP1 enabledVal v0
+                , OP1 (bitNot) iB :? GOTO bar
+               , iB              :? GOTO foo
+               ]
+--        GOTO foo
+--        oB := 9            
+
+
+        return [foo]
+
+
+fab0 = compileToFabric prog1
+fab1 ::        (Seq (Enabled Int), Seq Ack)
+     -> Fabric (Seq Ack, Seq (Enabled Int))
+fab1 ~(inp,outAck) = do
+        outStdLogicVector "iA" inp
+        inAck <- inStdLogic "oA"
+        outStdLogic "iB" outAck
+        out <- inStdLogicVector "oB"
+        return (inAck,out)
+
+test args = runFabricWithDriver fab0 (fab1 args)
+
+--t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab [("i0",toUni (toS [0..] :: Seq Int))]) ]) :: (Seq (Enabled Int))
+
+          
+          
+{-
+--        bar <- LABEL
+--        oB := OP0 (pureS Nothing)
+--        GOTO bar
+
 {-        
         rec loop <- thread $ do
                 PAR [ -- v0 := v0 + 1
@@ -43,11 +84,4 @@ prog1 = do
                 o0 := v0
                 GOTO loop
 -}
-        return [foo]
-
-fab = compileToFabric prog1
-t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab [("i0",toUni (toS [0..] :: Seq Int))]) ]) :: (Seq (Enabled Int))
-
-          
-          
-          
+-}          
