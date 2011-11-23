@@ -44,6 +44,7 @@ Library
         dotgen >= 0.4.1,
         containers,
         sized-types >= 0.3.4,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -72,6 +73,9 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.Universal
        Language.KansasLava.VHDL
+       Language.KansasLava.Wakarusa 
+       Language.KansasLava.Wakarusa.AST
+       Language.KansasLava.Wakarusa.Monad
        Language.KansasLava.Stream
        Language.KansasLava.Dynamic
        Language.KansasLava.VCD
@@ -92,7 +96,7 @@ Library
        Paths_kansas_lava
 
 -- need a module refactor to address the orphan warnings
-  Ghc-Options: -Wall  -fno-warn-orphans
+  Ghc-Options: -Wall  -fno-warn-orphans  -fcontext-stack=100 -Werror
   default-language:    Haskell2010
 
 --  Ghc-Prof-options:  -auto-all
@@ -105,6 +109,7 @@ Executable kansas-lava-unittest
         dotgen >= 0.4.1,
         containers,
         sized-types >= 0.3.4,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -137,6 +142,7 @@ Executable kansas-lava-testreport
         dotgen >= 0.4.1,
         containers,
         sized-types >= 0.3.4,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -166,6 +172,7 @@ Executable kansas-lava-tbf2vcd
         dotgen >= 0.4.1,
         containers,
         sized-types >= 0.3.4,
+        mtl >= 2.0,
         data-default,
         random,
         strict,

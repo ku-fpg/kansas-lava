@@ -31,8 +31,8 @@ module Language.KansasLava (
     writeVhdlCircuit,
     writeVhdlPrelude,
 
-    -- * RTL sub-DSL
-    module Language.KansasLava.RTL,
+--    -- * RTL sub-DSL
+--    module Language.KansasLava.RTL,
 
     -- * Probes
     module Language.KansasLava.Probes,
@@ -49,7 +49,10 @@ module Language.KansasLava (
     -- * Version Change Dump
     VCD,
     writeVCDFile,
-    readVCDFile
+    readVCDFile,
+    
+    -- * Wakarusa Compiler
+    module Language.KansasLava.Wakarusa
      ) where
 
 import Language.KansasLava.DOT
@@ -58,11 +61,12 @@ import Language.KansasLava.Optimization
 import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
-import Language.KansasLava.RTL
+--import Language.KansasLava.RTL
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
+import Language.KansasLava.Wakarusa
 
 

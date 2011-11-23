@@ -2,8 +2,6 @@
 
 module Language.KansasLava.Universal where
 
-import Data.Sized.Ix
-
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
