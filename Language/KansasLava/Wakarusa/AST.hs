@@ -21,13 +21,14 @@ data STMT :: * -> * where
         (:?)   :: EXPR Bool -> STMT () -> STMT ()
 
         -- functionality
-        OUTPUT :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
-        INPUT  :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
-        ALLOC  :: (Rep a) =>  a                            -> STMT (VAR' a)
+        OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
+        INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
+        REGISTER :: (Rep a) =>  a                            -> STMT (VAR a)
 
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         THREAD :: STMT ()       -> STMT LABEL -- needed to avoid Observable sharing
+        LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
 
         -- Monad stuff
@@ -69,14 +70,14 @@ data LABEL = L Int      deriving (Eq,Ord,Show)
 
 -----------------------------------------------------------------------------------------
 
-class VAR var where  -- something that can be both read and written to
+class Variable var where  -- something that can be both read and written to
         toVAR :: REG a -> var a
 
-data VAR' a = VAR (forall (var :: * -> *) . (VAR var) => var a)
+data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-instance VAR REG where
+instance Variable REG where
         toVAR = id
-instance VAR EXPR where
+instance Variable EXPR where
         toVAR = REG
 
 -----------------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ module Language.KansasLava.Wakarusa
         , REG(..)
         , EXPR(..)
         , thread
-        , VAR'(..)
+        , VAR(..)
         , compileToFabric
         ) where
 
@@ -31,18 +31,18 @@ compileToFabric prog = do
         let res0 = runStateT (compWakarusa prog)
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
+                    , ws_label = Nothing
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
                     , ws_inputs = Map.empty
                     , ws_pc = 0
-                    , ws_fallthrough = False
                     , ws_pcs = Map.empty
                     }
         let res2 = runReaderT res1
 
         rec res3 <- res2 $ WakarusaEnv 
-                    { we_label = Nothing
-                    , we_pred  = Nothing
+                    { -- we_label = Nothing
+                    {-,-} we_pred  = Nothing
                     , we_writes = ws_assignments st
                     , we_reads  = ws_inputs st `Map.union`
                                   (placeRegisters (ws_regs st) $ ws_assignments st)
@@ -80,7 +80,8 @@ compWakarusa (BIND m1 k1) = do
         r1 <- compWakarusa m1
         compWakarusa (k1 r1)
 compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
-compWakarusa (ALLOC def) = do
+
+compWakarusa (REGISTER def) = do
         uq <- getUniq
         let reg = R uq
         -- add the register to the table
@@ -109,6 +110,12 @@ compWakarusa (THREAD prog) = do
         uq <- getUniq
         let lab = L uq
         compThread lab $ compWakarusa prog
+        return $ lab
+compWakarusa (LABEL) = do
+        -- get the number of the thread
+        uq <- getUniq
+        let lab = L uq
+        newLabel lab
         return $ lab
 compWakarusa e@(_ := _) = compWakarusaSeq e
 compWakarusa e@(GOTO _) = compWakarusaSeq e

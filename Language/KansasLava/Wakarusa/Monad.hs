@@ -19,17 +19,17 @@ import Control.Monad.State
 import Control.Monad.Reader
 
 data WakarusaState = WakarusaState
-        { ws_uniq   :: Uniq
-        , ws_regs        :: Map Uniq (Pad -> Pad)       
+        { ws_uniq     :: Uniq
+        , ws_label    :: Maybe LABEL   
+                -- ^ current thread (after GOTO this is Nothing)
+        , ws_regs     :: Map Uniq (Pad -> Pad)       
           -- ^ add the register, please, 
         , ws_assignments :: Map Uniq Pad
           -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
         , ws_inputs      :: Map Uniq Pad                -- sig a
         , ws_pc     :: PC               -- ^ The PC 
-        , ws_fallthrough :: Bool        
-                -- ^ Does the code fall through to the next statement?
-                -- After GOTO this is False.
-                -- Catches threads with non-terminated code fragments
+
+
         , ws_pcs    :: Map LABEL (Seq (Enabled (Enabled PC)))     
                         -- assign your way into a new thread
                         -- The outermost enabled is if there is a write command
@@ -38,6 +38,7 @@ data WakarusaState = WakarusaState
 --        deriving Show
 
 -- Placeholder
+{-
 instance Show WakarusaState where
         show (WakarusaState u regs assignments inputs pc _ pcs) = 
                 "uniq : " ++ show u ++ "\n" ++
@@ -46,10 +47,11 @@ instance Show WakarusaState where
                 "inputs : " ++ show (fmap (const ()) inputs) ++ "\n" ++                
                 "pc : " ++ show pc ++ "\n" ++
                 "pcs : " ++ show (fmap (const ()) pcs)
+-}
 
 data WakarusaEnv = WakarusaEnv
-        { we_label    :: Maybe LABEL            --
-        , we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
+        { --we_label    :: Maybe LABEL            --
+{-        , -} we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
 
         -- These are 2nd pass things
         , we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
@@ -164,8 +166,8 @@ setPred p m = local f m
 
 getLabel :: WakarusaComp (Maybe LABEL)
 getLabel = do
-        env <- ask
-        return $ we_label env
+        st <- get
+        return $ ws_label st
 
 getRegRead :: (Rep a) => Uniq -> WakarusaComp (Seq a)
 getRegRead k = do
@@ -188,7 +190,9 @@ getRegWrite k = do
                         Just e -> e
 
 compThread :: LABEL -> WakarusaComp () -> WakarusaComp ()
-compThread lab m = do
+compThread lab m = error "thead"
+{-
+        do
         st0 <- get
         put (st0 { ws_pc = 0, ws_fallthrough = True })
         local f m
@@ -200,9 +204,20 @@ compThread lab m = do
         return ()
   where
           f env = env { we_label = Just lab }
-          
+-}
+
+newLabel :: LABEL -> WakarusaComp ()
+newLabel lab = do
+        -- patch the current control to the new label
+        old_lab <- getLabel
+        case old_lab of
+          Nothing -> return ()
+          Just {} -> recordJump lab
+        modify (\ st0 -> st0 { ws_pc = 0, ws_label = Just lab })
+
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)
 
+-- No more execution statements, so we unset the label
 noFallThrough :: WakarusaComp ()
-noFallThrough = modify (\ st -> st { ws_fallthrough = False })
+noFallThrough = modify (\ st -> st { ws_label = Nothing })
