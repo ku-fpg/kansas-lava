@@ -15,7 +15,6 @@ import Language.KansasLava.Wakarusa.Monad
 import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
-import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Utils
 
 import Control.Monad.Fix
@@ -63,14 +62,17 @@ generatePredicates
         -> [LABEL]                              -- ^ thread starts
         -> Map PC (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates label_table jumps pc threads = Map.fromList 
-        [ (n,pureS n .==. head pcs)
-        | n <- [0..(pc - 1)]
-        ]
+generatePredicates label_table jumps pc threads = result
   where
-          -- a list of thread PC's
-          pcs :: [Seq PC]
-          pcs = [ let pc_reg = register pc
+        result = Map.fromList         
+                [ (n,pureS n .==. head pcs)
+                | n <- [0..(pc - 1)]
+                ]
+
+
+        -- a list of thread PC's
+        pcs :: [Seq PC]
+        pcs = [ let pc_reg = register first_pc
                                         -- we are checking the match with PC twice?
                              $ cASE [ (pureS pc_src .==. pc_reg  .&&.
                                        (case opt_pred of
@@ -83,9 +85,9 @@ generatePredicates label_table jumps pc threads = Map.fromList
                                     (pc_reg + 1)
                   in pc_reg
                 | th_label <- threads
-                , let Just pc = Map.lookup th_label label_table
+                , let Just first_pc = Map.lookup th_label label_table
                 ]
-
+{-
 placePC :: [LABEL] -> LABEL -> Seq (Enabled (Enabled PC)) -> Seq (Enabled PC)
 placePC starts lab inp = out
    where
@@ -96,7 +98,7 @@ placePC starts lab inp = out
 
            initial :: Enabled PC
            initial = if lab `elem` starts then Just 0 else Nothing
-
+-}
 
 placeRegisters :: Map Uniq (Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad
 placeRegisters regMap = Map.mapWithKey (\ k p -> 
