@@ -90,24 +90,24 @@ data StateOfWakarusa = StateOfWakarusa
 
 prog1 :: STMT [LABEL]
 prog1 = do
-        o0 :: REG Int <- OUTPUT (outStdLogicVector "o0")
-        i0 :: EXPR (Enabled Int) <- INPUT (inStdLogicVector "i0")
-        VAR v0        <- ALLOC (99 :: Int)
+        o0 :: REG Int            <- OUTPUT (outStdLogicVector "o0")
+        i0 :: EXPR (Int) <- INPUT (inStdLogicVector "i0")
+        VAR v0                   <- ALLOC (99 :: Int)
 
-{-
         rec loop <- thread $ do
-                PAR [ v0 := v0 + 1
-                    , o0 := v0
+                PAR [ -- v0 := v0 + 1
+                     o0 := i0
                     , GOTO loop
                     ]
--}
+{-
 
         rec loop <- thread $ do
-                v0 := v0 + 1
+                v0 := i0
+--                v0 := v0 + 1
 --                (OP1 (.==. 104) v0) :? do
                 o0 := v0
                 GOTO loop
-
+-}
         return [loop]
 
 nop :: STMT ()
@@ -365,7 +365,7 @@ compWakarusaPar e = do
    compWakarusaPar' (PAR es) = do
         mores <- mapM compWakarusaPar' es
         return $ and mores
-   compWakarusaPar o = compWakarusaStmt o
+   compWakarusaPar' o = compWakarusaStmt o
         
 compWakarusaStmt (R n := expr) = do
         exprCode <- compWakarusaExpr expr
@@ -417,7 +417,7 @@ test = do
                     { we_label = Nothing
                     , we_pred  = Nothing
                     , we_writes = ws_assignments st
-                    , we_reads  = {- ws_inputs st `Map.union` -}
+                    , we_reads  = ws_inputs st `Map.union`
                                   (placeRegisters (ws_regs st) $ ws_assignments st)
                     , we_pcs = Map.mapWithKey (placePC labels) $ ws_pcs st
                     , we_labels = Map.empty
@@ -446,7 +446,7 @@ placeRegisters regMap = Map.mapWithKey (\ k p ->
  
 
 fab = test
-t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab []) ]) :: (Seq (Enabled Int))
+t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab [("i0",toUni (toS [0..] :: Seq Int))]) ]) :: (Seq (Enabled Int))
 
           
           
