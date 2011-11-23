@@ -38,25 +38,29 @@ data STMT :: * -> * where
 
         -- functionality
         OUTPUT :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
-        INPUT  :: (Rep a) =>  Fabric a                     -> STMT (EXPR a)
+        INPUT  :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
         ALLOC  :: (Rep a) =>  a                            -> STMT (VAR' a)
 
-        RETRY  :: EXPR Bool             -> STMT ()
-        THREAD :: STMT ()               -> STMT LABEL -- needed to avoid Observable sharing
-        GOTO   :: LABEL                 -> STMT ()
-
-        START  :: EXPR a        -- wait for
-               -> EXPR a        -- deadline
-               -> LABEL
-               -> STMT ()
-        PAR    :: [STMT ()] -> STMT ()
+        -- control flow
+        GOTO   :: LABEL         -> STMT ()
+        THREAD :: STMT ()       -> STMT LABEL -- needed to avoid Observable sharing
+        PAR    :: [STMT ()]     -> STMT ()
 
         -- Monad stuff
         RETURN :: a -> STMT a
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
 
-        
+{-        
+        RETRY  :: EXPR Bool             -> STMT ()
+
+        START  :: EXPR a        -- wait for
+               -> EXPR a        -- deadline
+               -> LABEL
+               -> STMT ()
+
+
+-}
 --        ALWAYS :: 
 
 class VAR var where  -- something that can be both read and written to
@@ -71,7 +75,7 @@ instance VAR EXPR where
 
 data EXPR :: * -> * where
         OP0 :: (forall u . Signal u a)                                                 -> EXPR a        -- also used as a lit
-        OP1 :: (forall u . Signal u a -> Signal u b)                         -> EXPR a -> EXPR b
+        OP1 :: (Rep a) => (forall u . Signal u a -> Signal u b)                         -> EXPR a -> EXPR b
         OP2 :: (Rep a, Rep b) => (forall u . Signal u a -> Signal u b -> Signal u c) -> EXPR a -> EXPR b -> EXPR c
         REG :: REG a                                                                   -> EXPR a          -- only needed internally
 
@@ -158,6 +162,7 @@ register' :: (Seq (Maybe a) -> Seq a) -> STMT (REG a)
 prog1 :: STMT [LABEL]
 prog1 = do
         o0 :: REG Int <- OUTPUT (outStdLogicVector "o0")
+        i0 :: EXPR (Enabled Int) <- INPUT (inStdLogicVector "i0")
         VAR v0        <- ALLOC (99 :: Int)
 
 {-
@@ -170,7 +175,7 @@ prog1 = do
 
         rec loop <- thread $ do
                 v0 := v0 + 1
-                {-(OP1 (.==. 4) v0) :? -}
+--                (OP1 (.==. 104) v0) :? do
                 o0 := v0
                 GOTO loop
 
@@ -190,10 +195,11 @@ type Uniq = Int
 
 data WakarusaState = WakarusaState
         { ws_uniq   :: Uniq
-        , ws_fabric :: Fabric ()
-        , ws_regs        :: Map Uniq (Pad -> Pad)       -- add the register, please
+        , ws_regs        :: Map Uniq (Pad -> Pad)       
+          -- ^ add the register, please, 
         , ws_assignments :: Map Uniq Pad
-          -- ^(untyped) assignments, chained into a single Seq (Enabled a).
+          -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
+        , ws_inputs      :: Map Uniq Pad                -- sig a
         , ws_pc     :: PC               -- ^ The PC 
         , ws_fallthrough :: Bool        
                 -- ^ Does the code fall through to the next statement?
@@ -208,11 +214,11 @@ data WakarusaState = WakarusaState
 
 
 instance Show WakarusaState where
-        show (WakarusaState u f regs assignments pc _ pcs) = 
+        show (WakarusaState u regs assignments inputs pc _ pcs) = 
                 "uniq : " ++ show u ++ "\n" ++
-                "reify : " ++ show (unsafePerformIO (reifyFabric f)) ++ "\n" ++
                 "regs : " ++ show (fmap (const ()) regs) ++ "\n" ++
                 "assignments : " ++ show (fmap (const ()) assignments) ++ "\n" ++
+                "inputs : " ++ show (fmap (const ()) inputs) ++ "\n" ++                
                 "pc : " ++ show pc ++ "\n" ++
                 "pcs : " ++ show (fmap (const ()) pcs)
                 
@@ -221,6 +227,7 @@ type PC = X256
 
 data WakarusaEnv = WakarusaEnv
         { we_label    :: Maybe LABEL            --
+        , we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
 
         -- These are 2nd pass things
         , we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
@@ -234,7 +241,7 @@ data WakarusaEnv = WakarusaEnv
 
 ------------------------------------------------------------------------------
 
-type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Identity)
+type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
 
 ------------------------------------------------------------------------------
 
@@ -292,6 +299,14 @@ addRegister (R k) def = do
           f Nothing   = pureS def
           f (Just wt) = registerEnabled def wt
 
+
+addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
+addInput (R k) inp = do
+        st <- get
+        let m = Map.insert k (toUni inp) (ws_inputs st)
+        put $ st { ws_inputs = m }
+        return ()
+
 -- get the predicate for *this* instruction
 getPred :: WakarusaComp (Seq Bool)
 getPred = do
@@ -303,7 +318,21 @@ getPred = do
             env <- ask
             return $ case Map.lookup l (we_pcs env) of
               Nothing     -> error $ "can not find the PC for " ++ show lab
-              Just pc_sig -> isEnabled pc_sig .&&. (enabledVal pc_sig .==. pureS pc)
+              Just pc_sig -> foldr1 (.&&.) $
+                                [ isEnabled pc_sig 
+                                , enabledVal pc_sig .==. pureS pc
+                                ] ++ case we_pred env of
+                                        Nothing -> []
+                                        Just local_pred -> [ local_pred ]
+
+
+setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
+setPred p m = local f m
+  where
+   f env = env { we_pred = case we_pred env of
+                             Nothing -> Just p
+                             Just p' -> Just (p' .&&. p)
+               }
 
 getLabel :: WakarusaComp (Maybe LABEL)
 getLabel = do
@@ -344,12 +373,8 @@ compThread lab m = do
   where
           f env = env { we_label = Just lab }
           
-addOutput :: Fabric () -> WakarusaComp ()
-addOutput f = do
-        st <- get
-        let fab = ws_fabric st >> f
-        put $ st { ws_fabric = fab }
-        return ()
+addToFabric :: Fabric a -> WakarusaComp a
+addToFabric f = lift (lift f)
 
 noFallThrough :: WakarusaComp ()
 noFallThrough = modify (\ st -> st { ws_fallthrough = False })
@@ -372,33 +397,46 @@ compWakarusa (ALLOC def) = do
 compWakarusa (OUTPUT connect) = do
         uq  <- getUniq   -- the uniq name of this output
         wt <- getRegWrite uq
-        addOutput (connect wt)
+        addToFabric (connect wt)
         return $ R uq
-compWakarusa (INPUT  {}) = error "INPUT"
+compWakarusa (INPUT fab) = do
+        inp <- addToFabric fab
+        -- Why not just return the inp?
+        --  * Can not use OP0 (requires combinatorial value)
+        --  * We *could* add a new constructor, IN (say)
+        --  * but by using a REG, we are recording the
+        --    use of an INPUT that changes over time,
+        --    in the same way as registers are accesssed.
+        u <- getUniq
+        let reg = R u
+        addInput reg inp
+        return (REG reg)
 compWakarusa (THREAD prog) = do
         -- get the number of the thread
         uq <- getUniq
         let lab = L uq
         compThread lab $ compWakarusa prog
         return $ lab
-compWakarusa (reg := expr) = compWakarusaSeq (reg := expr)
-compWakarusa (GOTO lab)    = compWakarusaSeq (GOTO lab)
-compWakarusa (PAR es)      = do
-        more <- compWakarusaPar (PAR es)
-        if not more then noFallThrough else incPC
-        return ()        
+compWakarusa e@(reg := expr) = compWakarusaSeq e
+compWakarusa e@(GOTO lab)    = compWakarusaSeq e
+compWakarusa e@(_ :? _)      = compWakarusaSeq e
+compWakarusa e@(PAR es)      = compWakarusaPar e
 compWakarusa _ = error "compWakarusa _"
 
--- Asymentric betwen Par and Seq, mutter mutter
 compWakarusaSeq e = do
         more <- compWakarusaStmt e
         if not more then noFallThrough else incPC
         return ()
 
-compWakarusaPar (PAR es) = do
-        mores <- mapM compWakarusaPar es
+compWakarusaPar e = do
+        more <- compWakarusaPar' e
+        if not more then noFallThrough else incPC
+        return ()        
+  where
+   compWakarusaPar' (PAR es) = do
+        mores <- mapM compWakarusaPar' es
         return $ and mores
-compWakarusaPar o = compWakarusaStmt o
+   compWakarusaPar o = compWakarusaStmt o
         
 compWakarusaStmt (R n := expr) = do
         exprCode <- compWakarusaExpr expr
@@ -407,6 +445,10 @@ compWakarusaStmt (R n := expr) = do
 compWakarusaStmt (GOTO lab) = do
         recordJump lab
         return False
+compWakarusaStmt (e1 :? m) = do
+        predCode <- compWakarusaExpr e1
+        setPred predCode $ compWakarusaStmt m
+        return True  -- if predicated, be pesamistic, and assume no jump was taken
 compWakarusaStmt _ = error "compWakarusaStmt : unsupport operation construct"
 
 {-
@@ -430,12 +472,15 @@ compWakarusaStmt _ = error "compWakarusaStmt : unsupport operation construct"
 
 compWakarusaExpr :: (Rep a) => EXPR a -> WakarusaComp (Seq a)
 compWakarusaExpr (REG (R r)) = getRegRead r
+compWakarusaExpr (OP0 lit) = do
+        return $ lit
+compWakarusaExpr (OP1 f e) = do
+        c <- compWakarusaExpr e
+        return $ f c
 compWakarusaExpr (OP2 f e1 e2) = do
         c1 <- compWakarusaExpr e1
         c2 <- compWakarusaExpr e2
         return $ f c1 c2
-compWakarusaExpr (OP0 lit) = do
-        return $ lit
 compWakarusaExpr _ = error "compWakarusaExpr"
 
 
@@ -445,28 +490,32 @@ addAssignment reg expr = do
         p <- getPred
         registerAction reg p expr
 
-test :: ([LABEL], WakarusaState)
-test = (labels,st)
-  where
-        res0 = runStateT (compWakarusa prog1) 
-        res1 = res0 $ WakarusaState 
+test :: Fabric () 
+test = do 
+        let res0 = runStateT (compWakarusa prog1) 
+        let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
-                    , ws_fabric = return ()
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
+                    , ws_inputs = Map.empty
                     , ws_pc = 0
                     , ws_fallthrough = False
                     , ws_pcs = Map.empty
                     }
-        res2 = runReaderT res1
-        res3 = res2 $ WakarusaEnv 
+        let res2 = runReaderT res1
+
+        rec res3 <- res2 $ WakarusaEnv 
                     { we_label = Nothing
+                    , we_pred  = Nothing
                     , we_writes = ws_assignments st
-                    , we_reads  = placeRegisters (ws_regs st) $ ws_assignments st
+                    , we_reads  = {- ws_inputs st `Map.union` -}
+                                  (placeRegisters (ws_regs st) $ ws_assignments st)
                     , we_pcs = Map.mapWithKey (placePC labels) $ ws_pcs st
                     , we_labels = Map.empty
                     } 
-        (labels,st) = runIdentity res3
+            let (labels,st) = res3
+
+        return ()
 
 placePC :: [LABEL] -> LABEL -> Seq (Enabled (Enabled PC)) -> Seq (Enabled PC)
 placePC starts lab inp = out
@@ -486,9 +535,12 @@ placeRegisters regMap = Map.mapWithKey (\ k p ->
           Nothing -> error $ "can not find register for " ++ show k
           Just f  -> f p)
  
- 
- 
-fab = ws_fabric (snd test)
+
+joinInputFabric :: Map Uniq (Fabric Pad) -> Fabric (Map Uniq Pad)
+joinInputFabric = undefined
+
+
+fab = test
 t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab []) ]) :: (Seq (Enabled Int))
 
           
