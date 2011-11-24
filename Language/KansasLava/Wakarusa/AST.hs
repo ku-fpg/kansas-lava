@@ -8,8 +8,8 @@ import Language.KansasLava.Rep
 
 import Control.Monad.Fix
  
-infix 1 :=
-infix 0 :?
+infixr 0 :=
+infixr 0 :?
 
 -----------------------------------------------------------------------------------------
 
