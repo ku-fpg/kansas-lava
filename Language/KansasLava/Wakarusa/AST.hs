@@ -16,7 +16,7 @@ infixr 0 :?
 data STMT :: * -> * where
         -- syntax
         (:=)   :: (Rep a) => REG a -> EXPR a     -> STMT ()
-        (:?)   :: EXPR Bool -> STMT () -> STMT ()
+        (:?)   :: EXPR Bool           -> STMT () -> STMT ()
 
         -- functionality
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
