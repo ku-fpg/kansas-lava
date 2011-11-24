@@ -21,7 +21,7 @@ data STMT :: * -> * where
         -- functionality
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
-        REGISTER :: (Rep a) =>  a                            -> STMT (VAR a)
+        REGISTER :: (Rep a) =>  Maybe a                      -> STMT (VAR a)
 
         -- control flow
         GOTO   :: LABEL         -> STMT ()

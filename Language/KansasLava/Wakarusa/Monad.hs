@@ -115,16 +115,18 @@ registerAction (R r) en val = do
         put $ st { ws_assignments = assignments }
         return ()
 
-addRegister :: forall a. (Rep a) => REG a -> a -> WakarusaComp ()
-addRegister (R k) def = do
+addRegister :: forall a. (Rep a) => REG a -> Maybe a -> WakarusaComp ()
+addRegister (R k) opt_def = do
         st <- get
-        let m = Map.insert k (toUni . f . fromUni) (ws_regs st)
+        let m = Map.insert k (toUni . f opt_def . fromUni) (ws_regs st)
         put $ st { ws_regs = m }
         return ()
   where
-          f :: (Rep a) => Maybe (Seq (Enabled a)) -> Seq a
-          f Nothing   = pureS def
-          f (Just wt) = registerEnabled def wt
+          f :: (Rep a) => Maybe a -> Maybe (Seq (Enabled a)) -> Seq a
+          f Nothing    Nothing   = undefinedS              -- no assignments happen ever
+          f (Just def) Nothing   = pureS def               -- no assignments happend
+          f Nothing    (Just wt) = delayEnabled wt
+          f (Just def) (Just wt) = registerEnabled def wt
 
 
 addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
