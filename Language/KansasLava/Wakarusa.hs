@@ -21,6 +21,12 @@ import Control.Monad.Fix
 import Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
+import Data.Graph
+
+import Debug.Trace
+
+import qualified Data.Set as Set
+import Data.Set (Set)
 
 ------------------------------------------------------------------------------
 
@@ -55,6 +61,49 @@ compileToFabric prog = do
 
         return ()
 
+
+generateThreadIds 
+        :: Map LABEL PC                         -- ^ label table
+        -> [(PC,Maybe (Seq Bool),LABEL)]        -- ^ jumps
+        -> PC                                   -- ^ last PC number + 1
+        -> [LABEL]                              -- ^ thread starts
+        -> Map PC Int                   -- Which thread am I powered by
+generateThreadIds label_table jumps pc threads  = trace (show result) result
+   where
+        links :: Map PC (Set PC)
+        links = Map.fromListWith (Set.union) $
+                [ (src_pc, Set.singleton dest_pc)
+                | (src_pc,_,dest_label) <- jumps
+                , let Just dest_pc = Map.lookup dest_label label_table
+                ] ++
+                [ (n,Set.singleton $ n+1)
+                | n <- [0..(pc-2)]
+                        -- not pc-1, becasuse the last instruction 
+                        -- can not jump to after the last instruction
+                , (n `notElem` unconditional_jumps)
+                ]
+
+
+        -- PC values that have unconditional jumps (does not matter where to)
+        unconditional_jumps =
+                [ src_pc
+                | (src_pc,Nothing,_) <- jumps
+                ] 
+
+        result :: Map PC Int
+        result =  Map.fromList
+                [ (a,pid)
+                | (lab,pid) <- zip threads [0..]
+                , let Just fst_pc = Map.lookup lab label_table
+                , a <- Set.toList $ transitiveClosure (\ a -> Map.findWithDefault (Set.empty) a links) fst_pc
+                ]
+{-
+        result = Map.fromList
+                [ (n,0)
+                | n <- [0..(pc - 1)]
+                ]
+-}        
+
 generatePredicates 
         :: Map LABEL PC                         -- ^ label table
         -> [(PC,Maybe (Seq Bool),LABEL)]        -- ^ jumps
@@ -64,23 +113,24 @@ generatePredicates
                                                 --   for each row of instructions
 generatePredicates label_table jumps pc threads = result
   where
-        result = Map.fromList         
-                [ (n,pureS n .==. head pcs)
-                | n <- [0..(pc - 1)]
-                ]
+        threadIds = generateThreadIds label_table jumps pc threads
 
+        result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
 
         -- a list of thread PC's
         pcs :: [Seq PC]
         pcs = [ let pc_reg = register first_pc
                                         -- we are checking the match with PC twice?
-                             $ cASE [ (pureS pc_src .==. pc_reg  .&&.
-                                       (case opt_pred of
-                                          Nothing -> high
-                                          Just p -> p),         pureS dest_pc)
+                             $ cASE [ (case opt_pred of
+                                          Nothing -> this_inst
+                                          Just p -> this_inst .&&. p, pureS dest_pc)
 
                                     | (pc_src,opt_pred,dest_label) <- jumps
                                     , let Just dest_pc = Map.lookup dest_label label_table
+                                    , let this_inst = Map.findWithDefault
+                                                                (error $ "this_inst" ++ show (pc_src,fmap (const ()) result))
+                                                                pc_src
+                                                                result
                                     ]
                                     (pc_reg + 1)
                   in pc_reg
@@ -158,13 +208,13 @@ compWakarusa _ = error "compWakarusa _"
 compWakarusaSeq :: STMT () -> WakarusaComp ()
 compWakarusaSeq e = do
         more <- compWakarusaStmt e
-        if not more then noFallThrough else incPC
+        incPC
         return ()
 
 compWakarusaPar :: STMT () -> WakarusaComp ()
 compWakarusaPar e = do
         more <- compWakarusaPar' e
-        if not more then noFallThrough else incPC
+        incPC
         return ()        
   where
           -- can be replaced with compWakarusaStmt?
@@ -216,3 +266,13 @@ addAssignment reg expr = do
         registerAction reg p expr
 
 ------------------------------------------------------------------------------
+
+-- technically, we could just look at the frontier each time.
+
+transitiveClosure :: (Ord a) => (a -> Set a) -> a -> Set a
+transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
+   where
+           fixpoint (x0:x1:_) | x0 == x1 = x0
+           fixpoint (_:xs)    = fixpoint xs
+           
+           step x = x `Set.union` Set.unions (fmap f (Set.toList x))
