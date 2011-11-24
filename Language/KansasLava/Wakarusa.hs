@@ -241,6 +241,10 @@ compWakarusaStmt (e1 :? m) = do
 compWakarusaStmt (PAR es) = do
         mores <- mapM compWakarusaStmt es
         return $ and mores        
+compWakarusaStmt (RETURN ()) = return False
+--compWakarusaStmt (BIND m1 k1) = do
+--        r1 <- compWakarusaStmt m1
+--        compWakarusaStmt (k1 r1)
 compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct : \n" ++ show s
 
 ------------------------------------------------------------------------------
