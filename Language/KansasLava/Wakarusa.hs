@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, DoRec, TypeFamilies #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, DoRec, TypeFamilies, FlexibleContexts #-}
 
 module Language.KansasLava.Wakarusa 
         ( STMT(..)
@@ -7,6 +7,12 @@ module Language.KansasLava.Wakarusa
         , EXPR(..)
         , VAR(..)
         , compileToFabric
+        , ReadableAckBox
+        , connectReadableAckBox
+        , WritableAckBox
+        , connectWritableAckBox
+        , takeAckBox
+        , putAckBox
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -16,12 +22,14 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
+import Language.KansasLava.Protocols.Enabled
+
+import Data.Sized.Ix
 
 import Control.Monad.Fix
 import Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
-import Data.Graph
 
 import Debug.Trace
 
@@ -97,12 +105,6 @@ generateThreadIds label_table jumps pc threads  = trace (show result) result
                 , let Just fst_pc = Map.lookup lab label_table
                 , a <- Set.toList $ transitiveClosure (\ a -> Map.findWithDefault (Set.empty) a links) fst_pc
                 ]
-{-
-        result = Map.fromList
-                [ (n,0)
-                | n <- [0..(pc - 1)]
-                ]
--}        
 
 generatePredicates 
         :: Map LABEL PC                         -- ^ label table
@@ -207,13 +209,13 @@ compWakarusa _ = error "compWakarusa _"
 
 compWakarusaSeq :: STMT () -> WakarusaComp ()
 compWakarusaSeq e = do
-        more <- compWakarusaStmt e
+        _ <- compWakarusaStmt e
         incPC
         return ()
 
 compWakarusaPar :: STMT () -> WakarusaComp ()
 compWakarusaPar e = do
-        more <- compWakarusaPar' e
+        _ <- compWakarusaPar' e
         incPC
         return ()        
   where
@@ -242,9 +244,9 @@ compWakarusaStmt (PAR es) = do
         mores <- mapM compWakarusaStmt es
         return $ and mores        
 compWakarusaStmt (RETURN ()) = return False
---compWakarusaStmt (BIND m1 k1) = do
---        r1 <- compWakarusaStmt m1
---        compWakarusaStmt (k1 r1)
+compWakarusaStmt (BIND LABEL k1) = do -- getting hacky; breaks monad laws
+        r1 <- compWakarusa LABEL
+        compWakarusaStmt (k1 r1)
 compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct : \n" ++ show s
 
 ------------------------------------------------------------------------------
@@ -278,5 +280,47 @@ transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
    where
            fixpoint (x0:x1:_) | x0 == x1 = x0
            fixpoint (_:xs)    = fixpoint xs
+           fixpoint _         = error "reached end of infinite list"
            
            step x = x `Set.union` Set.unions (fmap f (Set.toList x))
+
+--------------------------------------------------------------------------------
+
+
+data ReadableAckBox a = ReadableAckBox (EXPR (Enabled a)) (REG ())
+
+connectReadableAckBox
+        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        => String -> String -> STMT (ReadableAckBox a)
+connectReadableAckBox inpName ackName = do
+        i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
+        o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
+        return $ ReadableAckBox i o
+                       
+takeAckBox :: Rep a => ReadableAckBox a -> (EXPR a -> STMT ()) -> STMT ()
+takeAckBox (ReadableAckBox iA oA) cont = do
+        self <- LABEL
+        do PAR [ OP1 (bitNot . isEnabled) iA :? GOTO self
+               , OP1 (         isEnabled) iA :? do
+                       PAR [ oA := OP0 (pureS ())
+                           , cont (OP1 enabledVal iA)
+                           ]
+               ]
+
+data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool) 
+
+connectWritableAckBox
+        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        => String -> String -> STMT (WritableAckBox a)
+connectWritableAckBox outName ackName = do
+        iB :: EXPR Bool <- INPUT  (inStdLogic ackName)
+        oB :: REG a     <- OUTPUT (outStdLogicVector outName)
+        return $ WritableAckBox oB iB
+
+putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT () -> STMT ()
+putAckBox (WritableAckBox oB iB) val cont = do
+        self <- LABEL 
+        do PAR [ oB := val
+               , OP1 (bitNot) iB :? GOTO self
+               , iB              :? cont
+               ]

@@ -12,84 +12,19 @@ import Data.Map as Map
 import Data.Maybe 
 
 
-data ReadableAckBox a = ReadableAckBox (EXPR (Enabled a)) (REG ())
-
-connectReadableAckBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (ReadableAckBox a)
-connectReadableAckBox inpName ackName = do
-        i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
-        o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
-        return $ ReadableAckBox i o
-                       
-takeAckBox :: Rep a => ReadableAckBox a -> (EXPR a -> STMT ()) -> STMT ()
-takeAckBox (ReadableAckBox iA oA) cont = do
-        self <- LABEL
-        do PAR [ OP1 (bitNot . isEnabled) iA :? GOTO self
-               , OP1 (         isEnabled) iA :? do
-                       PAR [ oA := OP0 (pureS ())
-                           , cont (OP1 enabledVal iA)
-                           ]
-               ]
-
-data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool) 
-
-connectWritableAckBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (WritableAckBox a)
-connectWritableAckBox outName ackName = do
-        iB :: EXPR Bool <- INPUT  (inStdLogic ackName)
-        oB :: REG a     <- OUTPUT (outStdLogicVector outName)
-        return $ WritableAckBox oB iB
-
-putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT () -> STMT ()
-putAckBox (WritableAckBox oB iB) val cont = do
-        self <- LABEL 
-        do PAR [ oB := val
-               , OP1 (bitNot) iB :? GOTO self
-               , iB              :? cont
-               ]
                
 prog1 :: STMT [LABEL]
 prog1 = do
         rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
         wAckBox :: WritableAckBox Int <- connectWritableAckBox "oB" "iB"
 
---        iA :: EXPR (Maybe Int)   <- INPUT  (inStdLogicVector "iA")
---        oA :: REG ()             <- OUTPUT (outStdLogic "oA" . isEnabled)
-
---        iB :: EXPR Bool          <- INPUT  (inStdLogic "iB")
---        oB :: REG (Int)          <- OUTPUT (outStdLogicVector "oB")
-
-        VAR v0                   <- REGISTER (0 :: Int)
+        VAR v0  :: VAR Int           <- REGISTER $ Nothing
 
         loop <- LABEL
         takeAckBox rAckBox (v0 :=)
-        putAckBox wAckBox v0 (return ()) -- (GOTO loop)
-        GOTO loop
-{-
-        bar <- LABEL 
-        do PAR [ oB := v0
-                , OP1 (bitNot) iB :? GOTO bar
---               , iB              :? GOTO foo
-               ]
-        GOTO foo
-        
--}
+        putAckBox wAckBox v0 (GOTO loop)
 
-{-
-
-        oB := 9
-        oA := OP0 (pureS ())
-        v0 := OP0 (pureS Nothing)
-        GOTO foo
-
-        bar <- LABEL
-        oA := OP0 (pureS ())
-        GOTO bar
--}
-
-        return [loop] -- bar]
+        return [loop] 
 
 
 fab0 = compileToFabric prog1
