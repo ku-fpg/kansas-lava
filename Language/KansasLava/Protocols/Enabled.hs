@@ -13,6 +13,7 @@ module Language.KansasLava.Protocols.Enabled
   mapEnabled,
   enabledS, disabledS,
   registerEnabled,
+  delayEnabled,
   chooseEnabled
   ) where
 
@@ -66,6 +67,15 @@ registerEnabled a inp = res
 	res = register a
 	    $ cASE [ (isEnabled inp,enabledVal inp)
 		   ] res
+
+-- | Optionally updatable register, based on the value of the enabled signal.
+delayEnabled :: (Rep a, Clock clk, sig ~ Signal clk) => sig (Enabled a) -> sig a
+delayEnabled inp = res
+   where
+	res = delay
+	    $ cASE [ (isEnabled inp,enabledVal inp)
+		   ] res
+
 
 -- | Choose the first argument, if it is enabled, else choose the second one.
 chooseEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
