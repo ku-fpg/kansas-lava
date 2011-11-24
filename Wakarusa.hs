@@ -35,15 +35,23 @@ prog1 = do
                            ]
                ]
         bar <- LABEL 
-        do PAR [ oB := OP1 enabledVal v0
+        do PAR [ oB := OP1 (*2) (OP1 enabledVal v0)
                 , OP1 (bitNot) iB :? GOTO bar
-               , iB              :? GOTO foo
+--               , iB              :? GOTO foo
                ]
---        GOTO foo
---        oB := 9            
+{-
 
+        oB := 9
+        oA := OP0 (pureS ())
+        v0 := OP0 (pureS Nothing)
+        GOTO foo
 
-        return [foo]
+        bar <- LABEL
+        oA := OP0 (pureS ())
+        GOTO bar
+-}
+
+        return [foo] -- bar]
 
 
 fab0 = compileToFabric prog1
@@ -57,6 +65,8 @@ fab1 ~(inp,outAck) = do
         return (inAck,out)
 
 test args = runFabricWithDriver fab0 (fab1 args)
+xs = take 1000 $ runAckBoxP (shallowAckBoxBridge (cycle [1,2,3,0],cycle [0,2,1]) $$ test) [1..1000]
+
 
 --t = fromJust (head [ fromUni p |  ("o0",p) <- snd (runFabric fab [("i0",toUni (toS [0..] :: Seq Int))]) ]) :: (Seq (Enabled Int))
 
