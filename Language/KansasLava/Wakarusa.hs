@@ -32,18 +32,24 @@ import Control.Monad.State
 import Control.Monad.Reader
 
 import Debug.Trace
+import System.IO.Unsafe
 
 import qualified Data.Set as Set
 import Data.Set (Set)
 
 ------------------------------------------------------------------------------
 
+traceRet :: (a -> String) -> String -> a -> a 
+traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
+
+
 compileToFabric :: STMT [LABEL] -> Fabric () 
-compileToFabric prog = do 
+compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
         let res0 = runStateT (compWakarusa prog)
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
                     , ws_label = Nothing
+                    , ws_pred  = falsePred
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
                     , ws_inputs = Map.empty
@@ -56,8 +62,8 @@ compileToFabric prog = do
         let
 
         rec res3 <- res2 $ WakarusaEnv 
-                    { we_pred  = Nothing
-                    , we_writes = ws_assignments st
+                    { -- we_pred  = Nothing
+                    {-,-} we_writes = ws_assignments st
                     , we_reads  = ws_inputs st `Map.union`
                                   (placeRegisters (ws_regs st) $ ws_assignments st)
                     , we_pcs = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
@@ -76,7 +82,7 @@ generateThreadIds
         -> PC                                   -- ^ last PC number + 1
         -> [LABEL]                              -- ^ thread starts
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds label_table jumps pc threads  = trace (show result) result
+generateThreadIds label_table jumps pc threads  = trace (show ("generateThreadIds",result)) result
    where
         links :: Map PC (Set PC)
         links = Map.fromListWith (Set.union) $
@@ -85,7 +91,7 @@ generateThreadIds label_table jumps pc threads  = trace (show result) result
                 , let Just dest_pc = Map.lookup dest_label label_table
                 ] ++
                 [ (n,Set.singleton $ n+1)
-                | n <- [0..(pc-2)]
+                | n <- if pc == 0 then [] else [0..(pc-1)]
                         -- not pc-1, becasuse the last instruction 
                         -- can not jump to after the last instruction
                 , (n `notElem` unconditional_jumps)
@@ -113,30 +119,32 @@ generatePredicates
         -> [LABEL]                              -- ^ thread starts
         -> Map PC (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates label_table jumps pc threads = result
+generatePredicates label_table jumps pc threads = trace (show ("generatePredicates",length pcs)) $ result
   where
         threadIds = generateThreadIds label_table jumps pc threads
 
+        -- mapping from *every* instruction to its thread id
         result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
 
         -- a list of thread PC's
         pcs :: [Seq PC]
-        pcs = [ let pc_reg = register first_pc
+        pcs = [ let pc_reg = commentS ("pc for thread " ++ show (pid :: Int))
+                           $ register first_pc
                                         -- we are checking the match with PC twice?
-                             $ cASE [ (case opt_pred of
+                             $ cASE [ (pureS False{- case opt_pred of
                                           Nothing -> this_inst
-                                          Just p -> this_inst .&&. p, pureS dest_pc)
-
-                                    | (pc_src,opt_pred,dest_label) <- jumps
+                                          Just p -> this_inst .&&. p-}, pureS dest_pc)
+                                    | x@(pc_src,opt_pred,dest_label) <- jumps
                                     , let Just dest_pc = Map.lookup dest_label label_table
                                     , let this_inst = Map.findWithDefault
-                                                                (error $ "this_inst" ++ show (pc_src,fmap (const ()) result))
+                                                                (error $ "X")  -- "this_inst " ++ show (pc_src,fmap (const ()) result))
                                                                 pc_src
                                                                 result
+                                    , () <- trace (show ("insisde",(x,dest_pc))) [()]
                                     ]
                                     (pc_reg + 1)
                   in pc_reg
-                | th_label <- threads
+                | (th_label,pid) <- zip threads [0..]
                 , let Just first_pc = Map.lookup th_label label_table
                 ]
 {-
@@ -152,11 +160,11 @@ placePC starts lab inp = out
            initial = if lab `elem` starts then Just 0 else Nothing
 -}
 
-placeRegisters :: Map Uniq (Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad
-placeRegisters regMap = Map.mapWithKey (\ k p -> 
-        case Map.lookup k regMap of
-          Nothing -> error $ "can not find register for " ++ show k
-          Just f  -> f p)
+placeRegisters :: Map Uniq (Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad
+placeRegisters regMap assignMap = Map.mapWithKey (\ k f -> 
+        case Map.lookup k assignMap of
+          Nothing -> f Nothing
+          Just a -> f $ Just a) regMap
  
 
 ------------------------------------------------------------------------------
@@ -202,6 +210,10 @@ compWakarusa e@(_ := _) = compWakarusaSeq e
 compWakarusa e@(GOTO _) = compWakarusaSeq e
 compWakarusa e@(_ :? _) = compWakarusaSeq e
 compWakarusa e@(PAR _)  = compWakarusaPar e
+compWakarusa STEP       = do
+        incPC
+        modify (\ st -> st { ws_pred = truePred })
+        return ()
 compWakarusa _ = error "compWakarusa _"
 
 
@@ -210,7 +222,7 @@ compWakarusa _ = error "compWakarusa _"
 compWakarusaSeq :: STMT () -> WakarusaComp ()
 compWakarusaSeq e = do
         _ <- compWakarusaStmt e
-        incPC
+--        incPC
         return ()
 
 compWakarusaPar :: STMT () -> WakarusaComp ()
@@ -322,5 +334,5 @@ putAckBox (WritableAckBox oB iB) val cont = do
         self <- LABEL 
         do PAR [ oB := val
                , OP1 (bitNot) iB :? GOTO self
-               , iB              :? cont
+--               , iB              :? cont
                ]

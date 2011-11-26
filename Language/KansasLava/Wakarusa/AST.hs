@@ -28,6 +28,11 @@ data STMT :: * -> * where
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
 
+        -- real time:
+        -- wait for a cycle, or an event, or using a sample. 
+        -- Much to figure out here.
+        STEP   ::                                                STMT ()
+
         -- macros
         IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
         WHILE  :: EXPR Bool -> STMT () -> STMT ()
@@ -61,6 +66,7 @@ data EXPR :: * -> * where
         OP1 :: (Rep a) => (forall u . Signal u a -> Signal u b)                         -> EXPR a -> EXPR b
         OP2 :: (Rep a, Rep b) => (forall u . Signal u a -> Signal u b -> Signal u c) -> EXPR a -> EXPR b -> EXPR c
         REG :: REG a                                                                   -> EXPR a          -- only needed internally
+--        ARR :: EXPR arr -> EXPR ix -> 
 
 
 instance Eq (EXPR a) where {}
@@ -99,6 +105,11 @@ instance Variable REG where
         toVAR = id
 instance Variable EXPR where
         toVAR = REG
+
+-----------------------------------------------------------------------------------------
+
+
+
 
 -----------------------------------------------------------------------------------------
 

@@ -23,15 +23,16 @@ data WakarusaState = WakarusaState
         , ws_label    :: Maybe LABEL   
                 -- ^ current thread (after GOTO this is Nothing)
 
-
-        
-        , ws_regs     :: Map Uniq (Pad -> Pad)
+        , ws_pred     :: Pred
+                -- ^ The predicate for the next instruction
+                
+        , ws_regs     :: Map Uniq (Maybe Pad -> Pad)
           -- ^ add the register, please, 
         , ws_assignments :: Map Uniq Pad
           -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
         , ws_inputs      :: Map Uniq Pad                -- sig a
 
-        , ws_pc       :: PC               -- ^ The PC 
+        , ws_pc       :: PC             -- ^ The PC 
         , ws_labels   :: Map LABEL PC   -- where the labels are
 
 
@@ -54,10 +55,10 @@ instance Show WakarusaState where
 
 data WakarusaEnv = WakarusaEnv
         { --we_label    :: Maybe LABEL            --
-{-        , -} we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
+--{-        , -} we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
 
         -- These are 2nd pass things
-        , we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
+{-        , -} we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
         , we_writes   :: Map Uniq Pad           -- register input   (2nd pass)
         , we_pcs      :: Map PC (Seq Bool)
                 -- ^ is this instruction being executed right now?
@@ -72,6 +73,33 @@ type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
 
 type Uniq = Int
 type PC = X256
+
+------------------------------------------------------------------------------
+-- Quick AST for Pred. Later will allow some sort of pretty printer
+
+data Pred = Pred (Seq Bool)     -- list of ands
+
+truePred :: Pred
+truePred = Pred high
+
+falsePred :: Pred
+falsePred = Pred low
+
+notPred :: Pred -> Pred
+notPred (Pred p) = Pred $ bitNot p
+
+andPred :: Seq Bool -> Pred -> Pred
+andPred p (Pred p') = Pred (p .&&. p')
+
+orPred :: Seq Bool -> Pred -> Pred
+orPred p (Pred p') = Pred (p .||. p')
+
+subPred :: Seq Bool -> Pred -> Pred
+subPred p (Pred p') = Pred (p .&&. p')
+
+
+fromPred :: Pred -> Seq Bool
+fromPred (Pred p) = p
 
 ------------------------------------------------------------------------------
 
@@ -98,8 +126,8 @@ incPC = do
 recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
         pc <- getPC
-        env <- ask 
-        modify (\ st -> st { ws_pcs = (pc,we_pred env,lab) : ws_pcs st })
+        st <- get
+        modify (\ st -> st { ws_pcs = (pc,Just $ fromPred (ws_pred st),lab) : ws_pcs st })
         return ()
 
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
@@ -116,17 +144,18 @@ registerAction (R r) en val = do
         return ()
 
 addRegister :: forall a. (Rep a) => REG a -> Maybe a -> WakarusaComp ()
-addRegister (R k) opt_def = do
+addRegister r@(R k) opt_def = do
         st <- get
-        let m = Map.insert k (toUni . f opt_def . fromUni) (ws_regs st)
+        let m = Map.insert k (toUni . f r opt_def . fmap fromUni) (ws_regs st)
         put $ st { ws_regs = m }
         return ()
   where
-          f :: (Rep a) => Maybe a -> Maybe (Seq (Enabled a)) -> Seq a
-          f Nothing    Nothing   = undefinedS              -- no assignments happen ever
-          f (Just def) Nothing   = pureS def               -- no assignments happend
-          f Nothing    (Just wt) = delayEnabled wt
-          f (Just def) (Just wt) = registerEnabled def wt
+          f :: (Rep a) => REG a -> Maybe a -> Maybe (Maybe (Seq (Enabled a))) -> Seq a
+          f _ Nothing    Nothing   = undefinedS              -- no assignments happen ever
+          f _ (Just def) Nothing   = pureS def               -- no assignments happend
+          f _ Nothing    (Just (Just wt)) = delayEnabled wt
+          f _ (Just def) (Just (Just wt)) = registerEnabled def wt
+          f r _          (Just Nothing)   = error $ "internal type error with register " ++ show r
 
 
 addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
@@ -140,23 +169,32 @@ addInput (R k) inp = do
 getPred :: WakarusaComp (Seq Bool)
 getPred = do
             pc <- getPC
+            st <- get
             env <- ask
             return $ case Map.lookup pc (we_pcs env) of
               Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
-              Just pc_pred -> foldr1 (.&&.) $
-                                [ pc_pred
-                                ] ++ case we_pred env of
-                                        Nothing -> []
-                                        Just local_pred -> [ local_pred ]
+              Just pc_pred -> pc_pred .&&. fromPred (ws_pred st)
 
+-- set a predicate inside a context.
 
 setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
-setPred p m = local f m
+setPred p m = do
+        st0 <- get
+        put (st0 { ws_pred = andPred p (ws_pred st0) })
+        r <- m
+        st1 <- get
+        -- Two control flow branches; one predicated (and might terminate/jump),
+        -- the other passing over.
+        put (st1 { ws_pred = orPred (bitNot p) (ws_pred st1) })
+        return r
+
+{-
   where
    f env = env { we_pred = case we_pred env of
                              Nothing -> Just p
                              Just p' -> Just (p' .&&. p)
                }
+-}
 
 getLabel :: WakarusaComp (Maybe LABEL)
 getLabel = do
@@ -191,7 +229,9 @@ newLabel lab = do
 --        case old_lab of
 --          Nothing -> return ()
 --          Just {} -> recordJump lab
-        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) })
+        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) 
+                             , ws_pred = truePred 
+                              })
 
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)
