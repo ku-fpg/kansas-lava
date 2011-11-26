@@ -20,8 +20,8 @@ import Control.Monad.Reader
 
 data WakarusaState = WakarusaState
         { ws_uniq     :: Uniq
-        , ws_label    :: Maybe LABEL   
-                -- ^ current thread (after GOTO this is Nothing)
+--        , ws_label    :: Maybe LABEL   
+--                -- ^ current thread (after GOTO this is Nothing)
 
         , ws_pred     :: Pred
                 -- ^ The predicate for the next instruction
@@ -196,10 +196,10 @@ setPred p m = do
                }
 -}
 
-getLabel :: WakarusaComp (Maybe LABEL)
-getLabel = do
-        st <- get
-        return $ ws_label st
+--getLabel :: WakarusaComp (Maybe LABEL)
+--getLabel = do
+--        st <- get
+--        return $ ws_label st
 
 getRegRead :: (Rep a) => Uniq -> WakarusaComp (Seq a)
 getRegRead k = do
@@ -224,18 +224,13 @@ getRegWrite k = do
 
 newLabel :: LABEL -> WakarusaComp ()
 newLabel lab = do
-        -- patch the current control to the new label
---        old_lab <- getLabel
---        case old_lab of
---          Nothing -> return ()
---          Just {} -> recordJump lab
         modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) 
-                             , ws_pred = truePred 
+                             , ws_pred = truePred  -- someone arrives here!
                               })
 
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)
 
 -- No more execution statements, so we unset the label
-noFallThrough :: WakarusaComp ()
-noFallThrough = modify (\ st -> st { ws_label = Nothing })
+--noFallThrough :: WakarusaComp ()
+--noFallThrough = modify (\ st -> st { ws_label = Nothing })

@@ -48,7 +48,6 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
         let res0 = runStateT (compWakarusa prog)
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
-                    , ws_label = Nothing
                     , ws_pred  = falsePred
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
