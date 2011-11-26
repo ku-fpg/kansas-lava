@@ -98,14 +98,14 @@ run5 = runFabricWithDriver fab5 $ do
 
 prog6 :: STMT [LABEL]
 prog6 = do
-        wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "oB" "iB"
-        VAR v0 :: VAR Int   <- REGISTER $ Just 0
+--        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
+        wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
+        VAR v0 :: VAR Int   <- REGISTER $ Just 1
         loop <- LABEL
-        oB := v0
---        putAckBox wAckBox v0 (return ())
+        putAckBox wAckBox v0 
+                ||| (v0 := v0 + 1)
                 ||| GOTO loop
-                ||| (v0 := v0 + 1) 
---                ||| GOTO loop
+
         return [loop]
 
 fab6 = compileToFabric prog6
@@ -113,9 +113,63 @@ fab6 = compileToFabric prog6
 run6 :: Patch () (Seq (Enabled Int))
               () (Seq Ack)
 run6 ~(_,outAck) = runFabricWithDriver fab6 $ do
-                outStdLogic "iB" outAck
-                out <- inStdLogicVector "oB"
+                outStdLogic "ack" outAck
+                out <- inStdLogicVector "out"
                 return ((),out)
+                
+                
+prog7 :: STMT [LABEL]
+prog7 = do
+        o0 :: REG Int    <- OUTPUT (outStdLogicVector "o0" . enabledVal)
+        i0 :: EXPR Int   <- INPUT (inStdLogicVector "i0")
+
+        VAR v0 :: VAR Int   <- REGISTER $ Just 1
+
+        loop <- LABEL
+        o0 := i0 + v0
+{-
+                ||| (OP1 (bitNot) (OP0 high) :? GOTO loop)
+--        putAckBox wAckBox v0 (return ())
+-}
+                ||| (v0 := v0 + 1)
+                ||| GOTO loop
+
+
+
+        return [loop]
+
+fab7 = compileToFabric prog7
+
+run7 :: Seq Int -> Seq Int
+run7 inp = runFabricWithDriver fab7 $ do
+        outStdLogicVector "i0" inp
+        out <-inStdLogicVector "o0"
+        return out
+
+
+prog8 :: STMT [LABEL]
+prog8 = do
+        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
+        wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
+        VAR v0 :: VAR Int   <- REGISTER $ Nothing
+        loop <- LABEL
+        takeAckBox (v0 :=) rAckBox 
+        putAckBox wAckBox v0 
+                ||| GOTO loop
+        return [loop]
+
+fab8 = compileToFabric prog8
+
+run8 :: Patch (Seq (Enabled Int)) (Seq (Enabled Int))
+              (Seq Ack) (Seq Ack)
+run8 ~(inp,outAck) = runFabricWithDriver fab8 $ do
+        outStdLogicVector "iA" inp
+        inAck <- inStdLogic "oA"
+        outStdLogic "ack" outAck
+        out <- inStdLogicVector "out"
+        return (inAck,out)
+                
+
 
 data FOO = FOO Int deriving Show
 

@@ -84,7 +84,7 @@ generateThreadIds
         -> PC                                   -- ^ last PC number + 1
         -> [LABEL]                              -- ^ thread starts
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds label_table jumps pc threads  = trace (show ("generateThreadIds",result)) result
+generateThreadIds label_table jumps pc threads  = {- trace (show ("generateThreadIds",result)) -} result
    where
         links :: Map PC (Set PC)
         links = Map.fromListWith (Set.union) $
@@ -121,7 +121,7 @@ generatePredicates
         -> [LABEL]                              -- ^ thread starts
         -> Map PC (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates label_table jumps pc threads = trace (show ("generatePredicates",length pcs)) $ result
+generatePredicates label_table jumps pc threads = {- trace (show ("generatePredicates",length pcs)) $ -} result
   where
         threadIds = generateThreadIds label_table jumps pc threads
 
@@ -142,7 +142,7 @@ generatePredicates label_table jumps pc threads = trace (show ("generatePredicat
                                                                 (error $ "this_inst " ++ show (pc_src,fmap (const ()) result))
                                                                 pc_src
                                                                 result
-                                    , () <- trace (show ("insisde",(x,dest_pc))) [()]
+--                                    , () <- trace (show ("insisde",(x,dest_pc))) [()]
                                     ]
                                     (pc_reg + 1)
                   in pc_reg
@@ -327,14 +327,12 @@ connectReadableAckBox inpName ackName = do
         o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
         return $ ReadableAckBox i o
                        
-takeAckBox :: Rep a => ReadableAckBox a -> (EXPR a -> STMT ()) -> STMT ()
-takeAckBox (ReadableAckBox iA oA) cont = do
+takeAckBox :: Rep a => (EXPR a -> STMT ()) -> ReadableAckBox a -> STMT ()
+takeAckBox cont (ReadableAckBox iA oA) = do
         self <- LABEL
         do PAR [ OP1 (bitNot . isEnabled) iA :? GOTO self
-               , OP1 (         isEnabled) iA :? do
-                       PAR [ oA := OP0 (pureS ())
-                           , cont (OP1 enabledVal iA)
-                           ]
+               , oA := OP0 (pureS ())
+               , cont (OP1 enabledVal iA)
                ]
 
 data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool) 
@@ -347,9 +345,9 @@ connectWritableAckBox outName ackName = do
         oB :: REG a     <- OUTPUT (outStdLogicVector outName)
         return $ WritableAckBox oB iB
 
-putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT () -> STMT ()
-putAckBox (WritableAckBox oB iB) val cont = do
+putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT ()
+putAckBox (WritableAckBox oB iB) val = do
         self <- LABEL 
         do PAR [ oB := val
---               , OP1 (bitNot) iB :? GOTO self
+               , OP1 (bitNot) iB :? GOTO self
                ]

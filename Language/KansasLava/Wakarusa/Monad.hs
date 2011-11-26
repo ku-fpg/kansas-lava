@@ -108,10 +108,6 @@ andPred p (Pred p') = Pred (p .&&. p')
 orPred :: Seq Bool -> Pred -> Pred
 orPred p (Pred p') = Pred (p .||. p')
 
-subPred :: Seq Bool -> Pred -> Pred
-subPred p (Pred p') = Pred (p .&&. p')
-
-
 fromPred :: Pred -> Seq Bool
 fromPred (Pred p) = p
 
@@ -144,7 +140,9 @@ recordJump lab =  do
         -- Does not use getPred here, because we 
         -- want to store the partial result; the PC stores the other part of the condition
         -- In this way, we might be able to analysis control flow  (AJG: unconvinsed)
-        modify (\ st -> st { ws_pcs = (pc,Just $ fromPred (ws_pred st),lab) : ws_pcs st })
+        modify (\ st -> st { ws_pcs = (pc,Just $ fromPred (ws_pred st),lab) : ws_pcs st 
+                           , ws_pred = falsePred
+                           })
         return ()
 
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
