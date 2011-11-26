@@ -6,10 +6,11 @@ module Language.KansasLava.Wakarusa
         , REG(..)
         , EXPR(..)
         , VAR(..)
+        , (|||)
         , compileToFabric
         , ReadableAckBox
         , connectReadableAckBox
-        , WritableAckBox
+        , WritableAckBox(..)
         , connectWritableAckBox
         , takeAckBox
         , putAckBox
@@ -19,6 +20,7 @@ import Language.KansasLava.Wakarusa.AST
 import Language.KansasLava.Wakarusa.Monad
 
 import Language.KansasLava.Signal
+import Language.KansasLava.Probes
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
@@ -49,6 +51,7 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
                     , ws_pred  = falsePred
+                    , ws_filled = SlotStatus False False
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
                     , ws_inputs = Map.empty
@@ -127,16 +130,16 @@ generatePredicates label_table jumps pc threads = trace (show ("generatePredicat
 
         -- a list of thread PC's
         pcs :: [Seq PC]
-        pcs = [ let pc_reg = commentS ("pc for thread " ++ show (pid :: Int))
+        pcs = [ let pc_reg = probeS ("pc for thread " ++ show (pid :: Int))
                            $ register first_pc
                                         -- we are checking the match with PC twice?
-                             $ cASE [ (pureS False{- case opt_pred of
+                             $ cASE [ (case opt_pred of
                                           Nothing -> this_inst
-                                          Just p -> this_inst .&&. p-}, pureS dest_pc)
+                                          Just p -> this_inst .&&. p, pureS dest_pc)
                                     | x@(pc_src,opt_pred,dest_label) <- jumps
                                     , let Just dest_pc = Map.lookup dest_label label_table
                                     , let this_inst = Map.findWithDefault
-                                                                (error $ "X")  -- "this_inst " ++ show (pc_src,fmap (const ()) result))
+                                                                (error $ "this_inst " ++ show (pc_src,fmap (const ()) result))
                                                                 pc_src
                                                                 result
                                     , () <- trace (show ("insisde",(x,dest_pc))) [()]
@@ -163,7 +166,7 @@ placeRegisters :: Map Uniq (Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad
 placeRegisters regMap assignMap = Map.mapWithKey (\ k f -> 
         case Map.lookup k assignMap of
           Nothing -> f Nothing
-          Just a -> f $ Just a) regMap
+          Just a -> trace "plasing reg" $ f $ Just a) regMap
  
 
 ------------------------------------------------------------------------------
@@ -200,15 +203,34 @@ compWakarusa (INPUT fab) = do
         addInput reg inp
         return (REG reg)
 compWakarusa (LABEL) = do
+        -- LABEL implies new instruction block (because you jump to a label)
+        prepareInstSlot
         -- get the number of the thread
         uq <- getUniq
         let lab = L uq
         newLabel lab
         return $ lab
-compWakarusa e@(_ := _) = compWakarusaSeq e
-compWakarusa e@(GOTO _) = compWakarusaSeq e
-compWakarusa e@(_ :? _) = compWakarusaSeq e
-compWakarusa e@(PAR _)  = compWakarusaPar e
+compWakarusa (R n := expr) = do
+        prepareInstSlot
+        exprCode <- compWakarusaExpr expr
+        addAssignment (R n) exprCode
+        markInstSlot
+        return ()
+compWakarusa (GOTO lab) = do
+        prepareInstSlot
+        recordJump lab
+        markInstSlot
+        return ()
+compWakarusa (e1 :? m) = do
+        predCode <- compWakarusaExpr e1
+        setPred predCode $ compWakarusa m
+        return ()
+compWakarusa (PAR es) = do
+        prepareInstSlot
+        sequence_ [ parInstSlot $ compWakarusa e
+                  | e <- es
+                  ]
+        return ()
 compWakarusa STEP       = do
         incPC
         modify (\ st -> st { ws_pred = truePred })
@@ -217,11 +239,11 @@ compWakarusa _ = error "compWakarusa _"
 
 
 ------------------------------------------------------------------------------
-
+{-
 compWakarusaSeq :: STMT () -> WakarusaComp ()
 compWakarusaSeq e = do
-        _ <- compWakarusaStmt e
---        incPC
+
+        compWakarusaStmt e
         return ()
 
 compWakarusaPar :: STMT () -> WakarusaComp ()
@@ -239,27 +261,24 @@ compWakarusaPar e = do
 
 ------------------------------------------------------------------------------
 
-compWakarusaStmt :: STMT () -> WakarusaComp Bool
-compWakarusaStmt (R n := expr) = do
-        exprCode <- compWakarusaExpr expr
-        addAssignment (R n) exprCode
-        return True
+compWakarusaStmt :: STMT () -> WakarusaComp ()
+
 compWakarusaStmt (GOTO lab) = do
         recordJump lab
-        return False
+        return ()
 compWakarusaStmt (e1 :? m) = do
         predCode <- compWakarusaExpr e1
         _ <- setPred predCode $ compWakarusaStmt m
-        return True  -- if predicated, be pesamistic, and assume no jump was taken
+        return ()
 compWakarusaStmt (PAR es) = do
         mores <- mapM compWakarusaStmt es
-        return $ and mores        
+        return $ and mores                return ()
 compWakarusaStmt (RETURN ()) = return False
 compWakarusaStmt (BIND LABEL k1) = do -- getting hacky; breaks monad laws
         r1 <- compWakarusa LABEL
         compWakarusaStmt (k1 r1)
 compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct : \n" ++ show s
-
+-}
 ------------------------------------------------------------------------------
 
 compWakarusaExpr :: (Rep a) => EXPR a -> WakarusaComp (Seq a)
@@ -332,6 +351,5 @@ putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT () -> STMT ()
 putAckBox (WritableAckBox oB iB) val cont = do
         self <- LABEL 
         do PAR [ oB := val
-               , OP1 (bitNot) iB :? GOTO self
---               , iB              :? cont
+--               , OP1 (bitNot) iB :? GOTO self
                ]

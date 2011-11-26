@@ -8,8 +8,9 @@ import Language.KansasLava.Rep
 
 import Control.Monad.Fix
  
-infixr 0 :=
-infixr 0 :?
+infixr 1 :=
+infixr 1 :?
+infixl 0 |||
 
 -----------------------------------------------------------------------------------------
 
@@ -41,6 +42,9 @@ data STMT :: * -> * where
         RETURN :: a -> STMT a
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
+
+a ||| b = PAR [a,b]
+
 
 instance Show (STMT a) where
         show (r := e) = show r ++ " := " ++ show e
@@ -105,11 +109,6 @@ instance Variable REG where
         toVAR = id
 instance Variable EXPR where
         toVAR = REG
-
------------------------------------------------------------------------------------------
-
-
-
 
 -----------------------------------------------------------------------------------------
 

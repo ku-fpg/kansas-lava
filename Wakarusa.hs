@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, DoRec, TypeFamilies, FlexibleContexts #-}
-import Language.KansasLava
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, DoRec, TypeFamilies, FlexibleContexts, CPP #-}
+import Language.KansasLava hiding ((&))
 
 import Language.KansasLava.Universal
 import Language.KansasLava.Fabric
@@ -46,7 +46,7 @@ run2 = runFabricWithDriver fab2 $ do
 
 prog3 :: STMT [LABEL]
 prog3 = do
-        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
+        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
         VAR v0 :: VAR Int   <- REGISTER $ Just 9
         loop <- LABEL
         v0 := 10
@@ -60,6 +60,70 @@ run3 :: Seq Int
 run3 = runFabricWithDriver fab3 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
+
+prog4 :: STMT [LABEL]
+prog4 = do
+        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
+        VAR v0 :: VAR Int   <- REGISTER $ Just 0
+        loop <- LABEL
+        (v0 := v0 + 1) 
+          ||| (o0 := v0) 
+          ||| GOTO loop
+        return [loop]
+
+(&) m1 m2 = m1 >> m2
+
+fab4 = compileToFabric prog4
+
+run4 :: Seq Int
+run4 = runFabricWithDriver fab4 $ do
+                inStdLogicVector "o0" :: Fabric (Seq Int)
+
+prog5 :: STMT [LABEL]
+prog5 = do
+        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
+        VAR v0 :: VAR Int   <- REGISTER $ Just 0
+        loop <- LABEL
+        (v0 := v0 + 1) 
+        (o0 := v0) 
+        GOTO loop
+        return [loop]
+
+fab5 = compileToFabric prog5
+
+run5 :: Seq Int
+run5 = runFabricWithDriver fab5 $ do
+                inStdLogicVector "o0" :: Fabric (Seq Int)
+
+
+prog6 :: STMT [LABEL]
+prog6 = do
+        wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "oB" "iB"
+        VAR v0 :: VAR Int   <- REGISTER $ Just 0
+        loop <- LABEL
+        oB := v0
+--        putAckBox wAckBox v0 (return ())
+                ||| GOTO loop
+                ||| (v0 := v0 + 1) 
+--                ||| GOTO loop
+        return [loop]
+
+fab6 = compileToFabric prog6
+
+run6 :: Patch () (Seq (Enabled Int))
+              () (Seq Ack)
+run6 ~(_,outAck) = runFabricWithDriver fab6 $ do
+                outStdLogic "iB" outAck
+                out <- inStdLogicVector "oB"
+                return ((),out)
+
+data FOO = FOO Int deriving Show
+
+foo = FOO
+
+#define FOO foo __LINE__
+
+fooy = print (FOO)
 
 {-             
 progX :: STMT [LABEL]

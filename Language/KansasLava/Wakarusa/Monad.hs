@@ -6,6 +6,7 @@ import Language.KansasLava.Wakarusa.AST
 
 import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
+import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Universal
@@ -25,6 +26,8 @@ data WakarusaState = WakarusaState
 
         , ws_pred     :: Pred
                 -- ^ The predicate for the next instruction
+        , ws_filled   :: SlotStatus
+                -- ^ Has an instruction (or more in parallel) been issued in this cycle?
                 
         , ws_regs     :: Map Uniq (Maybe Pad -> Pad)
           -- ^ add the register, please, 
@@ -32,10 +35,13 @@ data WakarusaState = WakarusaState
           -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
         , ws_inputs      :: Map Uniq Pad                -- sig a
 
+
+
+
+
+
         , ws_pc       :: PC             -- ^ The PC 
         , ws_labels   :: Map LABEL PC   -- where the labels are
-
-
         , ws_pcs    :: [(PC,Maybe (Seq Bool),LABEL)]
                         -- if conditional holds, then jump to the given label
         }
@@ -73,6 +79,14 @@ type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
 
 type Uniq = Int
 type PC = X256
+
+------------------------------------------------------------------------------
+
+data SlotStatus = SlotStatus
+        { ss_full :: Bool       -- has the slot been filled
+        , ss_par  :: Bool       -- are we in a parallel context?
+        }
+        deriving (Show)
 
 ------------------------------------------------------------------------------
 -- Quick AST for Pred. Later will allow some sort of pretty printer
@@ -127,6 +141,9 @@ recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
         pc <- getPC
         st <- get
+        -- Does not use getPred here, because we 
+        -- want to store the partial result; the PC stores the other part of the condition
+        -- In this way, we might be able to analysis control flow  (AJG: unconvinsed)
         modify (\ st -> st { ws_pcs = (pc,Just $ fromPred (ws_pred st),lab) : ws_pcs st })
         return ()
 
@@ -154,7 +171,7 @@ addRegister r@(R k) opt_def = do
           f _ Nothing    Nothing   = undefinedS              -- no assignments happen ever
           f _ (Just def) Nothing   = pureS def               -- no assignments happend
           f _ Nothing    (Just (Just wt)) = delayEnabled wt
-          f _ (Just def) (Just (Just wt)) = registerEnabled def wt
+          f _ (Just def) (Just (Just wt)) = probeS "regReads" $ registerEnabled def $ probeS "regWrites" wt
           f r _          (Just Nothing)   = error $ "internal type error with register " ++ show r
 
 
@@ -187,6 +204,42 @@ setPred p m = do
         -- the other passing over.
         put (st1 { ws_pred = orPred (bitNot p) (ws_pred st1) })
         return r
+
+resetInstSlot :: WakarusaComp ()
+resetInstSlot = return () -- modify $ \ st -> st { ws_filled = False }
+
+markInstSlot :: WakarusaComp ()
+markInstSlot = do
+        st <- get
+        put $ case ws_filled st of
+          SlotStatus False p -> st { ws_filled = SlotStatus True p }
+          SlotStatus True  p -> error "attempting to fill an already full instruction slot"
+
+-- note this is idenpotent.
+prepareInstSlot :: WakarusaComp ()
+prepareInstSlot = do
+        st <- get
+        case ws_filled st of
+          SlotStatus False False ->
+                return ()
+          SlotStatus False True  ->  
+                return ()
+          SlotStatus True  False -> do
+                -- empty the slot by incrementing the PC
+                put $ st { ws_pc = ws_pc st + 1
+                         , ws_pred = truePred 
+                         , ws_filled = SlotStatus False False
+                         }
+          SlotStatus True  True ->
+                error "attempting to insert more than one consecutive instruction into a par"
+
+parInstSlot :: WakarusaComp () -> WakarusaComp ()
+parInstSlot m = do
+        st0 <- get
+        put $ st0 { ws_filled = SlotStatus False True }
+        m
+        st1 <- get
+        put $ st1 { ws_filled = (ws_filled st1) { ss_par = ss_par (ws_filled st0) } }
 
 {-
   where
