@@ -9,8 +9,10 @@ import Language.KansasLava.Fabric
 import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Universal
 import Language.KansasLava.Utils
+import Language.KansasLava.Types
 
 import Data.Sized.Ix
 
@@ -21,24 +23,46 @@ import Control.Monad.Reader
 
 data WakarusaState = WakarusaState
         { ws_uniq     :: Uniq
---        , ws_label    :: Maybe LABEL   
---                -- ^ current thread (after GOTO this is Nothing)
+
+        ----------------------------------------------------------
+        -- conserning the placement of instructions
 
         , ws_pred     :: Pred
                 -- ^ The predicate for the next instruction
         , ws_filled   :: SlotStatus
                 -- ^ Has an instruction (or more in parallel) been issued in this cycle?
                 
+        ----------------------------------------------------------
+        -- Registers
+
         , ws_regs     :: Map Uniq (Maybe Pad -> Pad)
-          -- ^ add the register, please, 
+          -- ^ The registers, with the way of mapping from
+          --   Enabled assignment to result value (typically using registerEnabled)
+          --   The Maybe argument uses Just *if* any assignments are present, otherwise 
+          --   uses Nothing to get the (constant) result
         , ws_assignments :: Map Uniq Pad
           -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
+
+        ----------------------------------------------------------
+        -- Memories
+
+        , ws_mems     :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad)
+           --- ^ The memories, which provide the function :: sig (Enabled (ix,a)) -> sig ix -> sig a
+
+        , ws_mem_writes :: Map Uniq Pad
+          -- ^ (untyped) write assignments, chained into a single Seq (Enabled (ix,a)).
+
+        , ws_mem_reads :: Map Uniq Pad 
+          -- ^ (untyped) read assignments, chained into a single Seq (Enabled ix)
+
+        ----------------------------------------------------------
+        -- inputs from outside
+
         , ws_inputs      :: Map Uniq Pad                -- sig a
 
 
-
-
-
+        ----------------------------------------------------------
+        -- Control flow
 
         , ws_pc       :: PC             -- ^ The PC 
         , ws_labels   :: Map LABEL PC   -- where the labels are
@@ -66,6 +90,11 @@ data WakarusaEnv = WakarusaEnv
         -- These are 2nd pass things
 {-        , -} we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
         , we_writes   :: Map Uniq Pad           -- register input   (2nd pass)
+
+
+        , we_mem_reads :: Map Uniq Pad          -- 
+
+
         , we_pcs      :: Map PC (Seq Bool)
                 -- ^ is this instruction being executed right now?
         }
@@ -112,7 +141,7 @@ fromPred :: Pred -> Seq Bool
 fromPred (Pred p) = p
 
 ------------------------------------------------------------------------------
-
+-- Uniq names; simple enought generator
 
 getUniq :: WakarusaComp Int
 getUniq = do
@@ -121,6 +150,9 @@ getUniq = do
         put $ st { ws_uniq = u }
         return u
         
+------------------------------------------------------------------------------
+-- Concerning the allocation of PC to instructions
+
 getPC :: WakarusaComp PC
 getPC = do
         st <- get
@@ -144,64 +176,6 @@ recordJump lab =  do
                            , ws_pred = falsePred
                            })
         return ()
-
-registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
-registerAction (R r) en val = do
-        st <- get
-        let mix :: Maybe (Seq (Enabled a)) -> Maybe (Seq (Enabled a)) -> Seq (Enabled a)
-            mix (Just s1) (Just s2) = chooseEnabled s1 s2
-            mix _ _ = error "failure to mix register assignments"
-        let assignments = Map.insertWith (\ u1 u2 -> toUni (mix (fromUni u1) (fromUni u2)))
-                                  r 
-                                  (toUni $ packEnabled en val)
-                                  (ws_assignments st)
-        put $ st { ws_assignments = assignments }
-        return ()
-
-addRegister :: forall a. (Rep a) => REG a -> Maybe a -> WakarusaComp ()
-addRegister r@(R k) opt_def = do
-        st <- get
-        let m = Map.insert k (toUni . f r opt_def . fmap fromUni) (ws_regs st)
-        put $ st { ws_regs = m }
-        return ()
-  where
-          f :: (Rep a) => REG a -> Maybe a -> Maybe (Maybe (Seq (Enabled a))) -> Seq a
-          f _ Nothing    Nothing   = undefinedS              -- no assignments happen ever
-          f _ (Just def) Nothing   = pureS def               -- no assignments happend
-          f _ Nothing    (Just (Just wt)) = delayEnabled wt
-          f _ (Just def) (Just (Just wt)) = probeS "regReads" $ registerEnabled def $ probeS "regWrites" wt
-          f r _          (Just Nothing)   = error $ "internal type error with register " ++ show r
-
-
-addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
-addInput (R k) inp = do
-        st <- get
-        let m = Map.insert k (toUni inp) (ws_inputs st)
-        put $ st { ws_inputs = m }
-        return ()
-
--- get the predicate for *this* instruction
-getPred :: WakarusaComp (Seq Bool)
-getPred = do
-            pc <- getPC
-            st <- get
-            env <- ask
-            return $ case Map.lookup pc (we_pcs env) of
-              Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
-              Just pc_pred -> pc_pred .&&. fromPred (ws_pred st)
-
--- set a predicate inside a context.
-
-setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
-setPred p m = do
-        st0 <- get
-        put (st0 { ws_pred = andPred p (ws_pred st0) })
-        r <- m
-        st1 <- get
-        -- Two control flow branches; one predicated (and might terminate/jump),
-        -- the other passing over.
-        put (st1 { ws_pred = orPred (bitNot p) (ws_pred st1) })
-        return r
 
 resetInstSlot :: WakarusaComp ()
 resetInstSlot = return () -- modify $ \ st -> st { ws_filled = False }
@@ -239,6 +213,83 @@ parInstSlot m = do
         st1 <- get
         put $ st1 { ws_filled = (ws_filled st1) { ss_par = ss_par (ws_filled st0) } }
 
+newLabel :: LABEL -> WakarusaComp ()
+newLabel lab = do
+        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) 
+                             , ws_pred = truePred  -- someone arrives here!
+                              })
+
+------------------------------------------------------------------------------
+
+-- Should be reg
+registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
+registerAction (R r) en val = do
+        st <- get
+        let mix :: Maybe (Seq (Enabled a)) -> Maybe (Seq (Enabled a)) -> Seq (Enabled a)
+            mix (Just s1) (Just s2) = chooseEnabled s1 s2
+            mix _ _ = error "failure to mix register assignments"
+        let assignments = Map.insertWith (\ u1 u2 -> toUni (mix (fromUni u1) (fromUni u2)))
+                                  r 
+                                  (toUni $ packEnabled en val)
+                                  (ws_assignments st)
+        put $ st { ws_assignments = assignments }
+        return ()
+
+addSignal :: forall a. (Rep a) => REG a -> (Seq (Enabled a) -> Seq a) -> WakarusaComp ()
+addSignal r@(R k) fn = do
+        st <- get
+        let m = Map.insert k (toUni . f . fmap fromUni) (ws_regs st)
+        put $ st { ws_regs = m }
+        return ()
+  where
+          f :: (Rep a) => Maybe (Maybe (Seq (Enabled a))) -> Seq a
+          f Nothing          = fn $ disabledS
+          f (Just (Just wt)) = fn wt
+          f (Just Nothing)   = error $ "internal type error with register " ++ show r
+
+addMemory :: forall ix a. (Rep a, Rep ix, Size ix) => Uniq -> Witness (MEM ix a) -> WakarusaComp ()
+addMemory k Witness = do
+        st <- get
+        let m = Map.insert k (\ ix a -> toUni (f (fmap fromUni ix) (fmap fromUni a))) (ws_mems st)
+        put $ st { ws_mems = m }
+        return ()
+  where
+          f :: Maybe (Maybe (Seq (Enabled (ix,a)))) -> Maybe (Maybe (Seq ix)) -> Seq a
+          f Nothing _ = undefinedS
+          f _ Nothing = undefinedS
+          f (Just (Just wt)) (Just (Just rd)) = asyncRead (writeMemory wt) rd 
+          f _ _ = error $ "internal type error with memory : " ++ show k
+          
+addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
+addInput (R k) inp = do
+        st <- get
+        let m = Map.insert k (toUni inp) (ws_inputs st)
+        put $ st { ws_inputs = m }
+        return ()
+
+-- get the predicate for *this* instruction
+getPred :: WakarusaComp (Seq Bool)
+getPred = do
+            pc <- getPC
+            st <- get
+            env <- ask
+            return $ case Map.lookup pc (we_pcs env) of
+              Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
+              Just pc_pred -> pc_pred .&&. fromPred (ws_pred st)
+
+-- set a predicate inside a context.
+
+setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
+setPred p m = do
+        st0 <- get
+        put (st0 { ws_pred = andPred p (ws_pred st0) })
+        r <- m
+        st1 <- get
+        -- Two control flow branches; one predicated (and might terminate/jump),
+        -- the other passing over.
+        put (st1 { ws_pred = orPred (bitNot p) (ws_pred st1) })
+        return r
+
 {-
   where
    f env = env { we_pred = case we_pred env of
@@ -273,11 +324,24 @@ getRegWrite k = do
                         Just e -> e
 
 
-newLabel :: LABEL -> WakarusaComp ()
-newLabel lab = do
-        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) 
-                             , ws_pred = truePred  -- someone arrives here!
-                              })
+getMemRead :: forall a ix . (Rep a, Rep ix, Size ix) => Uniq -> Seq ix -> WakarusaComp (Seq a)
+getMemRead k ix = do
+        p <- getPred
+        -- There are two parts, recording the *read* address as a type
+        -- of write event, and the reading of the value.
+        st <- get
+        let f :: Seq a -> Seq a -> Seq a
+            f a b = mux p (b,a)
+
+        put $ st { ws_mem_reads = Map.insertWith (zipPad f) k (toUni ix) (ws_mem_reads st)
+                 }
+
+        env <- ask        -- remember to return before checking error, to allow 2nd pass
+        return $ case Map.lookup k (we_mem_reads env) of
+           Nothing -> error $ "getMemRead, can not find : " ++ show k
+           Just p  -> case fromUni p of
+                        Nothing -> error $ "getMemRead, coerce error in : " ++ show k
+                        Just e -> e
 
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)
@@ -285,3 +349,18 @@ addToFabric f = lift (lift f)
 -- No more execution statements, so we unset the label
 --noFallThrough :: WakarusaComp ()
 --noFallThrough = modify (\ st -> st { ws_label = Nothing })
+
+------------------------------------------------------------------------------------
+
+zipPad :: (Rep a, Rep b, Rep c) => (Seq a -> Seq b -> Seq c) -> Pad -> Pad -> Pad
+zipPad f p1 p2 = g (fromUni p1) (fromUni p2)
+  where
+          g (Just a) (Just b) = toUni $ f a b
+          g _        _        = error "zipPad, failed to coerce argument"
+
+mapPad :: (Rep a, Rep b) => (Seq a -> Seq b) -> Pad -> Pad
+mapPad f p1 = g (fromUni p1)
+  where 
+          g (Just a) = toUni $ f a
+          g _        = error "zipPad, failed to coerce argument"
+

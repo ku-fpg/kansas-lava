@@ -6,6 +6,7 @@ module Language.KansasLava.Wakarusa
         , REG(..)
         , EXPR(..)
         , VAR(..)
+        , MEM(..)
         , (|||)
         , compileToFabric
         , ReadableAckBox
@@ -14,6 +15,8 @@ module Language.KansasLava.Wakarusa
         , connectWritableAckBox
         , takeAckBox
         , putAckBox
+        , Variable(..)
+        , var, undefinedVar
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -25,6 +28,9 @@ import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Protocols.Memory
+import Language.KansasLava.Types
+
 
 import Data.Sized.Ix
 
@@ -52,8 +58,14 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
                     { ws_uniq = 0 
                     , ws_pred  = falsePred
                     , ws_filled = SlotStatus False False
+                       -- registers
                     , ws_regs = Map.empty
                     , ws_assignments = Map.empty
+                      -- memories
+                    , ws_mems       = Map.empty
+                    , ws_mem_reads  = Map.empty
+                    , ws_mem_writes = Map.empty
+
                     , ws_inputs = Map.empty
                     , ws_pc = 0
                     , ws_labels = Map.empty
@@ -64,12 +76,11 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
         let
 
         rec res3 <- res2 $ WakarusaEnv 
-                    { -- we_pred  = Nothing
-                    {-,-} we_writes = ws_assignments st
-                    , we_reads  = ws_inputs st `Map.union`
-                                  (placeRegisters (ws_regs st) $ ws_assignments st)
-                    , we_pcs = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
---                    Map.mapWithKey (placePC labels) $ ws_pcs1
+                    { we_writes    = ws_assignments st
+                    , we_reads     = ws_inputs st `Map.union`
+                                         (placeRegisters (ws_regs st) $ ws_assignments st)
+                    , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
+                    , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     } 
             let (labels,st) = res3
 --                ws_pcs1 = Map.union (ws_pcs st)
@@ -168,23 +179,38 @@ placeRegisters regMap assignMap = Map.mapWithKey (\ k f ->
           Nothing -> f Nothing
           Just a -> trace "plasing reg" $ f $ Just a) regMap
  
+placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
+placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
+  where
+          fn k f = error "XFDD"
+{-
+                  case Map.lookup k assignMap of
+                     Nothing -> f $ toUni Nothing
+                     Just a -> f $ Just a) 
+-}
 
 ------------------------------------------------------------------------------
 
-compWakarusa :: STMT a -> WakarusaComp a
+compWakarusa :: forall a . STMT a -> WakarusaComp a
 compWakarusa (RETURN a) = return a
 compWakarusa (BIND m1 k1) = do
         r1 <- compWakarusa m1
         compWakarusa (k1 r1)
 compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
 
-compWakarusa (REGISTER def) = do
+compWakarusa (SIGNAL fn) = do
         uq <- getUniq
         let reg = R uq
         -- add the register to the table
-        addRegister reg def
+        addSignal reg fn
         return (VAR $ toVAR $ reg)
-
+compWakarusa (MEMORY) = do
+        uq <- getUniq
+        let reg = M uq
+        -- add the memory to the table
+        addMemory uq (Witness :: Witness a)
+        return $ MEM $ \ ix -> toVAR (reg ix)
+        
 compWakarusa (OUTPUT connect) = do
         uq  <- getUniq   -- the uniq name of this output
         wt <- getRegWrite uq
@@ -216,6 +242,12 @@ compWakarusa (R n := expr) = do
         addAssignment (R n) exprCode
         markInstSlot
         return ()
+compWakarusa (M ix n := expr) = do
+        prepareInstSlot
+--        exprCode <- compWakarusaExpr expr
+--        addAssignment (R n) exprCode
+        markInstSlot
+        return ()
 compWakarusa (GOTO lab) = do
         prepareInstSlot
         recordJump lab
@@ -235,7 +267,7 @@ compWakarusa STEP       = do
         incPC
         modify (\ st -> st { ws_pred = truePred })
         return ()
-compWakarusa _ = error "compWakarusa _"
+compWakarusa o = error ("compWakarusa : " ++ show o)
 
 
 ------------------------------------------------------------------------------
@@ -283,6 +315,12 @@ compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct :
 
 compWakarusaExpr :: (Rep a) => EXPR a -> WakarusaComp (Seq a)
 compWakarusaExpr (REG (R r)) = getRegRead r
+compWakarusaExpr (REG (M r ix)) = do
+        -- find the index
+        ix_code  <- compWakarusaExpr ix
+        -- get this instruction's predicate
+        getMemRead r ix_code
+        
 compWakarusaExpr (OP0 lit) = do
         return $ lit
 compWakarusaExpr (OP1 f e) = do

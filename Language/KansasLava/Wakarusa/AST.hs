@@ -5,7 +5,9 @@ module Language.KansasLava.Wakarusa.AST where
 import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
+import Language.KansasLava.Protocols.Enabled
 
+import Data.Sized.Ix
 import Control.Monad.Fix
  
 infixr 1 :=
@@ -22,12 +24,16 @@ data STMT :: * -> * where
         -- functionality
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
-        REGISTER :: (Rep a) =>  Maybe a                      -> STMT (VAR a)
-
+        SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)     -> STMT (VAR a)
+        MEMORY   :: (Rep ix, Rep a, Size ix)                 => STMT (MEM ix a)
+        
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
+
+        -- memory
+--        WRITE  :: MEM ix a -> EXPR ix -> EXPR a             -> STMT ()
 
         -- real time:
         -- wait for a cycle, or an event, or using a sample. 
@@ -51,7 +57,7 @@ instance Show (STMT a) where
         show (p :? s) = show p ++ " :? " ++ show s
         show (OUTPUT {})    = "OUTPUT"
         show (INPUT {})     = "INPUT"
-        show (REGISTER {})  = "REGISTER"
+        show (SIGNAL {})  = "SIGNAL"
         show (GOTO lab)     = "GOTO " ++ show lab
         show (LABEL)        = "LABEL"
         show (PAR es)       = "PAR" ++ show es
@@ -66,12 +72,17 @@ instance MonadFix STMT where
 -----------------------------------------------------------------------------------------
 
 data EXPR :: * -> * where
-        OP0 :: (forall u . Signal u a)                                                 -> EXPR a        -- also used as a lit
-        OP1 :: (Rep a) => (forall u . Signal u a -> Signal u b)                         -> EXPR a -> EXPR b
-        OP2 :: (Rep a, Rep b) => (forall u . Signal u a -> Signal u b -> Signal u c) -> EXPR a -> EXPR b -> EXPR c
-        REG :: REG a                                                                   -> EXPR a          -- only needed internally
---        ARR :: EXPR arr -> EXPR ix -> 
-
+        OP0 :: (Rep a) 
+            => (forall u . Signal u a)                                  -> EXPR a        -- also used as a lit
+        OP1 :: (Rep a, Rep b)
+            => (forall u . Signal u a -> Signal u b)                         
+            -> EXPR a                                                   -> EXPR b
+        OP2 :: (Rep a, Rep b,Rep c) 
+            => (forall u . Signal u a -> Signal u b -> Signal u c) 
+            -> EXPR a -> EXPR b                                         -> EXPR c
+        REG :: REG a                                                    -> EXPR a          -- only needed internally
+        READ :: (Rep ix, Rep a, Size ix)
+             => MEM ix a -> EXPR ix                                     -> EXPR a
 
 instance Eq (EXPR a) where {}
 instance Show (EXPR a) where
@@ -86,12 +97,31 @@ instance (Rep a, Num a) => Num (EXPR a) where
         abs = OP1 abs
         signum = OP1 signum
         fromInteger n = OP0 (fromInteger n :: Signal u a)
+
 -----------------------------------------------------------------------------------------
 
-data REG a = R Int      deriving (Eq,Ord)
+var :: (Rep a) => a -> Seq (Enabled a) -> Seq a
+var = registerEnabled
+undefinedVar :: (Rep a) => Seq (Enabled a) -> Seq a
+undefinedVar = delayEnabled
+
+{-
+data STORE :: * -> * where
+  UNDEFINED ::           STORE a      -- undefined default
+  DEFAULT   :: a      -> STORE a      -- given default
+  BUS       ::           STORE a      -- no store, just passthrough
+  ACK       ::           STORE Bool   -- 
+-}
+
+-----------------------------------------------------------------------------------------
+
+data REG a where
+    R :: Int -> REG a
+    M :: (Rep ix, Size ix) => Int -> EXPR ix -> REG a
 
 instance Show (REG a) where
         show (R n) = "R" ++ show n
+        show (M n _) = "M" ++ show n
 
 data LABEL = L Int      deriving (Eq,Ord)
 
@@ -103,12 +133,14 @@ instance Show LABEL where
 class Variable var where  -- something that can be both read and written to
         toVAR :: REG a -> var a
 
+instance Variable REG where
+        toVAR r = r
+instance Variable EXPR where
+        toVAR r = REG r
+
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-instance Variable REG where
-        toVAR = id
-instance Variable EXPR where
-        toVAR = REG
+data MEM ix a = MEM (forall (var :: * -> *) . (Variable var) => EXPR ix -> var a)
 
 -----------------------------------------------------------------------------------------
 
