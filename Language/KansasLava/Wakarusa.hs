@@ -239,6 +239,7 @@ compWakarusa (GOTO lab) = do
         markInstSlot
         return ()
 compWakarusa (e1 :? m) = do
+        prepareInstSlot
         predCode <- compWakarusaExpr e1
         setPred predCode $ compWakarusa m
         return ()
