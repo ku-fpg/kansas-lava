@@ -21,7 +21,7 @@ import Prelude hiding (tail)
 type Pipe a d = Enabled (a,d)
 
 -- | A Memory takes in a sequence of addresses, and returns a sequence of data at that address.
-type Memory clk a d = Signal clk a -> Signal clk d
+--type Memory clk a d = Signal clk a -> Signal clk d
 
 -- Does not work for two clocks, *YET*
 -- call writeMemory
