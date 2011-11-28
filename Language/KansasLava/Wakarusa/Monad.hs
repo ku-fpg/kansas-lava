@@ -62,6 +62,12 @@ data WakarusaState = WakarusaState
         , ws_labels   :: Map LABEL PC   -- where the labels are
         , ws_pcs    :: [(PC,Maybe (Seq Bool),LABEL)]
                         -- if conditional holds, then jump to the given label
+
+        ----------------------------------------------------------
+        -- Global Threads
+        
+        , ws_fork     :: [LABEL]
+
         }
 
 data RegisterInfo
@@ -335,6 +341,11 @@ addToFabric f = lift (lift f)
 -- No more execution statements, so we unset the label
 --noFallThrough :: WakarusaComp ()
 --noFallThrough = modify (\ st -> st { ws_label = Nothing })
+
+------------------------------------------------------------------------------------
+
+addFork :: LABEL -> WakarusaComp ()
+addFork lab = modify $ \ st -> st { ws_fork = lab : ws_fork st }
 
 ------------------------------------------------------------------------------------
 

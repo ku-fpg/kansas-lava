@@ -37,9 +37,7 @@ data STMT :: * -> * where
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
-
-        -- memory
---        WRITE  :: MEM ix a -> EXPR ix -> EXPR a             -> STMT ()
+        FORK   :: LABEL         -> STMT ()
 
         -- real time:
         -- wait for a cycle, or an event, or using a sample. 
@@ -66,6 +64,7 @@ instance Show (STMT a) where
         show (SIGNAL {})  = "SIGNAL"
         show (GOTO lab)     = "GOTO " ++ show lab
         show (LABEL)        = "LABEL"
+        show (FORK {})          = "FORK"
         show (PAR es)       = "PAR" ++ show es
         show _ = "..."
 

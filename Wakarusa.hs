@@ -14,13 +14,14 @@ import Data.Maybe
 
 ------------------------------------------------------------------------
 
-prog1 :: STMT [LABEL]
+prog1 :: STMT ()
 prog1 = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         loop <- LABEL
         o0  := 99
         GOTO loop
-        return [loop]
+
+        FORK loop
 
 fab1 = compileToFabric prog1
 
@@ -29,14 +30,14 @@ run1 = runFabricWithDriver fab1 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
 -- 2nd output should be 9 | ...
-prog2 :: STMT [LABEL]
+prog2 :: STMT ()
 prog2 = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         VAR v0  :: VAR Int           <- SIGNAL $ var 9
         loop <- LABEL
         o0 := v0
         GOTO loop
-        return [loop]
+        FORK loop
 
 fab2 = compileToFabric prog2
 
@@ -44,13 +45,13 @@ run2 :: Seq Int
 run2 = runFabricWithDriver fab2 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
-prog2b :: STMT [LABEL]
+prog2b :: STMT ()
 prog2b = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         i0 :: EXPR Int  <- INPUT (inStdLogicVector "i0")
         loop <- LABEL
         o0 := i0 ||| GOTO loop
-        return [loop]
+        FORK loop
 
 fab2b = compileToFabric prog2b
 
@@ -60,7 +61,7 @@ run2b inp = runFabricWithDriver fab2b $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
 
-prog3 :: STMT [LABEL]
+prog3 :: STMT ()
 prog3 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
         VAR v0 :: VAR Int   <- SIGNAL $ var 9
@@ -68,7 +69,7 @@ prog3 = do
         v0 := 10
         o0 := v0
         GOTO loop
-        return [loop]
+        FORK loop
 
 fab3 = compileToFabric prog3
 
@@ -77,7 +78,7 @@ run3 = runFabricWithDriver fab3 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
 
-prog4 :: STMT [LABEL]
+prog4 :: STMT ()
 prog4 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
         VAR v0 :: VAR Int   <- SIGNAL $ var 0
@@ -85,7 +86,7 @@ prog4 = do
         (v0 := v0 + 1) 
           ||| (o0 := v0) 
           ||| GOTO loop
-        return [loop]
+        FORK loop
 
 (&) m1 m2 = m1 >> m2
 
@@ -95,7 +96,7 @@ run4 :: Seq Int
 run4 = runFabricWithDriver fab4 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
-prog5 :: STMT [LABEL]
+prog5 :: STMT ()
 prog5 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
         VAR v0 :: VAR Int   <- SIGNAL $ var 0
@@ -103,7 +104,7 @@ prog5 = do
         (v0 := v0 + 1) 
         (o0 := v0) 
         GOTO loop
-        return [loop]
+        FORK loop
 
 fab5 = compileToFabric prog5
 
@@ -112,7 +113,7 @@ run5 = runFabricWithDriver fab5 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
 
-prog6 :: STMT [LABEL]
+prog6 :: STMT ()
 prog6 = do
 --        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
         wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
@@ -122,7 +123,7 @@ prog6 = do
                 ||| (v0 := v0 + 1)
                 ||| GOTO loop
 
-        return [loop]
+        FORK loop
 
 fab6 = compileToFabric prog6
 
@@ -134,7 +135,7 @@ run6 ~(_,outAck) = runFabricWithDriver fab6 $ do
                 return ((),out)
                 
                 
-prog7 :: STMT [LABEL]
+prog7 :: STMT ()
 prog7 = do
         o0 :: REG Int    <- OUTPUT (outStdLogicVector "o0" . enabledVal)
         i0 :: EXPR Int   <- INPUT (inStdLogicVector "i0")
@@ -152,7 +153,7 @@ prog7 = do
 
 
 
-        return [loop]
+        FORK loop
 
 fab7 = compileToFabric prog7
 
@@ -163,7 +164,7 @@ run7 inp = runFabricWithDriver fab7 $ do
         return out
 
 
-prog8 :: STMT [LABEL]
+prog8 :: STMT ()
 prog8 = do
         rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
         wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
@@ -172,7 +173,7 @@ prog8 = do
         takeAckBox (v0 :=) rAckBox 
         putAckBox wAckBox v0 
                 ||| GOTO loop
-        return [loop]
+        FORK loop
 
 fab8 = compileToFabric prog8
 
@@ -192,7 +193,7 @@ infix 3 !%
 
 
 
-prog9 :: STMT [LABEL]
+prog9 :: STMT ()
 prog9 = do
         mem :: Memory X1 Int <- memory
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . enabledVal)
@@ -205,7 +206,9 @@ prog9 = do
         o0 := OP2 asyncRead (readM mem) 0 
                 ||| GOTO loop
 
-        return [loop]
+        FORK loop
+
+        return ()
 
 fab9 = compileToFabric prog9
 
@@ -223,7 +226,7 @@ foo = FOO
 fooy = print (FOO)
 
 {-             
-progX :: STMT [LABEL]
+progX :: STMT ()
 progX = do
 --        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
 --        wAckBox :: WritableAckBox Int <- connectWritableAckBox "oB" "iB"
@@ -253,7 +256,7 @@ progX = do
 -}
 
 
-        return [loop] 
+        FORK loop 
 
 {-
 fab0 = compileToFabric prog1

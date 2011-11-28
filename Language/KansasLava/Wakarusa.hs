@@ -53,7 +53,7 @@ traceRet :: (a -> String) -> String -> a -> a
 traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 
 
-compileToFabric :: STMT [LABEL] -> Fabric () 
+compileToFabric :: STMT () -> Fabric () 
 compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
         let res0 = runStateT (compWakarusa prog)
         let res1 = res0 $ WakarusaState 
@@ -71,18 +71,15 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
                     , ws_pc = 0
                     , ws_labels = Map.empty
                     , ws_pcs = []
+                    , ws_fork = []
                     }
         let res2 = runReaderT res1
 
-        
-
-        rec res3 <- res2 $ WakarusaEnv 
+        rec (_,st) <- res2 $ WakarusaEnv 
                     { we_reads     = the_vars -- ws_inputs st `Map.union` fmap placeRegister (ws_regs st) 
-                    , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
+                    , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     } 
-
-            let (labels,st) = res3
 
             -- connect the inputs and outputs; instantiate the registers
             the_vars <- sequence
@@ -255,6 +252,8 @@ compWakarusa STEP       = do
         incPC
         modify (\ st -> st { ws_pred = truePred })
         return ()
+compWakarusa (FORK lab) = do
+        addFork lab
 compWakarusa o = error ("compWakarusa : " ++ show o)
 
 
