@@ -17,6 +17,7 @@ module Language.KansasLava.Wakarusa
         , putAckBox
         , Variable(..)
         , var, undefinedVar
+        , memory, Memory(..)
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -192,6 +193,13 @@ placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
 
 ------------------------------------------------------------------------------
 
+--output :: (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
+---output f = CHANEL fn >>
+
+--defVar' :: 
+
+------------------------------------------------------------------------------
+
 compWakarusa :: forall a . STMT a -> WakarusaComp a
 compWakarusa (RETURN a) = return a
 compWakarusa (BIND m1 k1) = do
@@ -200,35 +208,20 @@ compWakarusa (BIND m1 k1) = do
 compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
 
 compWakarusa (CHANNEL fn) = do
-        uq <- getUniq
-        let reg = R uq
---        addSignal reg (return . fn)        
-        return $ undefined
-
+        uq <- addChannel fn
+        return $ uq
 compWakarusa (SIGNAL fn) = do
-        uq <- getUniq
-        let reg = R uq
         -- add the register to the table
-        addSignal reg (return . fn)
-        return (VAR $ toVAR $ (reg, REG reg))
-compWakarusa (MEMORY) = do
-        uq <- getUniq
-        let reg = M uq
-        -- add the memory to the table
-        addMemory uq (Witness :: Witness a)
-        return $ MEM $ \ ix -> toVAR (reg ix, REG (reg ix))
+        uq <- addChannel (return . fn)
+        return (VAR $ toVAR $ (R uq, REG (R uq)))
 compWakarusa (OUTPUT connect) = do
-        uq  <- getUniq   -- the uniq name of this output
-        let reg = R uq
-        addSignal reg $ \ wt -> do
+        uq <- addChannel $ \ wt -> do
                         connect wt
-                        return (undefinedS :: Seq ())
-        return $ reg
+                        return (pureS ())
+        return $ R $ uq
 compWakarusa (INPUT connect) = do
-        u <- getUniq
-        let reg = R u
-        addSignal reg $ \ _ -> connect
-        return (REG reg)
+        uq <- addChannel (const connect :: (a ~ EXPR b) => Seq (Enabled b) -> Fabric (Seq b))
+        return (REG $ R $ uq)
 compWakarusa (LABEL) = do
         -- LABEL implies new instruction block (because you jump to a label)
         prepareInstSlot
@@ -241,12 +234,6 @@ compWakarusa (R n := expr) = do
         prepareInstSlot
         exprCode <- compWakarusaExpr expr
         addAssignment (R n) exprCode
-        markInstSlot
-        return ()
-compWakarusa (M ix n := expr) = do
-        prepareInstSlot
---        exprCode <- compWakarusaExpr expr
---        addAssignment (R n) exprCode
         markInstSlot
         return ()
 compWakarusa (GOTO lab) = do
@@ -316,12 +303,7 @@ compWakarusaStmt s = error $ "compWakarusaStmt : unsupport operation construct :
 
 compWakarusaExpr :: (Rep a) => EXPR a -> WakarusaComp (Seq a)
 compWakarusaExpr (REG (R r)) = getRegRead r
-compWakarusaExpr (REG (M r ix)) = do
-        -- find the index
-        ix_code  <- compWakarusaExpr ix
-        -- get this instruction's predicate
-        getMemRead r ix_code
-        
+
 compWakarusaExpr (OP0 lit) = do
         return $ lit
 compWakarusaExpr (OP1 f e) = do
@@ -390,3 +372,30 @@ putAckBox (WritableAckBox oB iB) val = do
         do PAR [ oB := val
                , OP1 (bitNot) iB :? GOTO self
                ]
+
+-------------------------------------------------------------------------
+
+data Memory ix a = Memory 
+        { writeM ::  REG (ix,a)    -- ^ where you write index-value pairs
+        , readM   :: EXPR (ix -> a) -- ^ where you send read requests
+        }
+
+memory :: forall a ix . (Rep a, Rep ix, Size ix) => STMT (Memory ix a)
+memory = do
+        uq1 <- CHANNEL (return . writeMemory :: Seq (Enabled (ix,a)) -> Fabric (Seq (ix -> a)))
+
+{-
+        -- One single memory
+        let readMemory :: Seq (Enabled (ix -> a,ix)) -> Seq a
+            readMemory en_mem_ix = syncRead mem ix
+                 where (en,mem_ix) = unpack en_mem_ix
+                       (mem,ix)    = unpack mem_ix
+
+        uq2 <- CHANNEL (return . readMemory)
+-}
+
+        return $ Memory
+          { writeM = R uq1
+          , readM = REG $ R uq1
+          }
+        

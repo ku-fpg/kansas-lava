@@ -27,12 +27,11 @@ data STMT :: * -> * where
         -- functionality
 
         -- primitive channel builder.
-        CHANNEL  :: (Rep a,Rep b) => (Seq (Maybe a) -> Seq b) -> STMT (REG a, EXPR b)
+        CHANNEL  :: (Rep a, Rep b) => (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int
 
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
         SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)     -> STMT (VAR a)
-        MEMORY   :: (Rep ix, Rep a, Size ix)                 => STMT (MEM ix a)
         
         -- control flow
         GOTO   :: LABEL         -> STMT ()
@@ -124,11 +123,9 @@ data STORE :: * -> * where
 
 data REG a where
     R :: Int -> REG a
-    M :: (Rep ix, Size ix) => Int -> EXPR ix -> REG a
 
 instance Show (REG a) where
         show (R n) = "R" ++ show n
-        show (M n _) = "M" ++ show n
 
 data LABEL = L Int      deriving (Eq,Ord)
 

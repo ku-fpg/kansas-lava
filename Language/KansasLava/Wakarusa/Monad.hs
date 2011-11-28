@@ -217,10 +217,11 @@ newLabel lab = do
 ------------------------------------------------------------------------------
 -- TODO: addSignal => addChannel, REG a => Uniq.
 
-addSignal :: forall a b . (Rep a, Rep b) => REG a -> (Seq (Enabled a) -> Fabric (Seq b)) -> WakarusaComp ()
-addSignal r@(R k) fn = do
+addChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Fabric (Seq b)) -> WakarusaComp Uniq
+addChannel fn = do
+        k <- getUniq
         modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
-        return ()
+        return k
   where
           regInfo :: RegisterInfo 
           regInfo = RegisterInfo 

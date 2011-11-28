@@ -194,38 +194,24 @@ infix 3 !%
 
 prog9 :: STMT [LABEL]
 prog9 = do
-        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0")
+        mem :: Memory X1 Int <- memory
+        o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . enabledVal)
+        VAR v0 :: VAR Int   <- SIGNAL $ var 0
 
-{-
-        VAR mem <-  SIGNAL $ \ ix -> writeMemory 
-
-        MEM mem :: MEM X1 Int <- MEMORY
--}
         loop <- LABEL
-{-
-        memW := (ix,val)        -- write port
-        memR := ix              -- read ix port
-        mem                     -- read result
 
-        mem := pureS (0,99)
-        res := OP2 asyncRead mem 0
-
-        o0 := 0
--}
-        GOTO loop
+        o0 := v0 ||| v0 := v0 + 1 ||| writeM mem := OP2 (curry pack) 0 v0
+--        o0 := 294
+        o0 := OP2 asyncRead (readM mem) 0 
+                ||| GOTO loop
 
         return [loop]
 
 fab9 = compileToFabric prog9
 
-run9 :: Patch (Seq (Enabled Int)) (Seq (Enabled Int))
-              (Seq Ack) (Seq Ack)
-run9 ~(inp,outAck) = runFabricWithDriver fab9 $ do
-        outStdLogicVector "iA" inp
-        inAck <- inStdLogic "oA"
-        outStdLogic "ack" outAck
-        out <- inStdLogicVector "out"
-        return (inAck,out)
+run9 :: Seq Int
+run9 = runFabricWithDriver fab9 $ do
+                inStdLogicVector "o0" :: Fabric (Seq Int)
 
 
 data FOO = FOO Int deriving Show
