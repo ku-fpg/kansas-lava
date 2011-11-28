@@ -129,7 +129,7 @@ Executable kansas-lava-unittest
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests
+    Hs-Source-Dirs: tests, .
     Ghc-Options: -Wall 
                  -fno-warn-orphans -fcontext-stack=256
                  -threaded -rtsopts
@@ -161,7 +161,7 @@ Executable kansas-lava-testreport
       Build-depends: base
       buildable: False
     Main-Is:        GenReport.hs
-    Hs-Source-Dirs:  ., tests
+    Hs-Source-Dirs:  tests, .
     Ghc-Options: -Wall  -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
     default-language:    Haskell2010
@@ -191,7 +191,7 @@ Executable kansas-lava-tbf2vcd
       Build-depends: base
       buildable: False
     Main-Is:        TBF2VCD.hs
-    Hs-Source-Dirs: ., tools
+    Hs-Source-Dirs: tools, .
     Ghc-Options: -Wall  -fno-warn-orphans
     default-language:    Haskell2010
 
