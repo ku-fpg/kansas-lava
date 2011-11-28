@@ -215,6 +215,18 @@ newLabel lab = do
                               })
 
 ------------------------------------------------------------------------------
+-- TODO: addSignal => addChannel, REG a => Uniq.
+
+addSignal :: forall a b . (Rep a, Rep b) => REG a -> (Seq (Enabled a) -> Fabric (Seq b)) -> WakarusaComp ()
+addSignal r@(R k) fn = do
+        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
+        return ()
+  where
+          regInfo :: RegisterInfo 
+          regInfo = RegisterInfo 
+                { ri_regs    = mapMPad fn
+                , ri_assigns = toUni (disabledS :: Seq (Enabled a))
+                }
 
 -- Should be reg
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
@@ -227,16 +239,6 @@ registerAction (R k) en val = do
         modify $ \ st -> st { ws_regs = Map.update updateAssign k $ ws_regs st }
         return ()
 
-addSignal :: forall a. (Rep a) => REG a -> (Seq (Enabled a) -> Fabric (Seq a)) -> WakarusaComp ()
-addSignal r@(R k) fn = do
-        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
-        return ()
-  where
-          regInfo :: RegisterInfo 
-          regInfo = RegisterInfo 
-                { ri_regs    = mapMPad fn
-                , ri_assigns = toUni (disabledS :: Seq (Enabled a))
-                }
 
 addMemory :: forall ix a. (Rep a, Rep ix, Size ix) => Uniq -> Witness (MEM ix a) -> WakarusaComp ()
 addMemory k Witness = do

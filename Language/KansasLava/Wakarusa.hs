@@ -199,25 +199,30 @@ compWakarusa (BIND m1 k1) = do
         compWakarusa (k1 r1)
 compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
 
+compWakarusa (CHANNEL fn) = do
+        uq <- getUniq
+        let reg = R uq
+--        addSignal reg (return . fn)        
+        return $ undefined
+
 compWakarusa (SIGNAL fn) = do
         uq <- getUniq
         let reg = R uq
         -- add the register to the table
         addSignal reg (return . fn)
-        return (VAR $ toVAR $ reg)
+        return (VAR $ toVAR $ (reg, REG reg))
 compWakarusa (MEMORY) = do
         uq <- getUniq
         let reg = M uq
         -- add the memory to the table
         addMemory uq (Witness :: Witness a)
-        return $ MEM $ \ ix -> toVAR (reg ix)
-        
+        return $ MEM $ \ ix -> toVAR (reg ix, REG (reg ix))
 compWakarusa (OUTPUT connect) = do
         uq  <- getUniq   -- the uniq name of this output
         let reg = R uq
         addSignal reg $ \ wt -> do
                         connect wt
-                        return $ undefinedS
+                        return (undefinedS :: Seq ())
         return $ reg
 compWakarusa (INPUT connect) = do
         u <- getUniq

@@ -196,12 +196,22 @@ prog9 :: STMT [LABEL]
 prog9 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0")
 
+{-
+        VAR mem <-  SIGNAL $ \ ix -> writeMemory 
+
         MEM mem :: MEM X1 Int <- MEMORY
-
+-}
         loop <- LABEL
---        mem 0 := 99
-        o0 := mem 0
+{-
+        memW := (ix,val)        -- write port
+        memR := ix              -- read ix port
+        mem                     -- read result
 
+        mem := pureS (0,99)
+        res := OP2 asyncRead mem 0
+
+        o0 := 0
+-}
         GOTO loop
 
         return [loop]

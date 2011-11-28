@@ -18,10 +18,17 @@ infixl 0 |||
 
 data STMT :: * -> * where
         -- syntax
+
+        -- Assignment
         (:=)   :: (Rep a) => REG a -> EXPR a     -> STMT ()
+        -- Predicate
         (:?)   :: EXPR Bool           -> STMT () -> STMT ()
 
         -- functionality
+
+        -- primitive channel builder.
+        CHANNEL  :: (Rep a,Rep b) => (Seq (Maybe a) -> Seq b) -> STMT (REG a, EXPR b)
+
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
         SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)     -> STMT (VAR a)
@@ -131,14 +138,18 @@ instance Show LABEL where
 -----------------------------------------------------------------------------------------
 
 class Variable var where  -- something that can be both read and written to
-        toVAR :: REG a -> var a
+        toVAR :: (REG a,EXPR a) -> var a
 
 instance Variable REG where
-        toVAR r = r
+        toVAR (r,_) = r
 instance Variable EXPR where
-        toVAR r = REG r
+        toVAR (_,r) = r
 
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
+
+
+twiddle :: (REG a, EXPR a) -> VAR a
+twiddle = undefined
 
 data MEM ix a = MEM (forall (var :: * -> *) . (Variable var) => EXPR ix -> var a)
 
