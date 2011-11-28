@@ -54,7 +54,7 @@ traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 
 
 compileToFabric :: STMT () -> Fabric () 
-compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
+compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
         let res0 = runStateT (compWakarusa prog)
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
