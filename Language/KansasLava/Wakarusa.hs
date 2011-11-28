@@ -76,7 +76,7 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
         let res2 = runReaderT res1
 
         rec (_,st) <- res2 $ WakarusaEnv 
-                    { we_reads     = the_vars -- ws_inputs st `Map.union` fmap placeRegister (ws_regs st) 
+                    { we_reads     = the_vars
                     , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     } 
