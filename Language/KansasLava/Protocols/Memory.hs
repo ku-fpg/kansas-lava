@@ -114,8 +114,11 @@ syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Re
 	=> sig (a -> d) -> sig a -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
 
--- | Read a series of addresses.
-asyncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
+-- | Read a memory asyncrounously. There is no clock here,
+-- becase this is an intra-clock operation on the sig (a -> d).
+-- Compare with '<*>' from applicative functors.
+
+asyncRead :: forall a d sig clk . (sig ~ Signal clk, Size a, Rep a, Rep d)
 	=> sig (a -> d) -> sig a -> sig d
 asyncRead a d = mustAssignSLV $ primXS2 fn "asyncRead" a d
    where fn (XFunction f) a0 = 
