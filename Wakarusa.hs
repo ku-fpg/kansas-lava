@@ -44,6 +44,22 @@ run2 :: Seq Int
 run2 = runFabricWithDriver fab2 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
+prog2b :: STMT [LABEL]
+prog2b = do
+        o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
+        i0 :: EXPR Int  <- INPUT (inStdLogicVector "i0")
+        loop <- LABEL
+        o0 := i0 ||| GOTO loop
+        return [loop]
+
+fab2b = compileToFabric prog2b
+
+run2b :: Seq Int -> Seq Int
+run2b inp = runFabricWithDriver fab2b $ do
+                outStdLogicVector "i0" inp
+                inStdLogicVector "o0" :: Fabric (Seq Int)
+
+
 prog3 :: STMT [LABEL]
 prog3 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")

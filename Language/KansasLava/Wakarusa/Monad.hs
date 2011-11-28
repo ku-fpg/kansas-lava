@@ -35,13 +35,12 @@ data WakarusaState = WakarusaState
         ----------------------------------------------------------
         -- Registers
 
-        , ws_regs     :: Map Uniq (Maybe Pad -> Pad)
+        , ws_regs     :: Map Uniq RegisterInfo
           -- ^ The registers, with the way of mapping from
           --   Enabled assignment to result value (typically using registerEnabled)
-          --   The Maybe argument uses Just *if* any assignments are present, otherwise 
-          --   uses Nothing to get the (constant) result
-        , ws_assignments :: Map Uniq Pad
-          -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
+
+--        , ws_assignments :: Map Uniq Pad
+--          -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
 
         ----------------------------------------------------------
         -- Memories
@@ -55,11 +54,6 @@ data WakarusaState = WakarusaState
         , ws_mem_reads :: Map Uniq Pad 
           -- ^ (untyped) read assignments, chained into a single Seq (Enabled ix)
 
-        ----------------------------------------------------------
-        -- inputs from outside
-
-        , ws_inputs      :: Map Uniq Pad                -- sig a
-
 
         ----------------------------------------------------------
         -- Control flow
@@ -69,6 +63,13 @@ data WakarusaState = WakarusaState
         , ws_pcs    :: [(PC,Maybe (Seq Bool),LABEL)]
                         -- if conditional holds, then jump to the given label
         }
+
+data RegisterInfo
+        = RegisterInfo
+        { ri_regs    :: Pad -> Fabric Pad      -- :: sig (Enabled a) -> Fabric (sig a)
+        , ri_assigns :: Pad                    -- :: sig (Enabled a)
+        }
+
 --        deriving Show
 
 -- Placeholder
@@ -84,13 +85,7 @@ instance Show WakarusaState where
 -}
 
 data WakarusaEnv = WakarusaEnv
-        { --we_label    :: Maybe LABEL            --
---{-        , -} we_pred     :: Maybe (Seq Bool)       -- optional predicate on specific instructions
-
-        -- These are 2nd pass things
-{-        , -} we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
-        , we_writes   :: Map Uniq Pad           -- register input   (2nd pass)
-
+        { we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
 
         , we_mem_reads :: Map Uniq Pad          -- 
 
@@ -223,29 +218,25 @@ newLabel lab = do
 
 -- Should be reg
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
-registerAction (R r) en val = do
-        st <- get
-        let mix :: Maybe (Seq (Enabled a)) -> Maybe (Seq (Enabled a)) -> Seq (Enabled a)
-            mix (Just s1) (Just s2) = chooseEnabled s1 s2
-            mix _ _ = error "failure to mix register assignments"
-        let assignments = Map.insertWith (\ u1 u2 -> toUni (mix (fromUni u1) (fromUni u2)))
-                                  r 
-                                  (toUni $ packEnabled en val)
-                                  (ws_assignments st)
-        put $ st { ws_assignments = assignments }
+registerAction (R k) en val = do
+        let updateAssign regInfo = return
+                                 $ regInfo { ri_assigns = mapPad (chooseEnabled (packEnabled en val))
+                                                                 (ri_assigns regInfo)
+                                           }
+
+        modify $ \ st -> st { ws_regs = Map.update updateAssign k $ ws_regs st }
         return ()
 
-addSignal :: forall a. (Rep a) => REG a -> (Seq (Enabled a) -> Seq a) -> WakarusaComp ()
+addSignal :: forall a. (Rep a) => REG a -> (Seq (Enabled a) -> Fabric (Seq a)) -> WakarusaComp ()
 addSignal r@(R k) fn = do
-        st <- get
-        let m = Map.insert k (toUni . f . fmap fromUni) (ws_regs st)
-        put $ st { ws_regs = m }
+        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
         return ()
   where
-          f :: (Rep a) => Maybe (Maybe (Seq (Enabled a))) -> Seq a
-          f Nothing          = fn $ disabledS
-          f (Just (Just wt)) = fn wt
-          f (Just Nothing)   = error $ "internal type error with register " ++ show r
+          regInfo :: RegisterInfo 
+          regInfo = RegisterInfo 
+                { ri_regs    = mapMPad fn
+                , ri_assigns = toUni (disabledS :: Seq (Enabled a))
+                }
 
 addMemory :: forall ix a. (Rep a, Rep ix, Size ix) => Uniq -> Witness (MEM ix a) -> WakarusaComp ()
 addMemory k Witness = do
@@ -260,12 +251,14 @@ addMemory k Witness = do
           f (Just (Just wt)) (Just (Just rd)) = asyncRead (writeMemory wt) rd 
           f _ _ = error $ "internal type error with memory : " ++ show k
           
+{-
 addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
 addInput (R k) inp = do
         st <- get
         let m = Map.insert k (toUni inp) (ws_inputs st)
         put $ st { ws_inputs = m }
         return ()
+-}
 
 -- get the predicate for *this* instruction
 getPred :: WakarusaComp (Seq Bool)
@@ -313,16 +306,6 @@ getRegRead k = do
                         Nothing -> error $ "getRegRead, coerce error in : " ++ show k
                         Just e -> e
 
-getRegWrite :: forall a . (Rep a) => Uniq -> WakarusaComp (Seq (Enabled a))
-getRegWrite k = do
-        env <- ask
-        -- remember to return before checking error, to allow 2nd pass
-        return $ case Map.lookup k (we_writes env) of
-           Nothing -> error $ "getRegWrite, can not find : " ++ show k
-           Just p  -> case fromUni p of
-                        Nothing -> error $ "getRegWrite, coerce error in : " ++ show k
-                        Just e -> e
-
 
 getMemRead :: forall a ix . (Rep a, Rep ix, Size ix) => Uniq -> Seq ix -> WakarusaComp (Seq a)
 getMemRead k ix = do
@@ -358,9 +341,16 @@ zipPad f p1 p2 = g (fromUni p1) (fromUni p2)
           g (Just a) (Just b) = toUni $ f a b
           g _        _        = error "zipPad, failed to coerce argument"
 
+mapMPad :: (Monad m, Rep a, Rep b) => (Seq a -> m (Seq b)) -> Pad -> m Pad
+mapMPad f p1 = g (fromUni p1)
+  where
+          g (Just a) = do r <- f a
+                          return (toUni r)
+          g _        = fail "mapMPad, failed to coerce argument"
+          
 mapPad :: (Rep a, Rep b) => (Seq a -> Seq b) -> Pad -> Pad
 mapPad f p1 = g (fromUni p1)
   where 
           g (Just a) = toUni $ f a
-          g _        = error "zipPad, failed to coerce argument"
+          g _        = error "mapPad, failed to coerce argument"
 

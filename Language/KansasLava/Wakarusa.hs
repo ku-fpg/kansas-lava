@@ -30,6 +30,7 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Types
+import Language.KansasLava.Universal
 
 
 import Data.Sized.Ix
@@ -60,31 +61,34 @@ compileToFabric prog = traceRet (show . unsafePerformIO . reifyFabric) "compileT
                     , ws_filled = SlotStatus False False
                        -- registers
                     , ws_regs = Map.empty
-                    , ws_assignments = Map.empty
+--                    , ws_assignments = Map.empty
                       -- memories
                     , ws_mems       = Map.empty
                     , ws_mem_reads  = Map.empty
                     , ws_mem_writes = Map.empty
 
-                    , ws_inputs = Map.empty
                     , ws_pc = 0
                     , ws_labels = Map.empty
                     , ws_pcs = []
                     }
         let res2 = runReaderT res1
 
-        let
+        
 
         rec res3 <- res2 $ WakarusaEnv 
-                    { we_writes    = ws_assignments st
-                    , we_reads     = ws_inputs st `Map.union`
-                                         (placeRegisters (ws_regs st) $ ws_assignments st)
+                    { we_reads     = the_vars -- ws_inputs st `Map.union` fmap placeRegister (ws_regs st) 
                     , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) labels
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     } 
+
             let (labels,st) = res3
---                ws_pcs1 = Map.union (ws_pcs st)
---                                    (Map.fromList [(lab,disabledS) | lab <- labels])
+
+            -- connect the inputs and outputs; instantiate the registers
+            the_vars <- sequence
+                       [ do r <- placeRegister reg
+                            return (k,r)
+                       | (k,reg) <- Map.toList (ws_regs st)
+                       ] >>= (return . Map.fromList)
 
         return ()
 
@@ -173,11 +177,8 @@ placePC starts lab inp = out
            initial = if lab `elem` starts then Just 0 else Nothing
 -}
 
-placeRegisters :: Map Uniq (Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad
-placeRegisters regMap assignMap = Map.mapWithKey (\ k f -> 
-        case Map.lookup k assignMap of
-          Nothing -> f Nothing
-          Just a -> trace "plasing reg" $ f $ Just a) regMap
+placeRegister :: RegisterInfo -> Fabric Pad
+placeRegister (RegisterInfo { ri_regs = reg_fn, ri_assigns = assigns }) = reg_fn assigns
  
 placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
 placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
@@ -202,7 +203,7 @@ compWakarusa (SIGNAL fn) = do
         uq <- getUniq
         let reg = R uq
         -- add the register to the table
-        addSignal reg fn
+        addSignal reg (return . fn)
         return (VAR $ toVAR $ reg)
 compWakarusa (MEMORY) = do
         uq <- getUniq
@@ -213,20 +214,15 @@ compWakarusa (MEMORY) = do
         
 compWakarusa (OUTPUT connect) = do
         uq  <- getUniq   -- the uniq name of this output
-        wt <- getRegWrite uq
-        addToFabric (connect wt)
-        return $ R uq
-compWakarusa (INPUT fab) = do
-        inp <- addToFabric fab
-        -- Why not just return the inp?
-        --  * Can not use OP0 (requires combinatorial value)
-        --  * We *could* add a new constructor, IN (say)
-        --  * but by using a REG, we are recording the
-        --    use of an INPUT that changes over time,
-        --    in the same way as registers are accesssed.
+        let reg = R uq
+        addSignal reg $ \ wt -> do
+                        connect wt
+                        return $ undefinedS
+        return $ reg
+compWakarusa (INPUT connect) = do
         u <- getUniq
         let reg = R u
-        addInput reg inp
+        addSignal reg $ \ _ -> connect
         return (REG reg)
 compWakarusa (LABEL) = do
         -- LABEL implies new instruction block (because you jump to a label)
