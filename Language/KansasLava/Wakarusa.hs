@@ -250,8 +250,9 @@ compWakarusa (PAR es) = do
                   ]
         return ()
 compWakarusa STEP       = do
-        incPC
-        modify (\ st -> st { ws_pred = truePred })
+-- TODO REMove
+--        incPC
+--        modify (\ st -> st { ws_pred = falsePred })
         return ()
 compWakarusa (FORK lab) = do
         addFork lab
