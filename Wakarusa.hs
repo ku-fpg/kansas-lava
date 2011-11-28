@@ -219,33 +219,32 @@ prog10 :: STMT ()
 prog10 = do
         start <- LABEL
 
---        mem :: Memory X16 Int <- memory
+        mem :: Memory X16 Int <- memory
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . enabledVal)
-{-
         VAR v0 :: VAR Int   <- SIGNAL $ var 0
         VAR i  :: VAR X16   <- SIGNAL $ var 0        
 
         loop1 <- LABEL
-        writeM mem := OP2 (curry pack) i v0
+        writeM mem := OP2 (curry pack) i (v0 * v0)
         i := i + 1
         v0 := v0 + 1
         o0 := OP1 (unsigned) i
         o0 := OP1 (\ b -> mux b (0,1)) (OP2 (.<.) i 10)
--}
-        (OP0 high) :? o0 := 4000
-        (OP0 low) :? o0 := 5000
-{-
-        (OP2 (.<.) i 10) :?
-                (o0 := 999 ||| GOTO loop1)
+        (OP2 (.<.) i 10) :? GOTO loop1
 
         o0 := 1000
 
         i := 0
         loop <- LABEL
-        o0 := OP2 asyncRead (readM mem) 0
---        i := i + 1
+        o0 := 9999
+        o0 := OP2 asyncRead (readM mem) i
+        i := i + 1
         (OP2 (.<.) i (OP0 $ pureS maxBound)) :? GOTO loop
--}
+
+        stop <- LABEL
+        GOTO stop
+
+
         FORK start
 
         return ()
