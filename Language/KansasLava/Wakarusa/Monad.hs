@@ -288,7 +288,7 @@ setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
 setPred p m = do
         st0 <- get
         put (st0 { ws_pred = andPred p (ws_pred st0) })
-        () <- trace ("set pred"  ++ show (andPred p (ws_pred st0)))  $ return ()
+--        () <- trace ("set pred"  ++ show (andPred p (ws_pred st0)))  $ return ()
         r <- m
         st1 <- get
         -- Two control flow branches; one predicated (and might terminate/jump),
