@@ -154,6 +154,7 @@ generatePredicates label_table jumps pc threads = {- trace (show ("generatePredi
                                       , pureS dest_pc
                                       )
                                     | x@(pc_src,opt_pred,dest_label) <- jumps
+                                    , threadIds Map.! pc_src == pid
                                     , let Just dest_pc = Map.lookup dest_label label_table
                                     , let this_inst = Map.findWithDefault
                                                                 (error $ "this_inst " ++ show (pc_src,fmap (const ()) result))
