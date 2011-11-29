@@ -19,6 +19,9 @@ module Language.KansasLava.Wakarusa
         , Variable(..)
         , var, undefinedVar
         , memory, Memory(..)
+        , always
+        , for
+        , if_then_else
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -358,10 +361,9 @@ connectReadableAckBox inpName ackName = do
 takeAckBox :: Rep a => (EXPR a -> STMT ()) -> ReadableAckBox a -> STMT ()
 takeAckBox cont (ReadableAckBox iA oA) = do
         self <- LABEL
-        do PAR [ OP1 (bitNot . isEnabled) iA :? GOTO self
-               , oA := OP0 (pureS ())
-               , cont (OP1 enabledVal iA)
-               ]
+        do OP1 (bitNot . isEnabled) iA :? GOTO self
+                ||| oA := OP0 (pureS ())
+                ||| cont (OP1 enabledVal iA)
 
 data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool) 
 
@@ -389,6 +391,8 @@ newAckBox = do
                )
 
 -------------------------------------------------------------------------
+-- Memory is set up as duel ported to allow a *single* instances of the
+-- memory entity/array in Hardware.
 
 data Memory ix a = Memory 
         { writeM  :: REG (ix,a)  -- ^ where you write index-value pairs
@@ -402,18 +406,45 @@ memory = do
         VAR v2 :: VAR ix <- mkTemp
         VAR v3 :: VAR a  <- mkTemp
 
-{-
-        loop <- LABEL
-        v3 := OP2 asyncRead e1 v2
-                ||| GOTO loop
-        FORK loop
--}
+        always $ v3 := OP2 asyncRead e1 v2
+
         return $ Memory
           { writeM = r1
           , readM  = v2
           , valueM = v3
           }
-        
+
+--------------------------------------------------------------------------
+-- macros
+
+always :: STMT () -> STMT ()
+always m = do
+        loop <- LABEL
+        m ||| GOTO loop
+
+        -- and start it running
+        FORK loop
+
+for :: (Rep a, Ord a, Num a) 
+    => EXPR a -> EXPR a -> (EXPR a -> STMT ()) -> STMT ()
+for start end k = do
+        VAR i <- SIGNAL $ undefinedVar
+        i := start
+        loop <- LABEL
+        k i
+        i := i + 1 
+                ||| (OP2 (.<.) i end :? GOTO loop)
+
+if_then_else :: EXPR Bool -> STMT () -> STMT () -> STMT ()
+if_then_else i t e = do 
+        rec i :? GOTO t_lab
+            e
+            GOTO end_lab
+            t_lab <- LABEL
+            t
+            rec end_lab <- LABEL
+        return ()
+
 --------------------------------------------------------------------------
 
 mkChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Seq b) -> STMT (REG a, EXPR b)
