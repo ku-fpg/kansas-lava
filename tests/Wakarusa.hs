@@ -12,7 +12,7 @@ import Data.Sized.Unsigned
 import Data.Sized.Matrix
 
 tests :: TestSeq -> IO ()
-tests (TestSeq test _) = do
+tests testSeq@(TestSeq test _) = do
         let driver = return ()
 	    res = delay 99 :: Seq Int 
 	 in test "wakarusa/unit/1" 1000 
@@ -54,6 +54,24 @@ tests (TestSeq test _) = do
 	 in test "wakarusa/unit/7" 1000 
                 (compileToFabric prog7)
                 (driver >> matchExpected "o0" res)
+
+        let driver = outStdLogicVector "i0" (toS [1..] :: Seq Int)
+	    res = toS [2,4..] :: Seq Int
+	 in test "wakarusa/unit/8" 1000 
+                (compileToFabric prog8)
+                (driver >> matchExpected "o0" res)
+
+
+        testStream testSeq "wakarusa/unit/9" $ StreamTest
+            { theStream            = run9
+            , correctnessCondition = \ as bs -> case () of
+                                        _ | as == bs -> Nothing
+                                          | otherwise -> return (show (as,bs))
+            , theStreamTestCount   = 100
+            , theStreamTestCycles  = 1000
+            , theStreamName        = "fifo"
+            }
+         
 
         return ()
 
@@ -138,3 +156,47 @@ prog7 = do
                 ||| GOTO loop
         FORK loop
 
+------------------------------------------------------------------------
+
+prog8 :: STMT ()
+prog8 = do
+        o0 :: REG Int    <- OUTPUT (outStdLogicVector "o0" . enabledVal)
+        i0 :: EXPR Int   <- INPUT (inStdLogicVector "i0")
+
+        VAR v0 :: VAR Int   <- SIGNAL $ var 1
+
+        loop <- LABEL
+        o0 := i0 + v0
+                ||| (v0 := v0 + 1)
+                ||| GOTO loop
+
+        FORK loop
+
+------------------------------------------------------------------------
+
+prog9 :: STMT ()
+prog9 = do
+        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
+        wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
+        VAR v0 :: VAR Int   <- SIGNAL $ undefinedVar
+        loop <- LABEL
+        takeAckBox (v0 :=) rAckBox 
+        putAckBox wAckBox v0 
+                ||| GOTO loop
+        FORK loop
+        
+run9 :: Patch (Seq (Enabled Int)) (Seq (Enabled Int))
+              (Seq Ack)           (Seq Ack)
+run9 ~(inp,outAck) = runFabricWithDriver (compileToFabric prog9) $ do
+        outStdLogicVector "iA" inp
+        inAck <- inStdLogic "oA"
+        outStdLogic "ack" outAck
+        out <- inStdLogicVector "out"
+        return (inAck,out)
+
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+------------------------------------------------------------------------
