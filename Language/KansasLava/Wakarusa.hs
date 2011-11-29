@@ -10,6 +10,7 @@ module Language.KansasLava.Wakarusa
         , (|||)
         , compileToFabric
         , ReadableAckBox
+        , newAckBox
         , connectReadableAckBox
         , WritableAckBox(..)
         , connectWritableAckBox
@@ -378,6 +379,14 @@ putAckBox (WritableAckBox oB iB) val = do
         do PAR [ oB := val
                , OP1 (bitNot) iB :? GOTO self
                ]
+
+newAckBox :: forall a . (Rep a) => STMT (WritableAckBox a, ReadableAckBox a)
+newAckBox = do
+        (val_r,val_e) <- mkChannel (id        :: Seq (Enabled a) -> Seq (Enabled a))
+        (ack_r,ack_e) <- mkChannel (isEnabled :: Seq (Enabled ()) -> Seq Bool)
+        return ( WritableAckBox val_r ack_e
+               , ReadableAckBox val_e ack_r
+               )
 
 -------------------------------------------------------------------------
 
