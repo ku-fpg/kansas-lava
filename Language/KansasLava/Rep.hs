@@ -59,7 +59,9 @@ instance Rep Bool where
 $(repIntegral ''Int     (S $ bitSize $ (error "witness" :: Int)))
 
 $(repIntegral ''Word8   (U  8))
+$(repIntegral ''Word16  (U 16))
 $(repIntegral ''Word32  (U 32))
+$(repIntegral ''Word64  (U 64))
 
 instance Rep () where
     type W ()     = X0
