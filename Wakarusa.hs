@@ -78,6 +78,7 @@ run3 = runFabricWithDriver fab3 $ do
                 inStdLogicVector "o0" :: Fabric (Seq Int)
 
 
+-- actually 5
 prog4 :: STMT ()
 prog4 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
@@ -119,6 +120,7 @@ prog6 = do
         wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
         VAR v0 :: VAR Int   <- SIGNAL $ var 1
         loop <- LABEL
+
         putAckBox wAckBox v0 
                 ||| (v0 := v0 + 1)
                 ||| GOTO loop
