@@ -92,13 +92,17 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
 
 
 generateThreadIds 
-        :: Map LABEL PC                         -- ^ label table
-        -> [(PC,Maybe (Seq Bool),LABEL)]        -- ^ jumps
-        -> PC                                   -- ^ last PC number + 1
-        -> [LABEL]                              -- ^ thread starts
+        :: Map LABEL PC                 -- ^ label table
+        -> [(PC,Pred,LABEL)]            -- ^ jumps
+        -> PC                           -- ^ last PC number + 1
+        -> [LABEL]                      -- ^ thread starts
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds label_table jumps pc threads  = {- trace (show ("generateThreadIds",result)) -} result
+generateThreadIds label_table jumps pc threads  = 
+--        trace (show ("generateThreadIds",msg,result)) $
+         result
    where
+        msg = (label_table,jumps,pc,threads)
+
         links :: Map PC (Set PC)
         links = Map.fromListWith (Set.union) $
                 [ (src_pc, Set.singleton dest_pc)
@@ -116,7 +120,7 @@ generateThreadIds label_table jumps pc threads  = {- trace (show ("generateThrea
         -- PC values that have unconditional jumps (does not matter where to)
         unconditional_jumps =
                 [ src_pc
-                | (src_pc,Nothing,_) <- jumps
+                | (src_pc,LitPred True,_) <- jumps
                 ] 
 
         result :: Map PC Int
@@ -129,7 +133,7 @@ generateThreadIds label_table jumps pc threads  = {- trace (show ("generateThrea
 
 generatePredicates 
         :: Map LABEL PC                         -- ^ label table
-        -> [(PC,Maybe (Seq Bool),LABEL)]        -- ^ jumps
+        -> [(PC,Pred,LABEL)]                    -- ^ jumps
         -> PC                                   -- ^ last PC number + 1
         -> [LABEL]                              -- ^ thread starts
         -> Map PC (Seq Bool)                    -- ^ table of predicates
@@ -146,9 +150,9 @@ generatePredicates label_table jumps pc threads = {- trace (show ("generatePredi
         pcs = [ let pc_reg = probeS ("pc for thread " ++ show (pid :: Int))
                            $ register first_pc
                                         -- we are checking the match with PC twice?
-                             $ cASE [ (case opt_pred of
-                                          Nothing -> this_inst
-                                          Just p -> this_inst .&&. p, pureS dest_pc)
+                             $ cASE [ ( this_inst .&&. fromPred opt_pred
+                                      , pureS dest_pc
+                                      )
                                     | x@(pc_src,opt_pred,dest_label) <- jumps
                                     , let Just dest_pc = Map.lookup dest_label label_table
                                     , let this_inst = Map.findWithDefault
@@ -377,26 +381,39 @@ putAckBox (WritableAckBox oB iB) val = do
 -------------------------------------------------------------------------
 
 data Memory ix a = Memory 
-        { writeM ::  REG (ix,a)    -- ^ where you write index-value pairs
-        , readM   :: EXPR (ix -> a) -- ^ where you send read requests
+        { writeM  :: REG (ix,a)  -- ^ where you write index-value pairs
+        , readM   :: REG ix      -- ^ where you send read requests
+        , valueM  :: EXPR a      -- ^ where the read requests appear (same cycle)
         }
 
 memory :: forall a ix . (Rep a, Rep ix, Size ix) => STMT (Memory ix a)
 memory = do
-        uq1 <- CHANNEL (return . writeMemory :: Seq (Enabled (ix,a)) -> Fabric (Seq (ix -> a)))
+        (r1,e1) <- mkChannel (writeMemory :: Seq (Enabled (ix,a)) -> Seq (ix -> a))
+        VAR v2 :: VAR ix <- mkTemp
+        VAR v3 :: VAR a  <- mkTemp
 
 {-
-        -- One single memory
-        let readMemory :: Seq (Enabled (ix -> a,ix)) -> Seq a
-            readMemory en_mem_ix = syncRead mem ix
-                 where (en,mem_ix) = unpack en_mem_ix
-                       (mem,ix)    = unpack mem_ix
-
-        uq2 <- CHANNEL (return . readMemory)
+        loop <- LABEL
+        v3 := OP2 asyncRead e1 v2
+                ||| GOTO loop
+        FORK loop
 -}
-
         return $ Memory
-          { writeM = R uq1
-          , readM = REG $ R uq1
+          { writeM = r1
+          , readM  = v2
+          , valueM = v3
           }
         
+--------------------------------------------------------------------------
+
+mkChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Seq b) -> STMT (REG a, EXPR b)
+mkChannel fn = do
+        uq <- CHANNEL (return . fn)
+        return (R uq,REG (R uq))
+
+mkTemp :: forall a . (Rep a) => STMT (VAR a)
+mkTemp = do
+        uq <- CHANNEL (\ (a :: Seq (Enabled a)) -> return $ mux (isEnabled a) (undefinedS,enabledVal a))
+        return $ VAR $ toVAR $ (R uq, REG (R uq))
+
+--  :: (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int

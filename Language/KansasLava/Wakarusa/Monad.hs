@@ -62,7 +62,7 @@ data WakarusaState = WakarusaState
 
         , ws_pc       :: PC             -- ^ The PC 
         , ws_labels   :: Map LABEL PC   -- where the labels are
-        , ws_pcs    :: [(PC,Maybe (Seq Bool),LABEL)]
+        , ws_pcs    :: [(PC,Pred,LABEL)]
                         -- if conditional holds, then jump to the given label
 
         ----------------------------------------------------------
@@ -123,26 +123,31 @@ data SlotStatus = SlotStatus
 ------------------------------------------------------------------------------
 -- Quick AST for Pred. Later will allow some sort of pretty printer
 
-data Pred = Pred (Seq Bool)     -- list of ands
+data Pred = Pred (Seq Bool)     -- 
+          | LitPred Bool         
         deriving Show
 
 truePred :: Pred
-truePred = Pred high
+truePred = LitPred True
 
 falsePred :: Pred
-falsePred = Pred low
+falsePred = LitPred False
 
 notPred :: Pred -> Pred
 notPred (Pred p) = Pred $ bitNot p
+notPred (LitPred b) = LitPred $ not b
 
 andPred :: Seq Bool -> Pred -> Pred
 andPred p (Pred p') = Pred (p .&&. p')
+andPred p (LitPred b) = Pred (p .&&. pureS b)
 
 orPred :: Seq Bool -> Pred -> Pred
 orPred p (Pred p') = Pred (p .||. p')
+orPred p (LitPred b) = Pred (p .||. pureS b)
 
 fromPred :: Pred -> Seq Bool
-fromPred (Pred p) = p
+fromPred (Pred p)    = p
+fromPred (LitPred p) = pureS p
 
 ------------------------------------------------------------------------------
 -- Uniq names; simple enought generator
@@ -176,7 +181,7 @@ recordJump lab =  do
         -- Does not use getPred here, because we 
         -- want to store the partial result; the PC stores the other part of the condition
         -- In this way, we might be able to analysis control flow  (AJG: unconvinsed)
-        modify (\ st -> st { ws_pcs = (pc,Just $ fromPred (ws_pred st),lab) : ws_pcs st 
+        modify (\ st -> st { ws_pcs = (pc,ws_pred st,lab) : ws_pcs st 
                            , ws_pred = falsePred
                            })
         return ()
