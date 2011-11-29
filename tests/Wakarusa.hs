@@ -180,7 +180,7 @@ prog9 = do
         wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
         VAR v0 :: VAR Int   <- SIGNAL $ undefinedVar
         loop <- LABEL
-        takeAckBox (v0 :=) rAckBox 
+        takeAckBox rAckBox $ \ e -> v0 := e
         putAckBox wAckBox v0 
                 ||| GOTO loop
         FORK loop

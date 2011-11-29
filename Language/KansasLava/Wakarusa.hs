@@ -22,6 +22,7 @@ module Language.KansasLava.Wakarusa
         , always
         , for
         , if_then_else
+        , mkEnabled
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -323,6 +324,11 @@ compWakarusaExpr (OP2 f e1 e2) = do
         c1 <- compWakarusaExpr e1
         c2 <- compWakarusaExpr e2
         return $ f c1 c2
+compWakarusaExpr (OP3 f e1 e2 e3) = do
+        c1 <- compWakarusaExpr e1
+        c2 <- compWakarusaExpr e2
+        c3 <- compWakarusaExpr e3
+        return $ f c1 c2 c3
 
 ------------------------------------------------------------------------------
 
@@ -358,8 +364,8 @@ connectReadableAckBox inpName ackName = do
         o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
         return $ ReadableAckBox i o
                        
-takeAckBox :: Rep a => (EXPR a -> STMT ()) -> ReadableAckBox a -> STMT ()
-takeAckBox cont (ReadableAckBox iA oA) = do
+takeAckBox :: Rep a => ReadableAckBox a -> (EXPR a -> STMT ()) -> STMT ()
+takeAckBox (ReadableAckBox iA oA) cont = do
         self <- LABEL
         do OP1 (bitNot . isEnabled) iA :? GOTO self
                 ||| oA := OP0 (pureS ())
@@ -378,9 +384,7 @@ connectWritableAckBox outName ackName = do
 putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT ()
 putAckBox (WritableAckBox oB iB) val = do
         self <- LABEL 
-        do PAR [ oB := val
-               , OP1 (bitNot) iB :? GOTO self
-               ]
+        oB := val ||| OP1 (bitNot) iB :? GOTO self
 
 newAckBox :: forall a . (Rep a) => STMT (WritableAckBox a, ReadableAckBox a)
 newAckBox = do
@@ -456,5 +460,8 @@ mkTemp :: forall a . (Rep a) => STMT (VAR a)
 mkTemp = do
         uq <- CHANNEL (\ (a :: Seq (Enabled a)) -> return $ mux (isEnabled a) (undefinedS,enabledVal a))
         return $ VAR $ toVAR $ (R uq, REG (R uq))
+
+mkEnabled :: forall a . (Rep a) => STMT (REG a, EXPR (Maybe a))
+mkEnabled = mkChannel id
 
 --  :: (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int

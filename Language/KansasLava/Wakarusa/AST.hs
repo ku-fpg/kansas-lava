@@ -85,6 +85,9 @@ data EXPR :: * -> * where
         OP2 :: (Rep a, Rep b,Rep c) 
             => (forall u . Signal u a -> Signal u b -> Signal u c) 
             -> EXPR a -> EXPR b                                         -> EXPR c
+        OP3 :: (Rep a, Rep b,Rep c, Rep d) 
+            => (forall u . Signal u a -> Signal u b -> Signal u c -> Signal u d)
+            -> EXPR a -> EXPR b -> EXPR c                               -> EXPR d
         REG :: REG a                                                    -> EXPR a          -- only needed internally
         READ :: (Rep ix, Rep a, Size ix)
              => MEM ix a -> EXPR ix                                     -> EXPR a
