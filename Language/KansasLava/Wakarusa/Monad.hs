@@ -44,10 +44,13 @@ data WakarusaState = WakarusaState
         -- Registers
 
         , ws_regs     :: Map Uniq RegisterInfo
+
+--        , ws_lookups  :: Map Uniq Pad
+        , ws_assigns  :: Map Uniq Pad
           -- ^ The registers, with the way of mapping from
           --   Enabled assignment to result value (typically using registerEnabled)
 
---        , ws_assignments :: Map Uniq Pad
+--        , ws_patches :: Map Uniq PatchInfo
 --          -- ^ (untyped) assignments, chained into a single Seq (Enabled a).
 
         ----------------------------------------------------------
@@ -86,9 +89,16 @@ data WakarusaState = WakarusaState
 data RegisterInfo
         = RegisterInfo
         { ri_regs    :: Pad -> Fabric Pad      -- :: sig (Enabled a) -> Fabric (sig a)
-        , ri_assigns :: Pad                    -- :: sig (Enabled a)
+--        , ri_assigns :: Pad                    -- :: sig (Enabled a)
         }
-
+{-
+        | PatchInfo
+        { ri_patches :: (Pad,Pad) -> Fabric (Pad,Pad)
+                                               -- :: Patch (sig (E a)) (sig (E b)) (sig (E c)) (sig (E d))
+        , ri_patch_ass_1 :: Pad
+        , ri_patch_ass_2 :: Pad
+        }
+-}
 --        deriving Show
 
 -- Placeholder
@@ -182,7 +192,7 @@ fromPred (LitPred p)      _ = pureS p
 fromPred (Pred u1)       mp = mp ! u1
 fromPred (NotPred p)     mp = bitNot (fromPred p mp)
 fromPred (AndPred p1 p2) mp = fromPred p1 mp .&&. fromPred p2 mp 
-fromPred (OrPred p1 p2)  mp = fromPred p1 mp .&&. fromPred p2 mp 
+fromPred (OrPred p1 p2)  mp = fromPred p1 mp .||. fromPred p2 mp 
 
 ------------------------------------------------------------------------------
 -- Uniq names; simple enought generator
@@ -279,6 +289,29 @@ newLabel lab = do
 addChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Fabric (Seq b)) -> WakarusaComp Uniq
 addChannel fn = do
         k <- getUniq
+        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st)
+                            , ws_assigns = Map.insert k (toUni (disabledS :: Seq (Enabled a))) (ws_assigns st)
+                            }
+        return k
+  where
+          regInfo :: RegisterInfo 
+          regInfo = RegisterInfo 
+                { ri_regs    = mapMPad fn
+                }
+
+-- This is primitive because we can *not* join the outputs; 
+-- because of the timing / direction issues.
+
+{-
+addPatch :: forall a b . (Rep a, Rep b) => (Patch (Seq (Enabled a)) (Seq (Enabled b))
+                                                  (Seq (Enabled c)) (Seq (Enabled d)))
+                 -> WakarusaComp (Uniq,Uniq,Uniq,Uniq)
+addPatch fn = do
+        a <- getUniq
+        b <- getUniq
+        c <- getUniq
+        d <- getUniq
+
         modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
         return k
   where
@@ -287,16 +320,15 @@ addChannel fn = do
                 { ri_regs    = mapMPad fn
                 , ri_assigns = toUni (disabledS :: Seq (Enabled a))
                 }
+-}
+
 
 -- Should be reg
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
 registerAction (R k) en val = do
-        let updateAssign regInfo = return
-                                 $ regInfo { ri_assigns = mapPad (chooseEnabled (packEnabled en val))
-                                                                 (ri_assigns regInfo)
-                                           }
+        let updateAssign old = return (mapPad (chooseEnabled (packEnabled en val)) old)
 
-        modify $ \ st -> st { ws_regs = Map.update updateAssign k $ ws_regs st }
+        modify $ \ st -> st { ws_assigns = Map.update updateAssign k $ ws_assigns st }
         return ()
 
 

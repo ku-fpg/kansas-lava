@@ -70,7 +70,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , ws_preds = Map.empty
                        -- registers
                     , ws_regs = Map.empty
---                    , ws_assignments = Map.empty
+                    , ws_assigns = Map.empty
                       -- memories
                     , ws_mems       = Map.empty
                     , ws_mem_reads  = Map.empty
@@ -100,7 +100,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
             
             -- connect the inputs and outputs; instantiate the registers
             the_vars <- sequence
-                       [ do r <- placeRegister reg
+                       [ do r <- placeRegister (k,reg) $ (ws_assigns st)
                             return (k,r)
                        | (k,reg) <- Map.toList (ws_regs st)
                        ] >>= (return . Map.fromList)
@@ -201,8 +201,9 @@ placePC starts lab inp = out
            initial = if lab `elem` starts then Just 0 else Nothing
 -}
 
-placeRegister :: RegisterInfo -> Fabric Pad
-placeRegister (RegisterInfo { ri_regs = reg_fn, ri_assigns = assigns }) = reg_fn assigns
+placeRegister :: (Uniq,RegisterInfo) -> Map Uniq Pad -> Fabric Pad
+placeRegister (uq, RegisterInfo { ri_regs = reg_fn }) mp =
+        reg_fn (mp Map.! uq)
  
 placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
 placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
@@ -245,6 +246,10 @@ compWakarusa (OUTPUT connect) = do
 compWakarusa (INPUT connect) = do
         uq <- addChannel (const connect :: (a ~ EXPR b) => Seq (Enabled b) -> Fabric (Seq b))
         return (REG $ R $ uq)
+compWakarusa (PATCH p) = do
+        undefined
+--        uq <- addChannel fn
+--        return $ uq
 compWakarusa (LABEL) = do
         -- LABEL implies new instruction block (because you jump to a label)
         prepareInstSlot
