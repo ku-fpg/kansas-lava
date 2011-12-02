@@ -120,12 +120,13 @@ data WakarusaEnv = WakarusaEnv
 
         , we_mem_reads :: Map Uniq Pad          -- 
 
-        -- All predicates
-        , we_preds  :: Map Uniq (Seq Bool)
 
+        , we_preds  :: Map Uniq (Seq Bool)
+                -- ^ symbol table for all user predicates
         , we_pcs      :: Map PC (Seq Bool)
                 -- ^ is this instruction being executed right now?
-
+        , we_pidtable :: Map PC Int     -- Map PC to Pid
+                
         , we_pp       :: Pass        -- which version of the syntax should be printed?
         , we_pp_scope :: Int         -- depth when pretty printing
         }
@@ -133,7 +134,8 @@ data WakarusaEnv = WakarusaEnv
 
 data Pass
         = Parsed
-  deriving Show
+        | Threaded              -- adding the threadid numbers
+  deriving (Show, Eq, Ord)
 
 data PrettyScope = InPred | InPar
   deriving Show
@@ -224,13 +226,6 @@ getPC = do
         st <- get
         return $ ws_pc st 
         
-incPC :: WakarusaComp ()
-incPC = do
-        st <- get
-        let pc = ws_pc st + 1
-        put $ st { ws_pc = pc }
-        return ()
-        
 recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
         pc <- getPC
@@ -268,8 +263,20 @@ prepareInstSlot = do
                          , ws_pred = truePred 
                          , ws_filled = SlotStatus False False
                          }
+                prettyPrintPC
           SlotStatus True  True ->
                 error "attempting to insert more than one consecutive instruction into a par"
+
+prettyPrintPC = do
+        st <- get
+        env <- ask
+        prettyPrint (\ o -> "{pc = " ++ show (ws_pc st) ++ 
+                        if o >= Threaded 
+                        then case Map.lookup (ws_pc st) (we_pidtable env) of
+                                Nothing  -> ", pid = ??}"
+                                Just pid -> ", pid = " ++ show pid ++ "}"
+                        else "}")
+        topLevelPrettyPrint "\n" 
 
 parInstSlot :: WakarusaComp () -> WakarusaComp ()
 parInstSlot m = do

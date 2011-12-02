@@ -61,7 +61,9 @@ traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 
 compileToFabric :: STMT () -> Fabric () 
 compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
-        let res0 = runStateT (compWakarusa prog)
+        let res0 = runStateT $ do
+                        prettyPrintPC
+                        compWakarusa prog
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
                     , ws_pred  = falsePred
@@ -90,35 +92,39 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , we_pcs       = generatePredicates st (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_preds     = ws_preds st
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
-                    , we_pp        = Parsed
+                    , we_pidtable  = generateThreadIds st
+                    , we_pp        
+--                        = Parsed
+                          = Threaded
                     , we_pp_scope  = 0
                     }
 
-            () <- trace ("--parsed debugging") $ return ()
-            () <- trace (concat $ reverse $ ws_pp $ st) $ return ()
-            () <- trace ("--end of parsed debugging") $ return ()
-            
             -- connect the inputs and outputs; instantiate the registers
             the_vars <- sequence
                        [ placeRegister reg $ (ws_assigns st)
                        | reg <- ws_regs st
                        ] >>= (return . Map.unions)
            
+        () <- trace ("--parsed debugging") $ return ()
+        () <- trace (concat $ reverse $ ws_pp $ st) $ return ()
+        () <- trace ("--end of parsed debugging") $ return ()
+            
 
         return ()
 
 
 generateThreadIds 
         :: WakarusaState                -- ^ the (final) state
-        -> Map LABEL PC                 -- ^ label table
-        -> [(PC,Pred,LABEL)]            -- ^ jumps
-        -> PC                           -- ^ last PC number + 1
-        -> [LABEL]                      -- ^ thread starts
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds st label_table jumps pc threads  = 
+generateThreadIds st = 
         trace (show ("generateThreadIds",msg,result)) $
          result
    where
+        label_table = ws_labels st
+        jumps = ws_pcs st
+        pc = ws_pc st
+        threads = ws_fork st
+
         msg = (label_table,jumps,pc,threads)
 
         links :: Map PC (Set PC)
@@ -159,8 +165,8 @@ generatePredicates
                                                 --   for each row of instructions
 generatePredicates st label_table jumps pc threads = {- trace (show ("generatePredicates",length pcs)) $ -} result
   where
-        threadIds = generateThreadIds st label_table jumps pc threads
-
+        threadIds = generateThreadIds st
+        
         -- mapping from *every* instruction to its thread id
         result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
 
