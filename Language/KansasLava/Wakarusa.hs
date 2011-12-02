@@ -80,6 +80,8 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , ws_labels = Map.empty
                     , ws_pcs = []
                     , ws_fork = []
+
+                    , ws_pp = []
                     }
         let res2 = runReaderT res1
 
@@ -88,8 +90,14 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , we_pcs       = generatePredicates st (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_preds     = ws_preds st
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
-                    } 
+                    , we_pp        = Parsed
+                    , we_pp_scope  = 0
+                    }
 
+            () <- trace ("--parsed debugging") $ return ()
+            () <- trace (concat $ reverse $ ws_pp $ st) $ return ()
+            () <- trace ("--end of parsed debugging") $ return ()
+            
             -- connect the inputs and outputs; instantiate the registers
             the_vars <- sequence
                        [ do r <- placeRegister reg
@@ -244,28 +252,42 @@ compWakarusa (LABEL) = do
         uq <- getUniq
         let lab = L uq
         newLabel lab
+        prettyPrint (\ _ -> "L" ++ show uq ++ ":")
+        topLevelPrettyPrint "\n" 
         return $ lab
 compWakarusa (R n := expr) = do
         prepareInstSlot
         exprCode <- compWakarusaExpr expr
         addAssignment (R n) exprCode
         markInstSlot
+        prettyPrint (\ p -> " r" ++ show n ++ " := " ++ ppEXPR p expr)
+        topLevelPrettyPrint "\n" 
         return ()
 compWakarusa (GOTO lab) = do
         prepareInstSlot
         recordJump lab
         markInstSlot
+        prettyPrint (\ _ -> " GOTO " ++ show lab)
+        topLevelPrettyPrint "\n" 
         return ()
 compWakarusa (e1 :? m) = do
         prepareInstSlot
         predCode <- compWakarusaExpr e1
-        setPred predCode $ compWakarusa m
+        prettyPrint (\ p -> ppEXPR p e1 ++ " :?")
+        setPred predCode $ addPrettyScope 2 $ compWakarusa m
+        topLevelPrettyPrint "\n" 
         return ()
 compWakarusa (PAR [e1,e2]) = do
         prepareInstSlot
-        parInstSlot $ compWakarusa e1
-        parInstSlot $ compWakarusa e2
+        we <- ask
+        addPrettyScope 1 $ do
+                parInstSlot $ compWakarusa e1
+                prettyPrint (\ _ -> "\n    |||")
+                parInstSlot $ compWakarusa e2
+        topLevelPrettyPrint "\n" 
         return ()
+
+
 compWakarusa STEP       = do
 -- TODO REMove
 --        incPC
@@ -337,6 +359,13 @@ compWakarusaExpr (OP3 f e1 e2 e3) = do
         c3 <- compWakarusaExpr e3
         return $ f c1 c2 c3
 
+ppEXPR :: Pass -> EXPR a -> String
+ppEXPR _ (REG r)   = show r
+ppEXPR _ (OP0 lit) = "(OP0 " ++ show lit ++ ")"
+ppEXPR p (OP1 _ e1) = "(OP1 (...) " ++ ppEXPR p e1 ++ ")"
+ppEXPR p (OP2 _ e1 e2) = "(OP2 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ ")"
+ppEXPR p (OP3 _ e1 e2 e3) = "(OP3 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ " " ++ ppEXPR p e3 ++ ")"
+
 ------------------------------------------------------------------------------
 
 -- add assignment in the context of the PC
@@ -378,26 +407,26 @@ takeAckBox (ReadableAckBox iA oA) cont = do
                 ||| oA := OP0 (pureS ())
                 ||| cont (OP1 enabledVal iA)
 
-data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool)
+data WritableAckBox a = WritableAckBox (REG a) (EXPR (Enabled ()))
 
 connectWritableAckBox
         :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
         => String -> String -> STMT (WritableAckBox a)
 connectWritableAckBox outName ackName = do
-        iB :: EXPR Bool <- INPUT  (inStdLogic ackName)
-        oB :: REG a     <- OUTPUT (outStdLogicVector outName)
+        iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
+        oB :: REG a             <- OUTPUT (outStdLogicVector outName)
         return $ WritableAckBox oB iB
 
 putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT ()
 putAckBox (WritableAckBox oB iB) val = do
         self <- LABEL 
         oB := val 
-                ||| OP1 (bitNot) iB :? GOTO self
+                ||| OP1 (bitNot . isEnabled) iB :? GOTO self
 
 newAckBox :: forall a . (Rep a) => STMT (WritableAckBox a, ReadableAckBox a)
 newAckBox = do
-        (val_r,val_e) <- mkChannel (id        :: Seq (Enabled a) -> Seq (Enabled a))
-        (ack_r,ack_e) <- mkChannel (isEnabled :: Seq (Enabled ()) -> Seq Bool)
+        (val_r,val_e) <- mkChannel (id :: Seq (Enabled a) -> Seq (Enabled a))
+        (ack_r,ack_e) <- mkChannel (id :: Seq (Enabled ()) -> Seq (Enabled ()))
         return ( WritableAckBox val_r ack_e
                , ReadableAckBox val_e ack_r
                )

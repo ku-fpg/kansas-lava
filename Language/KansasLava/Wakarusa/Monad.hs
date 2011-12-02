@@ -76,6 +76,11 @@ data WakarusaState = WakarusaState
         
         , ws_fork     :: [LABEL]
 
+        ----------------------------------------------------------
+        -- Debugging output
+
+        , ws_pp       :: [String]               -- a reverse of the output
+
         }
 
 data RegisterInfo
@@ -108,9 +113,19 @@ data WakarusaEnv = WakarusaEnv
 
         , we_pcs      :: Map PC (Seq Bool)
                 -- ^ is this instruction being executed right now?
+
+        , we_pp       :: Pass        -- which version of the syntax should be printed?
+        , we_pp_scope :: Int         -- depth when pretty printing
         }
         deriving Show
 
+data Pass
+        = Parsed
+  deriving Show
+
+data PrettyScope = InPred | InPar
+  deriving Show
+        
 ------------------------------------------------------------------------------
 
 type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
@@ -378,6 +393,34 @@ getMemRead k ix = do
            Just p  -> case fromUni p of
                         Nothing -> error $ "getMemRead, coerce error in : " ++ show k
                         Just e -> e
+
+prettyPrint :: (Pass -> String) -> WakarusaComp ()
+prettyPrint fn = do
+        env <- ask
+        modify $ \ st -> st { ws_pp = addText (fn $ we_pp env) (ws_pp st) } 
+  where
+          addText :: String -> [String] -> [String]
+          addText txt []      = [txt]
+          addText txt ([]:xs) = txt : xs
+          addText txt (x:xs) | last x == '\n' = txt : x : xs
+                             | otherwise      = (x ++ txt) : xs
+        
+        
+addPrettyScope :: Int -> WakarusaComp a -> WakarusaComp a
+addPrettyScope ps m = do
+        env <- ask
+        if ps < we_pp_scope env then prettyPrint (const " (") else return ()
+        r <- local (\ env -> env { we_pp_scope = ps }) m
+        if ps < we_pp_scope env then prettyPrint (const ") ") else return ()
+        return r
+
+topLevelPrettyPrint :: String -> WakarusaComp ()
+topLevelPrettyPrint str = do
+        we <- ask
+        case we_pp_scope we of
+           0 -> prettyPrint (const str)
+           _ -> return ()
+
 
 addToFabric :: Fabric a -> WakarusaComp a
 addToFabric f = lift (lift f)
