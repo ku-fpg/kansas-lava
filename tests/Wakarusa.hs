@@ -80,11 +80,10 @@ tests testSeq@(TestSeq test _) = do
 prog1 :: STMT ()
 prog1 = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
-        loop <- LABEL
-        o0  := 99
-        GOTO loop
 
-        FORK loop
+        SPARK $ \ loop -> do
+                o0  := 99
+                GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -92,10 +91,11 @@ prog2 :: STMT ()
 prog2 = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         VAR v0  :: VAR Int <- SIGNAL $ var 9
-        loop <- LABEL
-        o0 := v0
-        GOTO loop
-        FORK loop
+
+        SPARK $ \ loop -> do
+                loop <- LABEL
+                o0 := v0
+                GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -103,9 +103,9 @@ prog3 :: STMT ()
 prog3 = do
         o0 :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         i0 :: EXPR Int  <- INPUT (inStdLogicVector "i0")
-        loop <- LABEL
-        o0 := i0 ||| GOTO loop
-        FORK loop
+        
+        SPARK $ \ loop -> do
+                o0 := i0 ||| GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -113,11 +113,11 @@ prog4 :: STMT ()
 prog4 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         VAR v0 :: VAR Int   <- SIGNAL $ var 9
-        loop <- LABEL
-        v0 := 10
-        o0 := v0
-        GOTO loop
-        FORK loop
+
+        SPARK $ \ loop -> do
+                v0 := 10
+                o0 := v0
+                GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -125,11 +125,12 @@ prog5 :: STMT ()
 prog5 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled)
         VAR v0 :: VAR Int   <- SIGNAL $ var 0
-        loop <- LABEL
-        (v0 := v0 + 1) 
-          ||| (o0 := v0) 
-          ||| GOTO loop
-        FORK loop
+
+
+        SPARK $ \ loop -> do
+                (v0 := v0 + 1) 
+                ||| (o0 := v0) 
+                ||| GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -137,11 +138,11 @@ prog6 :: STMT ()
 prog6 = do
         o0     :: REG Int   <- OUTPUT (outStdLogicVector "o0" . delayEnabled . probeS "o0")
         VAR v0 :: VAR Int   <- SIGNAL $ var 0
-        loop <- LABEL
-        v0 := v0 + 1
-        o0 := v0
-        GOTO loop
-        FORK loop
+
+        SPARK $ \ loop -> do
+                v0 := v0 + 1
+                o0 := v0
+                GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -150,11 +151,11 @@ prog7 :: STMT ()
 prog7 = do
         wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "o0" "i0"
         VAR v0 :: VAR Int   <- SIGNAL $ var 1
-        loop <- LABEL
-        putAckBox wAckBox v0 
-                ||| (v0 := v0 + 1)
-                ||| GOTO loop
-        FORK loop
+
+        SPARK $ \ loop -> do
+                putAckBox wAckBox v0 
+                        ||| (v0 := v0 + 1)
+                        ||| GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -165,12 +166,10 @@ prog8 = do
 
         VAR v0 :: VAR Int   <- SIGNAL $ var 1
 
-        loop <- LABEL
-        o0 := i0 + v0
-                ||| (v0 := v0 + 1)
-                ||| GOTO loop
-
-        FORK loop
+        SPARK $ \ loop -> do
+                o0 := i0 + v0
+                        ||| (v0 := v0 + 1)
+                        ||| GOTO loop
 
 ------------------------------------------------------------------------
 
@@ -179,11 +178,11 @@ prog9 = do
         rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
         wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
         VAR v0 :: VAR Int   <- SIGNAL $ undefinedVar
-        loop <- LABEL
-        takeAckBox rAckBox $ \ e -> v0 := e
-        putAckBox wAckBox v0 
-                ||| GOTO loop
-        FORK loop
+
+        SPARK $ \ loop -> do
+                takeAckBox rAckBox $ \ e -> v0 := e
+                putAckBox wAckBox v0 
+                        ||| GOTO loop
         
 run9 :: Patch (Seq (Enabled Int)) (Seq (Enabled Int))
               (Seq Ack)           (Seq Ack)

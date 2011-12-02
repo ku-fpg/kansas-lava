@@ -46,6 +46,7 @@ data STMT :: * -> * where
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
         FORK   :: LABEL         -> STMT ()
+        SPARK  :: (LABEL -> STMT ())   -> STMT ()              -- Do sub-thread
 
         -- real time:
         -- wait for a cycle, or an event, or using a sample. 
@@ -73,6 +74,7 @@ instance Show (STMT a) where
         show (GOTO lab)     = "GOTO " ++ show lab
         show (LABEL)        = "LABEL"
         show (FORK {})          = "FORK"
+        show (SPARK {})     = "SPARK"
         show (PAR es)       = "PAR" ++ show es
         show _ = "..."
 

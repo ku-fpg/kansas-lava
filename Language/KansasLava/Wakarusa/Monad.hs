@@ -34,6 +34,7 @@ data WakarusaState = WakarusaState
                 -- ^ The predicate for the next instruction
         , ws_filled   :: SlotStatus
                 -- ^ Has an instruction (or more in parallel) been issued in this cycle?
+
                 
 
         ----------------------------------------------------------
@@ -78,6 +79,8 @@ data WakarusaState = WakarusaState
         ----------------------------------------------------------
         -- Global Threads
         
+        , ws_tid      :: Maybe Uniq      -- The current thread id
+
         , ws_fork     :: [LABEL]
 
         ----------------------------------------------------------

@@ -81,6 +81,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , ws_pc = 0
                     , ws_labels = Map.empty
                     , ws_pcs = []
+                    , ws_tid = Nothing
                     , ws_fork = []
 
                     , ws_pp = []
@@ -240,6 +241,8 @@ compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
 
 compWakarusa (CHANNEL fn) = do
         uq <- addChannel fn
+        prettyPrint (\ _ -> " R" ++ show uq ++ " <- CHANNEL (...)")
+        topLevelPrettyPrint "\n" 
         return $ uq
 compWakarusa (SIGNAL fn) = do
         -- add the register to the table
@@ -249,9 +252,13 @@ compWakarusa (OUTPUT connect) = do
         uq <- addChannel $ \ wt -> do
                         connect wt
                         return (pureS ())
+        prettyPrint (\ _ -> " R" ++ show uq ++ " <- OUTPUT (...)")
+        topLevelPrettyPrint "\n" 
         return $ R $ uq
 compWakarusa (INPUT connect) = do
         uq <- addChannel (const connect :: (a ~ EXPR b) => Seq (Enabled b) -> Fabric (Seq b))
+        prettyPrint (\ _ -> " R" ++ show uq ++ " <- INPUT (...)")
+        topLevelPrettyPrint "\n" 
         return (REG $ R $ uq)
 compWakarusa (PATCH p) = do
         (a,b,c,d) <- addPatch p
@@ -306,6 +313,23 @@ compWakarusa STEP       = do
         return ()
 compWakarusa (FORK lab) = do
         addFork lab
+compWakarusa (SPARK code) = do
+        lab <- compWakarusa LABEL
+        addFork lab
+        prettyPrint $ const $ "BEGIN SPARK: " ++ show lab
+        topLevelPrettyPrint "\n"
+        compWakarusa (code lab)
+        st <- get
+        case ws_pred st of
+          LitPred False -> do
+               prettyPrint $ const "-- No fallthrough for SPARK"
+               topLevelPrettyPrint "\n"
+          _ -> return ()
+        prettyPrint $ const $ "END SPARK: " ++ show lab
+        topLevelPrettyPrint "\n"
+        compWakarusa (FORK lab)
+
+        
 compWakarusa o = error ("compWakarusa : " ++ show o)
 
 
@@ -471,11 +495,11 @@ memory = do
 
 always :: STMT () -> STMT ()
 always m = do
-        loop <- LABEL
-        m ||| GOTO loop
+        SPARK $ \ loop -> do 
+                m ||| GOTO loop
 
-        -- and start it running
-        FORK loop
+--        -- and start it running
+--        FORK loop
 
 for :: (Rep a, Ord a, Num a) 
     => EXPR a -> EXPR a -> (EXPR a -> STMT ()) -> STMT ()
