@@ -10,6 +10,7 @@ import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
+import Language.KansasLava.Protocols.Patch
 import Language.KansasLava.Universal
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
@@ -304,25 +305,34 @@ addChannel fn = do
 -- This is primitive because we can *not* join the outputs; 
 -- because of the timing / direction issues.
 
-{-
-addPatch :: forall a b . (Rep a, Rep b) => (Patch (Seq (Enabled a)) (Seq (Enabled b))
-                                                  (Seq (Enabled c)) (Seq (Enabled d)))
-                 -> WakarusaComp (Uniq,Uniq,Uniq,Uniq)
-addPatch fn = do
+addPatch :: forall a b c d 
+          . (Rep a, Rep b, Rep c, Rep d) 
+         => (Patch (Seq (Enabled a)) (Seq (Enabled b))
+                   (Seq (Enabled c)) (Seq (Enabled d)))
+         -> WakarusaComp (Uniq,Uniq,Uniq,Uniq)
+addPatch p = do
         a <- getUniq
         b <- getUniq
         c <- getUniq
         d <- getUniq
 
-        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st) }
-        return k
+        modify $ \ st -> st { ws_regs = regInfo a b c d : ws_regs st
+                            , ws_assigns = 
+                                  Map.insert a (toUni (disabledS :: Seq (Enabled a)))
+                                $ Map.insert d (toUni (disabledS :: Seq (Enabled d)))
+                                $ ws_assigns st
+                            }
+        return (a,b,c,d)
   where
-          regInfo :: RegisterInfo 
-          regInfo = RegisterInfo 
-                { ri_regs    = mapMPad fn
-                , ri_assigns = toUni (disabledS :: Seq (Enabled a))
+          regInfo :: Uniq -> Uniq -> Uniq -> Uniq -> WritePortInfo 
+          regInfo a b c d = WritePortInfo 
+                { ri_regs    = \ [p1,p2] ->
+                        let (p3,p4) = execP p (fromUni' p1,fromUni' p2)
+                        in return [toUni p3,toUni p4]
+                , ri_read_ports = [a,d]
+                , ri_write_ports = [c,b]
                 }
--}
+
 
 
 -- Should be reg
