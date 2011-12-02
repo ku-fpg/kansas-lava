@@ -35,7 +35,6 @@ instance Show Pad where
         show (TheRst)            = "Rst"
         show (TheClkEn)          = "ClkEn"
 
--- NOTE: suspect that you do not need Size or Show here
 -- NOTE: (2) Also, we need to match on Boolean.
 toUni :: (Rep a) => Seq a -> Pad
 toUni = StdLogicVector
@@ -45,3 +44,7 @@ fromUni (StdLogicVector sig)
         | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
 fromUni _ = Nothing
 
+fromUni' :: forall a . (Rep a) => Pad -> Seq a
+fromUni' a = case fromUni a of
+               Nothing -> error "fromUni' failed"
+               Just x  -> x
