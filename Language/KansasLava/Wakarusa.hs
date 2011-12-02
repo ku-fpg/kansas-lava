@@ -202,9 +202,9 @@ placePC starts lab inp = out
 -}
 
 placeRegister :: WritePortInfo -> Map Uniq Pad -> Fabric (Map Uniq Pad)
-placeRegister (WritePortInfo { ri_regs = reg_fn, ri_read_port = rd, ri_write_port = wt }) mp = do
-        res <- reg_fn (mp Map.! rd)
-        return (Map.singleton wt res)
+placeRegister (WritePortInfo { ri_regs = reg_fn, ri_read_ports = [rd], ri_write_ports = [wt] }) mp = do
+        res <- reg_fn [mp Map.! rd]
+        return (Map.singleton wt $ head res)
  
 placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
 placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap

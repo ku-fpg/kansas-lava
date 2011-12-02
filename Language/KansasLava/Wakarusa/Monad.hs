@@ -88,9 +88,9 @@ data WakarusaState = WakarusaState
 
 data WritePortInfo
         = WritePortInfo
-        { ri_regs       :: Pad -> Fabric Pad      -- :: sig (Enabled a) -> Fabric (sig a)
-        , ri_read_port  :: Uniq
-        , ri_write_port :: Uniq
+        { ri_regs        :: [Pad] -> Fabric [Pad]  -- :: sig [Enabled a|b|c] -> Fabric [sig a|b|c]
+        , ri_read_ports  :: [Uniq]
+        , ri_write_ports :: [Uniq]
         }
 {-
         | PatchInfo
@@ -296,9 +296,9 @@ addChannel fn = do
   where
           regInfo :: Uniq -> WritePortInfo 
           regInfo k = WritePortInfo 
-                { ri_regs    = mapMPad fn
-                , ri_read_port = k
-                , ri_write_port = k
+                { ri_regs    = \ [p] -> mapMPad fn p >>= \ p' -> return [p']
+                , ri_read_ports = [k]
+                , ri_write_ports = [k]
                 }
 
 -- This is primitive because we can *not* join the outputs; 
