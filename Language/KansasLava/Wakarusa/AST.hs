@@ -6,6 +6,8 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Protocols.Enabled
+import Language.KansasLava.Protocols.Patch
+
 
 import Data.Sized.Ix
 import Control.Monad.Fix
@@ -29,10 +31,16 @@ data STMT :: * -> * where
         -- primitive channel builder.
         CHANNEL  :: (Rep a, Rep b) => (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int
 
+        -- COMBINATIONS
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
         SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)     -> STMT (VAR a)
-        
+        PATCH    :: (Rep a, Rep b, Rep c, Rep d) 
+                 => (Patch (Seq (Enabled a)) (Seq (Enabled b))
+                           (Seq (Enabled c)) (Seq (Enabled d))) -> STMT ( REG a
+                                                                        , EXPR (Enabled b)
+                                                                        , EXPR (Enabled c)
+                                                                        , REG d )
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
