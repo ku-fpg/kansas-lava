@@ -34,6 +34,12 @@ data WakarusaState = WakarusaState
         , ws_filled   :: SlotStatus
                 -- ^ Has an instruction (or more in parallel) been issued in this cycle?
                 
+
+        ----------------------------------------------------------
+        -- All Predicates
+
+        , ws_preds  :: Map Uniq (Seq Bool)
+
         ----------------------------------------------------------
         -- Registers
 
@@ -97,6 +103,8 @@ data WakarusaEnv = WakarusaEnv
 
         , we_mem_reads :: Map Uniq Pad          -- 
 
+        -- All predicates
+        , we_preds  :: Map Uniq (Seq Bool)
 
         , we_pcs      :: Map PC (Seq Bool)
                 -- ^ is this instruction being executed right now?
@@ -123,9 +131,12 @@ data SlotStatus = SlotStatus
 ------------------------------------------------------------------------------
 -- Quick AST for Pred. Later will allow some sort of pretty printer
 
-data Pred = Pred (Seq Bool)     -- 
-          | LitPred Bool         
-        deriving Show
+data Pred = LitPred Bool         
+          | Pred Uniq
+          | NotPred Pred
+          | AndPred Pred Pred    --  i & p
+          | OrPred  Pred Pred    -- not i | p
+        deriving (Show,Eq)
 
 truePred :: Pred
 truePred = LitPred True
@@ -133,21 +144,30 @@ truePred = LitPred True
 falsePred :: Pred
 falsePred = LitPred False
 
+singletonPred :: Uniq -> Pred
+singletonPred = Pred
+
 notPred :: Pred -> Pred
-notPred (Pred p) = Pred $ bitNot p
-notPred (LitPred b) = LitPred $ not b
+notPred (LitPred b) = LitPred (not b)
+notPred p = NotPred p
 
-andPred :: Seq Bool -> Pred -> Pred
-andPred p (Pred p') = Pred (p .&&. p')
-andPred p (LitPred b) = Pred (p .&&. pureS b)
+andPred :: Pred -> Pred -> Pred
+andPred (LitPred b1) (LitPred b2) = LitPred (b1 && b2)
+andPred p1 p2 = AndPred p1 p2
 
-orPred :: Seq Bool -> Pred -> Pred
-orPred p (Pred p') = Pred (p .||. p')
-orPred p (LitPred b) = Pred (p .||. pureS b)
+-- attempt to simplify the or.
+orPred :: Pred -> Pred -> Pred
+orPred (LitPred b1) (LitPred b2) = LitPred (b1 || b2)
+orPred (AndPred (NotPred p1) p2) (AndPred p3 p4) 
+   | p1 == p3 = orPred p2 p4
+orPred p1 p2 = trace (show ("ordPred",p1,p2)) $ OrPred p1 p2
 
-fromPred :: Pred -> Seq Bool
-fromPred (Pred p)    = p
-fromPred (LitPred p) = pureS p
+fromPred :: Pred -> Map Uniq (Seq Bool) -> Seq Bool
+fromPred (LitPred p)      _ = pureS p
+fromPred (Pred u1)       mp = mp ! u1
+fromPred (NotPred p)     mp = bitNot (fromPred p mp)
+fromPred (AndPred p1 p2) mp = fromPred p1 mp .&&. fromPred p2 mp 
+fromPred (OrPred p1 p2)  mp = fromPred p1 mp .&&. fromPred p2 mp 
 
 ------------------------------------------------------------------------------
 -- Uniq names; simple enought generator
@@ -159,6 +179,16 @@ getUniq = do
         put $ st { ws_uniq = u }
         return u
         
+
+------------------------------------------------------------------------------
+-- Allocate predicates
+
+newPred :: Seq Bool -> WakarusaComp Int
+newPred p = do
+        u <- getUniq
+        modify $ \ st -> st { ws_preds = Map.insert u p (ws_preds st) }
+        return u
+
 ------------------------------------------------------------------------------
 -- Concerning the allocation of PC to instructions
 
@@ -285,21 +315,26 @@ getPred = do
             env <- ask
             return $ case Map.lookup pc (we_pcs env) of
               Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
-              Just pc_pred -> pc_pred .&&. fromPred (ws_pred st)
+              Just pc_pred -> pc_pred .&&. fromPred (ws_pred st) (we_preds env)
 
 -- set a predicate inside a context.
 
 setPred :: Seq Bool -> WakarusaComp a -> WakarusaComp a
 setPred p m = do
+        p_uq <- newPred p
+        uq <- getUniq
         st0 <- get
-        put (st0 { ws_pred = andPred p (ws_pred st0) })
+        put (st0 { ws_pred = andPred (singletonPred p_uq) (ws_pred st0) })
 --        () <- trace ("set pred"  ++ show (andPred p (ws_pred st0)))  $ return ()
         r <- m
         st1 <- get
         -- Two control flow branches; one predicated (and might terminate/jump),
         -- the other passing over.
-        put (st1 { ws_pred = orPred (bitNot p) (ws_pred st1) })
+        put (st1 { ws_pred = orPred (andPred (notPred (singletonPred p_uq)) (ws_pred st0)) (ws_pred st1) })
         return r
+
+
+
 
 {-
   where

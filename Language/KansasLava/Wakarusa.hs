@@ -9,7 +9,7 @@ module Language.KansasLava.Wakarusa
         , MEM(..)
         , (|||)
         , compileToFabric
-        , ReadableAckBox
+        , ReadableAckBox(..)
         , newAckBox
         , connectReadableAckBox
         , WritableAckBox(..)
@@ -23,6 +23,7 @@ module Language.KansasLava.Wakarusa
         , for
         , if_then_else
         , mkEnabled
+        , mkChannel
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -65,6 +66,8 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     { ws_uniq = 0 
                     , ws_pred  = falsePred
                     , ws_filled = SlotStatus False False
+                       -- predicates
+                    , ws_preds = Map.empty
                        -- registers
                     , ws_regs = Map.empty
 --                    , ws_assignments = Map.empty
@@ -82,7 +85,8 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
 
         rec (_,st) <- res2 $ WakarusaEnv 
                     { we_reads     = the_vars
-                    , we_pcs       = generatePredicates (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
+                    , we_pcs       = generatePredicates st (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
+                    , we_preds     = ws_preds st
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     } 
 
@@ -97,13 +101,14 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
 
 
 generateThreadIds 
-        :: Map LABEL PC                 -- ^ label table
+        :: WakarusaState                -- ^ the (final) state
+        -> Map LABEL PC                 -- ^ label table
         -> [(PC,Pred,LABEL)]            -- ^ jumps
         -> PC                           -- ^ last PC number + 1
         -> [LABEL]                      -- ^ thread starts
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds label_table jumps pc threads  = 
---        trace (show ("generateThreadIds",msg,result)) $
+generateThreadIds st label_table jumps pc threads  = 
+        trace (show ("generateThreadIds",msg,result)) $
          result
    where
         msg = (label_table,jumps,pc,threads)
@@ -136,16 +141,17 @@ generateThreadIds label_table jumps pc threads  =
                 , a <- Set.toList $ transitiveClosure (\ a -> Map.findWithDefault (Set.empty) a links) fst_pc
                 ]
 
-generatePredicates 
-        :: Map LABEL PC                         -- ^ label table
+generatePredicates
+        :: WakarusaState                -- ^ the (final) state
+        -> Map LABEL PC                         -- ^ label table
         -> [(PC,Pred,LABEL)]                    -- ^ jumps
         -> PC                                   -- ^ last PC number + 1
         -> [LABEL]                              -- ^ thread starts
         -> Map PC (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates label_table jumps pc threads = {- trace (show ("generatePredicates",length pcs)) $ -} result
+generatePredicates st label_table jumps pc threads = {- trace (show ("generatePredicates",length pcs)) $ -} result
   where
-        threadIds = generateThreadIds label_table jumps pc threads
+        threadIds = generateThreadIds st label_table jumps pc threads
 
         -- mapping from *every* instruction to its thread id
         result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
@@ -155,11 +161,13 @@ generatePredicates label_table jumps pc threads = {- trace (show ("generatePredi
         pcs = [ let pc_reg = probeS ("pc for thread " ++ show (pid :: Int))
                            $ register first_pc
                                         -- we are checking the match with PC twice?
-                             $ cASE [ ( this_inst .&&. fromPred opt_pred
+                             $ cASE [ ( this_inst .&&. fromPred opt_pred (ws_preds st)
                                       , pureS dest_pc
                                       )
                                     | x@(pc_src,opt_pred,dest_label) <- jumps
-                                    , threadIds Map.! pc_src == pid
+                                    , case Map.lookup pc_src threadIds of
+                                         Just ans -> ans == pid
+                                         Nothing -> error $ "can not find my threadId " ++ show (pc_src,pid,threadIds)
                                     , let Just dest_pc = Map.lookup dest_label label_table
                                     , let this_inst = Map.findWithDefault
                                                                 (error $ "this_inst " ++ show (pc_src,fmap (const ()) result))
@@ -253,11 +261,10 @@ compWakarusa (e1 :? m) = do
         predCode <- compWakarusaExpr e1
         setPred predCode $ compWakarusa m
         return ()
-compWakarusa (PAR es) = do
+compWakarusa (PAR [e1,e2]) = do
         prepareInstSlot
-        sequence_ [ parInstSlot $ compWakarusa e
-                  | e <- es
-                  ]
+        parInstSlot $ compWakarusa e1
+        parInstSlot $ compWakarusa e2
         return ()
 compWakarusa STEP       = do
 -- TODO REMove
@@ -371,7 +378,7 @@ takeAckBox (ReadableAckBox iA oA) cont = do
                 ||| oA := OP0 (pureS ())
                 ||| cont (OP1 enabledVal iA)
 
-data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool) 
+data WritableAckBox a = WritableAckBox (REG a) (EXPR Bool)
 
 connectWritableAckBox
         :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
@@ -384,7 +391,8 @@ connectWritableAckBox outName ackName = do
 putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT ()
 putAckBox (WritableAckBox oB iB) val = do
         self <- LABEL 
-        oB := val ||| OP1 (bitNot) iB :? GOTO self
+        oB := val 
+                ||| OP1 (bitNot) iB :? GOTO self
 
 newAckBox :: forall a . (Rep a) => STMT (WritableAckBox a, ReadableAckBox a)
 newAckBox = do
