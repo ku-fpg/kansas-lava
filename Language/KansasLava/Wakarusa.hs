@@ -248,9 +248,8 @@ compWakarusa (INPUT connect) = do
         uq <- addChannel (const connect :: (a ~ EXPR b) => Seq (Enabled b) -> Fabric (Seq b))
         return (REG $ R $ uq)
 compWakarusa (PATCH p) = do
-        undefined
---        uq <- addChannel fn
---        return $ uq
+        (a,b,c,d) <- addPatch p
+        return (R a, REG (R b), REG (R c), R d)
 compWakarusa (LABEL) = do
         -- LABEL implies new instruction block (because you jump to a label)
         prepareInstSlot
