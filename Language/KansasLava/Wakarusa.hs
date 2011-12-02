@@ -69,7 +69,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                        -- predicates
                     , ws_preds = Map.empty
                        -- registers
-                    , ws_regs = Map.empty
+                    , ws_regs = []
                     , ws_assigns = Map.empty
                       -- memories
                     , ws_mems       = Map.empty
@@ -100,10 +100,10 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
             
             -- connect the inputs and outputs; instantiate the registers
             the_vars <- sequence
-                       [ do r <- placeRegister (k,reg) $ (ws_assigns st)
-                            return (k,r)
-                       | (k,reg) <- Map.toList (ws_regs st)
-                       ] >>= (return . Map.fromList)
+                       [ placeRegister reg $ (ws_assigns st)
+                       | reg <- ws_regs st
+                       ] >>= (return . Map.unions)
+           
 
         return ()
 
@@ -201,9 +201,10 @@ placePC starts lab inp = out
            initial = if lab `elem` starts then Just 0 else Nothing
 -}
 
-placeRegister :: (Uniq,RegisterInfo) -> Map Uniq Pad -> Fabric Pad
-placeRegister (uq, RegisterInfo { ri_regs = reg_fn }) mp =
-        reg_fn (mp Map.! uq)
+placeRegister :: WritePortInfo -> Map Uniq Pad -> Fabric (Map Uniq Pad)
+placeRegister (WritePortInfo { ri_regs = reg_fn, ri_read_port = rd, ri_write_port = wt }) mp = do
+        res <- reg_fn (mp Map.! rd)
+        return (Map.singleton wt res)
  
 placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
 placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap

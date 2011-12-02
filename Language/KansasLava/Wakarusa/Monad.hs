@@ -43,7 +43,7 @@ data WakarusaState = WakarusaState
         ----------------------------------------------------------
         -- Registers
 
-        , ws_regs     :: Map Uniq RegisterInfo
+        , ws_regs     :: [WritePortInfo]
 
 --        , ws_lookups  :: Map Uniq Pad
         , ws_assigns  :: Map Uniq Pad
@@ -86,10 +86,11 @@ data WakarusaState = WakarusaState
 
         }
 
-data RegisterInfo
-        = RegisterInfo
-        { ri_regs    :: Pad -> Fabric Pad      -- :: sig (Enabled a) -> Fabric (sig a)
---        , ri_assigns :: Pad                    -- :: sig (Enabled a)
+data WritePortInfo
+        = WritePortInfo
+        { ri_regs       :: Pad -> Fabric Pad      -- :: sig (Enabled a) -> Fabric (sig a)
+        , ri_read_port  :: Uniq
+        , ri_write_port :: Uniq
         }
 {-
         | PatchInfo
@@ -284,19 +285,20 @@ newLabel lab = do
                               })
 
 ------------------------------------------------------------------------------
--- TODO: addSignal => addChannel, REG a => Uniq.
 
 addChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Fabric (Seq b)) -> WakarusaComp Uniq
 addChannel fn = do
         k <- getUniq
-        modify $ \ st -> st { ws_regs = Map.insert k regInfo (ws_regs st)
+        modify $ \ st -> st { ws_regs = regInfo k : ws_regs st
                             , ws_assigns = Map.insert k (toUni (disabledS :: Seq (Enabled a))) (ws_assigns st)
                             }
         return k
   where
-          regInfo :: RegisterInfo 
-          regInfo = RegisterInfo 
+          regInfo :: Uniq -> WritePortInfo 
+          regInfo k = WritePortInfo 
                 { ri_regs    = mapMPad fn
+                , ri_read_port = k
+                , ri_write_port = k
                 }
 
 -- This is primitive because we can *not* join the outputs; 
