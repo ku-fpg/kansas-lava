@@ -9,11 +9,11 @@ module Language.KansasLava.Wakarusa
         , MEM(..)
         , (|||)
         , compileToFabric
-        , ReadableAckBox(..)
+        , ReadAckBox(..)
         , newAckBox
-        , connectReadableAckBox
-        , WritableAckBox(..)
-        , connectWritableAckBox
+        , connectReadAckBox
+        , WriteAckBox(..)
+        , connectWriteAckBox
         , takeAckBox
         , putAckBox
         , Variable(..)
@@ -454,45 +454,45 @@ transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
 --------------------------------------------------------------------------------
 
 
-data ReadableAckBox a = ReadableAckBox (EXPR (Enabled a)) (REG ())
+data ReadAckBox a = ReadAckBox (EXPR (Enabled a)) (REG ())
 
-connectReadableAckBox
+connectReadAckBox
         :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (ReadableAckBox a)
-connectReadableAckBox inpName ackName = do
+        => String -> String -> STMT (ReadAckBox a)
+connectReadAckBox inpName ackName = do
         i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
         o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
-        return $ ReadableAckBox i o
+        return $ ReadAckBox i o
                        
-takeAckBox :: Rep a => ReadableAckBox a -> (EXPR a -> STMT ()) -> STMT ()
-takeAckBox (ReadableAckBox iA oA) cont = do
+takeAckBox :: Rep a => ReadAckBox a -> (EXPR a -> STMT ()) -> STMT ()
+takeAckBox (ReadAckBox iA oA) cont = do
         self <- LABEL
         do OP1 (bitNot . isEnabled) iA :? GOTO self
                 ||| oA := OP0 (pureS ())
                 ||| cont (OP1 enabledVal iA)
 
-data WritableAckBox a = WritableAckBox (REG a) (EXPR (Enabled ()))
+data WriteAckBox a = WriteAckBox (REG a) (EXPR (Enabled ()))
 
-connectWritableAckBox
+connectWriteAckBox
         :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (WritableAckBox a)
-connectWritableAckBox outName ackName = do
+        => String -> String -> STMT (WriteAckBox a)
+connectWriteAckBox outName ackName = do
         iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
         oB :: REG a             <- OUTPUT (outStdLogicVector outName)
-        return $ WritableAckBox oB iB
+        return $ WriteAckBox oB iB
 
-putAckBox :: Rep a => WritableAckBox a -> EXPR a -> STMT ()
-putAckBox (WritableAckBox oB iB) val = do
+putAckBox :: Rep a => WriteAckBox a -> EXPR a -> STMT ()
+putAckBox (WriteAckBox oB iB) val = do
         self <- LABEL 
         oB := val 
                 ||| OP1 (bitNot . isEnabled) iB :? GOTO self
 
-newAckBox :: forall a . (Rep a) => STMT (WritableAckBox a, ReadableAckBox a)
+newAckBox :: forall a . (Rep a) => STMT (WriteAckBox a, ReadAckBox a)
 newAckBox = do
         (val_r,val_e) <- mkChannel (id :: Seq (Enabled a) -> Seq (Enabled a))
         (ack_r,ack_e) <- mkChannel (id :: Seq (Enabled ()) -> Seq (Enabled ()))
-        return ( WritableAckBox val_r ack_e
-               , ReadableAckBox val_e ack_r
+        return ( WriteAckBox val_r ack_e
+               , ReadAckBox val_e ack_r
                )
 
 -------------------------------------------------------------------------

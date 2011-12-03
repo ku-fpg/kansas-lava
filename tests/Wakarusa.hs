@@ -149,7 +149,7 @@ prog6 = do
 -- a small value writer using the Ack protocol.
 prog7 :: STMT ()
 prog7 = do
-        wAckBox@(WritableAckBox oB iB) :: WritableAckBox Int <- connectWritableAckBox "o0" "i0"
+        wAckBox@(WriteAckBox oB iB) :: WriteAckBox Int <- connectWriteAckBox "o0" "i0"
         VAR v0 :: VAR Int   <- SIGNAL $ var 1
 
         SPARK $ \ loop -> do
@@ -175,8 +175,8 @@ prog8 = do
 
 prog9 :: STMT ()
 prog9 = do
-        rAckBox :: ReadableAckBox Int <- connectReadableAckBox "iA" "oA"
-        wAckBox :: WritableAckBox Int <- connectWritableAckBox "out" "ack"
+        rAckBox :: ReadAckBox Int <- connectReadAckBox "iA" "oA"
+        wAckBox :: WriteAckBox Int <- connectWriteAckBox "out" "ack"
         VAR v0 :: VAR Int   <- SIGNAL $ undefinedVar
 
         SPARK $ \ loop -> do
