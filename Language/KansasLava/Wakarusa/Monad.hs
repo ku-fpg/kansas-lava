@@ -261,8 +261,8 @@ recordJump lab =  do
         return ()
 
 resetInstSlot :: WakarusaComp ()
-resetInstSlot = return () -- modify $ \ st -> st { ws_filled = False }
-
+resetInstSlot =  modify $ \ st -> st { ws_filled = SlotStatus False False  }
+ 
 markInstSlot :: WakarusaComp ()
 markInstSlot = do
 

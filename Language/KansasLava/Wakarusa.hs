@@ -335,7 +335,10 @@ compWakarusa STEP       = do
 --        incPC
 --        modify (\ st -> st { ws_pred = falsePred })
         return ()
-compWakarusa (SPARK code) = newTid $ \ lab -> do
+compWakarusa (SPARK code) = do
+  resetInstSlot 
+  -- NOTE: BUG the PC does not get preserved by the SPARK
+  newTid $ \ lab -> do
         prettyPrint $ const $ "BEGIN SPARK: " ++ show lab
         topLevelPrettyPrint "\n" 
         prettyPrintPC
@@ -354,7 +357,7 @@ compWakarusa (SPARK code) = newTid $ \ lab -> do
 
         prettyPrint $ const $ "END SPARK: " ++ show lab
         topLevelPrettyPrint "\n"
-
+  resetInstSlot
         
 compWakarusa o = error ("compWakarusa : " ++ show o)
 
