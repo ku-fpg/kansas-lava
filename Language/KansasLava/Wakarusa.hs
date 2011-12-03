@@ -62,7 +62,6 @@ traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 compileToFabric :: STMT () -> Fabric () 
 compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
         let res0 = runStateT $ do
-                        prettyPrintPC
                         compWakarusa prog
         let res1 = res0 $ WakarusaState 
                     { ws_uniq = 0 
@@ -81,8 +80,11 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     , ws_pc = 0
                     , ws_labels = Map.empty
                     , ws_pcs = []
-                    , ws_tid = Nothing
+                    , ws_tidtable = Map.empty
                     , ws_fork = []
+                    , ws_pc_locations = Map.empty
+
+
 
                     , ws_pp = []
                     }
@@ -90,10 +92,11 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
 
         rec (_,st) <- res2 $ WakarusaEnv 
                     { we_reads     = the_vars
-                    , we_pcs       = generatePredicates st (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
+                    , we_pcs       = generatePredicates st -- (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_preds     = ws_preds st
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
-                    , we_pidtable  = generateThreadIds st
+                    , we_tid       = Nothing
+                    , we_pidtable  = ws_tidtable st
                     , we_pp        
 --                        = Parsed
                           = Threaded
@@ -113,7 +116,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
 
         return ()
 
-
+{-
 generateThreadIds 
         :: WakarusaState                -- ^ the (final) state
         -> Map PC Int                   -- Which thread am I powered by
@@ -155,46 +158,66 @@ generateThreadIds st =
                 , let Just fst_pc = Map.lookup lab label_table
                 , a <- Set.toList $ transitiveClosure (\ a -> Map.findWithDefault (Set.empty) a links) fst_pc
                 ]
-
+-}
 generatePredicates
         :: WakarusaState                -- ^ the (final) state
+{-
         -> Map LABEL PC                         -- ^ label table
-        -> [(PC,Pred,LABEL)]                    -- ^ jumps
+        -> [(PC,TID,Pred,LABEL)]                    -- ^ jumps
         -> PC                                   -- ^ last PC number + 1
-        -> [LABEL]                              -- ^ thread starts
-        -> Map PC (Seq Bool)                    -- ^ table of predicates
+        -> [(LABEL,Uniq)]                              -- ^ thread starts
+-}
+        -> Map (PC,TID) (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates st label_table jumps pc threads = {- trace (show ("generatePredicates",length pcs)) $ -} result
+generatePredicates st = trace msg result
+  where
+        msg = show (ws_fork st)
+{-
+                 [ ((pc,tid),tid_counter .==. pureS pc)
+                 | tid <- ws_fork st
+                 , let tid_counter = pcs ! tid
+                 , pc <- [0.. (ws_pc_locations st ! tid)]
+                ]
+-}
+        result :: Map (PC,TID) (Seq Bool)
+        result = Map.fromList
+                 [ ((pc,tid),tid_counter .==. pureS pc)
+                 | tid <- ws_fork st
+                 , let tid_counter = findWithDefault (error "tid_counter not found")
+                                                     tid pcs
+                 , let mx = findWithDefault (error "mx not found")
+                                                     tid (ws_pc_locations st)
+                 , pc <- [0.. mx]
+                 ]
+
+        pcs :: Map TID (Seq PC)
+        pcs = Map.fromList
+              [ let pc_reg = probeS ("pc for thread " ++ show (tid :: Int))
+                           $ register 0 -- always start at PC = 0
+                             $ cASE [ ( pc_pred .&&. fromPred opt_pred (ws_preds st)
+                                      , pureS dest_pc
+                                      )
+                                    | x@(pc_src,tid',opt_pred,dest_label) <- ws_pcs st
+                                    , tid == tid'
+                                    , let dest_pc = findWithDefault (error $ "dest_pc:"  ++ show (dest_label,ws_labels st))
+                                                        dest_label (ws_labels st)
+                                    , let pc_pred = findWithDefault (error "pc_pred") 
+                                                        (pc_src,tid) result 
+                                    ]
+                                    (pc_reg + 1)
+                  in (tid,pc_reg)
+                | tid <- ws_fork st
+                ]
+
+{-
+{- trace (show ("generatePredicates",length pcs)) $ -} result
   where
         threadIds = generateThreadIds st
         
         -- mapping from *every* instruction to its thread id
         result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
 
-        -- a list of thread PC's
-        pcs :: [Seq PC]
-        pcs = [ let pc_reg = probeS ("pc for thread " ++ show (pid :: Int))
-                           $ register first_pc
-                                        -- we are checking the match with PC twice?
-                             $ cASE [ ( this_inst .&&. fromPred opt_pred (ws_preds st)
-                                      , pureS dest_pc
-                                      )
-                                    | x@(pc_src,opt_pred,dest_label) <- jumps
-                                    , case Map.lookup pc_src threadIds of
-                                         Just ans -> ans == pid
-                                         Nothing -> error $ "can not find my threadId " ++ show (pc_src,pid,threadIds)
-                                    , let Just dest_pc = Map.lookup dest_label label_table
-                                    , let this_inst = Map.findWithDefault
-                                                                (error $ "this_inst " ++ show (pc_src,fmap (const ()) result))
-                                                                pc_src
-                                                                result
---                                    , () <- trace (show ("insisde",(x,dest_pc))) [()]
-                                    ]
-                                    (pc_reg + 1)
-                  in pc_reg
-                | (th_label,pid) <- zip threads [0..]
-                , let Just first_pc = Map.lookup th_label label_table
-                ]
+        -- a list of PC result for each thread.
 {-
 placePC :: [LABEL] -> LABEL -> Seq (Enabled (Enabled PC)) -> Seq (Enabled PC)
 placePC starts lab inp = out
@@ -206,6 +229,7 @@ placePC starts lab inp = out
 
            initial :: Enabled PC
            initial = if lab `elem` starts then Just 0 else Nothing
+-}
 -}
 
 placeRegister :: WritePortInfo -> Map Uniq Pad -> Fabric (Map Uniq Pad)
@@ -311,23 +335,25 @@ compWakarusa STEP       = do
 --        incPC
 --        modify (\ st -> st { ws_pred = falsePred })
         return ()
-compWakarusa (FORK lab) = do
-        addFork lab
-compWakarusa (SPARK code) = do
-        lab <- compWakarusa LABEL
-        addFork lab
+compWakarusa (SPARK code) = newTid $ \ lab -> do
         prettyPrint $ const $ "BEGIN SPARK: " ++ show lab
+        topLevelPrettyPrint "\n" 
+        prettyPrintPC
+        prepareInstSlot
+        newLabel lab
+        prettyPrint (\ _ -> show lab ++ ":")
         topLevelPrettyPrint "\n"
         compWakarusa (code lab)
         st <- get
         case ws_pred st of
           LitPred False -> do
-               prettyPrint $ const "-- No fallthrough for SPARK"
+               return ()
+          _ -> do
+               prettyPrint $ const $ "-- fallthrough possible for SPARK " ++ show lab
                topLevelPrettyPrint "\n"
-          _ -> return ()
+
         prettyPrint $ const $ "END SPARK: " ++ show lab
         topLevelPrettyPrint "\n"
-        compWakarusa (FORK lab)
 
         
 compWakarusa o = error ("compWakarusa : " ++ show o)

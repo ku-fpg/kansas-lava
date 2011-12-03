@@ -35,8 +35,6 @@ data WakarusaState = WakarusaState
         , ws_filled   :: SlotStatus
                 -- ^ Has an instruction (or more in parallel) been issued in this cycle?
 
-                
-
         ----------------------------------------------------------
         -- All Predicates
 
@@ -72,16 +70,23 @@ data WakarusaState = WakarusaState
         -- Control flow
 
         , ws_pc       :: PC             -- ^ The PC 
-        , ws_labels   :: Map LABEL PC   -- where the labels are
-        , ws_pcs    :: [(PC,Pred,LABEL)]
+        , ws_labels   :: Map LABEL PC   -- where the labels goto
+                                        -- (note that labels do not cross threads,
+                                        -- the PC is just an index)
+                                                
+        , ws_pcs      :: [(PC,TID,Pred,LABEL)]
                         -- if conditional holds, then jump to the given label
+
+        , ws_tidtable :: Map PC Int     -- Map PC to thread id
+
+        , ws_pc_locations :: Map TID PC
+                                        -- largest PC in the Thread
 
         ----------------------------------------------------------
         -- Global Threads
         
-        , ws_tid      :: Maybe Uniq      -- The current thread id
-
-        , ws_fork     :: [LABEL]
+        , ws_fork     :: [Uniq]           -- Your thread id is the number
+                                          -- of your first label (always uniq)
 
         ----------------------------------------------------------
         -- Debugging output
@@ -126,12 +131,15 @@ data WakarusaEnv = WakarusaEnv
 
         , we_preds  :: Map Uniq (Seq Bool)
                 -- ^ symbol table for all user predicates
-        , we_pcs      :: Map PC (Seq Bool)
+        , we_pcs      :: Map (PC,TID) (Seq Bool)
                 -- ^ is this instruction being executed right now?
         , we_pidtable :: Map PC Int     -- Map PC to Pid
                 
         , we_pp       :: Pass        -- which version of the syntax should be printed?
         , we_pp_scope :: Int         -- depth when pretty printing
+
+        , we_tid      :: Maybe Uniq      -- The current thread id
+
         }
         deriving Show
 
@@ -151,6 +159,7 @@ type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
 
 type Uniq = Int
 type PC = X256
+type TID = Int          -- thread Id
 
 ------------------------------------------------------------------------------
 
@@ -224,19 +233,29 @@ newPred p = do
 ------------------------------------------------------------------------------
 -- Concerning the allocation of PC to instructions
 
-getPC :: WakarusaComp PC
+getPC :: WakarusaComp (PC,TID)         -- PC  & 
 getPC = do
         st <- get
-        return $ ws_pc st 
+        env <- ask
+        case we_tid env of
+          Nothing  -> error $ "instruction outside a SPARK"
+          Just tid -> do
+                  -- Perhaps mark we need this predicate
+--                  modify $ \ st -> st { ... = }
+                  modify $ \ st ->
+                             st { ws_pc_locations = 
+                                           Map.insertWith max tid (ws_pc st) (ws_pc_locations st)
+                                      }
+                  return (ws_pc st, tid)
         
 recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
-        pc <- getPC
+        (pc,tid) <- getPC
         st <- get
         -- Does not use getPred here, because we 
         -- want to store the partial result; the PC stores the other part of the condition
         -- In this way, we might be able to analysis control flow  (AJG: unconvinsed)
-        modify (\ st -> st { ws_pcs = (pc,ws_pred st,lab) : ws_pcs st 
+        modify (\ st -> st { ws_pcs = (pc,tid,ws_pred st,lab) : ws_pcs st 
                            , ws_pred = falsePred
                            })
         return ()
@@ -246,6 +265,7 @@ resetInstSlot = return () -- modify $ \ st -> st { ws_filled = False }
 
 markInstSlot :: WakarusaComp ()
 markInstSlot = do
+
         st <- get
         put $ case ws_filled st of
           SlotStatus False p -> st { ws_filled = SlotStatus True p }
@@ -275,7 +295,7 @@ prettyPrintPC = do
         env <- ask
         prettyPrint (\ o -> "{pc = " ++ show (ws_pc st) ++ 
                         if o >= Threaded 
-                        then case Map.lookup (ws_pc st) (we_pidtable env) of
+                        then case we_tid env of
                                 Nothing  -> ", pid = ??}"
                                 Just pid -> ", pid = " ++ show pid ++ "}"
                         else "}")
@@ -376,13 +396,13 @@ addInput (R k) inp = do
         return ()
 -}
 
--- get the predicate for *this* instruction
+-- get the predicate for *this* instruction, in this thread.
 getPred :: WakarusaComp (Seq Bool)
 getPred = do
-            pc <- getPC
+            (pc,tid) <- getPC
             st <- get
             env <- ask
-            return $ case Map.lookup pc (we_pcs env) of
+            return $ case Map.lookup (pc,tid) (we_pcs env) of
               Nothing     -> error $ "can not find the PC predicate for " ++ show pc ++ " (no control flow to this point?)"
               Just pc_pred -> pc_pred .&&. fromPred (ws_pred st) (we_preds env)
 
@@ -484,9 +504,37 @@ addToFabric f = lift (lift f)
 --noFallThrough = modify (\ st -> st { ws_label = Nothing })
 
 ------------------------------------------------------------------------------------
-
+{-
 addFork :: LABEL -> WakarusaComp ()
-addFork lab = modify $ \ st -> st { ws_fork = lab : ws_fork st }
+addFork lab = do
+        st <- get
+        env <- ask
+        case we_tid env of
+          Nothing -> error "internal error, no thread id"
+          Just tid -> modify $ \ st -> st { ws_fork = (lab,tid)  : ws_fork st
+                                          , ws_tidtable = Map.insert (ws_pc st) tid (ws_tidtable st)
+                                          }
+
+
+-}
+{-
+incPC :: WakarusaComp ()
+incPC  = do
+        st <- get
+        let pc = ws_pc st + 1
+        env <- ask
+        case we_tid env of
+          Nothing -> error "internal error, no thread id"
+          Just tid -> modify $ \ st -> st { ws_pc = pc
+                                          , ws_tidtable = Map.insert pc tid (ws_tidtable st)
+                                          }
+-}
+
+newTid :: (LABEL -> WakarusaComp a) -> WakarusaComp a
+newTid m = do
+        uq <- getUniq
+        modify $ \ st -> st { ws_pc = 0, ws_fork = uq : ws_fork st }
+        local (\ env -> env { we_tid = Just uq }) (m $ L uq)
 
 ------------------------------------------------------------------------------------
 

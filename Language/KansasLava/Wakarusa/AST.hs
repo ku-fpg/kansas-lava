@@ -45,7 +45,6 @@ data STMT :: * -> * where
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
-        FORK   :: LABEL         -> STMT ()
         SPARK  :: (LABEL -> STMT ())   -> STMT ()              -- Do sub-thread
 
         -- real time:
@@ -73,7 +72,6 @@ instance Show (STMT a) where
         show (SIGNAL {})  = "SIGNAL"
         show (GOTO lab)     = "GOTO " ++ show lab
         show (LABEL)        = "LABEL"
-        show (FORK {})          = "FORK"
         show (SPARK {})     = "SPARK"
         show (PAR es)       = "PAR" ++ show es
         show _ = "..."
