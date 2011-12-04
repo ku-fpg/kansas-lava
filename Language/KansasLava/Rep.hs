@@ -70,7 +70,7 @@ instance Rep () where
     optX Nothing    = XUnit $ fail "Wire ()"
     unX (XUnit (Just v))  = return v
     unX (XUnit Nothing) = fail "Wire ()"
-    repType _  = V 1   -- should really be V 0 TODO
+    repType _  = V 0  
     toRep _ = RepValue []
     fromRep _ = XUnit $ return ()
     showRep _ = "()"
