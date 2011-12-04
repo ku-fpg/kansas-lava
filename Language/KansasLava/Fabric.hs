@@ -21,6 +21,7 @@ module Language.KansasLava.Fabric
         , reifyFabric
         , runFabricWithResult
         , runFabricWithDriver
+        , fabricAPI
         ) where
 
 import Control.Monad.Fix
@@ -92,7 +93,7 @@ output :: String -> Pad -> Fabric ()
 output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
 -- | Generate a named std_logic input port.
-inStdLogic :: (Rep a, Show a, W a ~ X1) => String -> Fabric (Seq a)
+inStdLogic :: (Rep a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
@@ -108,7 +109,7 @@ inGeneric nm = do
           _            -> error "internal type error in inGeneric"
 
 -- | Generate a named std_logic_vector port input.
-inStdLogicVector :: forall a . (Rep a, Show a, Size (W a)) => String -> Fabric (Seq a)
+inStdLogicVector :: forall a . (Rep a, Size (W a)) => String -> Fabric (Seq a)
 inStdLogicVector nm = do
 	let seq' = mkDeepS $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
@@ -139,13 +140,13 @@ theClkEn nm = input nm TheClkEn >> return ()
 
 -- | Generate a named std_logic output port, given a Lava circuit.
 outStdLogic ::
-	(Rep a, Show a, W a ~ X1) => String -> Seq a -> Fabric ()
+	(Rep a, W a ~ X1) => String -> Seq a -> Fabric ()
 outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
 -- | Generate a named std_logic_vector output port, given a Lava circuit.
 outStdLogicVector
   :: forall a .
-     (Rep a, Show a, Size (W a)) => String -> Seq a -> Fabric ()
+     (Rep a, Size (W a)) => String -> Seq a -> Fabric ()
 outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfS sq) of
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
@@ -171,7 +172,14 @@ runFabricWithDriver (Fabric f) (Fabric g) = a
         where ((),_,f_result) = f g_result
               (a,_,g_result)  = g f_result
 
--------------------------------------------------------------------------------
+-- 'fabricAPI' explains what the API is for a specific fabric.
+-- The input Pad's are corrected to a (deep) Pad nm.
+fabricAPI :: Fabric () -> ([(String,Pad)],[(String,Pad)])
+fabricAPI (Fabric f) = (args,result)
+        where (a,args,result) = f args
+              withType (nm,pad) = (nm,pad)
+
+------------------------------------------------------------------------------
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
 reifyFabric :: Fabric () -> IO KLEG
