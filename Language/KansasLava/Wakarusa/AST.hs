@@ -10,6 +10,7 @@ import Language.KansasLava.Protocols.Patch
 
 
 import Data.Sized.Ix
+import Data.Sized.Matrix (Matrix)
 import Control.Monad.Fix
  
 infixr 1 :=
@@ -41,6 +42,11 @@ data STMT :: * -> * where
                                                                         , EXPR (Enabled b)
                                                                         , EXPR (Enabled c)
                                                                         , REG d )
+
+                -- way of puting an arbirary lava-function into the REG/EXPR world.
+                -- TODO: call FABRIC
+        GENERIC :: (Fabric ())                               -> STMT ([Int],[Int])
+
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
@@ -73,6 +79,7 @@ instance Show (STMT a) where
         show (GOTO lab)     = "GOTO " ++ show lab
         show (LABEL)        = "LABEL"
         show (SPARK {})     = "SPARK"
+        show (GENERIC {})  = "GENERIC"
         show (PAR es)       = "PAR" ++ show es
         show _ = "..."
 
