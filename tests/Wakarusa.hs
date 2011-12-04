@@ -61,7 +61,6 @@ tests testSeq@(TestSeq test _) = do
                 (compileToFabric prog8)
                 (driver >> matchExpected "o0" res)
 
-
         testStream testSeq "wakarusa/unit/9" $ StreamTest
             { theStream            = run9
             , correctnessCondition = \ as bs -> case () of
@@ -72,6 +71,18 @@ tests testSeq@(TestSeq test _) = do
             , theStreamName        = "fifo"
             }
          
+        let driver = return ()
+	    res = toS $ cycle
+	                [ Just (Just (),Nothing)
+	                , Just (Nothing,Just 9)
+	                , Just (Nothing,Nothing)
+	                ] 
+	            :: Seq (Enabled (Enabled (),Enabled Int))
+	 in test "wakarusa/unit/14" 1000 
+                (compileToFabric prog14)
+                (driver >> matchExpected "o0" res)
+
+
 
         return ()
 
@@ -194,6 +205,34 @@ run9 ~(inp,outAck) = runFabricWithDriver (compileToFabric prog9) $ do
         return (inAck,out)
 
 ------------------------------------------------------------------------
+
+type T14 = (Enabled (),Enabled Int)
+
+prog14 :: STMT ()
+prog14 = do
+        o0 :: REG T14 <- OUTPUT (outStdLogicVector "o0")
+        (rst :: REG (),inp_src :: REG Int,res :: EXPR T14) <- mkChannel2 (\ a b -> pack (a,b))
+
+        let byte = 0 :: EXPR U8
+
+        always $ do
+                o0 := res
+
+        SPARK $ \ label -> do
+                rst := OP0 (pureS ())
+                inp_src := 9
+                GOTO label
+
+
+        return ()
+
+fab14 = compileToFabric prog14
+
+run14 :: Seq (Enabled T14)
+run14 = runFabricWithDriver fab14 $ do
+                inStdLogicVector "o0"
+
+
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
