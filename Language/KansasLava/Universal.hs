@@ -22,10 +22,10 @@ data Pad = StdLogic (Seq Bool)
 padStdLogicType :: Pad -> StdLogicType
 padStdLogicType (StdLogic _)       = SL
 padStdLogicType (StdLogicVector s) = SLV $ widthS s
-padStdLogicType (GenericPad _)        = G
-padStdLogicType (TheClk) 	      = SL
-padStdLogicType (TheRst) 	      = SL
-padStdLogicType (TheClkEn) 	      = SL
+padStdLogicType (GenericPad _)     = G
+padStdLogicType (TheClk) 	   = SL
+padStdLogicType (TheRst) 	   = SL
+padStdLogicType (TheClkEn) 	   = SL
 
 instance Show Pad where
         show (StdLogic sq)       = "StdLogic " ++ show sq
