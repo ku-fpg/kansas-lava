@@ -15,6 +15,8 @@ import Language.KansasLava.Universal
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
 
+import Data.Sized.Matrix as M hiding ((!))
+import Data.Sized.Unsigned (Unsigned)
 import Data.Sized.Ix
 
 import Data.Map as Map
@@ -364,6 +366,59 @@ addPatch p = do
                 }
 
 
+-- How does this know how many arguments to use?
+addGeneric :: (Fabric ())
+           -> WakarusaComp ([Uniq],[Uniq])
+addGeneric f = do
+        let (ins,outs) = fabricAPI f
+--        () <- trace (show (ins,outs)) $ return ()
+        in_uqs <- sequence [ getUniq | _ <- ins ]
+        out_uqs <- sequence [ getUniq | _ <- outs]
+
+        let regInfo = WritePortInfo 
+                { ri_regs    = \ xs ->
+                        let ((),mp) = runFabric f (zip (fmap fst ins) xs)
+                        in return $
+                           [ case Prelude.lookup nm mp of
+                                Nothing -> error $ "can not find " ++ show nm ++ " inside generic Fabric"
+                                Just p -> p
+                           | nm <- fmap fst outs
+                           ]
+                , ri_read_ports = in_uqs
+                , ri_write_ports = out_uqs
+                }
+        modify $ \ st -> st { ws_regs = regInfo : ws_regs st
+                            , ws_assigns = union
+                                (Map.fromList 
+                                 [ (k,disabledPad pad)
+                                 | (k,(p,pad)) <- in_uqs `zip` ins
+                                 ]
+                                ) $ ws_assigns st
+                            }
+        return (in_uqs,out_uqs)
+{-        
+        a <- getUniq
+        b <- getUniq
+        c <- getUniq
+        d <- getUniq
+
+        modify $ \ st -> st { ws_regs = regInfo a b c d : ws_regs st
+                            , ws_assigns = 
+                                  Map.insert a (toUni (disabledS :: Seq (Enabled a)))
+                                $ Map.insert d (toUni (disabledS :: Seq (Enabled d)))
+                                $ ws_assigns st
+                            }
+
+-}
+  where
+          disabledPad :: Pad -> Pad
+          disabledPad (StdLogicVector s) = toUni (undefinedOf s)
+
+          -- This is the biggest hack in Kansas Lava.
+          -- a ~ Enabled b, but we can not see that, so we
+          -- generate disabledS (Enabled b) using zeroS.
+          undefinedOf :: (Rep a) => Seq a -> Seq a
+          undefinedOf _ = zeroS 
 
 -- Should be reg
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
@@ -551,9 +606,11 @@ mapMPad f p1 = g (fromUni p1)
                           return (toUni r)
           g _        = fail "mapMPad, failed to coerce argument"
           
-mapPad :: (Rep a, Rep b) => (Seq a -> Seq b) -> Pad -> Pad
+mapPad :: forall a b . (Rep a, Rep b) => (Seq a -> Seq b) -> Pad -> Pad
 mapPad f p1 = g (fromUni p1)
   where 
           g (Just a) = toUni $ f a
-          g _        = error "mapPad, failed to coerce argument"
+          g _        = error $ "mapPad, failed to coerce argument, found = " 
+                               ++ show (padStdLogicType p1) ++ ", expecting = "
+                               ++ show (padStdLogicType (toUni (error "witness" :: Seq a)))
 
