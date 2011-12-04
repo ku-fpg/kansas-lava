@@ -70,6 +70,12 @@ undefinedS ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
 undefinedS = Signal (pure $ (unknownX :: X a))
 		    (D $ Lit $ toRep (unknownX :: X a))
 
+-- | Create a Signal which has every value as 0. Use 'undefinedS' 
+-- where posssible.
+zeroS :: forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
+zeroS = Signal (pure $ (zeroX :: X a))
+	       (D $ Lit $ toRep (zeroX :: X a))
+
 -- | Attach a comment to a 'Signal'.
 commentS :: forall a sig clk . (Rep a, sig ~ Signal clk) => String -> sig a -> sig a
 commentS msg = idS (Comment [msg])
