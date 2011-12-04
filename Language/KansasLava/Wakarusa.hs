@@ -24,6 +24,8 @@ module Language.KansasLava.Wakarusa
         , if_then_else
         , mkEnabled
         , mkChannel
+        , mkChannel2
+        , mkChannel3
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -287,6 +289,9 @@ compWakarusa (INPUT connect) = do
 compWakarusa (PATCH p) = do
         (a,b,c,d) <- addPatch p
         return (R a, REG (R b), REG (R c), R d)
+compWakarusa (GENERIC f) = do
+        (ins,outs) <- addGeneric f
+        return (ins,outs)
 compWakarusa (LABEL) = do
         -- LABEL implies new instruction block (because you jump to a label)
         prepareInstSlot
@@ -556,6 +561,24 @@ mkChannel :: forall a b . (Rep a, Rep b) => (Seq (Enabled a) -> Seq b) -> STMT (
 mkChannel fn = do
         uq <- CHANNEL (return . fn)
         return (R uq,REG (R uq))
+
+-- We should be able to use overloading here.
+mkChannel2 :: forall a b c . (Rep a, Size (W (Enabled a)), Rep b, Size (W (Enabled b)), Rep c, Size (W c))
+           => (Seq (Enabled a) -> Seq (Enabled b) -> Seq c) -> STMT (REG a, REG b, EXPR c)
+mkChannel2 fn = do
+        ([a,b],[r]) <- GENERIC $ do
+                        i0 <- inStdLogicVector "i0"
+                        i1 <- inStdLogicVector "i1"
+                        outStdLogicVector "o0" (fn i0 i1)
+        return $ (R a,R b,REG (R r))
+        
+mkChannel3 :: forall a b c . (Rep a, Size (W (Enabled a)), Rep b, Size (W b))
+           => (Seq (Enabled a) -> Seq b) -> STMT (REG a, EXPR b)
+mkChannel3 fn = do
+        ([a],[r]) <- GENERIC $ do
+                        i0 <- inStdLogicVector "i0"
+                        outStdLogicVector "o0" (fn i0)
+        return $ (R a,REG (R r))        
 
 mkTemp :: forall a . (Rep a) => STMT (VAR a)
 mkTemp = do
