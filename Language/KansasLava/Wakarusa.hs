@@ -21,11 +21,11 @@ module Language.KansasLava.Wakarusa
         , memory, Memory(..)
         , always
         , for
-        , if_then_else
         , mkEnabled
         , mkChannel
         , mkChannel2
         , mkChannel3
+        , EVENT(..)
         ) where
 
 import Language.KansasLava.Wakarusa.AST
@@ -61,7 +61,7 @@ traceRet :: (a -> String) -> String -> a -> a
 traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 
 
-compileToFabric :: STMT () -> Fabric () 
+compileToFabric :: STMT a -> Fabric a
 compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
         let res0 = runStateT $ do
                         compWakarusa prog
@@ -92,7 +92,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     }
         let res2 = runReaderT res1
 
-        rec (_,st) <- res2 $ WakarusaEnv 
+        rec (r,st) <- res2 $ WakarusaEnv 
                     { we_reads     = the_vars
                     , we_pcs       = generatePredicates st -- (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_preds     = ws_preds st
@@ -116,7 +116,7 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
         () <- trace ("--end of parsed debugging") $ return ()
             
 
-        return ()
+        return r
 
 {-
 generateThreadIds 
@@ -363,6 +363,17 @@ compWakarusa (SPARK code) = do
         prettyPrint $ const $ "END SPARK: " ++ show lab
         topLevelPrettyPrint "\n"
   resetInstSlot
+
+compWakarusa (IF i t e) =
+     compWakarusa $ do
+        rec i :? GOTO t_lab
+            e
+            GOTO end_lab
+            t_lab <- LABEL
+            t
+            rec end_lab <- LABEL
+        return ()
+
         
 compWakarusa o = error ("compWakarusa : " ++ show o)
 
@@ -524,6 +535,7 @@ memory = do
           , valueM = v3
           }
 
+
 --------------------------------------------------------------------------
 -- macros
 
@@ -538,22 +550,15 @@ always m = do
 for :: (Rep a, Ord a, Num a) 
     => EXPR a -> EXPR a -> (EXPR a -> STMT ()) -> STMT ()
 for start end k = do
-        VAR i <- SIGNAL $ undefinedVar
+    rec VAR i <- SIGNAL $ undefinedVar
         i := start
         loop <- LABEL
         k i
+        (OP2 (.==.) i end) :? GOTO done
         i := i + 1 
-                ||| (OP2 (.<.) i end :? GOTO loop)
-
-if_then_else :: EXPR Bool -> STMT () -> STMT () -> STMT ()
-if_then_else i t e = do 
-        rec i :? GOTO t_lab
-            e
-            GOTO end_lab
-            t_lab <- LABEL
-            t
-            rec end_lab <- LABEL
-        return ()
+        GOTO loop
+        done <- LABEL    
+    return ()
 
 --------------------------------------------------------------------------
 
@@ -585,7 +590,13 @@ mkTemp = do
         uq <- CHANNEL (\ (a :: Seq (Enabled a)) -> return $ mux (isEnabled a) (undefinedS,enabledVal a))
         return $ VAR $ toVAR $ (R uq, REG (R uq))
 
+-- TODO: call this mkEVENT, and use type EVENT a = EXPR (Maybe a)
+
 mkEnabled :: forall a . (Rep a) => STMT (REG a, EXPR (Maybe a))
 mkEnabled = mkChannel id
 
 --  :: (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int
+
+--------------------------------------------------------------------------------------
+
+type EVENT a = EXPR (Maybe a)

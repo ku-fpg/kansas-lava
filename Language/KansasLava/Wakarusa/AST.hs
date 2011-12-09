@@ -81,6 +81,7 @@ instance Show (STMT a) where
         show (SPARK {})     = "SPARK"
         show (GENERIC {})  = "GENERIC"
         show (PAR es)       = "PAR" ++ show es
+        show (IF {})       = "IF"
         show _ = "..."
 
 instance Monad STMT where
