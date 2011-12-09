@@ -93,12 +93,17 @@ output :: String -> Pad -> Fabric ()
 output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
 
 -- | Generate a named std_logic input port.
-inStdLogic :: (Rep a, W a ~ X1) => String -> Fabric (Seq a)
+inStdLogic :: forall a . (Rep a, W a ~ X1) => String -> Fabric (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
           StdLogic sq -> bitwise sq
+          StdLogicVector sq -> case toStdLogicType ty of
+					     SL -> unsafeId sq
+                                             _  -> error "internal type error in inStdLogic (not SL)"
           _           -> error "internal type error in inStdLogic"
+   where
+	ty = repType (Witness :: Witness a)
 
 -- | Generate a named generic.
 inGeneric :: String -> Fabric Integer
