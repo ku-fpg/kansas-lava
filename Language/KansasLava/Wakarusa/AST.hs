@@ -29,6 +29,8 @@ data STMT :: * -> * where
 
         -- functionality
 
+        CONNECT  :: SIGNAL a    -> EXPR a -> STMT ()
+
         -- primitive channel builder.
         CHANNEL  :: (Rep a, Rep b) => (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int
 
@@ -81,6 +83,7 @@ instance Show (STMT a) where
         show (SPARK {})     = "SPARK"
         show (GENERIC {})  = "GENERIC"
         show (PAR es)       = "PAR" ++ show es
+        show (CONNECT {})       = "IF"
         show (IF {})       = "IF"
         show _ = "..."
 
@@ -105,7 +108,7 @@ data EXPR :: * -> * where
             => (forall u . Signal u a -> Signal u b -> Signal u c -> Signal u d)
             -> EXPR a -> EXPR b -> EXPR c                               -> EXPR d
         REG :: REG a                                                    -> EXPR a          -- only needed internally
-        READ :: (Rep ix, Rep a, Size ix)
+        READ :: (Rep ix, Rep a, Size ix)                                                   -- is this used?
              => MEM ix a -> EXPR ix                                     -> EXPR a
 
 instance Eq (EXPR a) where {}
@@ -149,6 +152,23 @@ data LABEL = L Int      deriving (Eq,Ord)
 
 instance Show LABEL where
         show (L n) = "L" ++ show n
+
+-- a signal works over time, and is not (directly) connected to any specific state machine
+-- R a = SIGNAL (Maybe a), where the enable is the state machine
+data SIGNAL a where
+   S :: Int -> SIGNAL a
+
+instance Show (SIGNAL a) where
+        show (S n) = "S" ++ show n
+
+-- a signal works over time, and is not (directly) connected to any specific state machine
+-- EVENT a ~= EXPR (Maybe a)
+data EVENT a where
+   Ev :: Int -> EVENT a
+
+-- An event is a continous incomming signal, that should be continously monitored.
+instance Show (EVENT a) where
+        show (Ev n) = "E" ++ show n
 
 -----------------------------------------------------------------------------------------
 
