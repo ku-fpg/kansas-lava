@@ -42,6 +42,8 @@ toUni = StdLogicVector
 fromUni :: forall a . (Rep a) => Pad -> Maybe (Seq a)
 fromUni (StdLogicVector sig) 
         | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
+fromUni (StdLogic sig) 
+        | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
 fromUni _ = Nothing
 
 fromUni' :: forall a . (Rep a) => Pad -> Seq a
