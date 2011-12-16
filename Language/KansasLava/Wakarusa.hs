@@ -599,4 +599,4 @@ mkEnabled = mkChannel id
 
 --------------------------------------------------------------------------------------
 
-type EVENT a = EXPR (Maybe a)
+-- type EVENT a = EXPR (Maybe a)
