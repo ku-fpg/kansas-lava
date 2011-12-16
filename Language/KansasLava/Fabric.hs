@@ -41,6 +41,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Universal
 
+import Debug.Trace
 
 
          -- TODO: the 2D Array
@@ -338,7 +339,8 @@ reifyFabric (Fabric circuit) = do
 
 --	print uqToClk
 
-        return $ rCit { theCircuit =
+        let final_cir 
+              = rCit { theCircuit =
                        [  (u,case e of
                               Entity nm outs ins ->
 			 	case clkEnPort nm of
@@ -358,6 +360,123 @@ reifyFabric (Fabric circuit) = do
                                     )
                                 | (u,e) <- theCircuit rCit ]
                           }
+        return $ id
+               $ joinStdLogicVector
+               $ final_cir
+                
+
+
+-------------------------------------------------------------------------------------------
+{-
+entity main is                                          entity main is
+  port(clk : in std_logic;                                port(clk : in std_logic; 
+       ROT_B : in std_logic;                                   ROT_B : in std_logic;
+       ROT_A : in std_logic;                                   ROT_A : in std_logic;
+       LED<7> : out std_logic;          ===>                   LED : out std_logic_vector(7 downto 0);
+       LED<6> : out std_logic;                            end entity main;
+       LED<5> : out std_logic;
+       LED<4> : out std_logic;
+       LED<3> : out std_logic;
+       LED<2> : out std_logic;
+       LED<1> : out std_logic;
+       LED<0> : out std_logic);
+end entity main;
+-}
+
+joinStdLogicVector :: KLEG -> KLEG
+joinStdLogicVector kleg = 
+                  trace (show ("newOutputNames",newOutputNames))
+                $ kleg { theCircuit = fmap fixSrcs (theCircuit kleg) ++ newInputs ++ newOutputs
+                       , theSinks   = [ (nm,ty,src) 
+                                      | (nm,ty,src) <- theSinks kleg
+                                      , not ('>' `elem` nm)     -- remove the partuals
+                                      ]  ++ 
+                                      [ (nm,V (mx + 1),Port "o0" uq)
+                                      | ((nm,mx),(uq,_)) <- newOutputNames `zip` newOutputs
+                                      ]
+                       , theSrcs    = [ (nm,ty)
+                                      | (nm,ty) <- theSrcs kleg
+                                      , not ('>' `elem` nm)     -- remove the partuals
+                                      ]  ++ 
+                                      [ (nm,V (mx + 1))
+                                      | (nm,mx) <- newInputNames
+                                      ]
+
+                       }
+  where
+          fixSrcs (uq,Entity nm outs ins) = 
+                  (uq, Entity nm outs [ (nm0,ty,src')
+                                      | (nm0,ty,src) <- ins
+                                      , let src'= case src of
+                                              Pad nm1 -> case lookup nm1 oldInputs of
+                                                        Just port -> port
+                                                        Nothing   -> src
+                                              other -> src
+                                      ])
+
+          newNames = allocEntities kleg
+
+          newOutputNames = combineNames [ nm | (nm,B,_) <- theSinks kleg ]
+
+          newOutputs = [ (uq,Entity (Prim "concat") 
+                                    [ ("o0",V (mx + 1)) ]
+                                    [ ("i" ++ show n,B,src)
+                                    | n <- [0..mx]
+                                    , src <- case lookup (nm ++ "<" ++ show n ++ ">") 
+                                                         [ (nm,src) | (nm,B,src) <- theSinks kleg ] of
+                                          Nothing  -> return $ Lit $ RepValue [return False]
+                                          Just src -> return src
+                                                   
+                                    ])
+                       | (uq,(nm,mx)) <- take (length newOutputNames) newNames `zip` newOutputNames
+                       ]
+          
+          newInputNames = combineNames [ nm | (nm,B) <- theSrcs kleg ]
+
+          newInputs = [ (uq,Entity (Prim "unconcat") 
+                                    [ ("o" ++ show n,B) | n <- [0..mx]]
+                                    [ ("i0",V (mx+1),src)])
+                       | (uq,(nm,mx)) <- drop (length newOutputNames) newNames `zip` newInputNames
+                       , let src = Pad nm
+                       ]
+
+          oldInputs = [ (nm ++ "<" ++ show n ++ ">",Port ("o" ++ show n) uq)
+                      | ((uq,_),(nm,mx))  <- newInputs `zip` newInputNames
+                      , n <- [0..mx]
+                      ]
+
+
+          combineNames names = id
+                    $ fmap last
+                    $ groupBy (\ (nm1,_) (nm2,_) -> nm1 == nm2)
+                    $ sort
+                    $ [(nm,read n :: Int) 
+                      | s0 <- names
+                      , (nm,n) <- take 1
+                        [ (nm,n)
+                        | (nm,s1)  <- lex s0
+                        , ("<",s2) <- lex s1
+                        , (n,s3)   <- lex s2
+                        , (">",[]) <- lex s3
+                        ]
+                       ]
+
+ex1 = do 
+        outStdLogic "bbd<0>" high
+        outStdLogic "abd<22>" low
+        outStdLogic "bbd<2>" high
+
+
+ex2 = do 
+        a <- inStdLogic "bbd<0>"  :: Fabric (Seq Bool)
+        b <- inStdLogic "abd<4>":: Fabric (Seq Bool)
+        c <- inStdLogic "bbd<2>" :: Fabric (Seq Bool)
+        outStdLogic "foo" (a `and2` b)
+        return ()
+        
+t ex =reifyFabric ex >>= return . joinStdLogicVector 
+
+-------------------------------------------------------------------------------------------
 
 -- Each one needs a i0 to look at
 
