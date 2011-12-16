@@ -92,20 +92,28 @@ genInst env i (Entity (Prim "thd3") outputs inputs)
 
 -- identity
 
-genInst _ i (Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
+genInst _ i e@(Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
         case toStdLogicTy tyO of
            MatrixTy n (V _)
              -- no need to coerce n[B], because both sides have the
              -- same representation
-             -> [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j)
-                        $ ExprIndex varname
-                                (ExprLit Nothing $ ExprNum j)
-                | j <- [0..(fromIntegral n - 1)]
-                ]
+             -> case toStdLogicExpr tyI d of
+                  ExprVar varname -> 
+                   [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j)
+                                $ ExprIndex varname
+                                        (ExprLit Nothing $ ExprNum j)
+                   | j <- [0..(fromIntegral n - 1)]
+                   ]
+                  ExprConcat es | length es == n ->
+                   [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j) e
+                   | (j,e) <- zip [0..(fromIntegral n - 1)] (reverse es)
+                   ]                   
            _ -> [  NetAssign (sigName vO i) $ toStdLogicExpr tyI d ]
   where
      -- we assume the expression is a var name for matrix types (no constants here)
-     (ExprVar varname) =  toStdLogicExpr tyI d
+     (ExprVar varname) = case toStdLogicExpr tyI d of
+                             ExprVar varname -> ExprVar varname
+                             other -> error $ "Prim id " ++ show (i,e,other)
 
 -- Concat and index (join, project)
 
@@ -163,6 +171,9 @@ genInst _ i e@(Entity (Prim "index")
 			other -> case dr of
 				   Port v n -> sigName v (fromIntegral n)
 				   _ -> error (show ("genInst/index",e,other))
+
+genInst _ i e@(Entity (Prim "unconcat")  outs ins) 
+        = [ CommentDecl $ show (i,e) ]
 
 genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
    | length outs == n =
@@ -847,6 +858,14 @@ mkSpecialBinary coerceR coerceF ops =
                   (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
                   (Minus,U x,U y)       | x == y && il >= ir
                                        -> toStdLogicExpr fTy (il - ir)
+                  (Plus,U x,U y)        | x ==y
+                                       -> toStdLogicExpr fTy (il + ir)
+                  (Plus,S x,S y)        | x == y
+                                       -> toStdLogicExpr fTy (il + ir)  
+                                                        -- unsigned addition used, but gives the same answer.
+                  (Minus,S x,S y)        | x == y
+                                       -> toStdLogicExpr fTy (il - ir)  
+                                                        -- unsigned subtraction used, but gives the same answer.                                                                        
                   other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
         _ -> coerceR fTy (ExprBinary op (coerceF lty l)(coerceF rty r))
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
@@ -896,6 +915,8 @@ specials =
         [("+",Plus)
 	, ("-",Minus)
 	, ("/", Divide)
+	, ("mod",Modulo)
+	, ("div",Divide)
 	]
    ++ mkSpecialBinary (\ _ e -> e) toStdLogicExpr
         [ ("or2",Or), ("and2",And), ("xor2",Xor)
