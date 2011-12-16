@@ -416,3 +416,27 @@ begin
         
 end Behavioral;
 
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lava_clock is
+  port (clk : out std_logic);
+end entity lava_clock;
+
+architecture Behavioral of lava_clock is
+begin
+  clocking : process is
+     begin
+       -- 50MHz clock
+       while true loop
+         wait for 10 ns;
+         clk <= '1';
+         wait for 10 ns; 
+         clk <= '0';         
+       end loop;
+     end process;
+
+end Behavioral;
+
