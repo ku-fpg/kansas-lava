@@ -12,6 +12,7 @@ module Language.KansasLava.Protocols.Enabled
   enabledVal, isEnabled,
   mapEnabled,
   enabledS, disabledS,
+  defaultedEnabledVal,
   registerEnabled,
   delayEnabled,
   chooseEnabled
@@ -59,6 +60,9 @@ enabledVal = snd .  unpackEnabled
 -- | Determine if the the circuit is enabled.
 isEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
+
+defaultedEnabledVal :: (Rep a, sig ~ Signal clk) => a -> sig (Enabled a) -> sig a
+defaultedEnabledVal def e = mux (isEnabled e) (pureS def, enabledVal e)
 
 -- | Optionally updatable register, based on the value of the enabled signal.
 registerEnabled :: (Rep a, Clock clk, sig ~ Signal clk) => a -> sig (Enabled a) -> sig a
