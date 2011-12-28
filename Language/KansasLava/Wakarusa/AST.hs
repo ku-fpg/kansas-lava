@@ -35,9 +35,9 @@ data STMT :: * -> * where
         CHANNEL  :: (Rep a, Rep b) => (Seq (Maybe a) -> Fabric (Seq b)) -> STMT Int
 
         -- COMBINATIONS
-        OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
-        INPUT    :: (Rep a) =>  Fabric (Seq a)               -> STMT (EXPR a)
-        SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)     -> STMT (VAR a)
+        OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ())    -> STMT (REG a)
+        INPUT    :: (Rep a) =>  Fabric (Seq a)                  -> STMT (EXPR a)
+        SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)        -> STMT (VAR a)
         PATCH    :: (Rep a, Rep b, Rep c, Rep d) 
                  => (Patch (Seq (Enabled a)) (Seq (Enabled b))
                            (Seq (Enabled c)) (Seq (Enabled d))) -> STMT ( REG a
@@ -47,18 +47,22 @@ data STMT :: * -> * where
 
                 -- way of puting an arbirary lava-function into the REG/EXPR world.
                 -- TODO: call FABRIC
-        GENERIC :: (Fabric ())                               -> STMT ([Int],[Int])
+        GENERIC :: (Fabric ())                                  -> STMT ([Int],[Int])
 
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
         PAR    :: [STMT ()]     -> STMT ()
-        SPARK  :: (LABEL -> STMT ())   -> STMT ()              -- Do sub-thread
+        SPARK  :: (LABEL -> STMT ())                            -> STMT ()      
+                -- Do sub-thread. TODO: Returns the PC / state value??
 
         -- real time:
         -- wait for a cycle, or an event, or using a sample. 
         -- Much to figure out here.
-        STEP   ::                                                STMT ()
+        STEP   ::                                                  STMT ()
+ 
+        -- Debugging
+        PRINT :: (Rep a) => String -> EXPR a                    -> STMT ()
 
         -- macros
         IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
@@ -75,16 +79,17 @@ a ||| b = PAR [a,b]
 instance Show (STMT a) where
         show (r := e) = show r ++ " := " ++ show e
         show (p :? s) = show p ++ " :? " ++ show s
-        show (OUTPUT {})    = "OUTPUT"
-        show (INPUT {})     = "INPUT"
-        show (SIGNAL {})  = "SIGNAL"
-        show (GOTO lab)     = "GOTO " ++ show lab
-        show (LABEL)        = "LABEL"
-        show (SPARK {})     = "SPARK"
-        show (GENERIC {})  = "GENERIC"
-        show (PAR es)       = "PAR" ++ show es
-        show (CONNECT {})       = "IF"
-        show (IF {})       = "IF"
+        show (OUTPUT {})      = "OUTPUT"
+        show (INPUT {})       = "INPUT"
+        show (SIGNAL {})      = "SIGNAL"
+        show (GOTO lab)       = "GOTO " ++ show lab
+        show (LABEL)          = "LABEL"
+        show (SPARK {})       = "SPARK"
+        show (GENERIC {})     = "GENERIC"
+        show (PAR es)         = "PAR" ++ show es
+        show (CONNECT {})     = "IF"
+        show (IF {})          = "IF"
+        show (PRINT msg _)    = "PRINT<" ++ show msg ++ ">"
         show _ = "..."
 
 instance Monad STMT where
