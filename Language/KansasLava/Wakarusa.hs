@@ -113,10 +113,11 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                        | reg <- ws_regs st
                        ] >>= (return . Map.unions)
            
+{-
         () <- trace ("--parsed debugging") $ return ()
         () <- trace (concat $ reverse $ ws_pp $ st) $ return ()
         () <- trace ("--end of parsed debugging") $ return ()
-            
+-}            
 
         return r
 
@@ -173,7 +174,9 @@ generatePredicates
 -}
         -> Map (PC,TID) (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates st = trace msg result
+generatePredicates st = 
+--        trace msg 
+        result
   where
         msg = show (ws_fork st)
 {-

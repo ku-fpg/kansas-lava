@@ -203,7 +203,7 @@ orPred :: Pred -> Pred -> Pred
 orPred (LitPred b1) (LitPred b2) = LitPred (b1 || b2)
 orPred (AndPred (NotPred p1) p2) (AndPred p3 p4) 
    | p1 == p3 = orPred p2 p4
-orPred p1 p2 = trace (show ("ordPred",p1,p2)) $ OrPred p1 p2
+orPred p1 p2 = {- trace (show ("ordPred",p1,p2)) $ -} OrPred p1 p2
 
 fromPred :: Pred -> Map Uniq (Seq Bool) -> Seq Bool
 fromPred (LitPred p)      _ = pureS p
