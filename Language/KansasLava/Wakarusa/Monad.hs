@@ -370,7 +370,7 @@ addPatch p = do
 addGeneric :: (Fabric ())
            -> WakarusaComp ([Uniq],[Uniq])
 addGeneric f = do
-        let (ins,outs) = fabricAPI f
+        let ((),ins,outs) = fabricAPI f
 --        () <- trace (show (ins,outs)) $ return ()
         in_uqs <- sequence [ getUniq | _ <- ins ]
         out_uqs <- sequence [ getUniq | _ <- outs]

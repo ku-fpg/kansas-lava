@@ -22,6 +22,7 @@ module Language.KansasLava.Fabric
         , runFabricWithResult
         , runFabricWithDriver
         , fabricAPI
+        , traceFabric
         ) where
 
 import Control.Monad.Fix
@@ -179,11 +180,17 @@ runFabricWithDriver (Fabric f) (Fabric g) = a
               (a,_,g_result)  = g f_result
 
 -- 'fabricAPI' explains what the API is for a specific fabric.
--- The input Pad's are corrected to a (deep) Pad nm.
-fabricAPI :: Fabric () -> ([(String,Pad)],[(String,Pad)])
-fabricAPI (Fabric f) = (args,result)
+-- The input Pad's are connected to a (deep) Pad nm.
+fabricAPI :: Fabric a -> (a,[(String,Pad)],[(String,Pad)])
+fabricAPI (Fabric f) = (a,args,result)
         where (a,args,result) = f args
               withType (nm,pad) = (nm,pad)
+
+-- 'traceFabric' returns the actual inputs and outputs, inside the monad.
+traceFabric :: Fabric a -> Fabric (a,[(String,Pad)],[(String,Pad)])
+traceFabric (Fabric f) = Fabric $ \ ins0 ->
+        let (a,tys1,outs1) = f ins0
+        in ((a,[],[]),tys1,outs1)
 
 ------------------------------------------------------------------------------
 
