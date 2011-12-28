@@ -52,18 +52,15 @@ data STMT :: * -> * where
         -- control flow
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
-        PAR    :: [STMT ()]     -> STMT ()
+        PAR    :: STMT () -> STMT ()                            -> STMT ()
         SPARK  :: (LABEL -> STMT ())                            -> STMT ()      
                 -- Do sub-thread. TODO: Returns the PC / state value??
 
         -- real time:
         -- wait for a cycle, or an event, or using a sample. 
         -- Much to figure out here.
-        STEP   ::                                                  STMT ()
+        NOP   ::                                                  STMT ()
  
-        -- Debugging
-        PRINT :: (Rep a) => String -> EXPR a                    -> STMT ()
-
         -- macros
         IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
         WHILE  :: EXPR Bool -> STMT () -> STMT ()
@@ -73,7 +70,7 @@ data STMT :: * -> * where
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
 
-a ||| b = PAR [a,b]
+a ||| b = PAR a b
 
 
 instance Show (STMT a) where
@@ -86,10 +83,10 @@ instance Show (STMT a) where
         show (LABEL)          = "LABEL"
         show (SPARK {})       = "SPARK"
         show (GENERIC {})     = "GENERIC"
-        show (PAR es)         = "PAR" ++ show es
+        show (PAR e1 e2)      = "PAR (" ++ show e1 ++ ")(" ++ show e2 ++ ")"
         show (CONNECT {})     = "IF"
         show (IF {})          = "IF"
-        show (PRINT msg _)    = "PRINT<" ++ show msg ++ ">"
+        show (NOP)            = "NOP"
         show _ = "..."
 
 instance Monad STMT where

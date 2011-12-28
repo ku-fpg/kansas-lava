@@ -326,7 +326,7 @@ compWakarusa (e1 :? m) = do
         setPred predCode $ addPrettyScope 2 $ compWakarusa m
         topLevelPrettyPrint "\n" 
         return ()
-compWakarusa (PAR [e1,e2]) = do
+compWakarusa (PAR e1 e2) = do
         prepareInstSlot
         we <- ask
         addPrettyScope 1 $ do
@@ -335,12 +335,11 @@ compWakarusa (PAR [e1,e2]) = do
                 parInstSlot $ compWakarusa e2
         topLevelPrettyPrint "\n" 
         return ()
-
-
-compWakarusa STEP       = do
--- TODO REMove
---        incPC
---        modify (\ st -> st { ws_pred = falsePred })
+compWakarusa NOP = do
+        prepareInstSlot
+        -- no instruction here
+        markInstSlot
+        prettyPrint (\ _ -> " NOP")
         return ()
 compWakarusa (SPARK code) = do
   resetInstSlot 
