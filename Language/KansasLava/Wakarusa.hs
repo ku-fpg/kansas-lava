@@ -15,10 +15,12 @@ module Language.KansasLava.Wakarusa
         , WriteAckBox(..)
         , connectWriteAckBox
         , takeAckBox
+        , readAckBox
         , putAckBox
+        , readEnabled
         , Variable(..)
         , var, undefinedVar
-        , memory, Memory(..)
+        , memory, Memory(..), readMemory
         , always
         , for
         , mkEnabled
@@ -487,6 +489,11 @@ takeAckBox (ReadAckBox iA oA) cont = do
                 ||| oA := OP0 (pureS ())
                 ||| cont (OP1 enabledVal iA)
 
+-- | A version of takeAckBox that does not acknowleage. Blocks till data is present.
+
+readAckBox :: Rep a => ReadAckBox a -> (EXPR a -> STMT ()) -> STMT ()
+readAckBox (ReadAckBox iA oA) cont = readEnabled iA cont
+
 data WriteAckBox a = WriteAckBox (REG a) (EXPR (Enabled ()))
 
 connectWriteAckBox
@@ -512,6 +519,15 @@ newAckBox = do
                )
 
 -------------------------------------------------------------------------
+-- blocks until the enabled is present
+
+readEnabled :: Rep a => EXPR (Maybe a) -> (EXPR a -> STMT ()) -> STMT ()
+readEnabled inp assign = do
+        loop <- LABEL
+        ((OP1 (bitNot . isEnabled) inp) :? GOTO loop)
+                ||| assign (OP1 enabledVal inp)
+
+-------------------------------------------------------------------------
 -- Memory is set up as duel ported to allow a *single* instances of the
 -- memory entity/array in Hardware.
 
@@ -535,6 +551,8 @@ memory = do
           , valueM = v3
           }
 
+readMemory :: (Rep a, Rep ix) => Memory ix a -> EXPR ix -> (EXPR a -> STMT ()) -> STMT ()
+readMemory mem ix cont = readM mem := ix ||| cont (valueM mem)
 
 --------------------------------------------------------------------------
 -- macros
