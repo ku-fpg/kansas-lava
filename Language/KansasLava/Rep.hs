@@ -21,6 +21,7 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
+import Data.Char
 import Data.Bits
 
 --import qualified Data.Maybe as Maybe
@@ -90,16 +91,36 @@ instance Rep Integer where
     fromRep = error "can not turn a Rep to a Generic"
     showRep (XInteger v) = show v
 
-newtype Message = Message String
+newtype Message ix = Message String
 
-instance Rep Message where
-    type W Message     = X0 -- we give a Message a width, so that we can have a Maybe Message.
-    data X Message     = XMessage !(Maybe String)
-    optX b             = XMessage $ fmap (\ (Message m) -> m) b
-    unX (XMessage v)   = fmap Message v
-    repType _          = MessageTy
-    toRep _            = error "can not turn a Message into a Rep"
-    fromRep            = error "can not turn a Rep to a Message"
+instance (Integral ix, Size ix) => Rep (Message ix) where
+    type W (Message ix)            = X0_ (X0_ (X0_ ix))
+    data X (Message ix)            = XMessage !(Maybe String)
+    optX b                         = XMessage $ fmap (\ (Message m) -> m) b
+    unX (XMessage v)               = fmap Message v
+    repType _                      = MatrixTy (size (error "witness" :: ix)) (U 8)
+    toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Matrix ix (X U8))
+    toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i -> 
+                                                if fromIntegral i < Prelude.length m
+                                                then optX (Just $ fromIntegral $ ord $ (m !! (fromIntegral i)))
+                                                else optX (Just 0)) :: Matrix ix (X U8))
+    fromRep rep
+        | okay      = XMessage $ return $ msg
+        | otherwise = XMessage Nothing
+      where XMatrix (m :: Matrix ix (X U8)) = fromRep rep
+            RepValue xs = rep
+            vals :: [U8]
+            vals = [ x | Just x <- map unX (M.toList m) ]
+            len = foldr min (Prelude.length vals) [ i | (0,i) <- zip vals [0..]]
+            msg = take len 
+                [ chr (fromIntegral val) 
+                | val <- vals
+                ]
+            okay = Prelude.all 
+                      (\ a -> case a of
+                                Nothing -> False
+                                Just {} -> True) xs
+
     showRep (XMessage Nothing)     = "-"
     showRep (XMessage (Just txt))  = show txt
 
