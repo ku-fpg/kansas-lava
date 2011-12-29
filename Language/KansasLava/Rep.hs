@@ -90,6 +90,20 @@ instance Rep Integer where
     fromRep = error "can not turn a Rep to a Generic"
     showRep (XInteger v) = show v
 
+newtype Message = Message String
+data MessageWidth = MessageWidth
+
+instance Rep Message where
+    type W Message     = MessageWidth -- we give a Message a width, so that we can have a Maybe Message.
+    data X Message     = XMessage !(Maybe String)
+    optX b             = XMessage $ fmap (\ (Message m) -> m) b
+    unX (XMessage v)   = fmap Message v
+    repType _          = MessageTy
+    toRep _            = error "can not turn a Message into a Rep"
+    fromRep            = error "can not turn a Rep to a Message"
+    showRep (XMessage Nothing)     = "-"
+    showRep (XMessage (Just txt))  = show txt
+
 -------------------------------------------------------------------------------------
 -- Now the containers
 
