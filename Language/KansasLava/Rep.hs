@@ -91,10 +91,9 @@ instance Rep Integer where
     showRep (XInteger v) = show v
 
 newtype Message = Message String
-data MessageWidth = MessageWidth
 
 instance Rep Message where
-    type W Message     = MessageWidth -- we give a Message a width, so that we can have a Maybe Message.
+    type W Message     = X0 -- we give a Message a width, so that we can have a Maybe Message.
     data X Message     = XMessage !(Maybe String)
     optX b             = XMessage $ fmap (\ (Message m) -> m) b
     unX (XMessage v)   = fmap Message v
