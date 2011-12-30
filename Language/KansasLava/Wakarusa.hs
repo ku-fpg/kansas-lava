@@ -45,6 +45,7 @@ import Language.KansasLava.Universal
 
 
 import Data.Sized.Ix
+import Data.Sized.Matrix as M
 
 import Control.Monad.Fix
 import Data.Map as Map
@@ -442,6 +443,9 @@ compWakarusaExpr (OP3 f e1 e2 e3) = do
         c2 <- compWakarusaExpr e2
         c3 <- compWakarusaExpr e3
         return $ f c1 c2 c3
+compWakarusaExpr (OPM f es) = do
+        cs <- mapM compWakarusaExpr $ M.toList es
+        return $ f $ matrix cs
 
 ppEXPR :: Pass -> EXPR a -> String
 ppEXPR _ (REG r)   = show r
@@ -449,6 +453,13 @@ ppEXPR _ (OP0 lit) = "(OP0 " ++ show lit ++ ")"
 ppEXPR p (OP1 _ e1) = "(OP1 (...) " ++ ppEXPR p e1 ++ ")"
 ppEXPR p (OP2 _ e1 e2) = "(OP2 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ ")"
 ppEXPR p (OP3 _ e1 e2 e3) = "(OP3 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ " " ++ ppEXPR p e3 ++ ")"
+ppEXPR p (OPM _ es) = "(OPM (...) " ++ ppEXPRs p (M.toList es) ++ ")"
+
+
+ppEXPRs p [] = "[]"
+ppEXPRs p (e:es) = "[" ++ ppEXPR p e ++ concatMap pp es ++ "]"
+ where
+         pp e = "," ++ ppEXPR p e
 
 ------------------------------------------------------------------------------
 

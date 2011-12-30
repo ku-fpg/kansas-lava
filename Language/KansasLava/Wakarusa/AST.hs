@@ -109,6 +109,9 @@ data EXPR :: * -> * where
         OP3 :: (Rep a, Rep b,Rep c, Rep d) 
             => (forall u . Signal u a -> Signal u b -> Signal u c -> Signal u d)
             -> EXPR a -> EXPR b -> EXPR c                               -> EXPR d
+        OPM :: (Rep a, Rep b, Size ix)
+            => (forall u . Matrix ix (Signal u a) -> Signal u b)
+            -> Matrix ix (EXPR a)                                       -> EXPR b
         REG :: REG a                                                    -> EXPR a          -- only needed internally
         READ :: (Rep ix, Rep a, Size ix)                                                   -- is this used?
              => MEM ix a -> EXPR ix                                     -> EXPR a
