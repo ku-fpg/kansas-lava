@@ -16,6 +16,7 @@ module Language.KansasLava.Wakarusa
         , connectWriteAckBox
         , takeAckBox
         , readAckBox
+        , fullAckBox
         , putAckBox
         , readEnabled
         , Variable(..)
@@ -506,6 +507,9 @@ takeAckBox (ReadAckBox iA oA) cont = do
 
 readAckBox :: Rep a => ReadAckBox a -> (EXPR a -> STMT ()) -> STMT ()
 readAckBox (ReadAckBox iA oA) cont = readEnabled iA cont
+
+fullAckBox :: (Rep a) => ReadAckBox a -> EXPR Bool
+fullAckBox (ReadAckBox iA _) = OP1 isEnabled iA
 
 data WriteAckBox a = WriteAckBox (REG a) (EXPR (Enabled ()))
 
