@@ -242,7 +242,9 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
 	    where unconcat [] = []
 		  unconcat ys = take len ys : unconcat (drop len ys)
 
-		  len = Prelude.length xs `div` size (error "witness" :: ix)
+		  len = w_a -- Prelude.length xs `div` size (error "witness" :: ix)
+
+                  w_a = typeWidth (repType (Witness :: Witness a))
 
 instance (Size ix) => Rep (Unsigned ix) where
     type W (Unsigned ix) = ix
