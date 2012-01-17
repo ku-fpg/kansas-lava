@@ -94,12 +94,14 @@ addEvent nm i v (VCD m) | nm `elem` map fst m = VCD [ (n,if n == nm then addVC v
 
 -- | Generate a signature from a trace.
 -- TODO: support generics in both these functions?
+-- only used right after writeTBF.
 toSignature :: VCD -> Signature
 toSignature vcd = Signature (convert $ inputs vcd) (convert $ outputs vcd) []
     where convert m = [ (dropModName nm,ty) | (nm,VC ty _) <- m ]
           dropModName = reverse . takeWhile (/= '/') . reverse
 
 -- | Creates an (empty) trace from a signature
+--  only used inside function
 fromSignature :: Signature -> VCD
 fromSignature (Signature inps outps _) = VCD $ convert "inputs" inps ++ convert "outputs" outps
     where convert mnm l = [ (mnm ++ "/" ++ nm, VC ty $ E.fromList [])  | (nm, ty) <- l ]
@@ -274,6 +276,13 @@ mkVCDCM c fabric input circuitMod = do
                     , nm == nm' ]
 
     return (tr, rc)
+
+-- Wraps up a Fabric with a VCD capture of inputs and outputs.
+vcdFabric :: Fabric a -> Fabric (a,VCD)
+vcdFabric fab = do
+        (a,ins0,outs0) <- traceFabric fab
+        return $ (a,VCD [])
+
 
 ----------------------------------------------------------------------------------------
 

@@ -12,7 +12,10 @@ module Language.KansasLava.Protocols.Enabled
   enabledVal, isEnabled,
   mapEnabled,
   enabledS, disabledS,
-  registerEnabled
+  defaultedEnabledVal,
+  registerEnabled,
+  delayEnabled,
+  chooseEnabled
   ) where
 
 import Language.KansasLava.Signal
@@ -58,6 +61,9 @@ enabledVal = snd .  unpackEnabled
 isEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig Bool
 isEnabled = fst .  unpackEnabled
 
+defaultedEnabledVal :: (Rep a, sig ~ Signal clk) => a -> sig (Enabled a) -> sig a
+defaultedEnabledVal def e = mux (isEnabled e) (pureS def, enabledVal e)
+
 -- | Optionally updatable register, based on the value of the enabled signal.
 registerEnabled :: (Rep a, Clock clk, sig ~ Signal clk) => a -> sig (Enabled a) -> sig a
 registerEnabled a inp = res
@@ -66,3 +72,15 @@ registerEnabled a inp = res
 	    $ cASE [ (isEnabled inp,enabledVal inp)
 		   ] res
 
+-- | Optionally updatable register, based on the value of the enabled signal.
+delayEnabled :: (Rep a, Clock clk, sig ~ Signal clk) => sig (Enabled a) -> sig a
+delayEnabled inp = res
+   where
+	res = delay
+	    $ cASE [ (isEnabled inp,enabledVal inp)
+		   ] res
+
+
+-- | Choose the first argument, if it is enabled, else choose the second one.
+chooseEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
+chooseEnabled e1 e2 = mux (isEnabled e1) (e2,e1)

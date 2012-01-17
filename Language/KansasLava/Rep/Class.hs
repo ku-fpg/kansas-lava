@@ -77,11 +77,13 @@ pureX = optX . Just
 unknownX :: forall w . (Rep w) => X w
 unknownX = optX (Nothing :: Maybe w)
 
+-- | 'zeroX' is a zero-filled value of every representable type.
+zeroX :: forall w . (Rep w) => X w
+zeroX = fromRep $ RepValue [ Just False | _ <- [1..repWidth (Witness :: Witness w)]]
+
 -- | liftX converts a function over values to a function over possibly unknown values.
 liftX :: (Rep a, Rep b) => (a -> b) -> X a -> X b
 liftX f = optX . liftM f . unX
-
-
 
 -- | showRepDefault will print a Representable value, with "?" for unknown.
 -- This is not wired into the class because of the extra 'Show' requirement.

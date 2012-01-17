@@ -21,6 +21,7 @@ import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
 import Data.Sized.Signed as S
 import Data.Word
+import Data.Char
 import Data.Bits
 
 --import qualified Data.Maybe as Maybe
@@ -59,7 +60,9 @@ instance Rep Bool where
 $(repIntegral ''Int     (S $ bitSize $ (error "witness" :: Int)))
 
 $(repIntegral ''Word8   (U  8))
+$(repIntegral ''Word16  (U 16))
 $(repIntegral ''Word32  (U 32))
+$(repIntegral ''Word64  (U 64))
 
 instance Rep () where
     type W ()     = X0
@@ -68,7 +71,7 @@ instance Rep () where
     optX Nothing    = XUnit $ fail "Wire ()"
     unX (XUnit (Just v))  = return v
     unX (XUnit Nothing) = fail "Wire ()"
-    repType _  = V 1   -- should really be V 0 TODO
+    repType _  = V 0  
     toRep _ = RepValue []
     fromRep _ = XUnit $ return ()
     showRep _ = "()"
@@ -87,6 +90,39 @@ instance Rep Integer where
     toRep = error "can not turn a Generic to a Rep"
     fromRep = error "can not turn a Rep to a Generic"
     showRep (XInteger v) = show v
+
+newtype Message ix = Message String
+
+instance (Integral ix, Size ix) => Rep (Message ix) where
+    type W (Message ix)            = X0_ (X0_ (X0_ ix))
+    data X (Message ix)            = XMessage !(Maybe String)
+    optX b                         = XMessage $ fmap (\ (Message m) -> m) b
+    unX (XMessage v)               = fmap Message v
+    repType _                      = MatrixTy (size (error "witness" :: ix)) (U 8)
+    toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Matrix ix (X U8))
+    toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i -> 
+                                                if fromIntegral i < Prelude.length m
+                                                then optX (Just $ fromIntegral $ ord $ (m !! (fromIntegral i)))
+                                                else optX (Just 0)) :: Matrix ix (X U8))
+    fromRep rep
+        | okay      = XMessage $ return $ msg
+        | otherwise = XMessage Nothing
+      where XMatrix (m :: Matrix ix (X U8)) = fromRep rep
+            RepValue xs = rep
+            vals :: [U8]
+            vals = [ x | Just x <- map unX (M.toList m) ]
+            len = foldr min (Prelude.length vals) [ i | (0,i) <- zip vals [0..]]
+            msg = take len 
+                [ chr (fromIntegral val) 
+                | val <- vals
+                ]
+            okay = Prelude.all 
+                      (\ a -> case a of
+                                Nothing -> False
+                                Just {} -> True) xs
+
+    showRep (XMessage Nothing)     = "-"
+    showRep (XMessage (Just txt))  = show txt
 
 -------------------------------------------------------------------------------------
 -- Now the containers
@@ -206,7 +242,9 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
 	    where unconcat [] = []
 		  unconcat ys = take len ys : unconcat (drop len ys)
 
-		  len = Prelude.length xs `div` size (error "witness" :: ix)
+		  len = w_a -- Prelude.length xs `div` size (error "witness" :: ix)
+
+                  w_a = typeWidth (repType (Witness :: Witness a))
 
 instance (Size ix) => Rep (Unsigned ix) where
     type W (Unsigned ix) = ix

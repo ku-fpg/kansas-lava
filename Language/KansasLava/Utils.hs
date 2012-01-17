@@ -4,6 +4,7 @@
 module Language.KansasLava.Utils where
 
 import Control.Monad
+import Control.Applicative
 import Data.Bits
 
 import Language.KansasLava.Rep
@@ -432,4 +433,17 @@ loopingIncS a = mux (a .==. maxBound) (a + 1, pureS 0)
 
 loopingDecS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
 loopingDecS a = mux (a .==. 0) (a - 1, pureS maxBound)
+
+---------------------------------------------------------------------
+
+-- Message works in shallow only
+message :: forall ix a clk . (Integral ix, Size ix, Rep a) => (a -> String) -> Signal clk a -> Signal clk (Message ix)
+message f (Signal i _) = Signal s (D $ Error "incorrect use of deep Signal to generate a message")
+  where s = fmap (\ v -> case unX v of
+                           Nothing -> unknownX
+                           Just a -> pureX (Message (check_len (f a)))) i
+        check_len str | str_len <= ix_len = str
+                      | otherwise  = error $ "message string to long (found " ++ show str_len ++ ", expecting <= " ++ show ix_len ++ ")"
+           where str_len = Prelude.length str
+                 ix_len  = size (error "witness" :: ix)
 

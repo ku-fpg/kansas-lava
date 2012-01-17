@@ -9,5 +9,6 @@ dist/
 *.html
 tests/unit/sims/*
 tests/sims/*
+testdist/*
 /tests/unit/sims/add/S2/default_opts/unmodified/Lava.vhd
 /sims/*

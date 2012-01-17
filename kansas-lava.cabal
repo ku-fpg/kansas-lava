@@ -1,8 +1,8 @@
 Name:               kansas-lava
-Version:            0.2.4.1
+Version:            0.2.5
 Synopsis:           Kansas Lava is a hardware simulator and VHDL generator.
 
-Description: 
+Description:
   Kansas Lava is a Domain Specific Language (DSL) for expressing
   hardware-oriented descriptions of computations, and is hosted inside
   the language Haskell. Kansas Lava programs are descriptions of
@@ -19,10 +19,10 @@ Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
 Stability:           alpha
 build-type:          Simple
 Cabal-Version:       >= 1.10
-Data-files: 
-   Prelude/VHDL/*.vhd, 
+Data-files:
+   Prelude/VHDL/*.vhd,
    Prelude/HTML/*.inc
-extra-source-files:   
+extra-source-files:
    tests/Makefile
    README
 
@@ -39,11 +39,12 @@ Flag tools
   Default:     False
 
 Library
-  Build-Depends: 
-        base >= 4 && < 5, 
+  Build-Depends:
+        base >= 4 && < 5,
         dotgen >= 0.4.1,
         containers,
-        sized-types >= 0.3.4,
+        sized-types >= 0.3.5,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -53,7 +54,7 @@ Library
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
-        template-haskell, 
+        template-haskell,
         bytestring,
         data-reify >= 0.6
   Exposed-modules:
@@ -70,7 +71,11 @@ Library
        Language.KansasLava.Test
        Language.KansasLava.Types
        Language.KansasLava.Utils
+       Language.KansasLava.Universal
        Language.KansasLava.VHDL
+       Language.KansasLava.Wakarusa
+       Language.KansasLava.Wakarusa.AST
+       Language.KansasLava.Wakarusa.Monad
        Language.KansasLava.Stream
        Language.KansasLava.Dynamic
        Language.KansasLava.VCD
@@ -91,7 +96,8 @@ Library
        Paths_kansas_lava
 
 -- need a module refactor to address the orphan warnings
-  Ghc-Options: -Wall  -fno-warn-orphans
+  Ghc-Options: -Wall  -fno-warn-orphans  -fcontext-stack=100
+-- -Werror
   default-language:    Haskell2010
 
 --  Ghc-Prof-options:  -auto-all
@@ -103,7 +109,8 @@ Executable kansas-lava-unittest
         base >= 4 && < 5,
         dotgen >= 0.4.1,
         containers,
-        sized-types >= 0.3.4,
+        sized-types >= 0.3.5,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -113,7 +120,7 @@ Executable kansas-lava-unittest
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
-        template-haskell, 
+        template-haskell,
         bytestring,
         data-reify >= 0.6
       Other-modules:
@@ -122,8 +129,8 @@ Executable kansas-lava-unittest
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: ., tests
-    Ghc-Options: -Wall 
+    Hs-Source-Dirs: tests, .
+    Ghc-Options: -Wall
                  -fno-warn-orphans -fcontext-stack=256
                  -threaded -rtsopts
     default-language:    Haskell2010
@@ -135,7 +142,8 @@ Executable kansas-lava-testreport
         base >= 4 && < 5,
         dotgen >= 0.4.1,
         containers,
-        sized-types >= 0.3.4,
+        sized-types >= 0.3.5,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -145,7 +153,7 @@ Executable kansas-lava-testreport
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
-        template-haskell, 
+        template-haskell,
         bytestring,
         data-reify >= 0.6
       Other-modules:
@@ -153,7 +161,7 @@ Executable kansas-lava-testreport
       Build-depends: base
       buildable: False
     Main-Is:        GenReport.hs
-    Hs-Source-Dirs:  ., tests
+    Hs-Source-Dirs:  tests, .
     Ghc-Options: -Wall  -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
     default-language:    Haskell2010
@@ -164,7 +172,8 @@ Executable kansas-lava-tbf2vcd
         base >= 4 && < 5,
         dotgen >= 0.4.1,
         containers,
-        sized-types >= 0.3.4,
+        sized-types >= 0.3.5,
+        mtl >= 2.0,
         data-default,
         random,
         strict,
@@ -174,7 +183,7 @@ Executable kansas-lava-tbf2vcd
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
-        template-haskell, 
+        template-haskell,
         bytestring,
         data-reify >= 0.6
       buildable: True
@@ -182,7 +191,7 @@ Executable kansas-lava-tbf2vcd
       Build-depends: base
       buildable: False
     Main-Is:        TBF2VCD.hs
-    Hs-Source-Dirs: ., tools
+    Hs-Source-Dirs: tools, .
     Ghc-Options: -Wall  -fno-warn-orphans
     default-language:    Haskell2010
 

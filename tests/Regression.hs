@@ -2,8 +2,9 @@
 
 module Regression where
 
-import Language.KansasLava
+import Language.KansasLava hiding ((:=))
 import Language.KansasLava.Test
+import Language.KansasLava.RTL
 
 import Data.Sized.Ix
 import Data.Sized.Unsigned
