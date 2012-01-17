@@ -134,7 +134,7 @@ append el@(EL xs) (EL ys) = EL $ M.union xs ys'
 zipWith :: (Eq c) => (a -> b -> c) -> EventList a -> EventList b -> EventList c
 zipWith f xs ys = EL $ M.fromList $ go (ea,eb) (lst xs) (lst ys)
     where lst = M.assocs . unEL . take l
-          l = min (length xs) (length ys)
+          l = max (length xs) (length ys)
           ea = error "zipWith: no initial value in list a"
           eb = error "zipWith: no initial value in list b"
 
