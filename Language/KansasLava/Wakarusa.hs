@@ -456,7 +456,7 @@ ppEXPR p (OP2 _ e1 e2) = "(OP2 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ "
 ppEXPR p (OP3 _ e1 e2 e3) = "(OP3 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ " " ++ ppEXPR p e3 ++ ")"
 ppEXPR p (OPM _ es) = "(OPM (...) " ++ ppEXPRs p (M.toList es) ++ ")"
 
-
+ppEXPRs :: Pass -> [EXPR a] -> String
 ppEXPRs p [] = "[]"
 ppEXPRs p (e:es) = "[" ++ ppEXPR p e ++ concatMap pp es ++ "]"
  where
