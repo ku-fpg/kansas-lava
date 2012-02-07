@@ -18,7 +18,7 @@ type List a = [a]
 tests :: TestSeq -> IO ()
 tests test = do
         -- Just the Num Stuff
-        let t1 :: (Fractional a, Ord a, Rep a, Size (W a)) => String -> [a] -> IO ()
+        let t1 :: (Fractional a, Ord a, Show a, Rep a, Size (W a)) => String -> [a] -> IO ()
             t1 str arb = testOpsFractional test str arb
         -- With Sampled, use
         --  * powers of two scale, larger than 1
@@ -31,12 +31,12 @@ tests test = do
         t1 "Sampled/X128xX16"(finiteCases 100 ::[Sampled X128 X16])
 
         -- Just the Bits Stuff
-        let t2 :: (Ord a, Bits a, Rep a, Size (W a)) => String -> List a -> IO ()
+        let t2 :: (Ord a, Bits a, Show a, Rep a, Size (W a)) => String -> List a -> IO ()
             t2 str arb = testOpsBits test str arb
 
 
 	-- tests Bits, inc the shifts
-        let t2' :: (Ord a, Bits a, Rep a, Size (W a), Integral (W a), Rep (W a), Size (W (W a))) => String -> List a -> IO ()
+        let t2' :: (Ord a, Bits a, Show a, Rep a, Size (W a), Integral (W a), Rep (W a), Size (W (W a))) => String -> List a -> IO ()
             t2' str arb = testOpsBits2 test str arb
 
         t2' "U1" (allCases :: List U1)
@@ -241,7 +241,7 @@ testOpsOrd test tyName ws = do
 
 
 testOpsNum :: forall w .
-        (Ord w, Rep w, Num w, Size (W w)) => TestSeq -> String -> List w -> IO ()
+        (Ord w, Rep w, Num w, Show w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsNum test tyName ws = do
         testOpsOrd test tyName ws
 
@@ -269,7 +269,7 @@ testOpsNum test tyName ws = do
 
         return ()
 testOpsFractional :: forall w .
-        (Ord w, Rep w, Fractional w, Size (W w)) => TestSeq -> String -> [w] -> IO ()
+        (Ord w, Rep w, Show w, Fractional w, Size (W w)) => TestSeq -> String -> [w] -> IO ()
 testOpsFractional test tyName ws = do
         testOpsNum test tyName ws
 
@@ -290,7 +290,7 @@ testOpsFractional test tyName ws = do
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
-        (Ord w, Rep w, Bits w, Size (W w)) => TestSeq -> String -> List w -> IO ()
+        (Ord w, Rep w, Show w, Bits w, Size (W w)) => TestSeq -> String -> List w -> IO ()
 testOpsBits test tyName ws = do
         testOpsNum test tyName ws
 
@@ -317,7 +317,7 @@ testOpsBits test tyName ws = do
 
 
 testOpsBits2 :: forall w .
-        (Ord w, Rep w, Bits w, Size (W w), Integral (W w), Rep (W w), Size (W (W w))) => TestSeq -> String -> List w -> IO ()
+        (Ord w, Rep w, Show w, Bits w, Size (W w), Integral (W w), Rep (W w), Size (W (W w))) => TestSeq -> String -> List w -> IO ()
 testOpsBits2 test tyName ws = do
 	testOpsBits test tyName ws
 
@@ -344,9 +344,9 @@ testOpsBits2 test tyName ws = do
                 ] else []
           ]
 
-        let ws2 :: List (w,W w) 
+        let ws2 :: List (w,W w)
             ws2 = zip ws (cycle [0..maxBound])
-            
+
         sequence_
           [ testBinOp test (name ++ "/" ++ tyName)
 	    	      opr
@@ -354,7 +354,7 @@ testOpsBits2 test tyName ws = do
 		      ws2
 	  | TestIx name opr lavaOp <-
 		[ TestIx "testABit" (\ a b -> testBit a (fromIntegral b)) (testABit)
-                ] 
+                ]
           ]
 
         return ()

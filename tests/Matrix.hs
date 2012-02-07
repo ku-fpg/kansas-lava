@@ -20,7 +20,9 @@ tests test = do
                       Size w1,
                       Rep w2,
                       Rep w1,
+                      Eq w2,
                       Num w2,
+                      Show w2,
                       Integral w1) => String -> List (M.Matrix w1 w2) -> IO ()
 	    t1 str arb = testMatrix1 test str arb
 
@@ -32,7 +34,9 @@ tests test = do
                       Size w1,
                       Rep w2,
                       Rep w1,
+                      Eq w2,
                       Num w2,
+                      Show w2,
                       Integral w1) => String -> List (M.Matrix w1 w2) -> IO ()
 	    t2 str arb = testMatrix2 test str arb
 
@@ -68,7 +72,7 @@ testMatrix1 (TestSeq test _) tyName ws = do
                 outStdLogicVector "o0" o0
             res = toS [ sum $ M.toList m | m <- ms ] :: Seq w2
 
-        test ("matrix/1/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
+        test ("matrix/1/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
 
 testMatrix2 :: forall w1 w2 .
                ( Integral w1, Size w1, Eq w1, Rep w1
@@ -91,7 +95,7 @@ testMatrix2 (TestSeq test _) tyName ws = do
                 outStdLogicVector "o0" o0
             res = toS [ m | m <- ms ] :: Seq (M.Matrix w1 w2)
 
-        test ("matrix/2/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
+        test ("matrix/2/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
 
 
 testMatrix3 :: forall w1 .
@@ -115,4 +119,4 @@ testMatrix3 (TestSeq test _) tyName ws = do
                 outStdLogicVector "o0" o0
             res = toS [ m | m <- ms ] :: Seq (Enabled w1)
 
-        test ("matrix/3/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res) 
+        test ("matrix/3/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
