@@ -18,6 +18,12 @@ Copyright:           (c) 2009-2011 The University of Kansas
 Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
 Stability:           alpha
 build-type:          Simple
+--
+-- should be >= 1.12, but that will force
+-- people to ghc 7.4. Don't try to run
+-- 'cabal haddock' with 1.10.
+-- TODO: change this when everyone on 7.4
+--
 Cabal-Version:       >= 1.10
 Data-files:
    Prelude/VHDL/*.vhd,
@@ -107,29 +113,16 @@ Executable kansas-lava-unittest
       buildable: True
       Build-Depends:
         base >= 4 && < 5,
-        dotgen >= 0.4.1,
-        containers,
         sized-types >= 0.3.5,
-        mtl >= 2.0,
         data-default,
-        random,
-        strict,
-        filepath,
-        directory,
-        cmdargs >= 0.8,
-        process,
-        netlist >= 0.3.1,
-        netlist-to-vhdl >= 0.3.1,
-        template-haskell,
-        bytestring,
-        data-reify >= 0.6
+        kansas-lava
       Other-modules:
          Coerce Matrix Memory Others Protocols Regression
     else
       Build-depends: base
       buildable: False
     Main-Is:        Main.hs
-    Hs-Source-Dirs: tests, .
+    Hs-Source-Dirs: tests
     Ghc-Options: -Wall
                  -fno-warn-orphans -fcontext-stack=256
                  -threaded -rtsopts
@@ -140,28 +133,13 @@ Executable kansas-lava-testreport
       buildable: True
       Build-Depends:
         base >= 4 && < 5,
-        dotgen >= 0.4.1,
-        containers,
-        sized-types >= 0.3.5,
-        mtl >= 2.0,
-        data-default,
-        random,
-        strict,
-        filepath,
-        directory,
-        cmdargs >= 0.8,
-        process,
-        netlist >= 0.3.1,
-        netlist-to-vhdl >= 0.3.1,
-        template-haskell,
-        bytestring,
-        data-reify >= 0.6
+        kansas-lava
       Other-modules:
     else
       Build-depends: base
       buildable: False
     Main-Is:        GenReport.hs
-    Hs-Source-Dirs:  tests, .
+    Hs-Source-Dirs:  tests
     Ghc-Options: -Wall  -fno-warn-incomplete-patterns
                  -fno-warn-orphans -fcontext-stack=256
     default-language:    Haskell2010
@@ -170,28 +148,13 @@ Executable kansas-lava-tbf2vcd
     if flag(tools) || flag(all)
       Build-Depends:
         base >= 4 && < 5,
-        dotgen >= 0.4.1,
-        containers,
-        sized-types >= 0.3.5,
-        mtl >= 2.0,
-        data-default,
-        random,
-        strict,
-        filepath,
-        directory,
-        cmdargs >= 0.8,
-        process,
-        netlist >= 0.3.1,
-        netlist-to-vhdl >= 0.3.1,
-        template-haskell,
-        bytestring,
-        data-reify >= 0.6
+        kansas-lava
       buildable: True
     else
       Build-depends: base
       buildable: False
     Main-Is:        TBF2VCD.hs
-    Hs-Source-Dirs: tools, .
+    Hs-Source-Dirs: tools
     Ghc-Options: -Wall  -fno-warn-orphans
     default-language:    Haskell2010
 
