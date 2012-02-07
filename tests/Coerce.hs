@@ -14,7 +14,7 @@ type List a = [a]
 tests :: TestSeq -> IO ()
 tests test = do
 
-        let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Show w2, Rep w1, Size (W w1), Size (W w2)) =>
                   String -> Witness w2 -> List w1 -> IO ()
 
             t1 str witness arb = testUnsigned test str witness arb
@@ -59,7 +59,7 @@ tests test = do
         t1 "X5_X4" (Witness :: Witness X5) ((allCases :: List X4))
         t1 "X5_X5" (Witness :: Witness X5) ((allCases :: List X5))
 
-        let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Show w2, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
                   String -> Witness w2 -> List w1 -> IO ()
             t2 str witness arb = testSigned test str witness arb
 

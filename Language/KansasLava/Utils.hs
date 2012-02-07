@@ -428,10 +428,10 @@ iterateS f start = out where
 ---------------------------------------------------------------------
 
 -- These varients of succ/pred can handle bounded values and do proper looping.
-loopingIncS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
+loopingIncS :: (Bounded a, Eq a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
 loopingIncS a = mux (a .==. maxBound) (a + 1, pureS 0)
 
-loopingDecS :: (Bounded a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
+loopingDecS :: (Bounded a, Eq a, Num a, Rep a, sig ~ Signal i) => sig a -> sig a
 loopingDecS a = mux (a .==. 0) (a - 1, pureS maxBound)
 
 ---------------------------------------------------------------------

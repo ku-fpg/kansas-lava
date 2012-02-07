@@ -41,7 +41,7 @@ class ToTypedExpr v where
   -- | Given a type and a value, convert it to a netlist Expr.
   toTypedExpr :: Type -> v -> Expr
 
-instance (Integral a) => ToTypedExpr (Driver a) where
+instance (Integral a, Show a) => ToTypedExpr (Driver a) where
 	-- From a std_logic* into a typed Expr
 	toTypedExpr ty (Lit n)     = toTypedExpr ty n
 	toTypedExpr ty (Generic n) = toTypedExpr ty n
@@ -75,11 +75,11 @@ fromIntegerToExpr t i =
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
 	-- NOTE: We use Integer here as a natural, and assume overflow
-	toTypedExpr (S n) r = ExprFunCall "to_signed" 
+	toTypedExpr (S n) r = ExprFunCall "to_signed"
 	                        [ ExprLit Nothing $ ExprNum $ fromRepToInteger r
 	                        , ExprLit Nothing $ ExprNum $ fromIntegral n
 	                        ]
-	toTypedExpr (U n) r = ExprFunCall "to_unsigned" 
+	toTypedExpr (U n) r = ExprFunCall "to_unsigned"
 	                        [ ExprLit Nothing $ ExprNum $ fromRepToInteger r
 	                        , ExprLit Nothing $ ExprNum $ fromIntegral n
 	                        ]
@@ -98,7 +98,7 @@ class ToStdLogicExpr v where
 	toStdLogicEleExpr :: Int -> Type -> v -> Expr
 	toStdLogicEleExpr = error "toStdLogicEleExpr"
 
-instance (Integral a) => ToStdLogicExpr (Driver a) where
+instance (Integral a, Show a) => ToStdLogicExpr (Driver a) where
 	-- From a std_logic* (because you are a driver) into a std_logic.
         toStdLogicExpr ty _
           | typeWidth ty == 0        = ExprVar "\"\""
@@ -160,7 +160,7 @@ class ToIntegerExpr v where
   -- | Given  a type and a signal, generate the appropriate Netlist Expr.
   toIntegerExpr :: Type -> v -> Expr
 
-instance (Integral i) => ToIntegerExpr (Driver i) where
+instance (Integral i, Show i) => ToIntegerExpr (Driver i) where
         -- can assume a small (shift-by) number
   toIntegerExpr _ (Lit v)      = ExprLit Nothing $ ExprNum (fromRepToInteger v)
   toIntegerExpr GenericTy other = toTypedExpr GenericTy other -- HACK
@@ -240,7 +240,7 @@ isHigh (ExprLit Nothing (ExprBit T)) = ExprVar "true"
 isHigh d = ExprBinary Equals d (ExprLit Nothing (ExprBit T))
 
 -- | Convert a driver to an Expr to be used as a memory address.
-toMemIndex :: Integral t => Type -> Driver t -> Expr
+toMemIndex :: (Integral t, Show t) => Type -> Driver t -> Expr
 toMemIndex ty _ | typeWidth ty == 0 = ExprLit Nothing (ExprNum 0)
 toMemIndex _ (Lit n) = ExprLit Nothing $ ExprNum $ fromRepToInteger n
 toMemIndex ty dr = to_integer $ unsigned $ toStdLogicExpr ty dr
