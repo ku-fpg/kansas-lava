@@ -26,6 +26,7 @@ module Language.KansasLava.Types (
         -- * RepValue
         , RepValue(..)
         , showRepValue
+        , showPackedRepValue
         , appendRepValue
         , isValidRepValue
         , getValidRepValue
@@ -368,13 +369,17 @@ newtype RepValue = RepValue { unRepValue :: [Maybe Bool] }
         deriving (Eq, Ord)
 
 instance Show RepValue where
-        show (RepValue vals) = "0b" ++
-				[ case v of
-                                   Nothing   -> 'X'
-                                   Just True  -> '1'
-                                   Just False -> '0'
-                               | v <- reverse vals
-                               ]
+        show val = "0b" ++ showPackedRepValue val
+
+showPackedRepValue :: RepValue -> String
+showPackedRepValue (RepValue vals) =
+        [ case v of
+           Nothing   -> 'X'
+           Just True  -> '1'
+           Just False -> '0'
+        | v <- reverse vals
+        ]
+
 
 instance Read RepValue where
         readsPrec _ ('0':'b':xs)
@@ -391,14 +396,14 @@ instance Read RepValue where
 	readsPrec _ other = error $ "Can't read RepValue " ++ show other
 
 showRepValue :: Type -> RepValue -> String
-showRepValue (TupleTy tys) (RepValue vals) = 
+showRepValue (TupleTy tys) (RepValue vals) =
         "(" ++ concat [ sep ++ showRepValue ty (RepValue (take (typeWidth ty) (drop len vals)))
                       | (ty,len,sep) <- zip3 tys lens' ("" : repeat ",")
                       ] ++ ")"
   where
           lens = map typeWidth tys
           lens' = 0 : zipWith (+) lens' lens
-showRepValue (MatrixTy i ty) (RepValue vals) = 
+showRepValue (MatrixTy i ty) (RepValue vals) =
         "[" ++ concat [ sep ++ showRepValue ty (RepValue (take (typeWidth ty) (drop len vals)))
                       | (len,sep) <- take i $ zip lens' ("" : repeat ",")
                       ] ++ "]"
@@ -428,12 +433,12 @@ showRepValue ty repValue | isValidRepValue repValue = case ty of
                          ]
 
           signed_number :: Integer
-          signed_number = sum 
+          signed_number = sum
                          [ n
                          | (n,True) <- zip (iterate (*2) 1) (init vals)
                          ] * if last vals then (-1) else 1
-                  
-                        
+
+
 -- Show the structure if there are *any* value bits.
 showRepValue _ty repValue@(RepValue xs)
         | any isJust xs = show repValue
