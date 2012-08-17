@@ -22,6 +22,10 @@ import Language.KansasLava.Rep
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
+import Control.Concurrent.STM
+import Control.Concurrent
+import System.IO.Unsafe
+
 -----------------------------------------------------------------------------------------------
 
 -- | These are sequences of values over time.
@@ -70,7 +74,7 @@ undefinedS ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
 undefinedS = Signal (pure $ (unknownX :: X a))
 		    (D $ Lit $ toRep (unknownX :: X a))
 
--- | Create a Signal which has every value as 0. Use 'undefinedS' 
+-- | Create a Signal which has every value as 0. Use 'undefinedS'
 -- where posssible.
 zeroS :: forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
 zeroS = Signal (pure $ (zeroX :: X a))
@@ -84,13 +88,33 @@ commentS msg = idS (Comment [msg])
 widthS :: forall a .  (Rep a) => Seq a -> Int
 widthS _ = repWidth (Witness :: Witness a)
 
+writeTMVarS :: Signal i a -> TMVar (X a) -> IO ()
+writeTMVarS sig v = do
+        forkIO $ loop (shallowS sig)
+        return ()
+  where
+          loop (Cons x r) = do
+                atomically $ putTMVar v x
+                case r of
+                  Nothing -> loop (Cons x r)
+                  Just xs -> loop xs
+
+readTMVarS :: (Clock i) => TMVar (X a) -> IO (Signal i a)
+readTMVarS v = do
+        let loop = unsafeInterleaveIO $ do
+                x <- atomically $ takeTMVar v
+                xs <- loop
+                return $ Cons x (Just xs)
+        xs <- loop
+        return (mkShallowS xs)
+
 -----------------------------------------------------------------------
 -- primitive builders
 
 -- | 'idS' create an identity function, with a given 'Id' tag.
 
 idS :: forall a sig clk . (Rep a, sig ~ Signal clk) => Id -> sig a -> sig a
-idS id' (Signal a ae) = Signal a $ D $ Port "o0" $ E 
+idS id' (Signal a ae) = Signal a $ D $ Port "o0" $ E
                      $ Entity id'
                          [("o0",repType (Witness :: Witness a))]
                          [("i0",repType (Witness :: Witness a),unD $ ae)]
@@ -105,8 +129,8 @@ primXS1 f nm (Signal a1 ae1) = Signal (fmap f a1) (entityD1 nm  ae1)
 
 -- | create an arity-2  Signal function from an 'X' function.
 primXS2 :: forall a b c i . (Rep a, Rep b, Rep c) => (X a -> X b -> X c) -> String -> Signal i a -> Signal i b ->  Signal i c
-primXS2 f nm (Signal a1 ae1) (Signal a2 ae2) 
-        = Signal (S.zipWith f a1 a2) 
+primXS2 f nm (Signal a1 ae1) (Signal a2 ae2)
+        = Signal (S.zipWith f a1 a2)
               (entityD2 nm ae1 ae2)
 
 -- | create an arity-3 Signal function from an 'X' function.
@@ -241,7 +265,7 @@ instance Dual (Signal c a) where
     dual c d = Signal (shallowS c) (deepS d)
 
 -- | Return the Lava type of a representable signal.
-typeOfS :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type 
+typeOfS :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type
 typeOfS _ = repType (Witness :: Witness w)
 
 -- | The Pack class allows us to move between signals containing compound data
@@ -265,8 +289,8 @@ mapPacked :: (Pack i a, Pack i b, sig ~ Signal i) => (Unpacked i a -> Unpacked i
 mapPacked f = pack . f . unpack
 
 -- | Lift a binary function operating over unpacked signals into a function over a pair of packed signals.
-zipPacked :: (Pack i a, Pack i b, Pack i c, sig ~ Signal i) 
-          => (Unpacked i a -> Unpacked i b -> Unpacked i c) 
+zipPacked :: (Pack i a, Pack i b, Pack i c, sig ~ Signal i)
+          => (Unpacked i a -> Unpacked i b -> Unpacked i c)
           -> sig a -> sig b -> sig c
 zipPacked f x y = pack $ f (unpack x) (unpack y)
 
@@ -345,9 +369,9 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                         $ m                     -- Matrix ix (sig a)
 
                 deep :: D (Matrix ix a)
-                deep = D 
-                     $ Port "o0" 
-                     $ E 
+                deep = D
+                     $ Port "o0"
+                     $ E
                      $ Entity (Prim "concat")
                                  [("o0",repType (Witness :: Witness (Matrix ix a)))]
                                  [ ("i" ++ show i,repType (Witness :: Witness a),unD $ deepS $ x)
@@ -355,13 +379,13 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                                  ]
 
         unpack ms = forAll $ \ i -> Signal (shallow i) (deep i)
-        
+
 	   where mx :: (Size ix) => Matrix ix Integer
 		 mx = matrix (Prelude.zipWith (\ _ b -> b) (M.indices mx) [0..])
 
-                 deep i = D 
-                        $ Port "o0" 
-                        $ E 
+                 deep i = D
+                        $ Port "o0"
+                        $ E
                         $ Entity (Prim "index")
                                  [("o0",repType (Witness :: Witness a))]
                                  [("i0",GenericTy,Generic (mx ! i))
@@ -424,22 +448,22 @@ registers n def ss = iterate (register def) ss !! n
 
 
 entityD :: forall a . (Rep a) => String -> D a
-entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+entityD nm = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
                                                   []
 
 entityD1 :: forall a1 a . (Rep a, Rep a1) => String -> D a1 -> D a
-entityD1 nm (D a1) 
-        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))] 
+entityD1 nm (D a1)
+        = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
                                                [("i0",repType (Witness :: Witness a1),a1)]
 
 entityD2 :: forall a1 a2 a . (Rep a, Rep a1, Rep a2) => String -> D a1 -> D a2 -> D a
-entityD2 nm (D a1) (D a2) 
+entityD2 nm (D a1) (D a2)
         = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
                                                [("i0",repType (Witness :: Witness a1),a1)
                                                ,("i1",repType (Witness :: Witness a2),a2)]
-                                               
+
 entityD3 :: forall a1 a2 a3 a . (Rep a, Rep a1, Rep a2, Rep a3) => String -> D a1 -> D a2 -> D a3 -> D a
-entityD3 nm (D a1) (D a2) (D a3) 
+entityD3 nm (D a1) (D a2) (D a3)
         = D $ Port "o0" $ E $ Entity (Prim nm) [("o0",repType (Witness :: Witness a))]
                                                [("i0",repType (Witness :: Witness a1),a1)
                                                ,("i1",repType (Witness :: Witness a2),a2)
