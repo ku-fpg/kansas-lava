@@ -6,7 +6,7 @@
 -- some static width, as they will be synthsized to a collection of hardware
 -- wires. Second, a value represented by a signal may be unknown, in part or in
 -- whole.
-module Language.KansasLava.Rep 
+module Language.KansasLava.Rep
 	( module Language.KansasLava.Rep
 	, module Language.KansasLava.Rep.TH
 	, module Language.KansasLava.Rep.Class
@@ -71,9 +71,10 @@ instance Rep () where
     optX Nothing    = XUnit $ fail "Wire ()"
     unX (XUnit (Just v))  = return v
     unX (XUnit Nothing) = fail "Wire ()"
-    repType _  = V 0  
-    toRep _ = RepValue []
-    fromRep _ = XUnit $ return ()
+    repType _  = V 0
+    toRep (XUnit (Just ())) = RepValue []
+    toRep (XUnit Nothing) = RepValue []
+    fromRep (RepValue []) = XUnit $ return ()
     showRep _ = "()"
 
 -- | Integers are unbounded in size. We use the type 'IntegerWidth' as the
@@ -100,7 +101,7 @@ instance (Integral ix, Size ix) => Rep (Message ix) where
     unX (XMessage v)               = fmap Message v
     repType _                      = MatrixTy (size (error "witness" :: ix)) (U 8)
     toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Matrix ix (X U8))
-    toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i -> 
+    toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i ->
                                                 if fromIntegral i < Prelude.length m
                                                 then optX (Just $ fromIntegral $ ord $ (m !! (fromIntegral i)))
                                                 else optX (Just 0)) :: Matrix ix (X U8))
@@ -112,11 +113,11 @@ instance (Integral ix, Size ix) => Rep (Message ix) where
             vals :: [U8]
             vals = [ x | Just x <- map unX (M.toList m) ]
             len = foldr min (Prelude.length vals) [ i | (0,i) <- zip vals [0..]]
-            msg = take len 
-                [ chr (fromIntegral val) 
+            msg = take len
+                [ chr (fromIntegral val)
                 | val <- vals
                 ]
-            okay = Prelude.all 
+            okay = Prelude.all
                       (\ a -> case a of
                                 Nothing -> False
                                 Just {} -> True) xs
@@ -214,7 +215,7 @@ instance (Rep a) => Rep (Maybe a) where
     unX (XMaybe (a,b)) = case unX a :: Maybe Bool of
                 Nothing    -> Nothing
                 Just True  -> case unX b of
-                                Nothing -> Nothing 
+                                Nothing -> Nothing
                                 Just v -> Just (Just v)
                 Just False -> Just Nothing
     repType _  = TupleTy [ B, repType (Witness :: Witness a)]
@@ -222,7 +223,7 @@ instance (Rep a) => Rep (Maybe a) where
     toRep (XMaybe (a,b)) = RepValue (avals ++ bvals)
         where (RepValue avals) = toRep a
               (RepValue bvals) = toRep b
-    fromRep (RepValue vs) = XMaybe 
+    fromRep (RepValue vs) = XMaybe
                   ( fromRep (RepValue (take 1 vs))
                   , fromRep (RepValue (drop 1 vs))
                   )
@@ -280,7 +281,7 @@ instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
     optX Nothing  = XFunction $ const $ unknownX
 
-    unX (XFunction f) = return (\ a -> 
+    unX (XFunction f) = return (\ a ->
         let fromJust' (Just x) = x
             fromJust' _ = error $ show ("X",repType (Witness :: Witness (ix -> a)), showRep (optX (Just a) :: X ix))
         in (fromJust' . unX . f) a)
@@ -304,9 +305,9 @@ apX (XFunction f) a = f a
 
 -- The apX-1 function. Useful when building applicative functor style things
 -- on top of 'X'.
-unapX :: (Rep a, Rep b) => (X a -> X b) -> X (a -> b) 
+unapX :: (Rep a, Rep b) => (X a -> X b) -> X (a -> b)
 unapX f = XFunction f
--} 
+-}
 
 -----------------------------------------------------------------------------
 
