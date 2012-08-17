@@ -504,21 +504,4 @@ data EntityClock = EntityClock (Driver Unique)
 
 ---------------------------------------------------------------------------------
 
-newtype ExternalStdLogicVector x = ExternalStdLogicVector RepValue
-        deriving Show
 
-instance (Size ix) => Rep (ExternalStdLogicVector ix) where
-    type W (ExternalStdLogicVector ix) = ix
-    data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (ExternalStdLogicVector ix)
-
-    optX (Just b)       = XExternalStdLogicVector $ b
-    optX Nothing        = XExternalStdLogicVector 
-                        $ ExternalStdLogicVector
-                        $ RepValue
-                        $ replicate (size (error "Rep/ExternalStdLogicVector" :: ix)) Nothing
-    unX (XExternalStdLogicVector a) = return a
-    
-    repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
-    toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
-    fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
-    showRep = showRepDefault

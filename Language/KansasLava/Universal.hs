@@ -1,13 +1,18 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies #-}
 
 module Language.KansasLava.Universal where
+
+import Data.Sized.Ix
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 
--- 'Uni' is a universal signal. Called Pad for now. 
+import qualified Language.KansasLava.Stream as S
+
+
+-- 'Uni' is a universal signal. Called Pad for now.
 -- TODO: rename as Pad.
 
 data Pad = StdLogic (Seq Bool)
@@ -40,9 +45,9 @@ toUni :: (Rep a) => Seq a -> Pad
 toUni = StdLogicVector
 
 fromUni :: forall a . (Rep a) => Pad -> Maybe (Seq a)
-fromUni (StdLogicVector sig) 
+fromUni (StdLogicVector sig)
         | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
-fromUni (StdLogic sig) 
+fromUni (StdLogic sig)
         | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
 fromUni _ = Nothing
 
@@ -50,3 +55,28 @@ fromUni' :: forall a . (Rep a) => Pad -> Seq a
 fromUni' a = case fromUni a of
                Nothing -> error "fromUni' failed"
                Just x  -> x
+
+--------------------------------------------------
+newtype ExternalStdLogicVector x = ExternalStdLogicVector RepValue
+        deriving Show
+
+instance (Size ix) => Rep (ExternalStdLogicVector ix) where
+    type W (ExternalStdLogicVector ix) = ix
+    data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (ExternalStdLogicVector ix)
+
+    optX (Just b)       = XExternalStdLogicVector $ b
+    optX Nothing        = XExternalStdLogicVector
+                        $ ExternalStdLogicVector
+                        $ RepValue
+                        $ replicate (size (error "Rep/ExternalStdLogicVector" :: ix)) Nothing
+    unX (XExternalStdLogicVector a) = return a
+
+    repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
+    toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
+    fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
+    showRep = showRepDefault
+
+padToRepValues :: Pad -> [RepValue]
+padToRepValues (StdLogic s) = S.toList $ fmap toRep $ shallowS s
+padToRepValues (StdLogicVector s) = S.toList $ fmap toRep $ shallowS s
+padToRepValues other = error $ "can not find RepValue for " ++ show other
