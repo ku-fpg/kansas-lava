@@ -27,6 +27,7 @@ module Language.KansasLava.Types (
         , RepValue(..)
         , showRepValue
         , showPackedRepValue
+        , readPackedRepValue
         , appendRepValue
         , isValidRepValue
         , getValidRepValue
@@ -380,6 +381,18 @@ showPackedRepValue (RepValue vals) =
         | v <- reverse vals
         ]
 
+
+readPackedRepValue :: String -> Maybe RepValue
+readPackedRepValue xs | L.all (`elem` "01XU") xs
+        = Just
+        $ RepValue
+        $ map (\ c -> case c of
+                        'X' -> Nothing
+                        'U' -> Nothing
+                        '0' -> Just False
+                        '1' -> Just True)
+        $ xs
+readPackedRepValue _ = Nothing
 
 instance Read RepValue where
         readsPrec _ ('0':'b':xs)
