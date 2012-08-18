@@ -22,6 +22,9 @@ module Language.KansasLava.Fabric
         , runFabricWithResult
         , runFabricWithDriver
         , writeFabric
+        , hWriteFabric
+        , readFabric
+        , hReadFabric
         , fabricAPI
         , traceFabric
         ) where
@@ -225,7 +228,56 @@ hWriteFabric h (Fabric f) = do
 
         return ()
 
+readFabric :: String -> Fabric a -> IO a
+readFabric str f =
+        hReadFabric stdin f
 
+hReadFabric :: Handle -> Fabric a -> IO a
+hReadFabric h (Fabric f) = do
+        -- lazy read
+        str <- hGetContents h
+        let (a,out,_) = f out'
+
+            widths :: [Int]
+            widths = id
+                 $ map (typeWidth . fromStdLogicType)
+                   -- [StdLogicType]
+                 $ map padStdLogicType
+                   -- [Pad]
+                 $ map snd out
+
+            poss :: [(Int,Int)]
+            poss = zip (0 : [ x + y | (x,y) <- poss ])
+                       widths
+
+            strs :: [[String]]
+            strs = [ [ take w $ drop n $ s
+                     | (n,w) <- poss
+                     ]
+                   | s <- lines str
+                   ]
+
+            readALine :: [String] -> [RepValue]
+            readALine ln =
+                     [ case readPackedRepValue s' of
+                         Nothing -> error "bad input value for hReadFabric"
+                         Just v  -> v
+                     | s' <- ln
+                     ]
+
+            vals :: [[RepValue]]
+            vals = transpose
+                 $ map readALine strs
+
+            out' :: [(String,Pad)]
+            out' = [ (nm, repValuesToPad pad val)
+                   | ((nm,pad),val) <- out `zip` vals
+                   ]
+
+        print widths
+        print poss
+
+        return $ a
 
 ------------------------------------------------------------------------------
 
