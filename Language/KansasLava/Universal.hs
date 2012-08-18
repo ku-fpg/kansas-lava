@@ -76,7 +76,22 @@ instance (Size ix) => Rep (ExternalStdLogicVector ix) where
     fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
     showRep = showRepDefault
 
+-- TODO: should be Stream
 padToRepValues :: Pad -> [RepValue]
-padToRepValues (StdLogic s) = S.toList $ fmap toRep $ shallowS s
-padToRepValues (StdLogicVector s) = S.toList $ fmap toRep $ shallowS s
-padToRepValues other = error $ "can not find RepValue for " ++ show other
+padToRepValues (StdLogic s)             = S.toList $ fmap toRep $ shallowS s
+padToRepValues (StdLogicVector s)       = S.toList $ fmap toRep $ shallowS s
+padToRepValues other                    = error $ "can not find RepValue for " ++ show other
+
+repValuesToPad :: Pad -> [RepValue] -> Pad
+repValuesToPad (StdLogic s) rep         = StdLogic (padToPad s rep)
+repValuesToPad (StdLogicVector s) rep   = StdLogicVector (padToPad s rep)
+repValuesToPad other _ = error $ "can not find Pad for " ++ show other
+
+-- internal
+padToPad :: forall a . (Rep a) => Seq a -> [RepValue] -> Seq a
+padToPad s rep = id
+        $ mkShallowS
+        $ fmap fromRep
+        $ S.fromList
+        $ rep
+
