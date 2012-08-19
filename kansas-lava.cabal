@@ -55,6 +55,7 @@ Library
         random,
         strict,
         stm >= 2.2,
+        transformers >= 0.2.2,
         filepath,
         directory,
         cmdargs >= 0.8,
