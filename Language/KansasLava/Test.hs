@@ -53,6 +53,7 @@ import Data.Sized.Ix
 --import System.Random
 
 import qualified Language.KansasLava.Stream as S
+import Language.KansasLava.Universal
 
 
 -------------------------------------------------------------------------------------
@@ -123,10 +124,10 @@ testFabrics opts simMods name count f_dut f_expected
         verb 2 $ "testing(" ++ show count ++ ")"
 
         let inp :: [(String,Pad)]
-            (expected_fn,inp) = runFabric f_expected shallow
+            Pure (expected_fn,inp) = runFabric f_expected shallow
 
             shallow :: [(String,Pad)]
-            (_,shallow) = runFabric f_dut inp
+            Pure (_,shallow) = runFabric f_dut inp
 
             expected = expected_fn count
 

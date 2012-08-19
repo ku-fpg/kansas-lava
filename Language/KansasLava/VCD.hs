@@ -28,6 +28,8 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Internal
+import Language.KansasLava.Universal
+
 import qualified Language.KansasLava.VCD.EventList as E
 
 import qualified Language.KansasLava.Stream as S
@@ -265,7 +267,7 @@ mkVCDCM :: Int               -- ^ number of cycles to capture
 mkVCDCM c fabric input circuitMod = do
     rc <- (reifyFabric >=> circuitMod) fabric
 
-    let (_,output) = runFabric fabric input
+    let Pure (_,output) = runFabric fabric input
         tr = VCD $ [ ("inputs/" ++ nm, padToVC c p)
                    | (nm,_) <- theSrcs rc
                    , (nm',p) <- input

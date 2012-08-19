@@ -64,18 +64,18 @@ data WakarusaState = WakarusaState
         , ws_mem_writes :: Map Uniq Pad
           -- ^ (untyped) write assignments, chained into a single Seq (Enabled (ix,a)).
 
-        , ws_mem_reads :: Map Uniq Pad 
+        , ws_mem_reads :: Map Uniq Pad
           -- ^ (untyped) read assignments, chained into a single Seq (Enabled ix)
 
 
         ----------------------------------------------------------
         -- Control flow
 
-        , ws_pc       :: PC             -- ^ The PC 
+        , ws_pc       :: PC             -- ^ The PC
         , ws_labels   :: Map LABEL PC   -- where the labels goto
                                         -- (note that labels do not cross threads,
                                         -- the PC is just an index)
-                                                
+
         , ws_pcs      :: [(PC,TID,Pred,LABEL)]
                         -- if conditional holds, then jump to the given label
 
@@ -86,7 +86,7 @@ data WakarusaState = WakarusaState
 
         ----------------------------------------------------------
         -- Global Threads
-        
+
         , ws_fork     :: [Uniq]           -- Your thread id is the number
                                           -- of your first label (always uniq)
 
@@ -116,11 +116,11 @@ data WritePortInfo
 -- Placeholder
 {-
 instance Show WakarusaState where
-        show (WakarusaState u regs assignments inputs pc _ pcs) = 
+        show (WakarusaState u regs assignments inputs pc _ pcs) =
                 "uniq : " ++ show u ++ "\n" ++
                 "regs : " ++ show (fmap (const ()) regs) ++ "\n" ++
                 "assignments : " ++ show (fmap (const ()) assignments) ++ "\n" ++
-                "inputs : " ++ show (fmap (const ()) inputs) ++ "\n" ++                
+                "inputs : " ++ show (fmap (const ()) inputs) ++ "\n" ++
                 "pc : " ++ show pc ++ "\n" ++
                 "pcs : " ++ show (fmap (const ()) pcs)
 -}
@@ -128,7 +128,7 @@ instance Show WakarusaState where
 data WakarusaEnv = WakarusaEnv
         { we_reads    :: Map Uniq Pad           -- register output  (2nd pass)
 
-        , we_mem_reads :: Map Uniq Pad          -- 
+        , we_mem_reads :: Map Uniq Pad          --
 
 
         , we_preds  :: Map Uniq (Seq Bool)
@@ -136,7 +136,7 @@ data WakarusaEnv = WakarusaEnv
         , we_pcs      :: Map (PC,TID) (Seq Bool)
                 -- ^ is this instruction being executed right now?
         , we_pidtable :: Map PC Int     -- Map PC to Pid
-                
+
         , we_pp       :: Pass        -- which version of the syntax should be printed?
         , we_pp_scope :: Int         -- depth when pretty printing
 
@@ -152,7 +152,7 @@ data Pass
 
 data PrettyScope = InPred | InPar
   deriving Show
-        
+
 ------------------------------------------------------------------------------
 
 type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
@@ -174,7 +174,7 @@ data SlotStatus = SlotStatus
 ------------------------------------------------------------------------------
 -- Quick AST for Pred. Later will allow some sort of pretty printer
 
-data Pred = LitPred Bool         
+data Pred = LitPred Bool
           | Pred Uniq
           | NotPred Pred
           | AndPred Pred Pred    --  i & p
@@ -201,7 +201,7 @@ andPred p1 p2 = AndPred p1 p2
 -- attempt to simplify the or.
 orPred :: Pred -> Pred -> Pred
 orPred (LitPred b1) (LitPred b2) = LitPred (b1 || b2)
-orPred (AndPred (NotPred p1) p2) (AndPred p3 p4) 
+orPred (AndPred (NotPred p1) p2) (AndPred p3 p4)
    | p1 == p3 = orPred p2 p4
 orPred p1 p2 = {- trace (show ("ordPred",p1,p2)) $ -} OrPred p1 p2
 
@@ -209,8 +209,8 @@ fromPred :: Pred -> Map Uniq (Seq Bool) -> Seq Bool
 fromPred (LitPred p)      _ = pureS p
 fromPred (Pred u1)       mp = mp ! u1
 fromPred (NotPred p)     mp = bitNot (fromPred p mp)
-fromPred (AndPred p1 p2) mp = fromPred p1 mp .&&. fromPred p2 mp 
-fromPred (OrPred p1 p2)  mp = fromPred p1 mp .||. fromPred p2 mp 
+fromPred (AndPred p1 p2) mp = fromPred p1 mp .&&. fromPred p2 mp
+fromPred (OrPred p1 p2)  mp = fromPred p1 mp .||. fromPred p2 mp
 
 ------------------------------------------------------------------------------
 -- Uniq names; simple enought generator
@@ -221,7 +221,7 @@ getUniq = do
         let u = ws_uniq st + 1
         put $ st { ws_uniq = u }
         return u
-        
+
 
 ------------------------------------------------------------------------------
 -- Allocate predicates
@@ -235,7 +235,7 @@ newPred p = do
 ------------------------------------------------------------------------------
 -- Concerning the allocation of PC to instructions
 
-getPC :: WakarusaComp (PC,TID)         -- PC  & 
+getPC :: WakarusaComp (PC,TID)         -- PC  &
 getPC = do
         st <- get
         env <- ask
@@ -245,26 +245,26 @@ getPC = do
                   -- Perhaps mark we need this predicate
 --                  modify $ \ st -> st { ... = }
                   modify $ \ st ->
-                             st { ws_pc_locations = 
+                             st { ws_pc_locations =
                                            Map.insertWith max tid (ws_pc st) (ws_pc_locations st)
                                       }
                   return (ws_pc st, tid)
-        
+
 recordJump :: LABEL -> WakarusaComp ()
 recordJump lab =  do
         (pc,tid) <- getPC
         st <- get
-        -- Does not use getPred here, because we 
+        -- Does not use getPred here, because we
         -- want to store the partial result; the PC stores the other part of the condition
         -- In this way, we might be able to analysis control flow  (AJG: unconvinsed)
-        modify (\ st -> st { ws_pcs = (pc,tid,ws_pred st,lab) : ws_pcs st 
+        modify (\ st -> st { ws_pcs = (pc,tid,ws_pred st,lab) : ws_pcs st
                            , ws_pred = falsePred
                            })
         return ()
 
 resetInstSlot :: WakarusaComp ()
 resetInstSlot =  modify $ \ st -> st { ws_filled = SlotStatus False False  }
- 
+
 markInstSlot :: WakarusaComp ()
 markInstSlot = do
 
@@ -280,12 +280,12 @@ prepareInstSlot = do
         case ws_filled st of
           SlotStatus False False ->
                 return ()
-          SlotStatus False True  ->  
+          SlotStatus False True  ->
                 return ()
           SlotStatus True  False -> do
                 -- empty the slot by incrementing the PC
                 put $ st { ws_pc = ws_pc st + 1
-                         , ws_pred = truePred 
+                         , ws_pred = truePred
                          , ws_filled = SlotStatus False False
                          }
                 prettyPrintPC
@@ -295,13 +295,13 @@ prepareInstSlot = do
 prettyPrintPC = do
         st <- get
         env <- ask
-        prettyPrint (\ o -> "{pc = " ++ show (ws_pc st) ++ 
-                        if o >= Threaded 
+        prettyPrint (\ o -> "{pc = " ++ show (ws_pc st) ++
+                        if o >= Threaded
                         then case we_tid env of
                                 Nothing  -> ", pid = ??}"
                                 Just pid -> ", pid = " ++ show pid ++ "}"
                         else "}")
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
 
 parInstSlot :: WakarusaComp () -> WakarusaComp ()
 parInstSlot m = do
@@ -313,7 +313,7 @@ parInstSlot m = do
 
 newLabel :: LABEL -> WakarusaComp ()
 newLabel lab = do
-        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0) 
+        modify (\ st0 -> st0 { ws_labels = insert lab (ws_pc st0) (ws_labels st0)
                              , ws_pred = truePred  -- someone arrives here!
                               })
 
@@ -327,18 +327,18 @@ addChannel fn = do
                             }
         return k
   where
-          regInfo :: Uniq -> WritePortInfo 
-          regInfo k = WritePortInfo 
+          regInfo :: Uniq -> WritePortInfo
+          regInfo k = WritePortInfo
                 { ri_regs    = \ [p] -> mapMPad fn p >>= \ p' -> return [p']
                 , ri_read_ports = [k]
                 , ri_write_ports = [k]
                 }
 
--- This is primitive because we can *not* join the outputs; 
+-- This is primitive because we can *not* join the outputs;
 -- because of the timing / direction issues.
 
-addPatch :: forall a b c d 
-          . (Rep a, Rep b, Rep c, Rep d) 
+addPatch :: forall a b c d
+          . (Rep a, Rep b, Rep c, Rep d)
          => (Patch (Seq (Enabled a)) (Seq (Enabled b))
                    (Seq (Enabled c)) (Seq (Enabled d)))
          -> WakarusaComp (Uniq,Uniq,Uniq,Uniq)
@@ -349,15 +349,15 @@ addPatch p = do
         d <- getUniq
 
         modify $ \ st -> st { ws_regs = regInfo a b c d : ws_regs st
-                            , ws_assigns = 
+                            , ws_assigns =
                                   Map.insert a (toUni (disabledS :: Seq (Enabled a)))
                                 $ Map.insert d (toUni (disabledS :: Seq (Enabled d)))
                                 $ ws_assigns st
                             }
         return (a,b,c,d)
   where
-          regInfo :: Uniq -> Uniq -> Uniq -> Uniq -> WritePortInfo 
-          regInfo a b c d = WritePortInfo 
+          regInfo :: Uniq -> Uniq -> Uniq -> Uniq -> WritePortInfo
+          regInfo a b c d = WritePortInfo
                 { ri_regs    = \ [p1,p2] ->
                         let (p3,p4) = execP p (fromUni' p1,fromUni' p2)
                         in return [toUni p3,toUni p4]
@@ -370,14 +370,14 @@ addPatch p = do
 addGeneric :: (Fabric ())
            -> WakarusaComp ([Uniq],[Uniq])
 addGeneric f = do
-        let ((),ins,outs) = fabricAPI f
+        let Pure ((),ins,outs) = fabricAPI f
 --        () <- trace (show (ins,outs)) $ return ()
         in_uqs <- sequence [ getUniq | _ <- ins ]
         out_uqs <- sequence [ getUniq | _ <- outs]
 
-        let regInfo = WritePortInfo 
+        let regInfo = WritePortInfo
                 { ri_regs    = \ xs ->
-                        let ((),mp) = runFabric f (zip (fmap fst ins) xs)
+                        let Pure ((),mp) = runFabric f (zip (fmap fst ins) xs)
                         in return $
                            [ case Prelude.lookup nm mp of
                                 Nothing -> error $ "can not find " ++ show nm ++ " inside generic Fabric"
@@ -389,21 +389,21 @@ addGeneric f = do
                 }
         modify $ \ st -> st { ws_regs = regInfo : ws_regs st
                             , ws_assigns = union
-                                (Map.fromList 
+                                (Map.fromList
                                  [ (k,disabledPad pad)
                                  | (k,(p,pad)) <- in_uqs `zip` ins
                                  ]
                                 ) $ ws_assigns st
                             }
         return (in_uqs,out_uqs)
-{-        
+{-
         a <- getUniq
         b <- getUniq
         c <- getUniq
         d <- getUniq
 
         modify $ \ st -> st { ws_regs = regInfo a b c d : ws_regs st
-                            , ws_assigns = 
+                            , ws_assigns =
                                   Map.insert a (toUni (disabledS :: Seq (Enabled a)))
                                 $ Map.insert d (toUni (disabledS :: Seq (Enabled d)))
                                 $ ws_assigns st
@@ -418,7 +418,7 @@ addGeneric f = do
           -- a ~ Enabled b, but we can not see that, so we
           -- generate disabledS (Enabled b) using zeroS.
           undefinedOf :: (Rep a) => Seq a -> Seq a
-          undefinedOf _ = zeroS 
+          undefinedOf _ = zeroS
 
 -- Should be reg
 registerAction :: forall a . (Rep a) => REG a -> Seq Bool -> Seq a -> WakarusaComp ()
@@ -439,9 +439,9 @@ addMemory k Witness = do
           f :: Maybe (Maybe (Seq (Enabled (ix,a)))) -> Maybe (Maybe (Seq ix)) -> Seq a
           f Nothing _ = undefinedS
           f _ Nothing = undefinedS
-          f (Just (Just wt)) (Just (Just rd)) = asyncRead (writeMemory wt) rd 
+          f (Just (Just wt)) (Just (Just rd)) = asyncRead (writeMemory wt) rd
           f _ _ = error $ "internal type error with memory : " ++ show k
-          
+
 {-
 addInput :: forall a. (Rep a) => REG a -> Seq a -> WakarusaComp ()
 addInput (R k) inp = do
@@ -526,15 +526,15 @@ getMemRead k ix = do
 prettyPrint :: (Pass -> String) -> WakarusaComp ()
 prettyPrint fn = do
         env <- ask
-        modify $ \ st -> st { ws_pp = addText (fn $ we_pp env) (ws_pp st) } 
+        modify $ \ st -> st { ws_pp = addText (fn $ we_pp env) (ws_pp st) }
   where
           addText :: String -> [String] -> [String]
           addText txt []      = [txt]
           addText txt ([]:xs) = txt : xs
           addText txt (x:xs) | last x == '\n' = txt : x : xs
                              | otherwise      = (x ++ txt) : xs
-        
-        
+
+
 addPrettyScope :: Int -> WakarusaComp a -> WakarusaComp a
 addPrettyScope ps m = do
         env <- ask
@@ -605,12 +605,12 @@ mapMPad f p1 = g (fromUni p1)
           g (Just a) = do r <- f a
                           return (toUni r)
           g _        = fail "mapMPad, failed to coerce argument"
-          
+
 mapPad :: forall a b . (Rep a, Rep b) => (Seq a -> Seq b) -> Pad -> Pad
 mapPad f p1 = g (fromUni p1)
-  where 
+  where
           g (Just a) = toUni $ f a
-          g _        = error $ "mapPad, failed to coerce argument, found = " 
+          g _        = error $ "mapPad, failed to coerce argument, found = "
                                ++ show (padStdLogicType p1) ++ ", expecting = "
                                ++ show (padStdLogicType (toUni (error "witness" :: Seq a)))
 

@@ -1,12 +1,12 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
-    FlexibleContexts, UndecidableInstances, GADTs #-}
+    FlexibleContexts, UndecidableInstances, GADTs, DoRec #-}
 
 
 -- | The Fabric module is used for generating a top-level VHDL entity for a Lava
 -- circuit, with inputs and outputs.
 module Language.KansasLava.Fabric
-        ( Fabric(..)
+{-         ( Fabric(..)
         , Pad(..)
         , runFabric
         , inStdLogic
@@ -27,9 +27,11 @@ module Language.KansasLava.Fabric
         , hReadFabric
         , fabricAPI
         , traceFabric
-        ) where
+        ) where -} where
 
 import Control.Monad.Fix
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Control.Monad hiding (join)
 import Data.Sized.Ix
 import Data.List as L
@@ -44,6 +46,7 @@ import Control.Concurrent
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
+import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Universal
@@ -69,39 +72,66 @@ import Debug.Trace
 >                      sum_  = xor2 a b
 
 -}
+data SuperFabric m a = Fabric { unFabric :: [(String,Pad)] -> m (a,[(String,Pad)],[(String,Pad)]) }
+
 -- | A Fabric consists of a list of input ports, and yields a list of output
 -- ports and generics.
-data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
+type Fabric = SuperFabric Pure -- Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
 
-instance Functor Fabric where
+data Pure a = Pure { runPure :: a }
+
+instance Functor Pure where
+        fmap f (Pure a) = Pure (f a)
+
+instance Monad Pure where
+        return a = Pure a
+        (Pure a) >>= k = k a
+
+instance MonadFix Pure where
+        mfix f = Pure $ let Pure x = f x in x
+
+instance MonadFix m => Functor (SuperFabric m) where
         fmap f fab = fab >>= \ a -> return (f a)
 
-instance Monad Fabric where
-        return a = Fabric $ \ _ -> (a,[],[])
-        (Fabric f) >>= k = Fabric $ \ ins -> let
-                          (a,in_names,outs) = f ins
-                          (r,in_names',outs') = unFabric (k a) ins
-                       in (r,in_names ++ in_names',outs ++ outs')
+instance MonadFix m => Monad (SuperFabric m) where
+        return a = Fabric $ \ _ -> return (a,[],[])
+        (Fabric f) >>= k = Fabric $ \ ins -> do
+                          (a,in_names,outs) <- f ins
+                          (r,in_names',outs') <- unFabric (k a) ins
+                          return (r,in_names ++ in_names',outs ++ outs')
 
-instance MonadFix Fabric where
-        mfix f = Fabric $ \ env -> let (a,in_names,outs) = unFabric (f a) env
-                                   in (a,in_names,outs)
+instance MonadFix m => MonadFix (SuperFabric m) where
+        mfix f = Fabric $ \ env -> do rec (a,in_names,outs) <- unFabric (f a) env
+                                      return (a,in_names,outs)
 
+instance MonadIO (SuperFabric IO) where
+        liftIO = lift
+
+instance MonadTrans SuperFabric where
+        lift m = Fabric $ \ _ -> do
+                r <- m
+                return (r,[],[])
+
+ioFabric :: SuperFabric Pure a -> SuperFabric IO a
+ioFabric (Fabric f) = Fabric $ \ inp -> do
+        let Pure x = f inp
+        return x
 
 -- | Generate a named input port.
-input :: String -> Pad -> Fabric Pad
-input nm deepPad = Fabric $ \ ins ->
+input :: (MonadFix m) => String -> Pad -> SuperFabric m Pad
+input nm deepPad = Fabric $ \ ins -> do
         let p = case lookup nm ins of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
-        in (p,[(nm,deepPad)],[])
+        return (p,[(nm,deepPad)],[])
 
 -- | Generate a named output port.
-output :: String -> Pad -> Fabric ()
-output nm pad = Fabric $ \ _ins -> ((),[],[(nm,pad)])
+output :: (MonadFix m) => String -> Pad -> SuperFabric m ()
+output nm pad = Fabric $ \ _ins -> return ((),[],[(nm,pad)])
+
 
 -- | Generate a named std_logic input port.
-inStdLogic :: forall a . (Rep a, W a ~ X1) => String -> Fabric (Seq a)
+inStdLogic :: forall a m . (MonadFix m, Rep a, W a ~ X1) => String -> SuperFabric m (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
@@ -166,37 +196,57 @@ outStdLogicVector nm sq =
 		    _    -> output nm $ StdLogicVector
 		    	     	       $ (bitwise sq :: Seq (ExternalStdLogicVector (W a)))
 
+
 -------------------------------------------------------------------------------
 
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
-runFabric :: Fabric a -> [(String,Pad)] -> (a,[(String,Pad)])
-runFabric (Fabric f) args = (a,result)
-        where (a,_arg_types,result) = f args
+runFabric :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m (a,[(String,Pad)])
+runFabric (Fabric f) args = do
+        (a,_arg_types,result) <- f args
+        return (a,result)
+
 
 -- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.
 -- must have no (monadic) outputs.
-runFabricWithResult :: Fabric a -> [(String,Pad)] -> a
-runFabricWithResult (Fabric f) args = a
-        where (a,_arg_types,[]) = f args
+runFabricWithResult :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m a
+runFabricWithResult (Fabric f) args = do
+        (a,_arg_types,[]) <- f args
+        return a
+
 
 -- | 'runFabricWithDriver' runs a Fabric () using a driver Fabric.
-runFabricWithDriver :: Fabric () -> Fabric a -> a
-runFabricWithDriver (Fabric f) (Fabric g) = a
-        where ((),_,f_result) = f g_result
-              (a,_,g_result)  = g f_result
+runFabricWithDriver :: (MonadFix m) => SuperFabric m () -> SuperFabric m a -> m a
+runFabricWithDriver (Fabric f) (Fabric g) = do
+        rec ((),_,f_result) <- f g_result
+            (a,_,g_result)  <- g f_result
+        return a
 
 -- 'fabricAPI' explains what the API is for a specific fabric.
 -- The input Pad's are connected to a (deep) Pad nm.
-fabricAPI :: Fabric a -> (a,[(String,Pad)],[(String,Pad)])
-fabricAPI (Fabric f) = (a,args,result)
-        where (a,args,result) = f args
-              withType (nm,pad) = (nm,pad)
+fabricAPI :: (MonadFix m) => SuperFabric m a -> m (a,[(String,Pad)],[(String,Pad)])
+fabricAPI (Fabric f) = do
+        rec (a,args,result) <- f args
+        return (a,args,result)
+
 
 -- 'traceFabric' returns the actual inputs and outputs, inside the monad.
 traceFabric :: Fabric a -> Fabric (a,[(String,Pad)],[(String,Pad)])
-traceFabric (Fabric f) = Fabric $ \ ins0 ->
-        let (a,tys1,outs1) = f ins0
-        in ((a,[],[]),tys1,outs1)
+traceFabric (Fabric f) = Fabric $ \ ins0 -> do
+        (a,tys1,outs1) <- f ins0
+        return ((a,[],[]),tys1,outs1)
+
+
+hWriteFabric :: Handle -> [(String,StdLogicType)] -> SuperFabric IO ()
+hWriteFabric h table = do
+        xs <- sequence
+                [ case std_type of
+                    SL -> do sq <- inStdLogic nm :: SuperFabric IO (Seq Bool)
+                             return $ S.toList $ fmap toRep $ shallowS sq
+                | (nm,std_type) <- table
+                ]
+        liftIO $ print xs
+{-
+
 
 ------------------------------------------------------------------------------
 
@@ -278,15 +328,15 @@ hReadFabric h (Fabric f) = do
         print poss
 
         return $ a
-
+-}
 ------------------------------------------------------------------------------
 
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
-reifyFabric :: Fabric () -> IO KLEG
+reifyFabric :: SuperFabric Pure () -> IO KLEG
 reifyFabric (Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
-        let (_,ins0,outs0) = circuit ins0
+        let Pure (_,ins0,outs0) = circuit ins0
 
         let mkU :: forall a . (Rep a) => Seq a -> Type
             mkU _ = case toStdLogicType ty of
@@ -591,5 +641,3 @@ data EntityClock = EntityClock (Driver Unique)
         deriving (Eq,Ord,Show)
 
 ---------------------------------------------------------------------------------
-
-
