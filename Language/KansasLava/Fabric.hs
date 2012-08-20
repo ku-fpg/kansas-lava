@@ -266,7 +266,8 @@ hReaderFabric h table = do
 
         foldl (>>=) (return 0)
                 [ \ p -> do -- infinite stream of inputs, space leak generator
-                     let xs = [ case readPackedRepValue (take w $ drop p $ s)  of
+                            -- NOTE: External is MSF, internally (RepValue) is LSF.
+                     let xs = [ case readPackedRepValue $ take w $ drop p $ s of
                                      Nothing -> error "bad input value for hReadFabric"
                                      Just v  -> v
                                   | s <- strs ]
