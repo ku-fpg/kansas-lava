@@ -152,7 +152,7 @@ inGeneric nm = do
           _            -> error "internal type error in inGeneric"
 
 -- | Generate a named std_logic_vector port input.
-inStdLogicVector :: forall a . (Rep a, Size (W a)) => String -> Fabric (Seq a)
+inStdLogicVector :: forall a m . (MonadFix m, Rep a, Size (W a)) => String -> SuperFabric m (Seq a)
 inStdLogicVector nm = do
 	let seq' = mkDeepS $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
@@ -183,13 +183,13 @@ theClkEn nm = input nm TheClkEn >> return ()
 
 -- | Generate a named std_logic output port, given a Lava circuit.
 outStdLogic ::
-	(Rep a, W a ~ X1) => String -> Seq a -> Fabric ()
+	(MonadFix m, Rep a, W a ~ X1) => String -> Seq a -> SuperFabric m ()
 outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
 -- | Generate a named std_logic_vector output port, given a Lava circuit.
 outStdLogicVector
-  :: forall a .
-     (Rep a, Size (W a)) => String -> Seq a -> Fabric ()
+  :: forall a m .
+     (MonadFix m, Rep a, Size (W a)) => String -> Seq a -> SuperFabric m ()
 outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfS sq) of
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
@@ -236,15 +236,49 @@ traceFabric (Fabric f) = Fabric $ \ ins0 -> do
         return ((a,[],[]),tys1,outs1)
 
 
-hWriteFabric :: Handle -> [(String,StdLogicType)] -> SuperFabric IO ()
+data IN = forall a. (Rep a) => IN (SuperFabric IO (Seq a))
+
+hWriteFabric :: Handle -> [IN] -> SuperFabric IO ()
 hWriteFabric h table = do
         xs <- sequence
-                [ case std_type of
-                    SL -> do sq <- inStdLogic nm :: SuperFabric IO (Seq Bool)
-                             return $ S.toList $ fmap toRep $ shallowS sq
-                | (nm,std_type) <- table
+                [ do sq <- f
+                     return $ S.toList $ fmap toRep $ shallowS sq
+                | IN f <- table
                 ]
-        liftIO $ print xs
+
+        let loop [] = error "hWriteFabric output finished (should never happen)"
+            loop (t:ts) = do
+                    hPutStrLn h t
+                    hFlush h
+                    loop ts
+
+        liftIO $ forkIO $ loop $  map (concatMap showPackedRepValue) $ transpose xs
+
+        return ()
+
+data OUT = forall a . (Rep a) => OUT (Seq a -> SuperFabric IO ())
+
+hReadFabric :: Handle -> [OUT] -> SuperFabric IO ()
+hReadFabric h table = do
+        str <- liftIO $ hGetContents h
+        let strs :: [String] = lines str
+
+        foldl (>>=) (return 0)
+                [ \ p -> do -- infinite stream of inputs, space leak generator
+                     let xs = [ case readPackedRepValue (take w $ drop p $ s)  of
+                                     Nothing -> error "bad input value for hReadFabric"
+                                     Just v  -> v
+                                  | s <- strs ]
+                         a = mkShallowS $ fmap fromRep $ S.fromList $ xs
+                         w = widthS a
+                     f a
+                     return (p + w)
+                | (OUT f) <- table
+                ]
+
+        return ()
+
+
 {-
 
 
@@ -606,6 +640,7 @@ joinStdLogicVector kleg =
                         ]
                        ]
 
+{-
 ex1 = do
         outStdLogic "bbd<0>" high
         outStdLogic "abd<22>" low
@@ -620,7 +655,7 @@ ex2 = do
         return ()
 
 t ex =reifyFabric ex >>= return . joinStdLogicVector
-
+-}
 -------------------------------------------------------------------------------------------
 
 -- Each one needs a i0 to look at
