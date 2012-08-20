@@ -3,30 +3,35 @@
 module Language.KansasLava (
     -- * Basic types in Kansas Lava
     module Language.KansasLava.Types,
-    
+
     -- * Generating KLEG netlists
+    SuperFabric,
     Fabric,
     reifyFabric,
     inStdLogic, inStdLogicVector,inGeneric,
     outStdLogic, outStdLogicVector,
     theClk, theRst, theClkEn,
+    hWriterFabric,
+    hReaderFabric,
 
     -- * The CSeq and Seq types
-    Signal, Seq, 
+    Signal, Seq,
     toS, toS', undefinedS, fromS, takeS,
     pureS, witnessS,
     commentS,
+    readTMVarS,
+    writeTMVarS,
     pack, unpack,
     packMatrix, unpackMatrix,
     register, registers, delay, delays,
-    
+
     -- * Rendering KLEG as a Graph
     writeDotCircuit,
 
     -- * Optimizing KLEG
     OptimizationOpts(..),
     optimizeCircuit,
-    
+
     -- * Outputing VHDL
     writeVhdlCircuit,
     writeVhdlPrelude,
@@ -50,7 +55,7 @@ module Language.KansasLava (
     VCD,
     writeVCDFile,
     readVCDFile,
-    
+
     -- * Wakarusa Compiler
     module Language.KansasLava.Wakarusa
      ) where

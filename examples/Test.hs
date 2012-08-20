@@ -1,6 +1,6 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 import Language.KansasLava
-import Language.KansasLava.Fabric -- (writeFabric, readFabric)
-import Language.KansasLava.Signal (readTMVarS)
+import Control.Monad.Fix
 import System.IO
 
 import Data.Word
