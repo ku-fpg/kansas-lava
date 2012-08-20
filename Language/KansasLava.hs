@@ -11,8 +11,9 @@ module Language.KansasLava (
     inStdLogic, inStdLogicVector,inGeneric,
     outStdLogic, outStdLogicVector,
     theClk, theRst, theClkEn,
-    hWriterFabric,
-    hReaderFabric,
+    hWriterFabric, IN(..),
+    hReaderFabric, OUT(..),
+    runFabricWithDriver,
 
     -- * The CSeq and Seq types
     Signal, Seq,
