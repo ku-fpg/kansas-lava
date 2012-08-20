@@ -1,74 +1,88 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+module Test where
+
 import Language.KansasLava
 import Control.Monad.Fix
+import Control.Monad
 import System.IO
 
 import Data.Word
 import Data.Sized.Ix
 import Data.Sized.Unsigned
 import Control.Concurrent.STM
+import Control.Concurrent
 
-main = do
---        v <- newEmptyTMVarIO
---        s <- readTMVarS v
 
-        let dut = do {-hWriteFabric stdout
-                        [ IN (inStdLogic "x0"       :: SuperFabric IO (Seq Bool))
-                        , IN (inStdLogic "x1"       :: SuperFabric IO (Seq Bool))
-                        , IN (inStdLogicVector "x2" :: SuperFabric IO (Seq U8))
-                        ] -}
-                     hReadFabric stdin
-                       [ OUT (outStdLogic "o0"       :: Seq Bool -> SuperFabric IO ())
-                       , OUT (outStdLogic "o1"       :: Seq Bool -> SuperFabric IO ())
-                       , OUT (outStdLogicVector "o2" :: Seq U2   -> SuperFabric IO ())
-                       ]
+dut :: (MonadFix m) => SuperFabric m ()
+dut = do
+        i0 :: Seq U4 <- inStdLogicVector "i0"
+        i1 :: Seq U4 <- inStdLogicVector "i1"
+        let o0 = delay $ i0 + i1 :: Seq U4
+        outStdLogicVector "o0" o0
 
-            driver = do
-{-
-                    outStdLogic "x0" (low :: Seq Bool)
-                    outStdLogic "x1" (high :: Seq Bool)
-                    outStdLogicVector "x2" (2 :: Seq U2)
--}
-                    a <- inStdLogic "o0" :: SuperFabric IO (Seq Bool)
-                    b <- inStdLogic "o1" :: SuperFabric IO (Seq Bool)
-                    c <- inStdLogicVector "o2" :: SuperFabric IO (Seq U2)
-                    return (pack (a,b,c) :: Seq (Bool,Bool,U2))
-        r <- runFabricWithDriver dut driver
-        print "Hello"
+-- This is basically the same as what we export for block 4,
+-- but generated from Haskell.
+exportableDUT :: IO ()
+exportableDUT = do
+        hIn <- openFile "DUT_IN" ReadWriteMode
+        hOut <- openFile "DUT_OUT" ReadWriteMode
+        setProbesAsTrace $ putStr
+        let wrapper :: SuperFabric IO ()
+            wrapper = do
+                hReaderFabric hIn
+                        [ OUT (outStdLogicVector "i0" . probeS "i0" :: Seq U4 -> SuperFabric IO ())
+                        , OUT (outStdLogicVector "i1" . probeS "i1" :: Seq U4 -> SuperFabric IO ())
+                        ]
+                hWriterFabric hOut
+                        [ IN (liftM (probeS "o0") $ inStdLogicVector "o0" :: SuperFabric IO (Seq U4))
+                        ]
+
+        runFabricWithDriver dut wrapper
+        threadDelay $ 1000 * 1000 * 1000
+        return ()
+
+-- The external binary that acts like "BLOCK4" (but is an adder)
+--main = exportableDUT
+--main = tester
+
+tester :: IO ()
+tester = do
+        -- The opposite of the one above
+        hIn <- openFile "DUT_IN" ReadWriteMode
+        hOut <- openFile "DUT_OUT" ReadWriteMode
+        let tester_wrapper :: SuperFabric IO ()
+            tester_wrapper = do
+                hReaderFabric hOut
+                        [ OUT (outStdLogicVector "o0" :: Seq U4 -> SuperFabric IO ())
+                        ]
+                hWriterFabric hIn
+                        [ IN (inStdLogicVector "i0" :: SuperFabric IO (Seq U4))
+                        , IN (inStdLogicVector "i1" :: SuperFabric IO (Seq U4))
+                        ]
+
+
+        let
+--            dat :: [U16]
+--            dat = [0..]
+            dat :: [(U4,U4)]
+            dat = [(a,b) | a <- [0..15], b <- [0..15]]
+
+        let tester_driver :: SuperFabric IO (Seq U4)
+            tester_driver = do
+                    let xs = toS dat :: Seq (U4,U4)
+                    let (x0,x1) :: (Seq U4,Seq U4) = unpack xs
+
+--                    let x0 = toS dat :: Seq U16
+--                    outStdLogicVector "i0" (0 :: Seq U16)
+                    outStdLogicVector "i0" (x0 :: Seq U4)
+                    outStdLogicVector "i1" (x1 :: Seq U4)
+
+                    inStdLogicVector "o0" :: SuperFabric IO (Seq U4)
+
+        r <- runFabricWithDriver tester_wrapper tester_driver
         print r
---        sequence_ [ atomically $ putTMVar v $ optX $ return $ () | _ <- [1..100]]
 
-{-
-{-
-        v <- newEmptyTMVarIO
-        s <- readTMVarS v
-        print ""
-        writeFabric "foo" $ example s
-        sequence_ [ atomically $ putTMVar v $ optX $ return $ () | _ <- [1..100]]
--}
-        (x1,x2,x3,x4) <- readFabric "foo" $ example2
-        print $ takeS 10 x1
-        print $ takeS 10 x2
-        print $ takeS 10 x3
-        print $ takeS 10 x4
+        threadDelay $ 1000 * 1000 * 1000
 
 
-example :: Signal CLK () -> Fabric ()
-example s = do
-        outStdLogicVector "stopper" s
-        outStdLogic "o0" (toS $ cycle [True,False,False])
-        outStdLogic "o1" (toS $ cycle [True])
-        outStdLogic "o2" (toS $ cycle [False])
-        outStdLogicVector "oX" (toS $ cycle [0..255 :: Word8])
 
-
-example2 :: Fabric (Seq Bool, Seq U2, Seq Bool, Seq Bool)
-example2 = do
-        x <- inStdLogic "i0"       :: Fabric (Seq Bool)
-        y <- inStdLogicVector "i1" :: Fabric (Seq U2)
-        x1 <- inStdLogic "i3"       :: Fabric (Seq Bool)
-        x2 <- inStdLogic "i4"       :: Fabric (Seq Bool)
-        return(x,y,x1,x2)
--}
-bottom :: ()
-bottom = error "opps"
