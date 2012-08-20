@@ -246,13 +246,14 @@ hWriterFabric h table = do
                 | IN f <- table
                 ]
 
-        let loop [] = error "hWriteFabric output finished (should never happen)"
-            loop (t:ts) = do
+        let loop n [] = error "hWriteFabric output finished (should never happen)"
+            loop n (t:ts) = do
                     hPutStrLn h t
                     hFlush h
-                    loop ts
+--                    print (n,t)
+                    loop (n+1) ts
 
-        liftIO $ forkIO $ loop $  map (concatMap showPackedRepValue) $ transpose xs
+        liftIO $ forkIO $ loop 0 $  map (concatMap showPackedRepValue) $ transpose xs
 
         return ()
 
