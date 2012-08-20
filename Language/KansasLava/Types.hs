@@ -381,7 +381,6 @@ showPackedRepValue (RepValue vals) =
         | v <- reverse vals
         ]
 
-
 readPackedRepValue :: String -> Maybe RepValue
 readPackedRepValue xs | L.all (`elem` "01XU") xs
         = Just
@@ -391,6 +390,7 @@ readPackedRepValue xs | L.all (`elem` "01XU") xs
                         'U' -> Nothing
                         '0' -> Just False
                         '1' -> Just True)
+        $ reverse
         $ xs
 readPackedRepValue _ = Nothing
 
