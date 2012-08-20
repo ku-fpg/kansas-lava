@@ -238,8 +238,8 @@ traceFabric (Fabric f) = Fabric $ \ ins0 -> do
 
 data IN = forall a. (Rep a) => IN (SuperFabric IO (Seq a))
 
-hWriteFabric :: Handle -> [IN] -> SuperFabric IO ()
-hWriteFabric h table = do
+hWriterFabric :: Handle -> [IN] -> SuperFabric IO ()
+hWriterFabric h table = do
         xs <- sequence
                 [ do sq <- f
                      return $ S.toList $ fmap toRep $ shallowS sq
@@ -258,8 +258,8 @@ hWriteFabric h table = do
 
 data OUT = forall a . (Rep a) => OUT (Seq a -> SuperFabric IO ())
 
-hReadFabric :: Handle -> [OUT] -> SuperFabric IO ()
-hReadFabric h table = do
+hReaderFabric :: Handle -> [OUT] -> SuperFabric IO ()
+hReaderFabric h table = do
         str <- liftIO $ hGetContents h
         let strs :: [String] = lines str
 
@@ -271,7 +271,7 @@ hReadFabric h table = do
                                   | s <- strs ]
                          a = mkShallowS $ fmap fromRep $ S.fromList $ xs
                          w = widthS a
-                     f a
+                     f a        -- This is actual connection to the fabric
                      return (p + w)
                 | (OUT f) <- table
                 ]
