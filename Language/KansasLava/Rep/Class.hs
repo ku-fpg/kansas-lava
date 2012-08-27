@@ -73,6 +73,12 @@ unknownRepValue w = RepValue [ Nothing | _ <- [1..repWidth w]]
 pureX :: (Rep w) => w -> X w
 pureX = optX . Just
 
+-- | unpureX unlifts a value from a (known) representable value.
+unpureX :: (Rep w) => X w -> w
+unpureX x = case unX x of
+             Nothing -> error "unpureX - found unknown value"
+             Just v -> v
+
 -- | unknownX is an unknown value of every representable type.
 unknownX :: forall w . (Rep w) => X w
 unknownX = optX (Nothing :: Maybe w)
@@ -144,7 +150,7 @@ bitRepToRep' :: forall w . (BitRep w, Ord w) => Map.Map w RepValue -> X w -> Rep
 bitRepToRep' mp w =
 	case unX w of
 	  Nothing -> unknownRepValue (Witness :: Witness w)
-	  Just val -> 
+	  Just val ->
 	    case Map.lookup val mp of
 	      Nothing -> unknownRepValue (Witness :: Witness w)
 	      Just pat -> pat -- chooseRepValue $ bitPatToRepValue pat
@@ -166,14 +172,13 @@ bitRepMap = Map.fromList
 expandBitRep :: RepValue -> [RepValue]
 expandBitRep (RepValue bs) = map RepValue $ expand bs
   where
-          expand []      = [[]] 
-          expand (x:xs)  = [ (Just y:ys) 
+          expand []      = [[]]
+          expand (x:xs)  = [ (Just y:ys)
                            | ys <- expand xs
                            , y <- case x of
                                     Nothing -> [False,True]
                                     Just v  -> [v]
                            ]
 
-        
-        
-        
+
+
