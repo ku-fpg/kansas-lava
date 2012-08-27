@@ -18,7 +18,7 @@ import Debug.Trace
 infixr 5 `Cons`
 
 -- | A stream is an infinite sequence of values.
-data Stream a = Cons !a (Maybe (Stream a)) 
+data Stream a = Cons !a (Maybe (Stream a))
         -- ^ Cons takes a head and an optional tail.
         -- If the tail is empty, then the last value is repeated.
     deriving (Typeable)
@@ -34,7 +34,7 @@ instance Applicative Stream where
                    Nothing  `opt_ap` (Just x) = Just (pure h1 <*> x)
                    (Just f) `opt_ap` Nothing  = Just (f <*> pure h2)
                    (Just f) `opt_ap` (Just x) = Just (f <*> x)
-                   
+
 instance Functor Stream where
    fmap f (a `Cons` opt_as) = f a `Cons` maybe Nothing (Just . fmap f) opt_as
 
@@ -59,10 +59,27 @@ fromFiniteList []       end = end `Cons` Nothing
 fromList :: [a] -> Stream a
 fromList xs = fromFiniteList xs (error "found end of infinite list")
 
+head :: Stream a -> a
+head (Cons a _) = a
+
+tail :: Stream a -> Stream a
+tail (Cons a Nothing)   = Cons a Nothing
+tail (Cons _ (Just xs)) = xs
+
+cons :: a -> Stream a -> Stream a
+cons x xs = Cons x (Just xs)
+
+uncons :: Stream a -> (a,Stream a)
+uncons (Cons x xs) = (x,case xs of
+                          Nothing -> Cons x xs
+                          Just v -> v)
+
+unzip :: Stream (a,b) -> (Stream a, Stream b)
+unzip ss = (fmap fst ss,fmap snd ss)
 
 -- | Convert a Stream to a lazy list.
 toList :: Stream a -> [a]
-toList (x `Cons` opt_xs) = x : maybe (List.repeat x) toList opt_xs 
+toList (x `Cons` opt_xs) = x : maybe (List.repeat x) toList opt_xs
 
 instance F.Foldable Stream where
   foldMap f (a `Cons` opt_as) = f a `mappend` maybe (F.foldMap f (a `Cons` opt_as))
