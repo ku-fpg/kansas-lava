@@ -88,23 +88,23 @@ commentS msg = idS (Comment [msg])
 widthS :: forall a .  (Rep a) => Seq a -> Int
 widthS _ = repWidth (Witness :: Witness a)
 
-writeTMVarS :: Signal i a -> TMVar (X a) -> IO ()
-writeTMVarS sig v = do
+writeIOS :: Signal i a -> (X a -> IO ()) -> IO ()
+writeIOS sig m = do
         forkIO $ loop (shallowS sig)
         return ()
   where
           loop (Cons x r) = do
-                atomically $ putTMVar v x
+                m x
                 case r of
                   Nothing -> loop (Cons x r)
                   Just xs -> loop xs
 
-readTMVarS :: (Clock i) => TMVar (X a) -> IO (Signal i a)
-readTMVarS v = do
+readIOS :: (Clock i) => IO (X a) -> IO (Signal i a)
+readIOS m = do
         let loop = unsafeInterleaveIO $ do
-                x <- atomically $ takeTMVar v
+                x <- m -- atomically $ takeTMVar v
                 xs <- loop
-                return $ Cons x (Just xs)
+                return $ S.cons x xs
         xs <- loop
         return (mkShallowS xs)
 
