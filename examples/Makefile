@@ -5,3 +5,8 @@ boot::
 #	ghci -i..:../dist/build/autogen Test.hs 
 	ghc --make -i..:../dist/build/autogen Driver.hs 
 	ghc --make -i..:../dist/build/autogen DUT.hs 
+
+
+proto::
+	ghci -i..:../dist/build/autogen Proto.hs 
+	

@@ -5,7 +5,8 @@ module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.AckBox,
 	module Language.KansasLava.Protocols.ReadyBox,
 	module Language.KansasLava.Protocols.Types,
-	module Language.KansasLava.Protocols.Patch
+	module Language.KansasLava.Protocols.Patch,
+	Response(..)
 	) where
 
 import Language.KansasLava.Protocols.Enabled
