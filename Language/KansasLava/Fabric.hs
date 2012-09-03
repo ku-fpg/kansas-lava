@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
-    FlexibleContexts, UndecidableInstances, GADTs, DoRec #-}
+    FlexibleContexts, UndecidableInstances, GADTs, DoRec, RankNTypes #-}
 
 
 -- | The Fabric module is used for generating a top-level VHDL entity for a Lava
@@ -27,6 +27,7 @@ module Language.KansasLava.Fabric
         , hReadFabric
         , fabricAPI
         , traceFabric
+        , Reify(..)
         ) where -} where
 
 import Control.Monad.Fix
@@ -78,6 +79,12 @@ data SuperFabric m a = Fabric { unFabric :: [(String,Pad)] -> m (a,[(String,Pad)
 -- ports and generics.
 type Fabric = SuperFabric Pure -- Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(String,Pad)]) }
 
+class (MonadFix f, Functor f) => Reify f where
+    purify :: f a -> Pure a
+
+instance Reify Pure where
+    purify m = m
+
 data Pure a = Pure { runPure :: a }
 
 instance Functor Pure where
@@ -112,10 +119,16 @@ instance MonadTrans SuperFabric where
                 r <- m
                 return (r,[],[])
 
+-- TODO: use liftFabric
 ioFabric :: SuperFabric Pure a -> SuperFabric IO a
 ioFabric (Fabric f) = Fabric $ \ inp -> do
         let Pure x = f inp
         return x
+
+liftFabric :: (forall a . m a -> n a) -> SuperFabric m a -> SuperFabric n a
+liftFabric g (Fabric f) = Fabric $ \ inp -> do
+        g (f inp)
+
 
 -- | Generate a named input port.
 input :: (MonadFix m) => String -> Pad -> SuperFabric m Pad
@@ -369,10 +382,10 @@ hReadFabric h (Fabric f) = do
 
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
-reifyFabric :: SuperFabric Pure () -> IO KLEG
+reifyFabric :: (Reify m) => SuperFabric m () -> IO KLEG
 reifyFabric (Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
-        let Pure (_,ins0,outs0) = circuit ins0
+        let Pure (_,ins0,outs0) = purify $ circuit ins0
 
         let mkU :: forall a . (Rep a) => Seq a -> Type
             mkU _ = case toStdLogicType ty of
