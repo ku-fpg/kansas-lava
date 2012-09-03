@@ -544,17 +544,21 @@ newAckBox = do
         return ( WriteAckBox val_r ack_e
                , ReadAckBox val_e ack_r
                )
+
 -------------------------------------------------------------------------
 
 data ReadReadyBox a = ReadReadyBox (EXPR (Enabled a)) (REG ())
 
 connectReadReadyBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (ReadAckBox a)
-connectReadReadyBox inpName ackName = do
-        i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
+        :: forall a . (Rep a, Size (W a), Show a)
+        => String -> String -> String -> STMT (ReadReadyBox a)
+connectReadReadyBox inpName inpValid ackName = do
+        i :: EXPR (Maybe a)   <- INPUT $ do
+                                   inp <- inStdLogicVector inpName
+                                   val <- inStdLogic inpValid
+                                   return $ packEnabled val inp
         o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
-        return $ ReadAckBox i o
+        return $ ReadReadyBox i o
 
 takeReadyBox :: Rep a => ReadReadyBox a -> (EXPR a -> STMT ()) -> STMT ()
 takeReadyBox (ReadReadyBox iA oA) cont = do
@@ -575,11 +579,13 @@ fullReadyBox (ReadReadyBox iA _) = OP1 isEnabled iA
 data WriteReadyBox a = WriteReadyBox (REG a) (EXPR (Enabled ()))
 
 connectWriteReadyBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
-        => String -> String -> STMT (WriteReadyBox a)
-connectWriteReadyBox outName ackName = do
+        :: forall a . (Rep a, Size (W a), Show a)
+        => String -> String -> String -> STMT (WriteReadyBox a)
+connectWriteReadyBox outName outValid ackName = do
         iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
-        oB :: REG a             <- OUTPUT (outStdLogicVector outName)
+        oB :: REG a             <- OUTPUT $ \ o -> do
+                                outStdLogicVector outName (enabledVal o)
+                                outStdLogicVector outValid (isEnabled o)
         return $ WriteReadyBox oB iB
 
 
