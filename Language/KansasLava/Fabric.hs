@@ -27,6 +27,7 @@ module Language.KansasLava.Fabric
         , hReadFabric
         , fabricAPI
         , traceFabric
+        , ioFabric
         , Reify(..)
         ) where -} where
 
@@ -120,9 +121,9 @@ instance MonadTrans SuperFabric where
                 return (r,[],[])
 
 -- TODO: use liftFabric
-ioFabric :: SuperFabric Pure a -> SuperFabric IO a
+ioFabric :: (Reify f) => SuperFabric f a -> SuperFabric IO a
 ioFabric (Fabric f) = Fabric $ \ inp -> do
-        let Pure x = f inp
+        let Pure x = purify $ f inp
         return x
 
 liftFabric :: (forall a . m a -> n a) -> SuperFabric m a -> SuperFabric n a
