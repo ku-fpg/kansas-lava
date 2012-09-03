@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, DoRec, TypeFamilies, FlexibleContexts #-}
 
-module Language.KansasLava.Wakarusa 
+module Language.KansasLava.Wakarusa
         ( STMT(..)
         , LABEL(..)
         , REG(..)
@@ -18,6 +18,15 @@ module Language.KansasLava.Wakarusa
         , readAckBox
         , fullAckBox
         , putAckBox
+        , ReadReadyBox(..)
+        , newReadyBox
+        , connectReadReadyBox
+        , WriteReadyBox(..)
+        , connectWriteReadyBox
+        , takeReadyBox
+        , readReadyBox
+        , fullReadyBox
+        , putReadyBox
         , readEnabled
         , Variable(..)
         , var, undefinedVar
@@ -41,6 +50,7 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
+import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Types
 import Language.KansasLava.Universal
 
@@ -61,16 +71,16 @@ import Data.Set (Set)
 
 ------------------------------------------------------------------------------
 
-traceRet :: (a -> String) -> String -> a -> a 
+traceRet :: (a -> String) -> String -> a -> a
 traceRet showMe msg a = trace (msg ++ " : " ++ showMe a) a
 
 
 compileToFabric :: STMT a -> Fabric a
-compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do 
+compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "compileToFabric" $ do
         let res0 = runStateT $ do
                         compWakarusa prog
-        let res1 = res0 $ WakarusaState 
-                    { ws_uniq = 0 
+        let res1 = res0 $ WakarusaState
+                    { ws_uniq = 0
                     , ws_pred  = falsePred
                     , ws_filled = SlotStatus False False
                        -- predicates
@@ -96,14 +106,14 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                     }
         let res2 = runReaderT res1
 
-        rec (r,st) <- res2 $ WakarusaEnv 
+        rec (r,st) <- res2 $ WakarusaEnv
                     { we_reads     = the_vars
                     , we_pcs       = generatePredicates st -- (ws_labels st) (ws_pcs st) (ws_pc st) (ws_fork st)
                     , we_preds     = ws_preds st
                     , we_mem_reads = placeMemories (ws_mems st) (ws_mem_reads st) (ws_mem_writes st)
                     , we_tid       = Nothing
                     , we_pidtable  = ws_tidtable st
-                    , we_pp        
+                    , we_pp
 --                        = Parsed
                           = Threaded
                     , we_pp_scope  = 0
@@ -114,20 +124,20 @@ compileToFabric prog = do -- traceRet (show . unsafePerformIO . reifyFabric) "co
                        [ placeRegister reg $ (ws_assigns st)
                        | reg <- ws_regs st
                        ] >>= (return . Map.unions)
-           
+
 {-
         () <- trace ("--parsed debugging") $ return ()
         () <- trace (concat $ reverse $ ws_pp $ st) $ return ()
         () <- trace ("--end of parsed debugging") $ return ()
--}            
+-}
 
         return r
 
 {-
-generateThreadIds 
+generateThreadIds
         :: WakarusaState                -- ^ the (final) state
         -> Map PC Int                   -- Which thread am I powered by
-generateThreadIds st = 
+generateThreadIds st =
         trace (show ("generateThreadIds",msg,result)) $
          result
    where
@@ -146,7 +156,7 @@ generateThreadIds st =
                 ] ++
                 [ (n,Set.singleton $ n+1)
                 | n <- if pc == 0 then [] else [0..(pc-1)]
-                        -- not pc-1, becasuse the last instruction 
+                        -- not pc-1, becasuse the last instruction
                         -- can not jump to after the last instruction
                 , (n `notElem` unconditional_jumps)
                 ]
@@ -156,7 +166,7 @@ generateThreadIds st =
         unconditional_jumps =
                 [ src_pc
                 | (src_pc,LitPred True,_) <- jumps
-                ] 
+                ]
 
         result :: Map PC Int
         result =  Map.fromList
@@ -176,8 +186,8 @@ generatePredicates
 -}
         -> Map (PC,TID) (Seq Bool)                    -- ^ table of predicates
                                                 --   for each row of instructions
-generatePredicates st = 
---        trace msg 
+generatePredicates st =
+--        trace msg
         result
   where
         msg = show (ws_fork st)
@@ -210,8 +220,8 @@ generatePredicates st =
                                     , tid == tid'
                                     , let dest_pc = findWithDefault (error $ "dest_pc:"  ++ show (dest_label,ws_labels st))
                                                         dest_label (ws_labels st)
-                                    , let pc_pred = findWithDefault (error "pc_pred") 
-                                                        (pc_src,tid) result 
+                                    , let pc_pred = findWithDefault (error "pc_pred")
+                                                        (pc_src,tid) result
                                     ]
                                     (pc_reg + 1)
                   in (tid,pc_reg)
@@ -222,7 +232,7 @@ generatePredicates st =
 {- trace (show ("generatePredicates",length pcs)) $ -} result
   where
         threadIds = generateThreadIds st
-        
+
         -- mapping from *every* instruction to its thread id
         result = mapWithKey (\ k tid -> pureS k .==. pcs !! tid) threadIds
 
@@ -231,7 +241,7 @@ generatePredicates st =
 placePC :: [LABEL] -> LABEL -> Seq (Enabled (Enabled PC)) -> Seq (Enabled PC)
 placePC starts lab inp = out
    where
-           out = registerEnabled initial 
+           out = registerEnabled initial
                $ cASE [ (isEnabled inp, inp)
                       , (isEnabled out, enabledS $ enabledS $ (enabledVal out + 1))
                       ] disabledS
@@ -245,7 +255,7 @@ placeRegister :: WritePortInfo -> Map Uniq Pad -> Fabric (Map Uniq Pad)
 placeRegister (WritePortInfo { ri_regs = reg_fn, ri_read_ports = rds, ri_write_ports = wts }) mp = do
         res <- reg_fn [mp Map.! rd | rd <- rds]
         return (Map.fromList (zip wts res))
- 
+
 placeMemories :: Map Uniq (Maybe Pad -> Maybe Pad -> Pad) -> Map Uniq Pad -> Map Uniq Pad -> Map Uniq Pad
 placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
   where
@@ -253,7 +263,7 @@ placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
 {-
                   case Map.lookup k assignMap of
                      Nothing -> f $ toUni Nothing
-                     Just a -> f $ Just a) 
+                     Just a -> f $ Just a)
 -}
 
 ------------------------------------------------------------------------------
@@ -261,7 +271,7 @@ placeMemories memMap rdMap wtMap = Map.mapWithKey fn memMap
 --output :: (Seq (Maybe a) -> Fabric ()) -> STMT (REG a)
 ---output f = CHANEL fn >>
 
---defVar' :: 
+--defVar' ::
 
 ------------------------------------------------------------------------------
 
@@ -275,7 +285,7 @@ compWakarusa (MFIX fn) = mfix (compWakarusa . fn)
 compWakarusa (CHANNEL fn) = do
         uq <- addChannel fn
         prettyPrint (\ _ -> " R" ++ show uq ++ " <- CHANNEL (...)")
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return $ uq
 compWakarusa (SIGNAL fn) = do
         -- add the register to the table
@@ -286,12 +296,12 @@ compWakarusa (OUTPUT connect) = do
                         connect wt
                         return (pureS ())
         prettyPrint (\ _ -> " R" ++ show uq ++ " <- OUTPUT (...)")
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return $ R $ uq
 compWakarusa (INPUT connect) = do
         uq <- addChannel (const connect :: (a ~ EXPR b) => Seq (Enabled b) -> Fabric (Seq b))
         prettyPrint (\ _ -> " R" ++ show uq ++ " <- INPUT (...)")
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return (REG $ R $ uq)
 compWakarusa (PATCH p) = do
         (a,b,c,d) <- addPatch p
@@ -307,7 +317,7 @@ compWakarusa (LABEL) = do
         let lab = L uq
         newLabel lab
         prettyPrint (\ _ -> "L" ++ show uq ++ ":")
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return $ lab
 compWakarusa (R n := expr) = do
         prepareInstSlot
@@ -315,21 +325,21 @@ compWakarusa (R n := expr) = do
         addAssignment (R n) exprCode
         markInstSlot
         prettyPrint (\ p -> " r" ++ show n ++ " := " ++ ppEXPR p expr)
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return ()
 compWakarusa (GOTO lab) = do
         prepareInstSlot
         recordJump lab
         markInstSlot
         prettyPrint (\ _ -> " GOTO " ++ show lab)
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return ()
 compWakarusa (e1 :? m) = do
         prepareInstSlot
         predCode <- compWakarusaExpr e1
         prettyPrint (\ p -> ppEXPR p e1 ++ " :?")
         setPred predCode $ addPrettyScope 2 $ compWakarusa m
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return ()
 compWakarusa (PAR e1 e2) = do
         prepareInstSlot
@@ -338,7 +348,7 @@ compWakarusa (PAR e1 e2) = do
                 parInstSlot $ compWakarusa e1
                 prettyPrint (\ _ -> "\n    |||")
                 parInstSlot $ compWakarusa e2
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         return ()
 compWakarusa NOP = do
         prepareInstSlot
@@ -347,11 +357,11 @@ compWakarusa NOP = do
         prettyPrint (\ _ -> " NOP")
         return ()
 compWakarusa (SPARK code) = do
-  resetInstSlot 
+  resetInstSlot
   -- NOTE: BUG the PC does not get preserved by the SPARK
   newTid $ \ lab -> do
         prettyPrint $ const $ "BEGIN SPARK: " ++ show lab
-        topLevelPrettyPrint "\n" 
+        topLevelPrettyPrint "\n"
         prettyPrintPC
         prepareInstSlot
         newLabel lab
@@ -380,7 +390,7 @@ compWakarusa (IF i t e) =
             rec end_lab <- LABEL
         return ()
 
-        
+
 compWakarusa o = error ("compWakarusa : " ++ show o)
 
 
@@ -396,14 +406,14 @@ compWakarusaPar :: STMT () -> WakarusaComp ()
 compWakarusaPar e = do
         _ <- compWakarusaPar' e
         incPC
-        return ()        
+        return ()
   where
           -- can be replaced with compWakarusaStmt?
    compWakarusaPar' (PAR es) = do
         mores <- mapM compWakarusaPar' es
         return $ and mores
    compWakarusaPar' o = compWakarusaStmt o
-        
+
 
 ------------------------------------------------------------------------------
 
@@ -480,7 +490,7 @@ transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
            fixpoint (x0:x1:_) | x0 == x1 = x0
            fixpoint (_:xs)    = fixpoint xs
            fixpoint _         = error "reached end of infinite list"
-           
+
            step x = x `Set.union` Set.unions (fmap f (Set.toList x))
 
 --------------------------------------------------------------------------------
@@ -495,7 +505,7 @@ connectReadAckBox inpName ackName = do
         i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
         o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
         return $ ReadAckBox i o
-                       
+
 takeAckBox :: Rep a => ReadAckBox a -> (EXPR a -> STMT ()) -> STMT ()
 takeAckBox (ReadAckBox iA oA) cont = do
         self <- LABEL
@@ -523,8 +533,8 @@ connectWriteAckBox outName ackName = do
 
 putAckBox :: Rep a => WriteAckBox a -> EXPR a -> STMT ()
 putAckBox (WriteAckBox oB iB) val = do
-        self <- LABEL 
-        oB := val 
+        self <- LABEL
+        oB := val
                 ||| OP1 (bitNot . isEnabled) iB :? GOTO self
 
 newAckBox :: forall a . (Rep a) => STMT (WriteAckBox a, ReadAckBox a)
@@ -534,7 +544,61 @@ newAckBox = do
         return ( WriteAckBox val_r ack_e
                , ReadAckBox val_e ack_r
                )
+-------------------------------------------------------------------------
 
+data ReadReadyBox a = ReadReadyBox (EXPR (Enabled a)) (REG ())
+
+connectReadReadyBox
+        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        => String -> String -> STMT (ReadAckBox a)
+connectReadReadyBox inpName ackName = do
+        i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
+        o :: REG ()           <- OUTPUT (outStdLogic ackName . isEnabled)
+        return $ ReadAckBox i o
+
+takeReadyBox :: Rep a => ReadReadyBox a -> (EXPR a -> STMT ()) -> STMT ()
+takeReadyBox (ReadReadyBox iA oA) cont = do
+        self <- LABEL
+        do oA := OP0 (pureS ())
+                ||| OP1 (bitNot . isEnabled) iA :? GOTO self
+                ||| cont (OP1 enabledVal iA)
+
+
+-- | A version of takeReadyBox that does not acknowleage. Blocks till data is present.
+readReadyBox :: Rep a => ReadReadyBox a -> (EXPR a -> STMT ()) -> STMT ()
+readReadyBox (ReadReadyBox iA oA) cont = readEnabled iA cont
+
+
+fullReadyBox :: (Rep a) => ReadReadyBox a -> EXPR Bool
+fullReadyBox (ReadReadyBox iA _) = OP1 isEnabled iA
+
+data WriteReadyBox a = WriteReadyBox (REG a) (EXPR (Enabled ()))
+
+connectWriteReadyBox
+        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        => String -> String -> STMT (WriteReadyBox a)
+connectWriteReadyBox outName ackName = do
+        iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
+        oB :: REG a             <- OUTPUT (outStdLogicVector outName)
+        return $ WriteReadyBox oB iB
+
+
+putReadyBox :: Rep a => WriteReadyBox a -> EXPR a -> STMT ()
+putReadyBox (WriteReadyBox oB iB) val = do
+        self <- LABEL
+        OP1 (bitNot . isEnabled) iB :? GOTO self
+                ||| oB := val
+
+newReadyBox :: forall a . (Rep a) => STMT (WriteReadyBox a, ReadReadyBox a)
+newReadyBox = do
+        (val_r,val_e) <- mkChannel (id :: Seq (Enabled a) -> Seq (Enabled a))
+        (ack_r,ack_e) <- mkChannel (id :: Seq (Enabled ()) -> Seq (Enabled ()))
+        return ( WriteReadyBox val_r ack_e
+               , ReadReadyBox val_e ack_r
+               )
+{-
+
+-}
 -------------------------------------------------------------------------
 -- blocks until the enabled is present
 
@@ -548,7 +612,7 @@ readEnabled inp assign = do
 -- Memory is set up as duel ported to allow a *single* instances of the
 -- memory entity/array in Hardware.
 
-data Memory ix a = Memory 
+data Memory ix a = Memory
         { writeM  :: REG (ix,a)  -- ^ where you write index-value pairs
         , readM   :: REG ix      -- ^ where you send read requests
         , valueM  :: EXPR a      -- ^ where the read requests appear (same cycle)
@@ -576,13 +640,13 @@ readMemory mem ix cont = readM mem := ix ||| cont (valueM mem)
 
 always :: STMT () -> STMT ()
 always m = do
-        SPARK $ \ loop -> do 
+        SPARK $ \ loop -> do
                 m ||| GOTO loop
 
 --        -- and start it running
 --        FORK loop
 
-for :: (Rep a, Ord a, Num a) 
+for :: (Rep a, Ord a, Num a)
     => EXPR a -> EXPR a -> (EXPR a -> STMT ()) -> STMT ()
 for start end k = do
     rec VAR i <- SIGNAL $ undefinedVar
@@ -590,9 +654,9 @@ for start end k = do
         loop <- LABEL
         k i
         (OP2 (.==.) i end) :? GOTO done
-        i := i + 1 
+        i := i + 1
         GOTO loop
-        done <- LABEL    
+        done <- LABEL
     return ()
 
 --------------------------------------------------------------------------
@@ -611,14 +675,14 @@ mkChannel2 fn = do
                         i1 <- inStdLogicVector "i1"
                         outStdLogicVector "o0" (fn i0 i1)
         return $ (R a,R b,REG (R r))
-        
+
 mkChannel3 :: forall a b c . (Rep a, Size (W (Enabled a)), Rep b, Size (W b))
            => (Seq (Enabled a) -> Seq b) -> STMT (REG a, EXPR b)
 mkChannel3 fn = do
         ([a],[r]) <- GENERIC $ do
                         i0 <- inStdLogicVector "i0"
                         outStdLogicVector "o0" (fn i0)
-        return $ (R a,REG (R r))        
+        return $ (R a,REG (R r))
 
 mkTemp :: forall a . (Rep a) => STMT (VAR a)
 mkTemp = do
