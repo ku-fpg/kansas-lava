@@ -50,54 +50,53 @@ newProtocolVar = do
 
 class Rep r => Response r where
 
-  txProtocolS :: (Rep a, Clock c) => MVar a -> Signal c r           -> IO (Signal c (Enabled a))
-  rxProtocolS :: (Rep a, Clock c) => MVar a -> Signal c (Enabled a) -> IO (Signal c r)
+  txProtocolS :: (Rep a, Clock c) => MVar a -> Signal c Bool -> Signal c r           -> IO (Signal c (Enabled a))
+  rxProtocolS :: (Rep a, Clock c) => MVar a -> Signal c Bool -> Signal c (Enabled a) -> IO (Signal c r)
 
 instance Response Ready where
 
-  txProtocolS var readyS = do
+  txProtocolS var enB readyS = do
           ready <- newEmptyMVar
           writeIOS readyS $ putMVar ready
 
           out <- newEmptyMVar
           r <- readIOS $ takeMVar out
 
-          let loop = do
+          let loop (en:ens) = do
                   r <- takeMVar ready  -- read the ready signal *first*
-                  case unpureX r of
-                    Ready True -> do
-                           o <- tryTakeMVar var
-                           putMVar out (pureX o)
-                           loop
-                    Ready False -> do
-                           putMVar out (pureX Nothing)
-                           loop
-          forkIO $ loop
+                        -- This depends of unpureX not being called for non-enabled iterations
+                  o <- case (en, unpureX r) of
+                    (Just True, Ready True) -> tryTakeMVar var
+                    _                       -> return Nothing
+                  putMVar out (pureX o)
+                  loop ens
+          forkIO $ loop $ fromS enB
 
           return r
 
-  rxProtocolS var rxS = do
+  rxProtocolS var enB rxS = do
           ready <- newEmptyMVar
           r <- readIOS $ takeMVar ready
 
           rx <- newEmptyMVar
           writeIOS rxS $ putMVar rx
 
-          let loop = do
-                  okay <- isEmptyMVar var
+          let loop (en:ens) = do
+                  okay <- case en of
+                            Just True -> isEmptyMVar var
+                            _         -> return False
                   putMVar ready (pureX (Ready okay))
+                  o <- takeMVar rx
                   case okay of
                     True -> do
-                      o <- takeMVar rx
                       case unpureX o of
                         Nothing -> return ()
+                                -- Should never block
                         Just v  -> putMVar var v
-                      loop
-                    False -> do
-                      _ <- takeMVar rx
-                      loop
+                    False -> return ()
+                  loop ens
 
-          forkIO $ loop
+          forkIO $ loop $ fromS enB
 
           return r
 

@@ -87,14 +87,17 @@ main2 ["driver"] = do
         v0 <- newEmptyMVar
         v1 <- newEmptyMVar
 
+        let en :: Seq Bool
+            en = toS (cycle (take 10 (repeat False) ++ take 10 (repeat True)))
+
         let proto_driver :: SuperFabric IO ()
             proto_driver = do
                rec i_ready :: Seq Ready <- inStdLogic "i_ready"
-                   val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 i_ready
+                   val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 en i_ready
                    outStdLogicVector "i0"      (enabledVal val_i :: Seq U8)
                    outStdLogic       "i_valid" (isEnabled val_i :: Seq Bool)
 
-               rec o_ready :: Seq Ready <- liftIO $ rxProtocolS v1 val_o
+               rec o_ready :: Seq Ready <- liftIO $ rxProtocolS v1 en val_o
                    outStdLogicVector "o_ready" (o_ready :: Seq Ready)
                    o0      :: Seq U8   <- inStdLogicVector "o0"
                    o_valid :: Seq Bool <- inStdLogic "o_valid"
@@ -102,8 +105,15 @@ main2 ["driver"] = do
 
                return ()
 
+
         -- New stuff
-        setProbesAsTrace $ print --appendFile "DUT_PROXY_FABRIC"
+{-
+        v <- newMVar ()
+        setProbesAsTrace $ \ str -> do
+                takeMVar v
+                appendFile "DUT_PROXY_FABRIC" str
+                putMVar v ()
+-}
         runFabricWithDriver (observeFabric probeS dut_proxy) proto_driver
 
         let loop0 n = do
