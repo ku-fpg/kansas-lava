@@ -4,7 +4,7 @@ module Main where
 import Language.KansasLava
 import Language.KansasLava.Protocols
 import Language.KansasLava.Utils
-import Language.KansasLava.Fabric (ioFabric)
+import Language.KansasLava.Fabric (ioFabric, observeFabric)
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad
@@ -102,16 +102,19 @@ main2 ["driver"] = do
 
                return ()
 
-        runFabricWithDriver dut_proxy proto_driver
+        -- New stuff
+        setProbesAsTrace $ print --appendFile "DUT_PROXY_FABRIC"
+        runFabricWithDriver (observeFabric probeS dut_proxy) proto_driver
 
         let loop0 n = do
                 print ("loop0",n)
-                putMVar v0 n
-                if n > 1000 then return () else loop0 (n+1)
+                putMVar v0 (fromIntegral (n :: Integer) :: U8)
+                if n > 100000 then return () else loop0 (n+1)
 
         let loop1 = do
                 v :: U8 <- takeMVar v1
-                threadDelay (100 * 1000)
+--                threadDelay (100 * 1000)
+--                threadDelay (1000)
                 print ("loop1",v)
                 loop1
 
