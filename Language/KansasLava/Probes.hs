@@ -18,7 +18,7 @@ import Language.KansasLava.VCD
 import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Data.IORef
-
+import Control.DeepSeq
 
 {-# NOINLINE probeS #-}
 -- | 'probeS' adds a named probe to the front of a signal.
@@ -72,7 +72,8 @@ setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) 
 {-# NOINLINE setProbesAsTrace #-}
 setProbesAsTrace :: (String -> IO ()) -> IO ()
 setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
-    write $ nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
+    let str = nm ++ "(" ++ show i ++ ")" ++ showRep a ++ "\n"
+    write $!! str
     return a
 
 -- We keep this thread-safe, just in case.
