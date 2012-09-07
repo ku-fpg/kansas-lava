@@ -29,6 +29,7 @@ module Language.KansasLava.Fabric
         , traceFabric
         , ioFabric
         , Reify(..)
+        , observeFabric
         ) where -} where
 
 import Control.Monad.Fix
@@ -293,6 +294,16 @@ hReaderFabric h table = do
                 ]
 
         return ()
+
+-- This gives a version of fabric where a given 'observe' is applied to all inputs and outputs.
+-- TODO: call this probeFabric (loops in modules stops this right now)
+observeFabric :: (MonadFix f) => (forall a . Rep a => String -> Seq a -> Seq a) -> SuperFabric f a -> SuperFabric f a
+observeFabric tr (Fabric f) = Fabric $ \ inps -> do
+        rec (a,inps',outs) <- f (map (obs "in") inps)
+        return (a,inps',map (obs "out") outs)
+  where
+        obs :: String -> (String,Pad) -> (String,Pad)
+        obs io (nm,pad) = (nm,rank2MapPad (tr (nm ++ "/" ++ io)) pad)
 
 
 {-
