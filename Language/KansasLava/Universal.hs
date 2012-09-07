@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, RankNTypes #-}
 
 module Language.KansasLava.Universal where
 
@@ -21,6 +21,11 @@ data Pad = StdLogic (Seq Bool)
 	 | TheClk
 	 | TheRst
 	 | TheClkEn
+
+rank2MapPad :: (forall a . Rep a => Seq a -> Seq a) -> Pad -> Pad
+rank2MapPad f (StdLogic ss)       = StdLogic       (f ss)
+rank2MapPad f (StdLogicVector ss) = StdLogicVector (f ss)
+rank2MapPad f other               = other
 
 
 -- | Get the type of a pad.
