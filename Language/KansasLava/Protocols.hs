@@ -50,8 +50,8 @@ newProtocolVar = do
 
 class Rep r => Response r where
 
-  txProtocolS :: (Rep a, Clock c) => MVar a -> Signal c Bool -> Signal c r           -> IO (Signal c (Enabled a))
-  rxProtocolS :: (Rep a, Clock c) => MVar a -> Signal c Bool -> Signal c (Enabled a) -> IO (Signal c r)
+  txProtocolS :: (Rep a, Clock c) => TMVar a -> Signal c Bool -> Signal c r           -> IO (Signal c (Enabled a))
+  rxProtocolS :: (Rep a, Clock c) => TMVar a -> Signal c Bool -> Signal c (Enabled a) -> IO (Signal c r)
 
 instance Response Ready where
 
@@ -66,7 +66,7 @@ instance Response Ready where
                   r <- takeMVar ready  -- read the ready signal *first*
                         -- This depends of unpureX not being called for non-enabled iterations
                   o <- case (en, unpureX r) of
-                    (Just True, Ready True) -> tryTakeMVar var
+                    (Just True, Ready True) -> atomically $ tryTakeTMVar var
                     _                       -> return Nothing
                   putMVar out (pureX o)
                   loop ens
@@ -83,7 +83,7 @@ instance Response Ready where
 
           let loop (en:ens) = do
                   okay <- case en of
-                            Just True -> isEmptyMVar var
+                            Just True -> atomically $ isEmptyTMVar var
                             _         -> return False
                   putMVar ready (pureX (Ready okay))
                   o <- takeMVar rx
@@ -92,7 +92,7 @@ instance Response Ready where
                       case unpureX o of
                         Nothing -> return ()
                                 -- Should never block
-                        Just v  -> putMVar var v
+                        Just v  -> atomically $ putTMVar var v
                     False -> return ()
                   loop ens
 

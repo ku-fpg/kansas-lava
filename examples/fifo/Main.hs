@@ -84,8 +84,8 @@ main2 ["driver"] = do
                         , OUT (outStdLogic       "o_valid" :: Seq Bool -> SuperFabric IO ())
                         ]
 
-        v0 <- newEmptyMVar
-        v1 <- newEmptyMVar
+        v0 <- atomically $ newEmptyTMVar
+        v1 <- atomically $ newEmptyTMVar
 
         let en :: Seq Bool
             en = toS (cycle (take 10 (repeat False) ++ take 10 (repeat True)))
@@ -107,22 +107,22 @@ main2 ["driver"] = do
 
 
         -- New stuff
-{-
+
         v <- newMVar ()
         setProbesAsTrace $ \ str -> do
                 takeMVar v
                 appendFile "DUT_PROXY_FABRIC" str
                 putMVar v ()
--}
+
         runFabricWithDriver (observeFabric probeS dut_proxy) proto_driver
 
         let loop0 n = do
                 print ("loop0",n)
-                putMVar v0 (fromIntegral (n :: Integer) :: U8)
+                atomically $ putTMVar v0 (fromIntegral (n :: Integer) :: U8)
                 if n > 100000 then return () else loop0 (n+1)
 
         let loop1 = do
-                v :: U8 <- takeMVar v1
+                v :: U8 <- atomically $ takeTMVar v1
 --                threadDelay (100 * 1000)
 --                threadDelay (1000)
                 print ("loop1",v)
