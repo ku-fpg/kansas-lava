@@ -803,10 +803,10 @@ readPreludeFile :: String -> IO String
 readPreludeFile fname = do
    ks <- getEnv "KANSAS_LAVA_ROOT"
    Strict.readFile (ks </> fname)
- `Prelude.catch` \_ -> do
+ `E.catch` \ (_ :: IOException) -> do
     path <- getDataFileName fname
     Strict.readFile path
- `Prelude.catch` \_ -> do
+ `E.catch` \ (_ :: IOException) -> do
    putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
    putStrLn "to point to the root of the KsLava source directory."
    exitFailure
