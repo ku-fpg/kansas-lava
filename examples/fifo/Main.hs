@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, DoRec #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo #-}
 module Main where
 
 import Language.KansasLava
