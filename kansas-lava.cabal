@@ -88,6 +88,8 @@ Library
        Language.KansasLava.Stream
        Language.KansasLava.Dynamic
        Language.KansasLava.VCD
+
+       Control.Monad.Trans.Trace
   Other-modules:
        Language.KansasLava.Internal
        Language.KansasLava.Rep.TH
