@@ -70,13 +70,22 @@ randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
 
 main = do
         env <- mkEnv
+        let stuff = do
+                i <- randR (0::Int,10)
+                if i == 0 then reset
+                          else loop
+
+            loop = do
+                w <- randR (0::Int,100)
+                wait w
+                d <- randR (0::Int,255)
+                b <- send d
+                if b then stuff
+                     else loop
+
         let interleave ~(FifoM f) = FifoM $ unsafeInterleaveIO . f
-        let FifoM f = interp1 interleave $ do
-                do { send 99  ; send 1 }
-                wait 9
-                i <- randR (10,100)
-                do { send 100 ; send i }
-                reset
+        let FifoM f = interp1 interleave stuff
         a <- f env
+--        print a
         print a
-        print a
+        return ()
