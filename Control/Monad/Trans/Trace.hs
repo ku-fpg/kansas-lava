@@ -2,6 +2,7 @@
 module Control.Monad.Trans.Trace where
 
 import Control.Monad.Trans.Class
+import Control.Monad.IO.Class
 import Control.Monad
 
 -- Monad transformer
@@ -18,6 +19,11 @@ instance Monad m => Monad (TraceT e m) where
 
 instance MonadTrans (TraceT e) where
         lift = NonEvent
+
+instance MonadIO m => MonadIO (TraceT e m) where
+        liftIO m = NonEvent (liftIO m)
+
+
 
 event :: m (e,a) -> TraceT e m a
 event = Event
