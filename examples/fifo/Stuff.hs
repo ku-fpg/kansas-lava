@@ -2,59 +2,60 @@
 
 import Control.Concurrent.MVar
 import System.IO.Unsafe
+import Control.Monad.Trans.Class
 
-data M :: * -> * where
-  Send  :: Int -> M Bool
-  Pause :: Int -> M ()
-  Rand  ::        M Int
-  Bind :: M a -> (a -> M b) -> M b
-  Return :: a  -> M a
+-- Monad transformer
+data M :: * -> (* -> *) -> * -> * where
+  Event :: m (Trace e a) -> M e m a
+  Bind :: M e m a -> (a -> M e m b) -> M e m b
+  Return :: a  -> M e m a
 
-instance Monad M where
+instance Monad m => Monad (M e m) where
         return = Return
         (>>=) = Bind
 
-
 -- This is a trace
-data Trace :: * -> * where
-        EventTrace :: Event a -> Trace a
-        BindTrace :: Trace a -> Trace b -> Trace b
-        ReturnTrace :: a -> Trace a
+data Trace :: * -> * -> * where
+        EventTrace :: (Show a) => e -> a -> Trace e a
+        BindTrace :: Trace e a -> Trace e b -> Trace e b
+        ReturnTrace :: a                -> Trace e a
 
-instance Show (Trace a) where
-        show (EventTrace event) = show event
+instance Show e => Show (Trace e a) where
+        show (EventTrace event a) = show a ++ "<-" ++ show event
         show (BindTrace m n) = show m ++ ";" ++ show n
         show (ReturnTrace _) = show "nop"
 
-result :: Trace a -> a
-result (EventTrace e) = eventResult e
+result :: Trace e a -> a
+result (EventTrace _ a) = a
 result (BindTrace _ b) = result b
 result (ReturnTrace a) = a
 
-data Event :: * -> * where
-        SendEvent :: Int -> Bool -> Event Bool
+data Event :: * where
+        SendEvent :: Int -> Bool -> Event
 
-instance Show (Event a) where
-        show (SendEvent n b) = show b ++ " <- send(" ++ show n ++ ")"
+instance Show Event where
+        show (SendEvent n b) = "send(" ++ show n ++ ")"
 
-eventResult :: Event a -> a
-eventResult (SendEvent _ a) = a
+send :: Int -> M Event IO Bool
+send n = Event $ do { print ("send",n) ; return $ EventTrace (SendEvent n True) True }
 
-interp1 :: M a -> IO (Trace a)
-interp1 (Send n) = do
-        print ("send",n)
-        return (EventTrace (SendEvent n True))
---interp1 (Rand) = do
---        rand
+interp1 :: Interleave m => M e m a -> m (Trace e a)
+interp1 (Event ev) = ev
 interp1 (Return a) = return (ReturnTrace a)
 interp1 (Bind m k) = do
-        a <- unsafeInterleaveIO $ interp1 m
-        b <- unsafeInterleaveIO $ interp1 (k (result a))
+        a <- interleave $ interp1 m
+        b <- interleave $ interp1 (k (result a))
         return $ BindTrace a b
+
+class Monad m => Interleave m where
+        interleave :: m a -> m a
+
+instance Interleave IO where
+        interleave = unsafeInterleaveIO
 
 main = do
         a <- interp1 $ do
-                do { Send 99  ; Send 1 }
-                do { Send 100 ; Send 2 }
+                do { send 99  ; send 1 }
+                do { send 100 ; send 2 }
         print a
         print a
