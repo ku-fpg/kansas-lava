@@ -82,6 +82,7 @@ main2 ["driver"] = do
             dut_proxy = do
                 hReaderFabric hState
                         [ OUT (outStdLogic       "i_ready" :: Seq Bool -> SuperFabric IO ())
+                        , OUT (outStdLogicVector "proxy_clk" :: Seq () -> SuperFabric IO ())
                         ]
                 hWriterFabric hIn
                         [ IN (inStdLogicVector   "i0"      :: SuperFabric IO (Seq U8))
@@ -95,7 +96,8 @@ main2 ["driver"] = do
 
         v0 <- atomically $ newEmptyTMVar
         v1 <- atomically $ newEmptyTMVar
-        clk <- atomically $ newEmptyTMVar
+        vClk <- atomically $ newEmptyTMVar
+        vCount <- atomically $ newTVar 0
 
         let en :: Seq Bool
             en = toS (cycle (take 10 (repeat False) ++ take 10 (repeat True)))
@@ -103,7 +105,8 @@ main2 ["driver"] = do
         let proto_driver :: SuperFabric IO ()
             proto_driver = do
 
---               clk <-
+               clk :: Seq () <- inStdLogicVector "proxy_clk"
+               liftIO $ writeIOS clk (const $ atomically $ putTMVar vClk ())
 
                rec i_ready :: Seq Ready <- inStdLogic "i_ready"
                    val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 en i_ready
@@ -118,8 +121,16 @@ main2 ["driver"] = do
 
                return ()
 
-
         -- New stuff
+
+        forkIO $ let loop n = do
+                        atomically $ do
+                                () <- takeTMVar vClk
+                                writeTVar vCount n
+                        loop (n+1)
+                 in loop 1
+
+
 
         v <- newMVar ()
         setProbesAsTrace $ \ str -> do
@@ -143,7 +154,7 @@ main2 ["driver"] = do
                 putMVar var std'
                 return n
           , in_val = v0
-          , the_clk = clk
+          , the_clk = vCount
           }
 
 {-        let stuff = do
@@ -172,11 +183,8 @@ main2 ["driver"] = do
         let loop0 :: Integer -> TraceT FifoE FifoM ()
             loop0 n = do
                 liftIO $ print ("loop0",n)
---                n <- r
-                w <- randR (0::Int,10)
-                wait w
-                r <- randR (0::Int,255)
-                send r
+                randR (0::Int,10) >>= wait
+                randR (0::Int,255) >>= send
 --                atomically $ putTMVar v0 (fromIntegral (n :: Integer) :: U8)
                 if n > 10 then return () else loop0 (n+1)
 
@@ -224,8 +232,8 @@ instance MonadIO FifoM where
 data Env = Env
         { env_rand  :: forall r . (Random r) => IO r -- a random number generator
         , env_randR :: forall r . (Random r) => (r,r) -> IO r
-        , in_val :: TMVar U8
-        , the_clk :: TMVar Integer
+        , in_val    :: TMVar U8
+        , the_clk   :: TVar Integer
         }
 
 
@@ -233,8 +241,10 @@ send :: Int -> TraceT FifoE FifoM Bool
 send n = event $ FifoM $ \ env -> do
         let dat = fromIntegral n :: U8
         -- waits until sent
-        atomically $ putTMVar (in_val env) dat
-        return (SendEvent (Just (dat,0)), True)
+        tm <- atomically $ do
+                putTMVar (in_val env) dat
+                readTVar (the_clk env)
+        return (SendEvent (Just (dat,tm)), True)
 
 wait :: Int -> TraceT FifoE FifoM ()
 wait n = event $ FifoM $ \ env -> do { return (WaitEvent n,()) }
