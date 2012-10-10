@@ -3,59 +3,59 @@
 import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Control.Monad.Trans.Class
+import System.Random
+import Control.Monad
+import Control.Monad.Trans.Trace
 
--- Monad transformer
-data M :: * -> (* -> *) -> * -> * where
-  Event :: m (Trace e a) -> M e m a
-  Bind :: M e m a -> (a -> M e m b) -> M e m b
-  Return :: a  -> M e m a
-
-instance Monad m => Monad (M e m) where
-        return = Return
-        (>>=) = Bind
-
--- This is a trace
-data Trace :: * -> * -> * where
-        EventTrace :: (Show a) => e -> a -> Trace e a
-        BindTrace :: Trace e a -> Trace e b -> Trace e b
-        ReturnTrace :: a                -> Trace e a
-
-instance Show e => Show (Trace e a) where
-        show (EventTrace event a) = show a ++ "<-" ++ show event
-        show (BindTrace m n) = show m ++ ";" ++ show n
-        show (ReturnTrace _) = show "nop"
-
-result :: Trace e a -> a
-result (EventTrace _ a) = a
-result (BindTrace _ b) = result b
-result (ReturnTrace a) = a
+------------------------------------------------------------------
 
 data Event :: * where
         SendEvent :: Int -> Bool -> Event
+        WaitEvent :: Int -> Event
+        ResetEvent :: Event
 
 instance Show Event where
         show (SendEvent n b) = "send(" ++ show n ++ ")"
+        show (WaitEvent n)  = "pause(" ++ show n ++ ")"
+        show (ResetEvent)  = "reset"
 
-send :: Int -> M Event IO Bool
+data Env = Env (IO Int)         -- a random number generator
+
+mkEnv :: IO Env
+mkEnv = do
+        std0 <- getStdGen
+        var <- newMVar std0
+        return $ Env $ do
+                std <- takeMVar var
+                let (n,std') = random std
+                putMVar var std'
+                return n
+
+send :: Int -> TraceT Event IO Bool
 send n = Event $ do { print ("send",n) ; return $ EventTrace (SendEvent n True) True }
 
-interp1 :: Interleave m => M e m a -> m (Trace e a)
-interp1 (Event ev) = ev
-interp1 (Return a) = return (ReturnTrace a)
-interp1 (Bind m k) = do
-        a <- interleave $ interp1 m
-        b <- interleave $ interp1 (k (result a))
-        return $ BindTrace a b
+wait :: Int -> TraceT Event IO ()
+wait n = Event $ do { print ("wait",n) ; return $ EventTrace (WaitEvent n) () }
 
-class Monad m => Interleave m where
-        interleave :: m a -> m a
+reset :: TraceT Event IO ()
+reset = Event $ do { return $ EventTrace (ResetEvent) () }
 
-instance Interleave IO where
-        interleave = unsafeInterleaveIO
+rand :: Env -> TraceT Event IO Int
+rand (Env m) = NonEvent $ m
+
+randR :: Env -> Int -> TraceT Event IO Int
+randR (Env m) mx = NonEvent $ liftM (`mod` mx) m
+
+------------------------------------------------------------------
+
 
 main = do
-        a <- interp1 $ do
+        env <- mkEnv
+        a <- interp1 unsafeInterleaveIO $ do
                 do { send 99  ; send 1 }
-                do { send 100 ; send 2 }
+                wait 9
+                i <- randR env 99
+                do { send 100 ; send i }
+                reset
         print a
         print a
