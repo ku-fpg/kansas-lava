@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs, RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
 module Main where
 
 import Language.KansasLava
@@ -9,6 +9,7 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad
 import System.IO
+import Data.Monoid
 
 import Data.Word
 import Data.Sized.Ix
@@ -154,18 +155,28 @@ main2 ["driver"] = do
         dut <- dut_driver
         hl_dut <- dutToHLdut dut
 
-        let loop n = do
-                count <- proxy_counter hl_dut
-                print count
-                okay <- i0 hl_dut (SendDatum (fromIntegral n))
-                res <- o0 hl_dut RecvDatum
+        cmd_var <- newEmptyMVar
+        event_var <- newEmptyMVar
 
-                print okay
-                print res
+        let loop n = do
+--                count <- proxy_counter hl_dut
+--                print count
+                putMVar cmd_var $ FifoCmd
+                        { send1 = Just (fromIntegral n, Reply $ \ v -> return ())
+                        , recv1 = Just (Reply $ \ v  -> return ())
+                        }
 
                 loop (n+1)
 
-        loop 0
+        forkIO $ loop 0
+
+        forkIO $ forever $ do
+                event <- takeMVar event_var
+                print event
+
+        -- This runs in the main thread
+        interp hl_dut cmd_var event_var
+
 
         return ()
 {-
@@ -473,6 +484,66 @@ randR :: (Random r) => (r,r) -> TraceT FifoE FifoM r
 randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
 
 ------------------------------------------------------------------
+
+data FifoCmd resp = FifoCmd
+        { send1 :: Maybe (U8,resp Bool)
+        , recv1 :: Maybe (resp (Maybe U8))
+        }
+
+
+instance Show (FifoCmd Ret) where
+        show (FifoCmd { .. }) =
+                "FifoCmd { send1 = " ++ show send1 ++
+                        ", recv1 = " ++ show recv1 ++
+                        "}"
+
+instance Monoid (FifoCmd a) where
+        mempty = FifoCmd
+         { send1 = Nothing
+         , recv1 = Nothing
+         }
+        mappend f1 f2 = FifoCmd
+         { send1 = send1 f1 `join` send1 f2
+         , recv1 = recv1 f1 `join` recv1 f2
+         } where join Nothing   Nothing  = Nothing
+                 join (Just a)  Nothing  = Just a
+                 join Nothing   (Just b) = Just b
+                 join _         _        = error "FifoCmd attempting to request Cmd twice"
+
+data Reply a = Reply (a -> IO ())
+data Ret  a = Ret a
+        deriving Show
+
+-- data Cmd a b = Cmd a (b -> IO ())
+
+interp :: HL_DUT -> MVar (FifoCmd Reply) -> MVar (FifoCmd Ret) -> IO ()
+interp (HL_DUT { .. }) cmd_var event_var = loop 0
+  where
+     loop n = do
+        FifoCmd { .. } <- takeMVar cmd_var
+
+        send1' <- case send1 of
+                   Nothing -> do
+                           _ <- i0 SendNoDatum
+                           return Nothing
+                   Just (u8,resp) -> do
+                           r <- i0 (SendDatum u8)
+                           return $ Just (u8,Ret r)
+
+        recv1' <- case recv1 of
+                   Nothing -> do
+                           r <- o0 RecvNoDatum
+                           return Nothing
+                   Just resp -> do
+                           r <- o0 RecvDatum
+                           return $ Just (Ret r)
+
+        putMVar event_var $ FifoCmd
+                { send1 = send1'
+                , recv1 = recv1'
+                }
+
+        loop (n+1)
 
 
 
