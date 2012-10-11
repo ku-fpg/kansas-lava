@@ -158,6 +158,23 @@ main2 ["driver"] = do
         cmd_var <- newEmptyMVar
         event_var <- newEmptyMVar
 
+        let sender =
+                let loop n = do
+                        send n
+                        loop (n+1)
+                 in loop 0
+
+        let recvr = forever $ do
+                 d <- recv
+                 liftIO $ print ("recved",d)
+
+
+        let prog =
+                parFifoM
+                        [ sender
+                        , recvr
+                        ]
+{-
         let loop n = do
 --                count <- proxy_counter hl_dut
 --                print count
@@ -169,14 +186,37 @@ main2 ["driver"] = do
                 loop (n+1)
 
         forkIO $ loop 0
+-}
 
+        std0 <- getStdGen
+        var <- newMVar std0
+        cmd_var <- newEmptyMVar
+        env <- return $ Env
+          { env_rand = do
+                std <- takeMVar var
+                let (n,std') = random std
+                putMVar var std'
+                return n
+          , env_randR = \ (a,b) -> do
+                std <- takeMVar var
+                let (n,std') = randomR (a,b) std
+                putMVar var std'
+                return n
+          , the_cmds = cmd_var
+          }
+
+
+        forkIO $ do case prog of
+                       FifoM m -> m env
+                    print "done"
+
+        -- Show the events, please
         forkIO $ forever $ do
                 event <- takeMVar event_var
                 print event
 
         -- This runs in the main thread
         interp hl_dut cmd_var event_var
-
 
         return ()
 {-
@@ -527,22 +567,18 @@ parFifoM ms = FifoM $ \ env -> do
         -- call loop until all the sub-threads "die" (start issuing Nothing)
         loop
 
+send :: U8 -> FifoM Bool
+send n = FifoM $ \ env -> do
+        v <- newEmptyMVar
+        putMVar (the_cmds env) (Just (mempty { send1 = Just (n,Reply $ putMVar v)}))
+        takeMVar v
 
+recv :: FifoM (Maybe U8)
+recv = FifoM $ \ env -> do
+        v <- newEmptyMVar
+        putMVar (the_cmds env) (Just (mempty { recv1 = Just (Reply $ putMVar v)}))
+        takeMVar v
 
-
-
-
-{-
-send :: U8 -> TraceT FifoE FifoM Bool
-send n = FifoM $ \ (Env {..}) -> do
-        putMVar the_cmds $
-        let dat = fromIntegral n :: U8
-        -- waits until sent
-        tm <- atomically $ do
-                putTMVar (in_val env) dat
-                readTVar (the_clk env)
-        return (SendEvent (Just (dat,tm)), True)
--}
 ------------------------------------------------------------------
 
 data FifoCmd resp = FifoCmd
@@ -582,7 +618,7 @@ interp (HL_DUT { .. }) cmd_var event_var = loop 0
      loop n = do
         opt_cmd <- takeMVar cmd_var
         case opt_cmd of
-          Nothing -> return ()  -- done
+          Nothing -> return ()
           Just cmd -> loop' n cmd
 
      loop' n (FifoCmd { .. }) = do
@@ -591,16 +627,18 @@ interp (HL_DUT { .. }) cmd_var event_var = loop 0
                    Nothing -> do
                            _ <- i0 SendNoDatum
                            return Nothing
-                   Just (u8,resp) -> do
+                   Just (u8,Reply resp) -> do
                            r <- i0 (SendDatum u8)
+                           resp r
                            return $ Just (u8,Ret r)
 
         recv1' <- case recv1 of
                    Nothing -> do
                            r <- o0 RecvNoDatum
                            return Nothing
-                   Just resp -> do
+                   Just (Reply resp) -> do
                            r <- o0 RecvDatum
+                           resp r
                            return $ Just (Ret r)
 
         putMVar event_var $ FifoCmd
