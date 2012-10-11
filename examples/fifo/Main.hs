@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs, RecordWildCards #-}
 module Main where
 
 import Language.KansasLava
@@ -94,6 +94,9 @@ main2 ["driver"] = do
                         , OUT (outStdLogic       "o_valid" :: Seq Bool -> SuperFabric IO ())
                         ]
 
+
+
+
         v0 <- atomically $ newEmptyTMVar
         v1 <- atomically $ newEmptyTMVar
         vClk <- atomically $ newEmptyTMVar
@@ -101,6 +104,88 @@ main2 ["driver"] = do
 
         let en :: Seq Bool
             en = toS (cycle (take 10 (repeat False) ++ take 10 (repeat True)))
+
+        let dut_driver :: IO DUT
+            dut_driver = do
+
+                var_i_ready <- newEmptyMVar
+--                var_proxy_tick <- newEmptyMVar
+                var_i0 <- newEmptyMVar
+
+                hReaderFabric hState
+                        [ OUT (flip writeIOS $ putMVar var_i_ready :: Seq Bool -> IO ())
+--                        , OUT (flip writeIOS $ putMVar var_proxy_tick :: Seq () -> IO ())
+                        ]
+                var_i0 <- newEmptyMVar
+                var_i_valid <- newEmptyMVar
+                var_o_ready <- newEmptyMVar
+
+                hWriterFabric hIn
+                        [ IN (readIOS (takeMVar var_i0)      :: IO (Seq U8))
+                        , IN (readIOS (takeMVar var_i_valid) :: IO (Seq Bool))
+                        , IN (readIOS (takeMVar var_o_ready) :: IO (Seq Bool))
+                        ]
+
+                var_o0 <- newEmptyMVar
+                var_o_valid <- newEmptyMVar
+
+                hReaderFabric hOut
+                        [ OUT (flip writeIOS $ putMVar var_o0      :: Seq U8 -> IO ())
+                        , OUT (flip writeIOS $ putMVar var_o_valid :: Seq Bool -> IO ())
+                        ]
+
+--                var_proxy_counter <- newEmptyMVar
+--                forkIO $ let loop n = do { takeMVar var_proxy_clk ; putMVar var_proxy_counter n ; loop (n+1) }
+--                         in loop 1
+
+                return $
+                  DUT { dut_i_ready          = takeMVar var_i_ready
+--                      , dut_proxy_tick       = takeMVar var_proxy_tick
+
+                      , dut_i0               = putMVar var_i0
+                      , dut_i_valid          = putMVar var_i_valid
+                      , dut_o_ready          = putMVar var_o_ready
+
+                      -- DUT out
+                      , dut_o0               = takeMVar var_o0
+                      , dut_o_valid          = takeMVar var_o_valid
+                      }
+
+        dut <- dut_driver
+        hl_dut <- dutToHLdut dut
+
+        let loop n = do
+                count <- proxy_counter hl_dut
+                print count
+                okay <- i0 hl_dut (SendDatum (fromIntegral n))
+                res <- o0 hl_dut RecvDatum
+
+                print okay
+                print res
+
+                loop (n+1)
+
+        loop 0
+
+        return ()
+{-
+{-
+               clk :: Seq () <- inStdLogicVector "proxy_clk"
+               liftIO $ writeIOS clk (const $ atomically $ putTMVar vClk ())
+
+               rec i_ready :: Seq Ready <- inStdLogic "i_ready"
+                   val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 en i_ready
+                   outStdLogicVector "i0"      (enabledVal val_i :: Seq U8)
+                   outStdLogic       "i_valid" (isEnabled val_i :: Seq Bool)
+
+               rec o_ready :: Seq Ready <- liftIO $ rxProtocolS v1 en val_o
+                   outStdLogicVector "o_ready" (o_ready :: Seq Ready)
+                   o0      :: Seq U8   <- inStdLogicVector "o0"
+                   o_valid :: Seq Bool <- inStdLogic "o_valid"
+                   let val_o   :: Seq (Enabled U8) = packEnabled o_valid o0
+
+               return ()
+-}
 
         let proto_driver :: SuperFabric IO ()
             proto_driver = do
@@ -185,7 +270,7 @@ main2 ["driver"] = do
                 liftIO $ print ("loop0",n)
                 randR (0::Int,10) >>= wait
                 randR (0::Int,255) >>= send
---                atomically $ putTMVar v0 (fromIntegral (n :: Integer) :: U8)
+       --                atomically $ putTMVar v0 (fromIntegral (n :: Integer) :: U8)
                 if n > 10 then return () else loop0 (n+1)
 
         let loop1 = do
@@ -203,6 +288,135 @@ main2 ["driver"] = do
                 print a
 
         loop1
+-}
+
+------------------------------------------------------------------
+
+-- This is the low level API into the DUT, reflecting the
+-- VHDL almost directly. Note the tick, which is an extra
+-- field that 'ticks'  every
+
+data DUT = DUT
+        -- DUT state
+        { dut_i_ready           :: IO (X Bool)
+--        , dut_proxy_tick        :: IO (X ())
+
+        -- DUT in
+        , dut_i0                :: X U8   -> IO ()
+        , dut_i_valid           :: X Bool -> IO ()
+        , dut_o_ready           :: X Bool -> IO ()
+
+        -- DUT out
+        , dut_o0                :: IO (X U8)
+        , dut_o_valid           :: IO (X Bool)
+        }
+
+-- The high level API into the DUT.
+-- Note you need to call these functions from top to bottom.
+
+data HL_DUT = HL_DUT
+        { proxy_counter         :: IO Integer
+
+        -- inputs
+        , i0                    :: SendDatum U8 -> IO Bool
+
+        -- outputs
+        , o0                    :: RecvDatum   -> IO (Maybe U8)
+        }
+
+
+dutToHLdut :: DUT -> IO HL_DUT
+dutToHLdut (DUT { .. }) = do
+    var_proxy_counter <- newEmptyMVar
+    forkIO $ let loop n = do { putMVar var_proxy_counter n ; loop (n+1) }
+              in loop 0
+
+    return $ HL_DUT
+        { proxy_counter = takeMVar var_proxy_counter
+        , i0            = sendDatum dut_i_ready
+                                    dut_i0
+                                    dut_i_valid
+        , o0            = recvDatum dut_o_ready
+                                    dut_o0
+                                    dut_o_valid
+        }
+
+
+data SendDatum a
+        = SendUnknown
+        | SendNoDatum
+        | SendDatum a
+
+sendDatum :: (Rep a)
+          => IO (X Bool)
+          -> (X a -> IO ())
+          -> (X Bool -> IO ())
+          -> SendDatum a
+          -> IO Bool
+
+sendDatum ready dat en cmd =
+    case cmd of
+      SendUnknown -> do
+              _ <- ready        -- ignore the ready signal
+              dat unknownX      -- send unknown
+              en unknownX       -- send unknown enable
+              return True
+      SendNoDatum -> do
+              _ <- ready        -- ignore the ready signal
+              dat unknownX      -- send unknown
+              en (pureX False)  -- send *no* enable
+              return True
+      SendDatum a -> do
+              r <- ready        -- ignore the ready signal
+              case unX r of
+                 Nothing -> error "ready signal unknown in sendDatum"
+                 Just False -> do
+                         dat unknownX      -- send unknown
+                         en (pureX False)  -- send *no* enable
+                         return False
+                 Just True -> do
+                         dat (pureX a)     -- send value
+                         en (pureX True)  -- send an enable
+                         return True
+
+
+data RecvDatum
+        = RecvUnknown
+        | RecvNoDatum
+        | RecvDatum
+
+data Recv'dDatum
+
+
+recvDatum :: (Rep a)
+          => (X Bool -> IO ())
+          -> IO (X a)
+          -> IO (X Bool)
+          -> RecvDatum
+          -> IO (Maybe a)
+
+recvDatum ready dat en cmd =
+   case cmd of
+      RecvUnknown -> do
+              ready unknownX
+              _ <- dat
+              _ <- en
+              return Nothing
+      RecvNoDatum -> do
+              ready (pureX False)
+              _ <- dat
+              _ <- en
+              return Nothing
+      RecvDatum -> do
+              ready (pureX True)
+              d <- dat
+              e <- en
+              return $ case unX e of
+                Nothing -> error "enabled undefined in recvDatum"
+                Just True -> case unX d of
+                  Nothing -> error "enabled set, undefined value in recvDatum"
+                  Just a -> Just a
+                Just False -> Nothing
 
 ------------------------------------------------------------------
 
