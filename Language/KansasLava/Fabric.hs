@@ -251,9 +251,9 @@ traceFabric (Fabric f) = Fabric $ \ ins0 -> do
         return ((a,[],[]),tys1,outs1)
 
 
-data IN = forall a. (Rep a) => IN (SuperFabric IO (Seq a))
+data IN m = forall a. (Rep a) => IN (m (Seq a))
 
-hWriterFabric :: Handle -> [IN] -> SuperFabric IO ()
+hWriterFabric :: (MonadIO m) => Handle -> [IN m] -> m ()
 hWriterFabric h table = do
         xs <- sequence
                 [ do sq <- f
@@ -272,9 +272,9 @@ hWriterFabric h table = do
 
         return ()
 
-data OUT = forall a . (Rep a) => OUT (Seq a -> SuperFabric IO ())
+data OUT m = forall a . (Rep a) => OUT (Seq a -> m ())
 
-hReaderFabric :: Handle -> [OUT] -> SuperFabric IO ()
+hReaderFabric :: (MonadIO m) => Handle -> [OUT m] -> m ()
 hReaderFabric h table = do
         str <- liftIO $ hGetContents h
         let strs :: [String] = lines str
