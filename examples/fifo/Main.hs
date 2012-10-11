@@ -161,7 +161,7 @@ main2 ["driver"] = do
         let loop n = do
 --                count <- proxy_counter hl_dut
 --                print count
-                putMVar cmd_var $ FifoCmd
+                putMVar cmd_var $ Just $ FifoCmd
                         { send1 = Just (fromIntegral n, Reply $ \ v -> return ())
                         , recv1 = Just (Reply $ \ v  -> return ())
                         }
@@ -430,7 +430,7 @@ recvDatum ready dat en cmd =
                 Just False -> Nothing
 
 ------------------------------------------------------------------
-
+{-
 data FifoE :: * where
         SendEvent :: Maybe (U8,Integer) -> FifoE    -- val x cycle-sent
         WaitEvent :: Int -> FifoE
@@ -482,7 +482,67 @@ rand = lift $ FifoM $ \ env -> do { r <- env_rand env ; return r }
 
 randR :: (Random r) => (r,r) -> TraceT FifoE FifoM r
 randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
+-}
 
+data FifoM :: * -> * where
+        FifoM :: (Env -> IO a)          -> FifoM a
+
+instance Monad FifoM where
+        return a = FifoM $ \ env -> return a
+        (FifoM m) >>= k = FifoM $ \ env -> do
+                r <- m env
+                case k r of
+                  FifoM m -> m env
+
+instance MonadIO FifoM where
+        liftIO m = FifoM $ \ _ -> m
+
+data Env = Env
+        { env_rand  :: forall r . (Random r) => IO r -- a random number generator
+        , env_randR :: forall r . (Random r) => (r,r) -> IO r
+        , the_cmds  :: MVar (Maybe (FifoCmd Reply))  -- where to send the commands
+                -- Nothing is this "thread" is done
+                -- Just cmd is try execute the command, please
+
+        }
+
+parFifoM :: [ FifoM () ] -> FifoM ()
+parFifoM ms = FifoM $ \ env -> do
+        vs <- sequence
+                  [ do v <- newEmptyMVar
+                       forkIO $ f (env { the_cmds = v })
+                       return v
+                  | FifoM f <- ms
+                  ]
+
+        -- returns when all the commands
+        let loop = do
+                vals <- sequence [ takeMVar v | v <- vs ]
+                case mconcat vals of
+                  Nothing -> return ()  -- done
+                  Just cmd -> do
+                          putMVar (the_cmds env) (Just cmd)
+                          loop
+
+        -- call loop until all the sub-threads "die" (start issuing Nothing)
+        loop
+
+
+
+
+
+
+{-
+send :: U8 -> TraceT FifoE FifoM Bool
+send n = FifoM $ \ (Env {..}) -> do
+        putMVar the_cmds $
+        let dat = fromIntegral n :: U8
+        -- waits until sent
+        tm <- atomically $ do
+                putTMVar (in_val env) dat
+                readTVar (the_clk env)
+        return (SendEvent (Just (dat,tm)), True)
+-}
 ------------------------------------------------------------------
 
 data FifoCmd resp = FifoCmd
@@ -516,11 +576,16 @@ data Ret  a = Ret a
 
 -- data Cmd a b = Cmd a (b -> IO ())
 
-interp :: HL_DUT -> MVar (FifoCmd Reply) -> MVar (FifoCmd Ret) -> IO ()
+interp :: HL_DUT -> MVar (Maybe (FifoCmd Reply)) -> MVar (FifoCmd Ret) -> IO ()
 interp (HL_DUT { .. }) cmd_var event_var = loop 0
   where
      loop n = do
-        FifoCmd { .. } <- takeMVar cmd_var
+        opt_cmd <- takeMVar cmd_var
+        case opt_cmd of
+          Nothing -> return ()  -- done
+          Just cmd -> loop' n cmd
+
+     loop' n (FifoCmd { .. }) = do
 
         send1' <- case send1 of
                    Nothing -> do
