@@ -81,7 +81,6 @@ main2 ["driver"] = do
         hOut   <- openFile "DUT_OUT"   ReadWriteMode
 
         var_i_ready <- newEmptyMVar
-        var_i0 <- newEmptyMVar
 
         hReaderFabric hState
                 [ OUT (flip writeIOS $ putMVar var_i_ready :: Seq Bool -> IO ())
@@ -104,7 +103,6 @@ main2 ["driver"] = do
                 , OUT (flip writeIOS $ putMVar var_o_valid :: Seq Bool -> IO ())
                 ]
 
-
         let hl_dut = DUT
                 { i0 = sendDatum (takeMVar var_i_ready)
                                  (putMVar var_i0)
@@ -113,8 +111,6 @@ main2 ["driver"] = do
                                   (takeMVar var_o0)
                                   (takeMVar var_o_valid)
                 }
-
---        hl_dut <- dutToHLdut dut
 
         let sender =
                 let loop n = do
@@ -127,10 +123,9 @@ main2 ["driver"] = do
                  liftIO $ print ("recved",d)
 
         let prog =
-                parFifoM
-                        [ sender
-                        , recvr
-                        ]
+                parFifoM [ sender
+                         , recvr
+                         ]
 
         events <- runFifoM (callout hl_dut) prog
 
@@ -207,11 +202,6 @@ wait n = event $ FifoM $ \ env -> do { return (WaitEvent n,()) }
 reset :: TraceT FifoE FifoM ()
 reset = event $ FifoM $ \ env -> do { return (ResetEvent,()) }
 
-rand :: (Random r) => TraceT FifoE FifoM r
-rand = lift $ FifoM $ \ env -> do { r <- env_rand env ; return r }
-
-randR :: (Random r) => (r,r) -> TraceT FifoE FifoM r
-randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
 -}
 
 
@@ -231,17 +221,6 @@ recv n = do
           Nothing -> recv (n-1)
           Just r -> return (Just r)
 
-wait :: Int -> FifoM FifoCmd ()
-wait 0 = return ()
-wait n = do
-        putCmd $ \ reply -> mempty
-        wait (n - 1)
-
-putCmd :: (Reply b -> FifoCmd Reply) -> FifoM FifoCmd b
-putCmd cmd = FifoM $ \ env -> do
-        v <- newEmptyMVar
-        putMVar (the_cmds env) (Just $ cmd (Reply $ putMVar v))
-        takeMVar v
 
 ------------------------------------------------------------------
 

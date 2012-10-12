@@ -189,3 +189,20 @@ parFifoM ms = FifoM $ \ env -> do
         -- call loop until all the sub-threads "die" (start issuing Nothing)
         loop
 
+wait :: Monoid (f Reply) => Int -> FifoM f ()
+wait 0 = return ()
+wait n = do
+        putCmd $ \ reply -> mempty
+        wait (n - 1)
+
+putCmd :: (Reply b -> f Reply) -> FifoM f b
+putCmd cmd = FifoM $ \ env -> do
+        v <- newEmptyMVar
+        putMVar (the_cmds env) (Just $ cmd (Reply $ putMVar v))
+        takeMVar v
+
+rand :: (Random r) => FifoM f r
+rand = FifoM $ \ env -> env_rand env
+
+randR :: (Random r) => (r,r) -> FifoM f r
+randR (a,b) = FifoM $ \ env -> env_randR env (a,b)
