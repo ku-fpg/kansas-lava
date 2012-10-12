@@ -160,33 +160,19 @@ main2 ["driver"] = do
 
         let sender =
                 let loop n = do
-                        send n
+                        send n 10
                         loop (n+1)
                  in loop 0
 
         let recvr = forever $ do
-                 d <- recv
+                 d <- recv 10
                  liftIO $ print ("recved",d)
-
 
         let prog =
                 parFifoM
                         [ sender
                         , recvr
                         ]
-{-
-        let loop n = do
---                count <- proxy_counter hl_dut
---                print count
-                putMVar cmd_var $ Just $ FifoCmd
-                        { send1 = Just (fromIntegral n, Reply $ \ v -> return ())
-                        , recv1 = Just (Reply $ \ v  -> return ())
-                        }
-
-                loop (n+1)
-
-        forkIO $ loop 0
--}
 
         std0 <- getStdGen
         var <- newMVar std0
@@ -211,111 +197,20 @@ main2 ["driver"] = do
                     print "done"
 
         -- Show the events, please
-        forkIO $ forever $ do
-                event <- takeMVar event_var
-                print event
+
+
+        forkIO $ interp hl_dut cmd_var event_var
 
         -- This runs in the main thread
-        interp hl_dut cmd_var event_var
+        events <- sequence [ takeMVar event_var | _ <- [1..100]]
+
+        print $ length events
+
+        print $ prop_fifo events
 
         return ()
+
 {-
-{-
-               clk :: Seq () <- inStdLogicVector "proxy_clk"
-               liftIO $ writeIOS clk (const $ atomically $ putTMVar vClk ())
-
-               rec i_ready :: Seq Ready <- inStdLogic "i_ready"
-                   val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 en i_ready
-                   outStdLogicVector "i0"      (enabledVal val_i :: Seq U8)
-                   outStdLogic       "i_valid" (isEnabled val_i :: Seq Bool)
-
-               rec o_ready :: Seq Ready <- liftIO $ rxProtocolS v1 en val_o
-                   outStdLogicVector "o_ready" (o_ready :: Seq Ready)
-                   o0      :: Seq U8   <- inStdLogicVector "o0"
-                   o_valid :: Seq Bool <- inStdLogic "o_valid"
-                   let val_o   :: Seq (Enabled U8) = packEnabled o_valid o0
-
-               return ()
--}
-
-        let proto_driver :: SuperFabric IO ()
-            proto_driver = do
-
-               clk :: Seq () <- inStdLogicVector "proxy_clk"
-               liftIO $ writeIOS clk (const $ atomically $ putTMVar vClk ())
-
-               rec i_ready :: Seq Ready <- inStdLogic "i_ready"
-                   val_i :: Seq (Enabled U8) <- liftIO $ txProtocolS v0 en i_ready
-                   outStdLogicVector "i0"      (enabledVal val_i :: Seq U8)
-                   outStdLogic       "i_valid" (isEnabled val_i :: Seq Bool)
-
-               rec o_ready :: Seq Ready <- liftIO $ rxProtocolS v1 en val_o
-                   outStdLogicVector "o_ready" (o_ready :: Seq Ready)
-                   o0      :: Seq U8   <- inStdLogicVector "o0"
-                   o_valid :: Seq Bool <- inStdLogic "o_valid"
-                   let val_o   :: Seq (Enabled U8) = packEnabled o_valid o0
-
-               return ()
-
-        -- New stuff
-
-        forkIO $ let loop n = do
-                        atomically $ do
-                                () <- takeTMVar vClk
-                                writeTVar vCount n
-                        loop (n+1)
-                 in loop 1
-
-
-
-        v <- newMVar ()
-        setProbesAsTrace $ \ str -> do
-                takeMVar v
-                appendFile "DUT_PROXY_FABRIC" str
-                putMVar v ()
-
-        runFabricWithDriver (observeFabric probeS dut_proxy) proto_driver
-
-        std0 <- getStdGen
-        var <- newMVar std0
-        env <- return $ Env
-          { env_rand = do
-                std <- takeMVar var
-                let (n,std') = random std
-                putMVar var std'
-                return n
-          , env_randR = \ (a,b) -> do
-                std <- takeMVar var
-                let (n,std') = randomR (a,b) std
-                putMVar var std'
-                return n
-          , in_val = v0
-          , the_clk = vCount
-          }
-
-{-        let stuff = do
-                i <- randR (0::Int,10)
-                if i == 0 then reset
-                          else loop
-
-            loop = do
-                w <- randR (0::Int,100)
-                wait w
-                d <- randR (0::Int,255)
-                b <- send d
-                if b then stuff
-                     else loop
-
-        let interleave ~(FifoM f) = FifoM $ unsafeInterleaveIO . f
-        let FifoM f = interp1 interleave stuff
-        a <- f env
---        print a
-        print a
-        return ()
--}
-
-
-
         let loop0 :: Integer -> TraceT FifoE FifoM ()
             loop0 n = do
                 liftIO $ print ("loop0",n)
@@ -567,17 +462,36 @@ parFifoM ms = FifoM $ \ env -> do
         -- call loop until all the sub-threads "die" (start issuing Nothing)
         loop
 
-send :: U8 -> FifoM Bool
-send n = FifoM $ \ env -> do
+send :: U8 -> Int -> FifoM Bool
+send d 0 = return False
+send d n = do
+        r <- putCmd $ \ reply -> mempty { send1 = Just (d,reply) }
+        case r of
+          True  -> return True
+          False -> send d (n-1)
+
+recv :: Int -> FifoM (Maybe U8)
+recv 0 = return Nothing
+recv n = do
+        r <- putCmd $ \ reply -> mempty { recv1 = Just reply }
+        case r of
+          Nothing -> recv (n-1)
+          Just r -> return (Just r)
+
+wait :: Int -> FifoM ()
+wait 0 = return ()
+wait n = do
+        putCmd $ \ reply -> mempty
+        wait (n - 1)
+
+putCmd :: (Reply b -> FifoCmd Reply) -> FifoM b
+putCmd cmd = FifoM $ \ env -> do
         v <- newEmptyMVar
-        putMVar (the_cmds env) (Just (mempty { send1 = Just (n,Reply $ putMVar v)}))
+        putMVar (the_cmds env) (Just $ cmd (Reply $ putMVar v))
         takeMVar v
 
-recv :: FifoM (Maybe U8)
-recv = FifoM $ \ env -> do
-        v <- newEmptyMVar
-        putMVar (the_cmds env) (Just (mempty { recv1 = Just (Reply $ putMVar v)}))
-        takeMVar v
+
+
 
 ------------------------------------------------------------------
 
@@ -649,4 +563,26 @@ interp (HL_DUT { .. }) cmd_var event_var = loop 0
         loop (n+1)
 
 
+data FifoState = FifoState
+        { fifo_contents :: [U8]
+        }
+
+-- This is the key concept, correctnes of the FIFO.
+
+prop_fifo :: [FifoCmd Ret] -> Bool
+prop_fifo cmds = and $ zipWith (==) xs ys
+  where
+          xs = [ u | FifoCmd { send1 = Just (u,Ret True) } <- cmds ]
+          ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
+{-
+correctness (FifoCmd { send1 = Nothing,              recv1 = Nothing               }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Nothing               }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Nothing               }) state = state
+correctness (FifoCmd { send1 = Nothing,              recv1 = Just (Reply Nothing)  }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Just (Reply Nothing)  }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Just (Reply Nothing)  }) state = state
+correctness (FifoCmd { send1 = Nothing,              recv1 = Just (Reply (Just w)) }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Just (Reply (Just w)) }) state = state
+correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Just (Reply (Just w)) }) state = state
+-}
 
