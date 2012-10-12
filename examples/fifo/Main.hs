@@ -117,9 +117,6 @@ main2 ["driver"] = do
 
         hl_dut <- dutToHLdut dut
 
-        cmd_var <- newEmptyMVar
-        event_var <- newEmptyMVar
-
         let sender =
                 let loop n = do
                         send n 10
@@ -136,6 +133,24 @@ main2 ["driver"] = do
                         , recvr
                         ]
 
+        cmd_var <- runFifoM prog
+
+        -- Show the events, please
+
+        events <- dut_interp (callout hl_dut) cmd_var
+
+        -- This runs in the main thread
+--        events <- sequence [ takeMVar event_var | _ <- [1..100]]
+
+        print $ length (take 100 events)
+
+        print $ prop_fifo (take 100 events)
+
+        return ()
+
+------------------------------------------------------------------
+
+runFifoM prog = do
         std0 <- getStdGen
         var <- newMVar std0
         cmd_var <- newEmptyMVar
@@ -156,22 +171,10 @@ main2 ["driver"] = do
 
         forkIO $ do case prog of
                        FifoM m -> m env
-                    print "done"
 
-        -- Show the events, please
+        return cmd_var
 
-        events <- dut_interp (callout hl_dut) cmd_var
 
-        -- This runs in the main thread
---        events <- sequence [ takeMVar event_var | _ <- [1..100]]
-
-        print $ length (take 100 events)
-
-        print $ prop_fifo (take 100 events)
-
-        return ()
-
-------------------------------------------------------------------
 
 -- This is the low level API into the DUT, reflecting the
 -- VHDL almost directly. Note the tick, which is an extra
