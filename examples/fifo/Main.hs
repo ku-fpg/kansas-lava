@@ -135,12 +135,6 @@ main2 ["driver"] = do
 
 ------------------------------------------------------------------
 
-
--- This is the low level API into the DUT, reflecting the
--- VHDL almost directly. Note the tick, which is an extra
--- field that 'ticks'  every
-
-
 -- The high level API into the DUT.
 -- Note you need to call these functions from top to bottom.
 
@@ -152,74 +146,6 @@ data DUT = DUT
         , o0                    :: RecvDatum   -> IO (Maybe U8)
         }
 
-
-
-------------------------------------------------------------------
-{-
-data FifoE :: * where
-        SendEvent :: Maybe (U8,Integer) -> FifoE    -- val x cycle-sent
-        WaitEvent :: Int -> FifoE
-        ResetEvent :: FifoE
-
-instance Show FifoE where
-        show (SendEvent v) = "send(" ++ show v ++ ")"
-        show (WaitEvent n)  = "pause(" ++ show n ++ ")"
-        show (ResetEvent)  = "reset"
-
-data FifoM :: * -> * where
-        FifoM :: (Env -> IO a)          -> FifoM a
-
-instance Monad FifoM where
-        return a = FifoM $ \ env -> return a
-        (FifoM m) >>= k = FifoM $ \ env -> do
-                r <- m env
-                case k r of
-                  FifoM m -> m env
-
-instance MonadIO FifoM where
-        liftIO m = FifoM $ \ _ -> m
-
-data Env = Env
-        { env_rand  :: forall r . (Random r) => IO r -- a random number generator
-        , env_randR :: forall r . (Random r) => (r,r) -> IO r
-        , in_val    :: TMVar U8
-        , the_clk   :: TVar Integer
-        }
-
-
-send :: Int -> TraceT FifoE FifoM Bool
-send n = event $ FifoM $ \ env -> do
-        let dat = fromIntegral n :: U8
-        -- waits until sent
-        tm <- atomically $ do
-                putTMVar (in_val env) dat
-                readTVar (the_clk env)
-        return (SendEvent (Just (dat,tm)), True)
-
-wait :: Int -> TraceT FifoE FifoM ()
-wait n = event $ FifoM $ \ env -> do { return (WaitEvent n,()) }
-
-reset :: TraceT FifoE FifoM ()
-reset = event $ FifoM $ \ env -> do { return (ResetEvent,()) }
-
--}
-
-
-send :: U8 -> Int -> FifoM FifoCmd Bool
-send d 0 = return False
-send d n = do
-        r <- putCmd $ \ reply -> mempty { send1 = Just (d,reply) }
-        case r of
-          True  -> return True
-          False -> send d (n-1)
-
-recv :: Int -> FifoM FifoCmd (Maybe U8)
-recv 0 = return Nothing
-recv n = do
-        r <- putCmd $ \ reply -> mempty { recv1 = Just reply }
-        case r of
-          Nothing -> recv (n-1)
-          Just r -> return (Just r)
 
 
 ------------------------------------------------------------------
@@ -276,7 +202,24 @@ callout  (DUT { .. }) (FifoCmd { .. }) = do
                 , recv1 = recv1'
                 }
 
+send :: U8 -> Int -> FifoM FifoCmd Bool
+send d 0 = return False
+send d n = do
+        r <- putCmd $ \ reply -> mempty { send1 = Just (d,reply) }
+        case r of
+          True  -> return True
+          False -> send d (n-1)
 
+recv :: Int -> FifoM FifoCmd (Maybe U8)
+recv 0 = return Nothing
+recv n = do
+        r <- putCmd $ \ reply -> mempty { recv1 = Just reply }
+        case r of
+          Nothing -> recv (n-1)
+          Just r -> return (Just r)
+
+
+-----------------------------------------------------------------------------
 -- This is the key concept, correctnes of the FIFO.
 
 prop_fifo :: [FifoCmd Ret] -> Bool
@@ -284,3 +227,8 @@ prop_fifo cmds = and $ zipWith (==) xs ys
   where
           xs = [ u | FifoCmd { send1 = Just (u,Ret True) } <- cmds ]
           ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
+
+
+data FullTest f = FullTest
+        (FifoM f ())
+        [[f Ret] -> Bool]
