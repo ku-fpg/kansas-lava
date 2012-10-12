@@ -90,6 +90,7 @@ Library
        Language.KansasLava.VCD
 
        Control.Monad.Trans.Trace
+       FED
   Other-modules:
        Language.KansasLava.Internal
        Language.KansasLava.Rep.TH
