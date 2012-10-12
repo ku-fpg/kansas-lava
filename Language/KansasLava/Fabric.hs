@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
-    FlexibleContexts, UndecidableInstances, GADTs, DoRec, RankNTypes #-}
+    FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, RankNTypes #-}
 
 
 -- | The Fabric module is used for generating a top-level VHDL entity for a Lava
