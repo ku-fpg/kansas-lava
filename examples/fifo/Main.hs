@@ -79,69 +79,31 @@ main2 ["driver"] = do
         hIn    <- openFile "DUT_IN"    ReadWriteMode
         hOut   <- openFile "DUT_OUT"   ReadWriteMode
 
-        let dut_proxy :: SuperFabric IO ()
-            dut_proxy = do
-                hReaderFabric hState
-                        [ OUT (outStdLogic       "i_ready" :: Seq Bool -> SuperFabric IO ())
-                        , OUT (outStdLogicVector "proxy_clk" :: Seq () -> SuperFabric IO ())
-                        ]
-                hWriterFabric hIn
-                        [ IN (inStdLogicVector   "i0"      :: SuperFabric IO (Seq U8))
-                        , IN (inStdLogic         "i_valid" :: SuperFabric IO (Seq Bool))
-                        , IN (inStdLogic         "o_ready" :: SuperFabric IO (Seq Bool))
-                        ]
-                hReaderFabric hOut
-                        [ OUT (outStdLogicVector "o0"      :: Seq U8   -> SuperFabric IO ())
-                        , OUT (outStdLogic       "o_valid" :: Seq Bool -> SuperFabric IO ())
-                        ]
+        var_i_ready <- newEmptyMVar
+        var_i0 <- newEmptyMVar
 
+        hReaderFabric hState
+                [ OUT (flip writeIOS $ putMVar var_i_ready :: Seq Bool -> IO ())
+                ]
+        var_i0 <- newEmptyMVar
+        var_i_valid <- newEmptyMVar
+        var_o_ready <- newEmptyMVar
 
+        hWriterFabric hIn
+                [ IN (readIOS (takeMVar var_i0)      :: IO (Seq U8))
+                , IN (readIOS (takeMVar var_i_valid) :: IO (Seq Bool))
+                , IN (readIOS (takeMVar var_o_ready) :: IO (Seq Bool))
+                ]
 
+        var_o0 <- newEmptyMVar
+        var_o_valid <- newEmptyMVar
 
-        v0 <- atomically $ newEmptyTMVar
-        v1 <- atomically $ newEmptyTMVar
-        vClk <- atomically $ newEmptyTMVar
-        vCount <- atomically $ newTVar 0
+        hReaderFabric hOut
+                [ OUT (flip writeIOS $ putMVar var_o0      :: Seq U8 -> IO ())
+                , OUT (flip writeIOS $ putMVar var_o_valid :: Seq Bool -> IO ())
+                ]
 
-        let en :: Seq Bool
-            en = toS (cycle (take 10 (repeat False) ++ take 10 (repeat True)))
-
-        let dut_driver :: IO DUT
-            dut_driver = do
-
-                var_i_ready <- newEmptyMVar
---                var_proxy_tick <- newEmptyMVar
-                var_i0 <- newEmptyMVar
-
-                hReaderFabric hState
-                        [ OUT (flip writeIOS $ putMVar var_i_ready :: Seq Bool -> IO ())
---                        , OUT (flip writeIOS $ putMVar var_proxy_tick :: Seq () -> IO ())
-                        ]
-                var_i0 <- newEmptyMVar
-                var_i_valid <- newEmptyMVar
-                var_o_ready <- newEmptyMVar
-
-                hWriterFabric hIn
-                        [ IN (readIOS (takeMVar var_i0)      :: IO (Seq U8))
-                        , IN (readIOS (takeMVar var_i_valid) :: IO (Seq Bool))
-                        , IN (readIOS (takeMVar var_o_ready) :: IO (Seq Bool))
-                        ]
-
-                var_o0 <- newEmptyMVar
-                var_o_valid <- newEmptyMVar
-
-                hReaderFabric hOut
-                        [ OUT (flip writeIOS $ putMVar var_o0      :: Seq U8 -> IO ())
-                        , OUT (flip writeIOS $ putMVar var_o_valid :: Seq Bool -> IO ())
-                        ]
-
---                var_proxy_counter <- newEmptyMVar
---                forkIO $ let loop n = do { takeMVar var_proxy_clk ; putMVar var_proxy_counter n ; loop (n+1) }
---                         in loop 1
-
-                return $
-                  DUT { dut_i_ready          = takeMVar var_i_ready
---                      , dut_proxy_tick       = takeMVar var_proxy_tick
+        let dut = DUT { dut_i_ready          = takeMVar var_i_ready
 
                       , dut_i0               = putMVar var_i0
                       , dut_i_valid          = putMVar var_i_valid
@@ -152,7 +114,6 @@ main2 ["driver"] = do
                       , dut_o_valid          = takeMVar var_o_valid
                       }
 
-        dut <- dut_driver
         hl_dut <- dutToHLdut dut
 
         cmd_var <- newEmptyMVar
@@ -209,32 +170,6 @@ main2 ["driver"] = do
         print $ prop_fifo events
 
         return ()
-
-{-
-        let loop0 :: Integer -> TraceT FifoE FifoM ()
-            loop0 n = do
-                liftIO $ print ("loop0",n)
-                randR (0::Int,10) >>= wait
-                randR (0::Int,255) >>= send
-       --                atomically $ putTMVar v0 (fromIntegral (n :: Integer) :: U8)
-                if n > 10 then return () else loop0 (n+1)
-
-        let loop1 = do
-                v :: U8 <- atomically $ takeTMVar v1
---                threadDelay (100 * 1000)
---                threadDelay (1000)
-                print ("loop1",v)
-                loop1
-
-        let interleave ~(FifoM f) = FifoM $ unsafeInterleaveIO . f
-
-        forkIO $ do
-                let FifoM f = interp1 interleave (loop0 0) :: FifoM (Trace FifoE ())
-                a <- f env
-                print a
-
-        loop1
--}
 
 ------------------------------------------------------------------
 
