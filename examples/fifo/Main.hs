@@ -105,7 +105,7 @@ main2 ["driver"] = do
                 ]
 
 
-        let hl_dut = HL_DUT
+        let hl_dut = DUT
                 { i0 = sendDatum (takeMVar var_i_ready)
                                  (putMVar var_i0)
                                  (putMVar var_i_valid)
@@ -134,8 +134,6 @@ main2 ["driver"] = do
 
         events <- runFifoM (callout hl_dut) prog
 
-        print $ length (take 100 events)
-
         print $ prop_fifo (take 100 events)
 
         return ()
@@ -147,25 +145,11 @@ main2 ["driver"] = do
 -- VHDL almost directly. Note the tick, which is an extra
 -- field that 'ticks'  every
 
-data DUT = DUT
-        -- DUT state
-        { dut_i_ready           :: IO (X Bool)
---        , dut_proxy_tick        :: IO (X ())
-
-        -- DUT in
-        , dut_i0                :: X U8   -> IO ()
-        , dut_i_valid           :: X Bool -> IO ()
-        , dut_o_ready           :: X Bool -> IO ()
-
-        -- DUT out
-        , dut_o0                :: IO (X U8)
-        , dut_o_valid           :: IO (X Bool)
-        }
 
 -- The high level API into the DUT.
 -- Note you need to call these functions from top to bottom.
 
-data HL_DUT = HL_DUT
+data DUT = DUT
         -- inputs
         { i0                    :: SendDatum U8 -> IO Bool
 
@@ -288,8 +272,8 @@ instance Monoid (FifoCmd a) where
 
 -- All the logic that modifies the DUT is inside here.
 -- This is called once per cycle.
-callout :: HL_DUT -> FifoCmd Reply -> IO (FifoCmd Ret)
-callout  (HL_DUT { .. }) (FifoCmd { .. }) = do
+callout :: DUT -> FifoCmd Reply -> IO (FifoCmd Ret)
+callout  (DUT { .. }) (FifoCmd { .. }) = do
         send1' <- case send1 of
                    Nothing -> do
                            _ <- i0 SendNoDatum
