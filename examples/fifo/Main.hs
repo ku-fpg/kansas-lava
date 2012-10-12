@@ -25,6 +25,7 @@ import System.Random
 import Control.Monad
 import Control.Monad.Trans.Trace
 
+import FED
 
 
 main :: IO ()
@@ -159,15 +160,14 @@ main2 ["driver"] = do
 
         -- Show the events, please
 
-
-        forkIO $ interp hl_dut cmd_var event_var
+        events <- dut_interp (callout hl_dut) cmd_var
 
         -- This runs in the main thread
-        events <- sequence [ takeMVar event_var | _ <- [1..100]]
+--        events <- sequence [ takeMVar event_var | _ <- [1..100]]
 
-        print $ length events
+        print $ length (take 100 events)
 
-        print $ prop_fifo events
+        print $ prop_fifo (take 100 events)
 
         return ()
 
@@ -222,82 +222,6 @@ dutToHLdut (DUT { .. }) = do
                                     dut_o_valid
         }
 
-
-data SendDatum a
-        = SendUnknown
-        | SendNoDatum
-        | SendDatum a
-
-sendDatum :: (Rep a)
-          => IO (X Bool)
-          -> (X a -> IO ())
-          -> (X Bool -> IO ())
-          -> SendDatum a
-          -> IO Bool
-
-sendDatum ready dat en cmd =
-    case cmd of
-      SendUnknown -> do
-              _ <- ready        -- ignore the ready signal
-              dat unknownX      -- send unknown
-              en unknownX       -- send unknown enable
-              return True
-      SendNoDatum -> do
-              _ <- ready        -- ignore the ready signal
-              dat unknownX      -- send unknown
-              en (pureX False)  -- send *no* enable
-              return True
-      SendDatum a -> do
-              r <- ready        -- ignore the ready signal
-              case unX r of
-                 Nothing -> error "ready signal unknown in sendDatum"
-                 Just False -> do
-                         dat unknownX      -- send unknown
-                         en (pureX False)  -- send *no* enable
-                         return False
-                 Just True -> do
-                         dat (pureX a)     -- send value
-                         en (pureX True)  -- send an enable
-                         return True
-
-
-data RecvDatum
-        = RecvUnknown
-        | RecvNoDatum
-        | RecvDatum
-
-data Recv'dDatum
-
-
-recvDatum :: (Rep a)
-          => (X Bool -> IO ())
-          -> IO (X a)
-          -> IO (X Bool)
-          -> RecvDatum
-          -> IO (Maybe a)
-
-recvDatum ready dat en cmd =
-   case cmd of
-      RecvUnknown -> do
-              ready unknownX
-              _ <- dat
-              _ <- en
-              return Nothing
-      RecvNoDatum -> do
-              ready (pureX False)
-              _ <- dat
-              _ <- en
-              return Nothing
-      RecvDatum -> do
-              ready (pureX True)
-              d <- dat
-              e <- en
-              return $ case unX e of
-                Nothing -> error "enabled undefined in recvDatum"
-                Just True -> case unX d of
-                  Nothing -> error "enabled set, undefined value in recvDatum"
-                  Just a -> Just a
-                Just False -> Nothing
 
 ------------------------------------------------------------------
 {-
@@ -354,29 +278,28 @@ randR :: (Random r) => (r,r) -> TraceT FifoE FifoM r
 randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
 -}
 
-data FifoM :: * -> * where
-        FifoM :: (Env -> IO a)          -> FifoM a
+data FifoM :: ((* -> *) -> *) -> * -> * where
+        FifoM :: (Env f -> IO a) -> FifoM f a
 
-instance Monad FifoM where
+instance Monad (FifoM f) where
         return a = FifoM $ \ env -> return a
         (FifoM m) >>= k = FifoM $ \ env -> do
                 r <- m env
                 case k r of
                   FifoM m -> m env
 
-instance MonadIO FifoM where
+instance MonadIO (FifoM f) where
         liftIO m = FifoM $ \ _ -> m
 
-data Env = Env
+data Env f = Env
         { env_rand  :: forall r . (Random r) => IO r -- a random number generator
         , env_randR :: forall r . (Random r) => (r,r) -> IO r
-        , the_cmds  :: MVar (Maybe (FifoCmd Reply))  -- where to send the commands
+        , the_cmds  :: MVar (Maybe (f Reply))  -- where to send the commands
                 -- Nothing is this "thread" is done
                 -- Just cmd is try execute the command, please
-
         }
 
-parFifoM :: [ FifoM () ] -> FifoM ()
+parFifoM :: (Monoid (f Reply)) => [ FifoM f () ] -> FifoM f ()
 parFifoM ms = FifoM $ \ env -> do
         vs <- sequence
                   [ do v <- newEmptyMVar
@@ -397,7 +320,7 @@ parFifoM ms = FifoM $ \ env -> do
         -- call loop until all the sub-threads "die" (start issuing Nothing)
         loop
 
-send :: U8 -> Int -> FifoM Bool
+send :: U8 -> Int -> FifoM FifoCmd Bool
 send d 0 = return False
 send d n = do
         r <- putCmd $ \ reply -> mempty { send1 = Just (d,reply) }
@@ -405,7 +328,7 @@ send d n = do
           True  -> return True
           False -> send d (n-1)
 
-recv :: Int -> FifoM (Maybe U8)
+recv :: Int -> FifoM FifoCmd (Maybe U8)
 recv 0 = return Nothing
 recv n = do
         r <- putCmd $ \ reply -> mempty { recv1 = Just reply }
@@ -413,20 +336,17 @@ recv n = do
           Nothing -> recv (n-1)
           Just r -> return (Just r)
 
-wait :: Int -> FifoM ()
+wait :: Int -> FifoM FifoCmd ()
 wait 0 = return ()
 wait n = do
         putCmd $ \ reply -> mempty
         wait (n - 1)
 
-putCmd :: (Reply b -> FifoCmd Reply) -> FifoM b
+putCmd :: (Reply b -> FifoCmd Reply) -> FifoM FifoCmd b
 putCmd cmd = FifoM $ \ env -> do
         v <- newEmptyMVar
         putMVar (the_cmds env) (Just $ cmd (Reply $ putMVar v))
         takeMVar v
-
-
-
 
 ------------------------------------------------------------------
 
@@ -434,7 +354,6 @@ data FifoCmd resp = FifoCmd
         { send1 :: Maybe (U8,resp Bool)
         , recv1 :: Maybe (resp (Maybe U8))
         }
-
 
 instance Show (FifoCmd Ret) where
         show (FifoCmd { .. }) =
@@ -455,23 +374,11 @@ instance Monoid (FifoCmd a) where
                  join Nothing   (Just b) = Just b
                  join _         _        = error "FifoCmd attempting to request Cmd twice"
 
-data Reply a = Reply (a -> IO ())
-data Ret  a = Ret a
-        deriving Show
 
--- data Cmd a b = Cmd a (b -> IO ())
-
-interp :: HL_DUT -> MVar (Maybe (FifoCmd Reply)) -> MVar (FifoCmd Ret) -> IO ()
-interp (HL_DUT { .. }) cmd_var event_var = loop 0
-  where
-     loop n = do
-        opt_cmd <- takeMVar cmd_var
-        case opt_cmd of
-          Nothing -> return ()
-          Just cmd -> loop' n cmd
-
-     loop' n (FifoCmd { .. }) = do
-
+-- All the logic that modifies the DUT is inside here.
+-- This is called once per cycle.
+callout :: HL_DUT -> FifoCmd Reply -> IO (FifoCmd Ret)
+callout  (HL_DUT { .. }) (FifoCmd { .. }) = do
         send1' <- case send1 of
                    Nothing -> do
                            _ <- i0 SendNoDatum
@@ -490,17 +397,11 @@ interp (HL_DUT { .. }) cmd_var event_var = loop 0
                            resp r
                            return $ Just (Ret r)
 
-        putMVar event_var $ FifoCmd
+        return $ FifoCmd
                 { send1 = send1'
                 , recv1 = recv1'
                 }
 
-        loop (n+1)
-
-
-data FifoState = FifoState
-        { fifo_contents :: [U8]
-        }
 
 -- This is the key concept, correctnes of the FIFO.
 
@@ -509,15 +410,3 @@ prop_fifo cmds = and $ zipWith (==) xs ys
   where
           xs = [ u | FifoCmd { send1 = Just (u,Ret True) } <- cmds ]
           ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
-{-
-correctness (FifoCmd { send1 = Nothing,              recv1 = Nothing               }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Nothing               }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Nothing               }) state = state
-correctness (FifoCmd { send1 = Nothing,              recv1 = Just (Reply Nothing)  }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Just (Reply Nothing)  }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Just (Reply Nothing)  }) state = state
-correctness (FifoCmd { send1 = Nothing,              recv1 = Just (Reply (Just w)) }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply False), recv1 = Just (Reply (Just w)) }) state = state
-correctness (FifoCmd { send1 = Just (u,Reply True),  recv1 = Just (Reply (Just w)) }) state = state
--}
-
