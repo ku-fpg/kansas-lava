@@ -104,18 +104,17 @@ main2 ["driver"] = do
                 , OUT (flip writeIOS $ putMVar var_o_valid :: Seq Bool -> IO ())
                 ]
 
-        let dut = DUT { dut_i_ready          = takeMVar var_i_ready
 
-                      , dut_i0               = putMVar var_i0
-                      , dut_i_valid          = putMVar var_i_valid
-                      , dut_o_ready          = putMVar var_o_ready
+        let hl_dut = HL_DUT
+                { i0 = sendDatum (takeMVar var_i_ready)
+                                 (putMVar var_i0)
+                                 (putMVar var_i_valid)
+                , o0  = recvDatum (putMVar var_o_ready)
+                                  (takeMVar var_o0)
+                                  (takeMVar var_o_valid)
+                }
 
-                      -- DUT out
-                      , dut_o0               = takeMVar var_o0
-                      , dut_o_valid          = takeMVar var_o_valid
-                      }
-
-        hl_dut <- dutToHLdut dut
+--        hl_dut <- dutToHLdut dut
 
         let sender =
                 let loop n = do
@@ -133,15 +132,7 @@ main2 ["driver"] = do
                         , recvr
                         ]
 
-        cmd_var <- newEmptyMVar
-        forkIO $ runFifoM cmd_var prog
-
-        -- Show the events, please
-
-        events <- dut_interp (callout hl_dut) cmd_var
-
-        -- This runs in the main thread
---        events <- sequence [ takeMVar event_var | _ <- [1..100]]
+        events <- runFifoM (callout hl_dut) prog
 
         print $ length (take 100 events)
 
@@ -150,30 +141,6 @@ main2 ["driver"] = do
         return ()
 
 ------------------------------------------------------------------
-
-runFifoM cmd_var prog = do
-        std0 <- getStdGen
-        var <- newMVar std0
-        env <- return $ Env
-          { env_rand = do
-                std <- takeMVar var
-                let (n,std') = random std
-                putMVar var std'
-                return n
-          , env_randR = \ (a,b) -> do
-                std <- takeMVar var
-                let (n,std') = randomR (a,b) std
-                putMVar var std'
-                return n
-          , the_cmds = cmd_var
-          }
-
-
-        case prog of
-           FifoM m -> m env
-
-        return ()
-
 
 
 -- This is the low level API into the DUT, reflecting the
@@ -199,31 +166,13 @@ data DUT = DUT
 -- Note you need to call these functions from top to bottom.
 
 data HL_DUT = HL_DUT
-        { proxy_counter         :: IO Integer
-
         -- inputs
-        , i0                    :: SendDatum U8 -> IO Bool
+        { i0                    :: SendDatum U8 -> IO Bool
 
         -- outputs
         , o0                    :: RecvDatum   -> IO (Maybe U8)
         }
 
-
-dutToHLdut :: DUT -> IO HL_DUT
-dutToHLdut (DUT { .. }) = do
-    var_proxy_counter <- newEmptyMVar
-    forkIO $ let loop n = do { putMVar var_proxy_counter n ; loop (n+1) }
-              in loop 0
-
-    return $ HL_DUT
-        { proxy_counter = takeMVar var_proxy_counter
-        , i0            = sendDatum dut_i_ready
-                                    dut_i0
-                                    dut_i_valid
-        , o0            = recvDatum dut_o_ready
-                                    dut_o0
-                                    dut_o_valid
-        }
 
 
 ------------------------------------------------------------------
@@ -281,47 +230,6 @@ randR :: (Random r) => (r,r) -> TraceT FifoE FifoM r
 randR (a,b) = lift $ FifoM $ \ env -> do { r <- env_randR env (a,b) ; return r }
 -}
 
-data FifoM :: ((* -> *) -> *) -> * -> * where
-        FifoM :: (Env f -> IO a) -> FifoM f a
-
-instance Monad (FifoM f) where
-        return a = FifoM $ \ env -> return a
-        (FifoM m) >>= k = FifoM $ \ env -> do
-                r <- m env
-                case k r of
-                  FifoM m -> m env
-
-instance MonadIO (FifoM f) where
-        liftIO m = FifoM $ \ _ -> m
-
-data Env f = Env
-        { env_rand  :: forall r . (Random r) => IO r -- a random number generator
-        , env_randR :: forall r . (Random r) => (r,r) -> IO r
-        , the_cmds  :: MVar (Maybe (f Reply))  -- where to send the commands
-                -- Nothing is this "thread" is done
-                -- Just cmd is try execute the command, please
-        }
-
-parFifoM :: (Monoid (f Reply)) => [ FifoM f () ] -> FifoM f ()
-parFifoM ms = FifoM $ \ env -> do
-        vs <- sequence
-                  [ do v <- newEmptyMVar
-                       forkIO $ f (env { the_cmds = v })
-                       return v
-                  | FifoM f <- ms
-                  ]
-
-        -- returns when all the commands
-        let loop = do
-                vals <- sequence [ takeMVar v | v <- vs ]
-                case mconcat vals of
-                  Nothing -> return ()  -- done
-                  Just cmd -> do
-                          putMVar (the_cmds env) (Just cmd)
-                          loop
-
-        -- call loop until all the sub-threads "die" (start issuing Nothing)
-        loop
 
 send :: U8 -> Int -> FifoM FifoCmd Bool
 send d 0 = return False
