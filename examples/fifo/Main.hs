@@ -133,7 +133,8 @@ main2 ["driver"] = do
                         , recvr
                         ]
 
-        cmd_var <- runFifoM prog
+        cmd_var <- newEmptyMVar
+        forkIO $ runFifoM cmd_var prog
 
         -- Show the events, please
 
@@ -150,10 +151,9 @@ main2 ["driver"] = do
 
 ------------------------------------------------------------------
 
-runFifoM prog = do
+runFifoM cmd_var prog = do
         std0 <- getStdGen
         var <- newMVar std0
-        cmd_var <- newEmptyMVar
         env <- return $ Env
           { env_rand = do
                 std <- takeMVar var
@@ -169,10 +169,10 @@ runFifoM prog = do
           }
 
 
-        forkIO $ do case prog of
-                       FifoM m -> m env
+        case prog of
+           FifoM m -> m env
 
-        return cmd_var
+        return ()
 
 
 
