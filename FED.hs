@@ -110,16 +110,10 @@ data Reply a = Reply (a -> IO ())
 data Ret  a = Ret a
         deriving Show
 
-dut_interp :: (f Reply -> IO (f Ret)) -> MVar (Maybe (f Reply)) -> IO [f Ret]
-dut_interp callout cmd_var = loop
-  where
-     loop = do
-        opt_cmd <- takeMVar cmd_var
-        case opt_cmd of
-          Nothing -> return []
-          Just cmd -> do ret <- callout cmd
-                         rest <- unsafeInterleaveIO loop
-                         return (ret : rest)
+
+data FullTest f = FullTest
+        (FifoM f ())
+        [(String,[f Ret] -> Bool)]
 
 
 runFifoM :: (f Reply -> IO (f Ret)) -> FifoM f () -> IO [f Ret]
@@ -141,11 +135,24 @@ runFifoM action prog = do
           , the_cmds = cmd_var
           }
 
-
         forkIO $ case prog of
            FifoM m -> do m env
 
         dut_interp action cmd_var
+
+
+dut_interp :: (f Reply -> IO (f Ret)) -> MVar (Maybe (f Reply)) -> IO [f Ret]
+dut_interp callout cmd_var = loop
+  where
+     loop = do
+        opt_cmd <- takeMVar cmd_var
+        case opt_cmd of
+          Nothing -> return []
+          Just cmd -> do ret <- callout cmd
+                         rest <- unsafeInterleaveIO loop
+                         return (ret : rest)
+
+
 
 data FifoM :: ((* -> *) -> *) -> * -> * where
         FifoM :: (Env f -> IO a) -> FifoM f a

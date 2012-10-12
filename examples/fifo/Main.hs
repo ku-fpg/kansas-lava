@@ -112,24 +112,15 @@ main2 ["driver"] = do
                                   (takeMVar var_o_valid)
                 }
 
-        let sender =
-                let loop n = do
-                        send n 10
-                        loop (n+1)
-                 in loop 0
 
-        let recvr = forever $ do
-                 d <- recv 10
-                 liftIO $ print ("recved",d)
-
-        let prog =
-                parFifoM [ sender
-                         , recvr
-                         ]
+        let FullTest prog props = getFullTest "orig"
 
         events <- runFifoM (callout hl_dut) prog
 
-        print $ prop_fifo (take 100 events)
+        sequence_ [ do putStrLn $ nm ++ " (" ++ show n ++ ") " ++ show (prop (take n events))
+                  | n <-  take 6 $ iterate (*10) 10
+                  , (nm,prop) <- props
+                  ]
 
         return ()
 
@@ -145,7 +136,6 @@ data DUT = DUT
         -- outputs
         , o0                    :: RecvDatum   -> IO (Maybe U8)
         }
-
 
 
 ------------------------------------------------------------------
@@ -229,6 +219,21 @@ prop_fifo cmds = and $ zipWith (==) xs ys
           ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
 
 
-data FullTest f = FullTest
-        (FifoM f ())
-        [[f Ret] -> Bool]
+getFullTest :: String -> FullTest FifoCmd
+getFullTest "orig" = FullTest prog [("fifo",prop_fifo)]
+    where
+        prog = parFifoM [ sender, recvr ]
+
+        sender = let loop n = do
+                        send n 10
+                        loop (n+1)
+                 in loop 0
+
+        recvr = forever $ do
+                 recv 10
+
+
+
+
+------------------------------------------------------------------
+
