@@ -121,10 +121,10 @@ instance Monad (FifoM f) where
 instance MonadIO (FifoM f) where
         liftIO m = FifoM $ \ _ -> m
 
-runFifoM :: (f Reply -> IO (f Ret)) -> FifoM f () -> IO ()
-runFifoM action prog = do
+runFifoM :: String -> (f Reply -> IO (f Ret)) -> FifoM f () -> IO ()
+runFifoM seed action prog = do
         cmd_var <- newEmptyMVar
-        std0 <- getStdGen
+        let std0 :: StdGen = read seed
         var <- newMVar std0
         env <- return $ Env
           { env_rand = do
@@ -151,7 +151,7 @@ dut_interp :: (f Reply -> IO (f Ret)) -> MVar (StepCmd f) -> IO ()
 dut_interp callout cmd_var = loop 0 []
   where
      loop n checked = do
-        if n `mod` 1000 == 0 then do { putChar '.' ; hFlush stdout } else return ()
+        if n `mod` 10000 == 0 then do { putChar '.' ; hFlush stdout } else return ()
         -- get step commands
         (props,opt_cmd) <- takeStepCmd cmd_var
         case opt_cmd of
@@ -204,8 +204,6 @@ data Ret  a = Ret a
 -- A prop is something that should always be true for a specific test.
 data Prop f = Prop String ([f Ret] -> [Bool])
 
-
-
 data StepCmd f
         = StepDone               -- 1 cycle, no more commands
         | StepCmd (f Reply)      -- 1 cycle
@@ -229,8 +227,6 @@ data Env f = Env
         { env_rand  :: forall r . (Random r) => IO r -- a random number generator
         , env_randR :: forall r . (Random r) => (r,r) -> IO r
         , the_cmds  :: MVar (StepCmd f)  -- where to send the commands
-                -- Nothing is this "thread" is done
-                -- Just cmd is try execute the command, please
         }
 
 parFifoM :: (Monoid (f Reply)) => [ FifoM f () ] -> FifoM f ()
@@ -245,7 +241,7 @@ parFifoM ms = FifoM $ \ env -> do
 
         -- returns when all the commands
         let loop = do
-                (regs,vals) <- liftM unzip $ sequence [ takeStepCmd v | (i,v) <- [0..] `zip` vs ]
+                (regs,vals) <- liftM unzip $ sequence [ takeStepCmd v | v <- vs ]
                 case (concat regs,mconcat vals) of
                   ([],Nothing) -> return ()
                   (props,opt_cmd) -> do

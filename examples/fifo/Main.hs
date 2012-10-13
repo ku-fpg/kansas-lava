@@ -112,18 +112,9 @@ main2 ["driver"] = do
                                   (takeMVar var_o_valid)
                 }
 
-
         let prog = getFullTest "orig"
 
-        runFifoM (callout hl_dut) prog
-{-
-        sequence_ [ do putStrLn $ nm ++ " (" ++ show n ++ ") " ++ show (prop (take n events))
-                  | n <-  take 6 $ iterate (*10) 10
-                  , (nm,prop) <- props
-                  ]
-
-        return ()
--}
+        runFifoM "seed" (callout hl_dut) prog
 
 ------------------------------------------------------------------
 
