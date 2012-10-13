@@ -1,6 +1,6 @@
 -- Stuff for the FED / LHC work
 
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, UndecidableInstances, FlexibleContexts, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
 module FED where
 
 import Language.KansasLava
@@ -110,6 +110,11 @@ data Reply a = Reply (a -> IO ())
 data Ret  a = Ret a
         deriving Show
 
+-- A prop is something that should always be true for a specific test.
+data Prop f = Prop String ([f Ret] -> [Bool])
+
+registerProp :: Prop f -> FifoM f ()
+registerProp = undefined
 
 data FullTest f = FullTest
         (FifoM f ())
@@ -141,18 +146,16 @@ runFifoM action prog = do
         dut_interp action cmd_var
 
 
-dut_interp :: (f Reply -> IO (f Ret)) -> MVar (Maybe (f Reply)) -> IO [f Ret]
+dut_interp :: (f Reply -> IO (f Ret)) -> MVar (StepCmd f)   -> IO [f Ret]
 dut_interp callout cmd_var = loop
   where
      loop = do
-        opt_cmd <- takeMVar cmd_var
+        (opt_prop,opt_cmd) <- takeStepCmd cmd_var
         case opt_cmd of
           Nothing -> return []
           Just cmd -> do ret <- callout cmd
                          rest <- unsafeInterleaveIO loop
                          return (ret : rest)
-
-
 
 data FifoM :: ((* -> *) -> *) -> * -> * where
         FifoM :: (Env f -> IO a) -> FifoM f a
@@ -167,10 +170,32 @@ instance Monad (FifoM f) where
 instance MonadIO (FifoM f) where
         liftIO m = FifoM $ \ _ -> m
 
+data StepCmd f
+        = StepDone                      -- 1 cycle, no more commands
+        | StepCmd (f Reply)             -- 1 cycle
+        | RegProp String (Prop f)       -- no cycles
+
+
+takeStepCmd :: MVar (StepCmd f) -> IO ([(String,Prop f)],Maybe (f Reply))
+takeStepCmd var = loop []
+  where
+        loop regs = do
+                v <- takeMVar var
+                case v of
+                   StepDone -> return (regs,Nothing)
+                   StepCmd cmd -> return (regs,Just cmd)
+                   RegProp nm prop -> loop (regs ++ [(nm,prop)])
+
+{-
+instance Monoid (f Reply) => Monoid (StepCmd f) where
+        mempty = StepCmd [] mempty
+
+        mappend (StepCmd xs s1) (StepCmd ys s2) = StepCmd (xs `mappend` ys) (s1 `mappend` s2)
+-}
 data Env f = Env
         { env_rand  :: forall r . (Random r) => IO r -- a random number generator
         , env_randR :: forall r . (Random r) => (r,r) -> IO r
-        , the_cmds  :: MVar (Maybe (f Reply))  -- where to send the commands
+        , the_cmds  :: MVar (StepCmd f)  -- where to send the commands
                 -- Nothing is this "thread" is done
                 -- Just cmd is try execute the command, please
         }
@@ -186,12 +211,18 @@ parFifoM ms = FifoM $ \ env -> do
 
         -- returns when all the commands
         let loop = do
-                vals <- sequence [ takeMVar v | v <- vs ]
-                case mconcat vals of
-                  Nothing -> return ()  -- done
-                  Just cmd -> do
-                          putMVar (the_cmds env) (Just cmd)
+                (regs,vals) <- liftM unzip $ sequence [ takeStepCmd v | v <- vs ]
+                case (concat regs,mconcat vals) of
+                  ([],Nothing) -> return ()
+                  (regs',opt_cmd) -> do
+                          sequence_ [ putMVar (the_cmds env) (RegProp nm prop)
+                                    | (nm,prop) <- regs'
+                                    ]
+                          putMVar (the_cmds env) $ case opt_cmd of
+                                        Nothing -> StepDone
+                                        Just cmd -> StepCmd cmd
                           loop
+
 
         -- call loop until all the sub-threads "die" (start issuing Nothing)
         loop
@@ -202,10 +233,10 @@ wait n = do
         putCmd $ \ reply -> mempty
         wait (n - 1)
 
-putCmd :: (Reply b -> f Reply) -> FifoM f b
+putCmd :: Monoid (f Reply) => (Reply b -> f Reply) -> FifoM f b
 putCmd cmd = FifoM $ \ env -> do
         v <- newEmptyMVar
-        putMVar (the_cmds env) (Just $ cmd (Reply $ putMVar v))
+        putMVar (the_cmds env) (StepCmd $ cmd (Reply $ putMVar v))
         takeMVar v
 
 rand :: (Random r) => FifoM f r
