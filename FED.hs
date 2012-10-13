@@ -215,7 +215,9 @@ takeStepCmd :: MVar (StepCmd f) -> IO ([Prop f],Maybe (f Reply))
 takeStepCmd var = loop []
   where
         loop regs = do
+--                print "take step"
                 v <- takeMVar var
+--                print "taken step"
                 case v of
                    StepDone -> return (regs,Nothing)
                    StepCmd cmd -> return (regs,Just cmd)
@@ -271,9 +273,10 @@ h i m = do print ("starting",i)
 wait :: Monoid (f Reply) => Int -> FifoM f ()
 wait 0 = return ()
 wait n = do
-        putCmd $ \ reply -> mempty
+        FifoM $ \ env -> putMVar (the_cmds env) (StepCmd $ mempty)
         wait (n - 1)
 
+-- You need to use the reply argument (otherwise the takeMVar v hangs)
 putCmd :: Monoid (f Reply) => (Reply b -> f Reply) -> FifoM f b
 putCmd cmd = FifoM $ \ env -> do
         v <- newEmptyMVar

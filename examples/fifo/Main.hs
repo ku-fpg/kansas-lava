@@ -170,9 +170,10 @@ instance Monoid (FifoCmd a) where
 -- This is called once per cycle.
 callout :: DUT -> FifoCmd Reply -> IO (FifoCmd Ret)
 callout  (DUT { .. }) (FifoCmd { .. }) = do
+--        print "callout"
         send1' <- case send1 of
                    Nothing -> do
-                           _ <- i0 SendNoDatum
+                           v <- i0 SendNoDatum
                            return Nothing
                    Just (u8,Reply resp) -> do
                            r <- i0 (SendDatum u8)
@@ -188,10 +189,13 @@ callout  (DUT { .. }) (FifoCmd { .. }) = do
                            resp r
                            return $ Just (Ret r)
 
-        return $ FifoCmd
+        let cmd = FifoCmd
                 { send1 = send1'
                 , recv1 = recv1'
                 }
+
+--        print cmd
+        return cmd
 
 send :: U8 -> Int -> FifoM FifoCmd Bool
 send d 0 = return False
@@ -222,21 +226,25 @@ prop_fifo cmds = and $ zipWith (==) xs ys
 
 
 getFullTest :: String -> FifoM FifoCmd ()
-getFullTest "orig" = prog
-    where
-        prog = parFifoM [ property prop_fifo4 -- (takeLemma "fifo" prop_fifo)
-                        , sender
-                        , recvr
-                        ]
-
-        sender = let loop n = do
-                        send n 10
-                        loop (n+1)
-                 in loop 0
-
+getFullTest "orig" = do
+        -- (takeLemma "fifo" prop_fifo)
+        property prop_fifo4
+        parFifoM [ sender
+                 , recvr
+                 ]
+ where
+        sender = forever $ do
+                        w1 <- randR (0,20)
+                        wait w1
+                        d2 <- randR (0,255::Int)
+                        w3 <- randR (0,20)
+                        send (fromIntegral d2) w3
         recvr = forever $ do
-                 recv 10
-
+                        w1 <- randR (0,20)
+--                        liftIO $ print ("wait",w1)
+                        wait w1
+                        w2 <- randR (0,20)
+                        recv w2
 
 -- take lemma build a O(n^2) prop, that can be used for
 -- establishing small examples.
