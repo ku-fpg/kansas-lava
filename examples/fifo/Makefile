@@ -6,7 +6,8 @@ boot::
 	mkfifo DUT_OUT
 	mkfifo DUT_STATE
 	ghc --make -i$(INC) Main.hs 
-	./Main dut &
+	cp Main DUT 
+	./DUT dut &
 	./Main driver 
 
 proto::
