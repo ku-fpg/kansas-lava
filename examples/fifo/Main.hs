@@ -113,16 +113,17 @@ main2 ["driver"] = do
                 }
 
 
-        let FullTest prog props = getFullTest "orig"
+        let prog = getFullTest "orig"
 
-        events <- runFifoM (callout hl_dut) prog
-
+        runFifoM (callout hl_dut) prog
+{-
         sequence_ [ do putStrLn $ nm ++ " (" ++ show n ++ ") " ++ show (prop (take n events))
                   | n <-  take 6 $ iterate (*10) 10
                   , (nm,prop) <- props
                   ]
 
         return ()
+-}
 
 ------------------------------------------------------------------
 
@@ -220,10 +221,13 @@ prop_fifo cmds = and $ zipWith (==) xs ys
           ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
 
 
-getFullTest :: String -> FullTest FifoCmd
-getFullTest "orig" = FullTest prog [("fifo",prop_fifo)]
+getFullTest :: String -> FifoM FifoCmd ()
+getFullTest "orig" = prog
     where
-        prog = parFifoM [ sender, recvr ]
+        prog = parFifoM [ property prop_fifo4 -- (takeLemma "fifo" prop_fifo)
+                        , sender
+                        , recvr
+                        ]
 
         sender = let loop n = do
                         send n 10
@@ -239,7 +243,7 @@ getFullTest "orig" = FullTest prog [("fifo",prop_fifo)]
 takeLemma :: String -> ([f Ret] -> Bool) -> Prop f
 takeLemma str f = Prop str $ \ xs -> [ f (take n xs) | n <- [0..] ]
 
-prop_fifo4 = Prop "prop_fifo" $ \ cmds -> step (map send1 cmds) (map    recv1 cmds) []
+prop_fifo4 = Prop "prop_fifo" $ \ cmds -> step (map send1 cmds) (map recv1 cmds) []
   where
         step sends (Just (Ret (Just u)):recvs) (x:xs)
                 | u == x = step' sends recvs xs
