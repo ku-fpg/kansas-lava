@@ -106,19 +106,20 @@ recvDatum ready dat en cmd =
 
 
 --------------------------------------------------------------------------
+-- The Monad
 
-data Reply a = Reply (a -> IO ())
-data Ret  a = Ret a
-        deriving Show
+data FifoM :: ((* -> *) -> *) -> * -> * where
+        FifoM :: (Env f -> IO a) -> FifoM f a
 
--- A prop is something that should always be true for a specific test.
-data Prop f = Prop String ([f Ret] -> [Bool])
+instance Monad (FifoM f) where
+        return a = FifoM $ \ env -> return a
+        (FifoM m) >>= k = FifoM $ \ env -> do
+                r <- m env
+                case k r of
+                  FifoM m -> m env
 
-
-data FullTest f = FullTest
-        (FifoM f ())
-        [(String,[f Ret] -> Bool)]
-
+instance MonadIO (FifoM f) where
+        liftIO m = FifoM $ \ _ -> m
 
 runFifoM :: (f Reply -> IO (f Ret)) -> FifoM f () -> IO ()
 runFifoM action prog = do
@@ -192,18 +193,18 @@ mkProp (Prop nm f) = do
                 putMVar in_var state
                 takeMVar out_var
 
-data FifoM :: ((* -> *) -> *) -> * -> * where
-        FifoM :: (Env f -> IO a) -> FifoM f a
 
-instance Monad (FifoM f) where
-        return a = FifoM $ \ env -> return a
-        (FifoM m) >>= k = FifoM $ \ env -> do
-                r <- m env
-                case k r of
-                  FifoM m -> m env
+--------------------------------------------------------------------------
 
-instance MonadIO (FifoM f) where
-        liftIO m = FifoM $ \ _ -> m
+data Reply a = Reply (a -> IO ())
+data Ret  a = Ret a
+        deriving Show
+
+--------------------------------------------------------------------------
+-- A prop is something that should always be true for a specific test.
+data Prop f = Prop String ([f Ret] -> [Bool])
+
+
 
 data StepCmd f
         = StepDone               -- 1 cycle, no more commands
@@ -223,12 +224,7 @@ takeStepCmd var = loop []
                    StepCmd cmd -> return (regs,Just cmd)
                    RegProp prop -> loop (regs ++ [prop])
 
-{-
-instance Monoid (f Reply) => Monoid (StepCmd f) where
-        mempty = StepCmd [] mempty
 
-        mappend (StepCmd xs s1) (StepCmd ys s2) = StepCmd (xs `mappend` ys) (s1 `mappend` s2)
--}
 data Env f = Env
         { env_rand  :: forall r . (Random r) => IO r -- a random number generator
         , env_randR :: forall r . (Random r) => (r,r) -> IO r
@@ -269,6 +265,9 @@ h i m = do print ("starting",i)
            r <- m
            print ("done",i)
            return r
+
+---------------------------------------------------------
+-- Monad Commands
 
 wait :: Monoid (f Reply) => Int -> FifoM f ()
 wait 0 = return ()
