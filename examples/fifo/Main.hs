@@ -209,6 +209,7 @@ recv n = do
           Just r -> return (Just r)
 
 
+
 -----------------------------------------------------------------------------
 -- This is the key concept, correctnes of the FIFO.
 
@@ -233,7 +234,24 @@ getFullTest "orig" = FullTest prog [("fifo",prop_fifo)]
                  recv 10
 
 
+-- take lemma build a O(n^2) prop, that can be used for
+-- establishing small examples.
+takeLemma :: String -> ([f Ret] -> Bool) -> Prop f
+takeLemma str f = Prop str $ \ xs -> [ f (take n xs) | n <- [0..] ]
 
+prop_fifo4 = Prop "prop_fifo" $ \ cmds -> step (map send1 cmds) (map    recv1 cmds) []
+  where
+        step sends (Just (Ret (Just u)):recvs) (x:xs)
+                | u == x = step' sends recvs xs
+        step sends (Just (Ret (Just u)):recvs) _ = [ False | _ <- sends ] -- bad value (or no value)
+        step sends (_:recvs) xs = step' sends recvs xs
+        step _ [] _ = []
+
+        step' (send':sends) recvs xs = True : (step sends recvs $ case send' of
+                                                (Just (u,Ret True)) -> (xs++[u])
+                                                _                   -> xs)
+
+        step' [] _ _ = []
 
 ------------------------------------------------------------------
 
