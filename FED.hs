@@ -105,6 +105,9 @@ recvDatum ready dat en cmd =
                 Just False -> Nothing
 
 
+-- All this is now inside dut-check.
+
+{-
 --------------------------------------------------------------------------
 -- The Monad
 
@@ -287,3 +290,4 @@ randR (a,b) = FifoM $ \ env -> env_randR env (a,b)
 property :: Prop f -> FifoM f ()
 property prop = FifoM $ \ env -> do
         putMVar (the_cmds env) (RegProp prop)
+-}

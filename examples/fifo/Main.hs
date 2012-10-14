@@ -27,6 +27,7 @@ import Control.Monad.Trans.Trace
 
 import FED
 
+import Test.DutCheck
 
 main :: IO ()
 main = do
@@ -114,7 +115,7 @@ main2 ["driver"] = do
 
         let prog = getFullTest "orig"
 
-        runFifoM "seed" (callout hl_dut) prog
+        runDutM "seed" (callout hl_dut) prog
 
 ------------------------------------------------------------------
 
@@ -188,18 +189,18 @@ callout  (DUT { .. }) (FifoCmd { .. }) = do
 --        print cmd
         return cmd
 
-send :: U8 -> Int -> FifoM FifoCmd Bool
+send :: U8 -> Int -> DutM FifoCmd Bool
 send d 0 = return False
 send d n = do
-        r <- putCmd $ \ reply -> mempty { send1 = Just (d,reply) }
+        r <- putCmd1 $ \ reply -> mempty { send1 = Just (d,reply) }
         case r of
           True  -> return True
           False -> send d (n-1)
 
-recv :: Int -> FifoM FifoCmd (Maybe U8)
+recv :: Int -> DutM FifoCmd (Maybe U8)
 recv 0 = return Nothing
 recv n = do
-        r <- putCmd $ \ reply -> mempty { recv1 = Just reply }
+        r <- putCmd1 $ \ reply -> mempty { recv1 = Just reply }
         case r of
           Nothing -> recv (n-1)
           Just r -> return (Just r)
@@ -216,13 +217,11 @@ prop_fifo cmds = and $ zipWith (==) xs ys
           ys = [ u | FifoCmd { recv1 = Just (Ret (Just u)) } <- cmds ]
 
 
-getFullTest :: String -> FifoM FifoCmd ()
+getFullTest :: String -> DutM FifoCmd ()
 getFullTest "orig" = do
         -- (takeLemma "fifo" prop_fifo)
         property prop_fifo4
-        parFifoM [ sender
-                 , recvr
-                 ]
+        sender <> recvr
  where
         sender = forever $ do
                         w1 <- randR (0,20)
