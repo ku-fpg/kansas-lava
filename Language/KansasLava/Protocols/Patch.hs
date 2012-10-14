@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TypeFamilies, 
+{-# LANGUAGE RecursiveDo, DoRec, ScopedTypeVariables, FlexibleContexts, TypeFamilies, 
              ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, 
              RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
 module Language.KansasLava.Protocols.Patch

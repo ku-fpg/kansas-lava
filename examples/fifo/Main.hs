@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, DoRec, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
 module Main where
 
 import Language.KansasLava
