@@ -5,9 +5,9 @@ boot::
 	mkfifo DUT_IN
 	mkfifo DUT_OUT
 	mkfifo DUT_STATE
-	ghc --make -i$(INC) Main.hs 
+	ghc -rtsopts --make -i$(INC) Main.hs 
 	cp Main DUT 
-	./DUT dut &
+	./DUT dut +RTS -K32M -RTS &
 	./Main driver 
 
 proto::
