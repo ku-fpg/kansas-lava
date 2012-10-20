@@ -67,6 +67,12 @@ sendDatum ready dat en cmd =
                          en (pureX True)  -- send an enable
                          return True
 
+writeDatum :: (Rep a)
+          => (X a -> IO ())
+          -> (X Bool -> IO ())
+          -> SendDatum a
+          -> IO Bool
+writeDatum = sendDatum (return $ pureX True)
 
 data RecvDatum
         = RecvUnknown
@@ -104,6 +110,12 @@ recvDatum ready dat en cmd =
                   Just a -> Just a
                 Just False -> Nothing
 
+readDatum :: (Rep a)
+          => IO (X a)
+          -> IO (X Bool)
+          -> RecvDatum
+          -> IO (Maybe a)
+readDatum = recvDatum (const $ return ())
 
 -- All this is now inside dut-check.
 
