@@ -71,8 +71,10 @@ writeDatum :: (Rep a)
           => (X a -> IO ())
           -> (X Bool -> IO ())
           -> SendDatum a
-          -> IO Bool
-writeDatum = sendDatum (return $ pureX True)
+          -> IO ()
+writeDatum dat en cmd = do
+        sendDatum (return $ pureX True) dat en cmd
+        return ()
 
 data RecvDatum
         = RecvUnknown
