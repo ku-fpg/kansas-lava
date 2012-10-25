@@ -133,6 +133,36 @@ infixr 2 .^.
 -----------------------------------------------------------------------------------------------
 -- Map Ops
 
+rom2 :: forall a d clk sig . (Size a, Rep a, Rep d, sig ~ Signal clk) => (a -> X d) -> sig (a -> d)
+rom2 fn  = mustAssignSLV
+      $ Signal (pure (XFunction fn))
+               (D $ rom)
+
+	where tB = repType (Witness :: Witness d)
+              tMB = MatrixTy (Prelude.length all_a_bitRep) tB
+
+
+              undefB :: RepValue
+              undefB = unknownRepValue (Witness :: Witness d)
+
+	      all_a_bitRep :: [RepValue]
+	      all_a_bitRep = allReps (Witness :: Witness a)
+
+              rom = Port "o0" $ E $ Entity (Prim "rom")
+                                           [("o0",tMB)]
+                                           [("defs",RomTy (Prelude.length all_a_bitRep),Lits lits)]
+
+              -- assumes in order table generation
+	      lits :: [RepValue]
+	      lits = [ case unX (fromRep w_a) of
+				 Nothing -> undefB
+				 Just a' -> toRep (fn a')
+		    | w_a <- all_a_bitRep
+		    ]
+
+
+
+
 
 -- Assumping that the domain is finite (beacause of Rep), and *small* (say, < ~256 values).
 
