@@ -35,6 +35,7 @@ import Paths_kansas_lava
 
 import Control.Applicative
 import qualified Control.Exception as E
+import qualified System.IO.Error as IOE (catchIOError)
 import Control.Monad
 import Data.List as List
 import Data.Maybe as Maybe
@@ -802,10 +803,10 @@ readPreludeFile :: String -> IO String
 readPreludeFile fname = do
    ks <- getEnv "KANSAS_LAVA_ROOT"
    Strict.readFile (ks </> fname)
- `Prelude.catch` \_ -> do
+ `IOE.catchIOError` \_ -> do
     path <- getDataFileName fname
     Strict.readFile path
- `Prelude.catch` \_ -> do
+ `IOE.catchIOError` \_ -> do
    putStrLn "Set the KANSAS_LAVA_ROOT environment variable"
    putStrLn "to point to the root of the KsLava source directory."
    exitFailure
