@@ -36,6 +36,7 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad hiding (join)
+import Data.Monoid
 import Data.Sized.Ix
 import Data.List as L
 import Data.Reify
@@ -75,7 +76,35 @@ import Debug.Trace
 >                      sum_  = xor2 a b
 
 -}
-data SuperFabric m a = Fabric { unFabric :: [(String,Pad)] -> m (a,[(String,Pad)],[(String,Pad)]) }
+
+data FabricInput = FabricInput
+        { in_inPorts :: [(String,Pad)]
+        , in_vars :: [(Int,Pad)]                -- can be many Int -> Pad
+        }
+
+
+initFabricInput = FabricInput [] []
+
+data FabricState = FabricState
+        { st_uniq :: Int                -- a unique number for gensym
+        }
+
+initFabricState = FabricState 0 -- Hmm
+
+data FabricOutput = FabricOutput
+        { out_inPorts :: [(String,Pad)]
+        , out_outPorts :: [(String,Pad)]
+        , out_vars     :: [(Int,Pad)]
+        }
+
+instance Monoid FabricOutput where
+        mempty = FabricOutput [] [] []
+        mappend (FabricOutput i1 o1 v1) (FabricOutput i2 o2 v2) =
+                FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2)
+
+
+data SuperFabric m a = Fabric
+        { unFabric :: FabricInput -> FabricState -> m (a,FabricOutput,FabricState) }
 
 -- | A Fabric consists of a list of input ports, and yields a list of output
 -- ports and generics.
@@ -103,46 +132,46 @@ instance MonadFix m => Functor (SuperFabric m) where
         fmap f fab = fab >>= \ a -> return (f a)
 
 instance MonadFix m => Monad (SuperFabric m) where
-        return a = Fabric $ \ _ -> return (a,[],[])
-        (Fabric f) >>= k = Fabric $ \ ins -> do
-                          (a,in_names,outs) <- f ins
-                          (r,in_names',outs') <- unFabric (k a) ins
-                          return (r,in_names ++ in_names',outs ++ outs')
+        return a = Fabric $ \ _ st -> return (a,mempty,st)
+        (Fabric f) >>= k = Fabric $ \ ins st0 -> do
+                          (a,outs1,st1) <- f ins st0
+                          (r,outs2,st2) <- unFabric (k a) ins st1
+                          return (r,outs1 <> outs2,st2)
 
 instance MonadFix m => MonadFix (SuperFabric m) where
-        mfix f = Fabric $ \ env -> do rec (a,in_names,outs) <- unFabric (f a) env
-                                      return (a,in_names,outs)
+        mfix f = Fabric $ \ env st0 -> do rec (a,outs,st1) <- unFabric (f a) env st0
+                                          return (a,outs,st1)
 
 instance MonadIO (SuperFabric IO) where
         liftIO = lift
 
 instance MonadTrans SuperFabric where
-        lift m = Fabric $ \ _ -> do
+        lift m = Fabric $ \ _ st -> do
                 r <- m
-                return (r,[],[])
+                return (r,mempty,st)
 
 -- TODO: use liftFabric
 ioFabric :: (Reify f) => SuperFabric f a -> SuperFabric IO a
-ioFabric (Fabric f) = Fabric $ \ inp -> do
-        let Pure x = purify $ f inp
+ioFabric (Fabric f) = Fabric $ \ inp st -> do
+        let Pure x = purify $ f inp st
         return x
 
 liftFabric :: (forall a . m a -> n a) -> SuperFabric m a -> SuperFabric n a
-liftFabric g (Fabric f) = Fabric $ \ inp -> do
-        g (f inp)
+liftFabric g (Fabric f) = Fabric $ \ inp st -> do
+        g (f inp st)
 
 
 -- | Generate a named input port.
 input :: (MonadFix m) => String -> Pad -> SuperFabric m Pad
-input nm deepPad = Fabric $ \ ins -> do
-        let p = case lookup nm ins of
+input nm deepPad = Fabric $ \ ins st -> do
+        let p = case lookup nm (in_inPorts ins) of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
-        return (p,[(nm,deepPad)],[])
+        return (p,mempty { out_inPorts = [(nm,deepPad)] },st)
 
 -- | Generate a named output port.
 output :: (MonadFix m) => String -> Pad -> SuperFabric m ()
-output nm pad = Fabric $ \ _ins -> return ((),[],[(nm,pad)])
+output nm pad = Fabric $ \ _ins st -> return ((),mempty { out_outPorts = [(nm,pad)] },st)
 
 
 -- | Generate a named std_logic input port.
@@ -214,42 +243,45 @@ outStdLogicVector nm sq =
 
 -------------------------------------------------------------------------------
 
+
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
 runFabric :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m (a,[(String,Pad)])
 runFabric (Fabric f) args = do
-        (a,_arg_types,result) <- f args
-        return (a,result)
+        (a,out,_) <- f (initFabricInput { in_inPorts = args}) (initFabricState)
+        return (a,out_outPorts out)
 
 
 -- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.
--- must have no (monadic) outputs.
+-- must have no (monadic) outputs. (TODO: err, this should be checked)
 runFabricWithResult :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m a
 runFabricWithResult (Fabric f) args = do
-        (a,_arg_types,[]) <- f args
+        (a,_,_) <- f (initFabricInput { in_inPorts = args}) (initFabricState)
         return a
 
 
 -- | 'runFabricWithDriver' runs a Fabric () using a driver Fabric.
 runFabricWithDriver :: (MonadFix m) => SuperFabric m () -> SuperFabric m a -> m a
 runFabricWithDriver (Fabric f) (Fabric g) = do
-        rec ((),_,f_result) <- f g_result
-            (a,_,g_result)  <- g f_result
+        rec ((),f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result}) (initFabricState)
+            (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result}) (st1)
         return a
 
+-- TODO: only used in Wakarusa Monad?
 -- 'fabricAPI' explains what the API is for a specific fabric.
 -- The input Pad's are connected to a (deep) Pad nm.
 fabricAPI :: (MonadFix m) => SuperFabric m a -> m (a,[(String,Pad)],[(String,Pad)])
 fabricAPI (Fabric f) = do
-        rec (a,args,result) <- f args
-        return (a,args,result)
+        rec (a,result,_) <- f (initFabricInput { in_inPorts = out_inPorts result }) (initFabricState)
+        return (a,out_inPorts result,out_outPorts result)
 
 
 -- 'traceFabric' returns the actual inputs and outputs, inside the monad.
+-- TODO: This is broken!!
 traceFabric :: Fabric a -> Fabric (a,[(String,Pad)],[(String,Pad)])
-traceFabric (Fabric f) = Fabric $ \ ins0 -> do
-        (a,tys1,outs1) <- f ins0
-        return ((a,[],[]),tys1,outs1)
-
+traceFabric (Fabric f) = error "TODO!"
+--Fabric $ \ (FabricInput ins0) st0 -> do
+--        (a,FabricOutput tys1 outs1,st1) <- f (FabricInput ins0) st0
+--        return ((a,[],[]),FabricOutput tys1 outs1,st1)
 
 data IN m = forall a. (Rep a) => IN (m (Seq a))
 
@@ -298,12 +330,39 @@ hReaderFabric h table = do
 -- This gives a version of fabric where a given 'observe' is applied to all inputs and outputs.
 -- TODO: call this probeFabric (loops in modules stops this right now)
 observeFabric :: (MonadFix f) => (forall a . Rep a => String -> Seq a -> Seq a) -> SuperFabric f a -> SuperFabric f a
-observeFabric tr (Fabric f) = Fabric $ \ inps -> do
-        rec (a,inps',outs) <- f (map (obs "in") inps)
-        return (a,inps',map (obs "out") outs)
+observeFabric tr (Fabric f) = Fabric $ \ inps st0 -> do
+        rec (a,outs,st1) <- f (inps { in_inPorts = map (obs "in") (in_inPorts inps)}) st0
+        return (a,outs { out_outPorts = map (obs "out") (out_outPorts outs)},st1)
   where
         obs :: String -> (String,Pad) -> (String,Pad)
         obs io (nm,pad) = (nm,rank2MapPad (tr (nm ++ "/" ++ io)) pad)
+
+
+
+-------------------------------------------------------------------------------
+
+--
+data SignalVar clk a = SignalVar Int
+        deriving Show
+
+newSignalVar :: (Monad m) => SuperFabric m (SignalVar CLK a)
+newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
+
+writeSignalVar :: forall m a . (Monad m,Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
+writeSignalVar (SignalVar uq) sig = Fabric $ \ inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
+    where pad = StdLogicVector $ (bitwise sig :: Seq (ExternalStdLogicVector (W a)))
+
+readSignalVar :: forall m a b . (Monad m,Rep a, Size (W a))
+              => SignalVar CLK a
+              -> ([Signal CLK a] -> Signal CLK b)
+              -> SuperFabric m (Signal CLK b)
+readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
+        return (f [ unsafeId s
+                  | (uq',StdLogicVector s) <- in_vars inps
+                  , uq' == uq
+                  ], mempty,st)
+
+-------------------------------------------------------------------------------
 
 
 {-
@@ -397,7 +456,12 @@ hReadFabric h (Fabric f) = do
 reifyFabric :: (Reify m) => SuperFabric m () -> IO KLEG
 reifyFabric (Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
-        let Pure (_,ins0,outs0) = purify $ circuit ins0
+        let Pure (_,out,_) = purify
+                           $ circuit (initFabricInput { in_inPorts = ins0, in_vars = vars0 })
+                                     initFabricState
+            ins0 =  out_inPorts out
+            outs0 = out_outPorts out
+            vars0 = out_vars out
 
         let mkU :: forall a . (Rep a) => Seq a -> Type
             mkU _ = case toStdLogicType ty of
