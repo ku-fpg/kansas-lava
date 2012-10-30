@@ -65,7 +65,8 @@ Library
         template-haskell,
         bytestring,
         data-reify >= 0.6,
-        deepseq >= 1.3
+        deepseq >= 1.3,
+        Boolean >= 0.1
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.DOT

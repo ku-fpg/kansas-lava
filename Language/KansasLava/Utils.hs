@@ -6,6 +6,7 @@ module Language.KansasLava.Utils where
 import Control.Monad
 import Control.Applicative
 import Data.Bits
+import Data.Boolean
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
@@ -18,6 +19,15 @@ import Data.Sized.Matrix	as M
 import Data.Sized.Signed	as SI
 
 -----------------------------------------------------------------------------------------------
+
+instance Boolean (Signal i Bool) where
+   true = pureS True
+   false = pureS False
+   notB = bitNot
+   (&&*) = (.&&.)
+   (||*) = (.||.)
+
+type instance BooleanOf (Signal i a) = Signal i Bool
 
 -- | The 'Signal' representing True.
 high :: (sig ~ Signal i) => sig Bool
@@ -265,6 +275,7 @@ muxMatrix = (.!.)
 
 -------------------------------------------------------------------------------------------------
 
+
 -- | Lift a (named) binary function over bools to be over 'Signal's.
 boolOp :: forall a i sig . (Rep a,  sig ~ Signal i) => (a -> a -> Bool) -> String -> sig a -> sig a -> sig Bool
 boolOp fn nm a b = primS2 fn nm  a  b
@@ -295,6 +306,19 @@ infix 4 .==., .>=., .<=., .<., .>.
 (.>.) :: forall a i sig . (Rep a, Ord a,  sig ~ Signal i) => sig a -> sig a -> sig Bool
 (.>.) = boolOp (>) ".>."
 
+
+instance Rep a => IfB (Signal i a) where
+        ifB b t f = mux b (f,t)
+
+instance (Eq a, Rep a) => EqB (Signal i a) where
+    (==*) = (.==.)
+    (/=*) = (./=.)
+
+instance (Ord a, Rep a) => OrdB (Signal i a) where
+    (<*) = (.<.)
+    (>=*) = (.>=.)
+    (>*) = (.>.)
+    (<=*) = (.<=.)
 
 -------------------------------------------------------------------------------
 
