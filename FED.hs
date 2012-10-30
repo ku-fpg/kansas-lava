@@ -6,7 +6,7 @@ module FED where
 import Language.KansasLava
 import Language.KansasLava.Protocols
 import Language.KansasLava.Utils
-import Language.KansasLava.Fabric (ioFabric, observeFabric)
+import Language.KansasLava.Fabric (observeFabric)
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad

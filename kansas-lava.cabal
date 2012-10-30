@@ -77,6 +77,7 @@ Library
        Language.KansasLava.Rep
        Language.KansasLava.RTL
        Language.KansasLava.Signal
+       Language.KansasLava.Spark
        Language.KansasLava.Test
        Language.KansasLava.Types
        Language.KansasLava.Utils

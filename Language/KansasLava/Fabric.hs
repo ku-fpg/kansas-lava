@@ -54,6 +54,7 @@ import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Universal
+import Language.KansasLava.Probes
 
 import Debug.Trace
 
@@ -101,7 +102,6 @@ instance Monoid FabricOutput where
         mempty = FabricOutput [] [] []
         mappend (FabricOutput i1 o1 v1) (FabricOutput i2 o2 v2) =
                 FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2)
-
 
 data SuperFabric m a = Fabric
         { unFabric :: FabricInput -> FabricState -> m (a,FabricOutput,FabricState) }
@@ -151,14 +151,15 @@ instance MonadTrans SuperFabric where
                 return (r,mempty,st)
 
 -- TODO: use liftFabric
-ioFabric :: (Reify f) => SuperFabric f a -> SuperFabric IO a
-ioFabric (Fabric f) = Fabric $ \ inp st -> do
+liftFabric :: (Reify f, Monad m) => SuperFabric f a -> SuperFabric m a
+liftFabric (Fabric f) = Fabric $ \ inp st -> do
         let Pure x = purify $ f inp st
         return x
 
-liftFabric :: (forall a . m a -> n a) -> SuperFabric m a -> SuperFabric n a
-liftFabric g (Fabric f) = Fabric $ \ inp st -> do
-        g (f inp st)
+-- TODO: restore if/when needed
+--liftFabric :: (forall a . m a -> n a) -> SuperFabric m a -> SuperFabric n a
+--liftFabric g (Fabric f) = Fabric $ \ inp st -> do
+--        g (f inp st)
 
 
 -- | Generate a named input port.
@@ -247,7 +248,7 @@ outStdLogicVector nm sq =
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
 runFabric :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m (a,[(String,Pad)])
 runFabric (Fabric f) args = do
-        (a,out,_) <- f (initFabricInput { in_inPorts = args}) (initFabricState)
+        rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = out_vars out }) (initFabricState)
         return (a,out_outPorts out)
 
 
@@ -262,8 +263,8 @@ runFabricWithResult (Fabric f) args = do
 -- | 'runFabricWithDriver' runs a Fabric () using a driver Fabric.
 runFabricWithDriver :: (MonadFix m) => SuperFabric m () -> SuperFabric m a -> m a
 runFabricWithDriver (Fabric f) (Fabric g) = do
-        rec ((),f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result}) (initFabricState)
-            (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result}) (st1)
+        rec ((),f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result, in_vars = out_vars f_result }) (initFabricState)
+            (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
         return a
 
 -- TODO: only used in Wakarusa Monad?
@@ -304,6 +305,21 @@ hWriterFabric h table = do
 
         return ()
 
+consume :: (Monad m) => [IN m] -> m (Seq ())
+consume table = do
+        xs <- sequence
+                [ do sq <- f
+                     return $ S.toList $ fmap (showPackedRepValue . toRep) $ shallowS sq
+                | IN f <- table
+                ]
+
+        let unit [] = ()
+            unit (x:xs) = x `seq` unit xs
+
+        return $ toS $ fmap unit $ fmap concat $ transpose xs
+
+
+
 data OUT m = forall a . (Rep a) => OUT (Seq a -> m ())
 
 hReaderFabric :: (MonadIO m) => Handle -> [OUT m] -> m ()
@@ -329,13 +345,13 @@ hReaderFabric h table = do
 
 -- This gives a version of fabric where a given 'observe' is applied to all inputs and outputs.
 -- TODO: call this probeFabric (loops in modules stops this right now)
-observeFabric :: (MonadFix f) => (forall a . Rep a => String -> Seq a -> Seq a) -> SuperFabric f a -> SuperFabric f a
-observeFabric tr (Fabric f) = Fabric $ \ inps st0 -> do
+observeFabric :: (MonadFix f) => SuperFabric f a -> SuperFabric f a
+observeFabric (Fabric f) = Fabric $ \ inps st0 -> do
         rec (a,outs,st1) <- f (inps { in_inPorts = map (obs "in") (in_inPorts inps)}) st0
         return (a,outs { out_outPorts = map (obs "out") (out_outPorts outs)},st1)
   where
         obs :: String -> (String,Pad) -> (String,Pad)
-        obs io (nm,pad) = (nm,rank2MapPad (tr (nm ++ "/" ++ io)) pad)
+        obs io (nm,pad) = (nm,rank2MapPad (probeS (io ++ "/" ++ nm)) pad)
 
 
 
@@ -357,10 +373,13 @@ readSignalVar :: forall m a b . (Monad m,Rep a, Size (W a))
               -> ([Signal CLK a] -> Signal CLK b)
               -> SuperFabric m (Signal CLK b)
 readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
-        return (f [ unsafeId s
+        return (f -- $ trace (show (uq,map g $ in_vars inps))
+                  $ [ unsafeId s
                   | (uq',StdLogicVector s) <- in_vars inps
                   , uq' == uq
                   ], mempty,st)
+ where g (a,StdLogicVector {}) = (a,"STDLOGICVECTOR")
+
 
 -------------------------------------------------------------------------------
 

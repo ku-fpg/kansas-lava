@@ -67,7 +67,7 @@ $(repIntegral ''Word64  (U 64))
 instance Rep () where
     type W ()     = X0
     data X ()   = XUnit (Maybe ())
-    optX (Just b)   = XUnit $ return b
+    optX (Just ())   = XUnit $ return () -- we need this strict, so we can use it for consumption management
     optX Nothing    = XUnit $ fail "Wire ()"
     unX (XUnit (Just v))  = return v
     unX (XUnit Nothing) = fail "Wire ()"

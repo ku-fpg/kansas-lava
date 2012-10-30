@@ -21,6 +21,9 @@ module Language.KansasLava.VCD
     -- * Convert Rep to Test Bench Word
     , tbw2rep
     , rep2tbw
+    -- * probes
+    , resetProbesForVCD
+    , snapProbesAsVCD
     ) where
 
 import Language.KansasLava.Fabric
@@ -33,6 +36,7 @@ import Language.KansasLava.Universal
 import qualified Language.KansasLava.VCD.EventList as E
 
 import qualified Language.KansasLava.Stream as S
+import Language.KansasLava.Probes
 
 import Control.Monad
 
@@ -41,6 +45,11 @@ import qualified Data.Foldable as F
 import Data.Function
 import Data.List
 import qualified Data.Map as M
+import Control.Concurrent.MVar
+import System.IO.Unsafe
+import Data.IORef
+import Control.DeepSeq
+
 
 ----------------------------------------------------------------------------------------
 -- | The VC (value change) is used for capturing traces of shallow-embedded
@@ -332,3 +341,24 @@ rep2tbw (RepValue vals) = [ case v of
                               Just False -> '0'
                           | v <- reverse vals ]
 
+----------------------------------------------------------------------------
+
+-- We keep this thread-safe, just in case.
+{-# NOINLINE vcdOfProbes #-}
+vcdOfProbes :: MVar VCD
+vcdOfProbes = unsafePerformIO $ newEmptyMVar
+
+{-# NOINLINE resetProbesForVCD #-}
+resetProbesForVCD :: IO ()
+resetProbesForVCD = do
+        _ <- tryTakeMVar vcdOfProbes -- for interative use, throw away the old one
+        putMVar vcdOfProbes $ VCD []
+        setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
+                vcd <- takeMVar vcdOfProbes
+                putMVar vcdOfProbes $ addEvent nm (fromIntegral clkNo) x vcd
+                return x
+        return ()
+
+{-# NOINLINE snapProbesAsVCD #-}
+snapProbesAsVCD :: IO VCD
+snapProbesAsVCD = readMVar vcdOfProbes

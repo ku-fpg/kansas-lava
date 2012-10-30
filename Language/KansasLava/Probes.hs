@@ -4,7 +4,7 @@
 module Language.KansasLava.Probes (
       -- * Probes
       probeS, unpackedProbe,
-      resetProbesForVCD, snapProbesAsVCD,
+--      resetProbesForVCD, snapProbesAsVCD,
 
       -- * Setting up the debugging mode for probes
       setProbesAsTrace, setShallowProbes, setProbes
@@ -13,7 +13,7 @@ module Language.KansasLava.Probes (
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
-import Language.KansasLava.VCD
+--import Language.KansasLava.VCD
 
 import Control.Concurrent.MVar
 import System.IO.Unsafe
@@ -76,22 +76,3 @@ setProbesAsTrace write = setShallowProbes $ \ nm i a -> unsafePerformIO $ do
     write $!! str
     return a
 
--- We keep this thread-safe, just in case.
-{-# NOINLINE vcdOfProbes #-}
-vcdOfProbes :: MVar VCD
-vcdOfProbes = unsafePerformIO $ newEmptyMVar
-
-{-# NOINLINE resetProbesForVCD #-}
-resetProbesForVCD :: IO ()
-resetProbesForVCD = do
-        _ <- tryTakeMVar vcdOfProbes -- for interative use, throw away the old one
-        putMVar vcdOfProbes $ VCD []
-        setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
-                vcd <- takeMVar vcdOfProbes
-                putMVar vcdOfProbes $ addEvent nm (fromIntegral clkNo) x vcd
-                return x
-        return ()
-
-{-# NOINLINE snapProbesAsVCD #-}
-snapProbesAsVCD :: IO VCD
-snapProbesAsVCD = readMVar vcdOfProbes

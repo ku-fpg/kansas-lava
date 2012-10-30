@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GADTs, FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
 -- | A top-level module that re-exports the relevent parts of the library's internal modules.
 module Language.KansasLava (
     -- * Basic types in Kansas Lava
@@ -57,8 +58,8 @@ module Language.KansasLava (
     writeVCDFile,
     readVCDFile,
 
-    -- * Wakarusa Compiler
-    module Language.KansasLava.Wakarusa
+--    -- * Wakarusa Compiler
+--    module Language.KansasLava.Wakarusa
      ) where
 
 import Language.KansasLava.DOT
@@ -73,6 +74,8 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
-import Language.KansasLava.Wakarusa
+import Language.KansasLava.Spark
+
+
 
 
