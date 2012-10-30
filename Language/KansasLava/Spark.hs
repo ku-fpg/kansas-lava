@@ -14,6 +14,8 @@ import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Types
 import Language.KansasLava.Universal
 
+import Data.Boolean
+
 import Data.Monoid
 
 import Data.Sized.Ix
@@ -30,6 +32,9 @@ import System.IO.Unsafe
 
 import qualified Data.Set as Set
 import Data.Set (Set)
+
+infixr 1 :=
+infixr 1 :?
 
 
 data REG a where
@@ -150,7 +155,7 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred pc (PredFalse)       = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
-spark :: forall m . (MonadFix m) => STMT () -> SuperFabric m ()
+spark :: forall m . (MonadFix m) => STMT () -> SuperFabric m (Seq U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
         VAR pc :: VAR U8 <- initially 0
@@ -165,15 +170,16 @@ spark stmt = do
                        lab <- WAIT
                        GOTO lab
         let ((),st1) = runSparkMonad (compile stmt') st0
---        () <- trace (show ("pred", st_pred st1)) $ return ()
+        () <- trace (show ("pred", st_pred st1)) $ return ()
         -- do the actions
         liftFabric (st_fab st1)
 
         -- If nothing else triggers the PC, then increment it by 1
         assign pc (pc + 1)
+        () <- trace (show ("done")) $ return ()
 
-        outStdLogicVector "pc" (enabledS pc)
-        return ()
+
+        return pc
   where
         compile :: STMT a -> SparkMonad a
         compile ((R v) := expr) = issueFab $ \ pred ->
@@ -182,9 +188,9 @@ spark stmt = do
         compile WAIT = do
                 pc <- incPC
                 return (L pc)
-        compile (GOTO (L n)) = do
+        compile (GOTO ~(L n)) = do      -- the ~ allows for forward jumping
                 (R pc) <- regPC
-                issueFab $ \ pred -> writeSignalVar pc (packEnabled pred (pureS 1))
+                issueFab $ \ pred -> writeSignalVar pc (packEnabled pred (pureS n))
         compile NOP = return ()                 -- is this needed?
 
         compile (RETURN a) = return a
@@ -192,4 +198,24 @@ spark stmt = do
                 a <- compile m
                 compile (k a)
         compile (MFIX k) = mfix (compile . k)
+
+--------------------------------------------------
+
+instance Boolean (STMT (Seq Bool)) where
+
+type instance BooleanOf (STMT s) = STMT (Seq Bool)
+
+instance IfB (STMT ()) where
+        ifB i t f = do
+            rec b <- i
+                b :? GOTO t_lab
+                _ <- WAIT
+                f
+                GOTO end_lab
+                t_lab <- WAIT
+                t
+                end_lab <- WAIT
+                return ()
+            return ()
+
 
