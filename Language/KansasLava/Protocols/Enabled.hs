@@ -28,8 +28,8 @@ type Enabled a = Maybe a
 
 -- | This is lifting *Comb* because Comb is stateless, and the 'en' Bool being
 -- passed on assumes no history, in the 'a -> b' function.
-mapEnabled :: (Rep a, Rep b, sig ~ Signal clk) 
-           => (forall clk' . Signal clk' a -> Signal clk' b) 
+mapEnabled :: (Rep a, Rep b, sig ~ Signal clk)
+           => (forall clk' . Signal clk' a -> Signal clk' b)
            -> sig (Enabled a) -> sig (Enabled b)
 mapEnabled f en = pack (en_bool,f en_val)
    where (en_bool,en_val) = unpack en
@@ -79,7 +79,6 @@ delayEnabled inp = res
 	res = delay
 	    $ cASE [ (isEnabled inp,enabledVal inp)
 		   ] res
-
 
 -- | Choose the first argument, if it is enabled, else choose the second one.
 chooseEnabled :: (Rep a, sig ~ Signal clk) => sig (Enabled a) -> sig (Enabled a) -> sig (Enabled a)
