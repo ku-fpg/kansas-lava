@@ -51,7 +51,7 @@ start = L 0
 data REG a where
     R :: SignalVar CLK (Enabled a) -> REG a
 
-assign :: (MonadFix m, Rep a, Size (W (Enabled a))) => REG a -> Seq a -> SuperFabric m ()
+assign :: (SparkM m, Rep a, Size (W (Enabled a))) => REG a -> Seq a -> m ()
 assign (R v) e = writeSignalVar v (enabledS e)
 
 -------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ instance Variable (Signal CLK) where
 
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-initially :: forall a var m . (MonadFix m, Rep a, Size (W (Enabled a))) => a -> SuperFabric m (VAR a)
+initially :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => a -> m (VAR a)
 initially a = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -76,7 +76,7 @@ initially a = do
                 in r
         return (VAR (toVAR (R var,sig :: Signal CLK a)))
 
-uninitialized :: forall a var m . (MonadFix m, Rep a, Size (W (Enabled a))) => SuperFabric m (VAR a)
+uninitialized :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (VAR a)
 uninitialized = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -93,7 +93,7 @@ data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
 
 -- CHAN rdr wtr :: CHAN Int <- channel
 
-channel :: forall a var m . (MonadFix m, Rep a, Size (W (Enabled a))) => SuperFabric m (CHAN a)
+channel :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (CHAN a)
 channel = do
         var :: SignalVar CLK (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
@@ -107,7 +107,7 @@ data Writer a = Writer (REG a) (Signal CLK (Enabled ()))
 
 data BUS a = BUS (Bus a) (Writer a)
 
-bus :: forall a var m . (MonadFix m, Rep a, Size (W (Enabled a))) => SuperFabric m (BUS a)
+bus :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (BUS a)
 bus = do CHAN rdr wtr :: CHAN a <- channel
          CHAN rdr' wtr' :: CHAN () <- channel
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
@@ -194,11 +194,11 @@ instance Monad STMT where
 instance MonadFix STMT where
         mfix = MFIX
 
-data SMState = SMState
+data SMState m = SMState
         { pc_reg :: REG U8
         , pc_sig :: Seq U8
         , pc_val :: U8
-        , st_fab :: Fabric ()
+        , st_fab :: (SparkM m) => m ()
         , st_pred :: Pred
         }
 
@@ -209,36 +209,36 @@ data SMState = SMState
 (&&&) (BIND (BIND m k1) k2) rest = m
 -}
 
-data SparkMonad a = SparkMonad { runSparkMonad :: SMState -> (a,SMState) }
+data SparkMonad m a = SparkMonad { runSparkMonad :: SMState m -> (a,SMState m) }
 
-instance Monad SparkMonad where
+instance Monad (SparkMonad m) where
         return a = SparkMonad $ \ st -> (a,st)
         (SparkMonad m) >>= k = SparkMonad $ \ st -> case m st of
                                                        (a,st') -> runSparkMonad (k a) st'
 
-instance MonadFix SparkMonad where
+instance MonadFix (SparkMonad m) where
         mfix k = SparkMonad $ \ st -> let (a,st') = runSparkMonad (k a) st
                                       in (a,st')
 
-issueFab :: (Seq Bool -> Fabric ()) -> SparkMonad ()
+issueFab :: (Seq Bool -> m ()) -> SparkMonad m ()
 issueFab fab = SparkMonad $ \ st ->
         ((),st { st_fab = st_fab st >> fab (compilePred (pc_sig st) (st_pred st)) })
 
 
-regPC :: SparkMonad (REG U8)
+regPC :: SparkMonad m (REG U8)
 regPC = SparkMonad $ \ st -> (pc_reg st,st)
 
 -- takes a function that takes the old predicate, and gives the new one
-incPC :: (U8 -> Pred -> Pred) -> SparkMonad U8
+incPC :: (U8 -> Pred -> Pred) -> SparkMonad m U8
 incPC f = SparkMonad $ \ st -> let pc1 = pc_val st + 1
                              in (pc1,st { pc_val = pc1, st_pred = f pc1 (st_pred st) })
 
 
-falsifyPred :: SparkMonad ()
+falsifyPred :: SparkMonad m ()
 falsifyPred = SparkMonad $ \ st -> ((),st { st_pred = PredFalse })
 
 
-withPred :: Seq Bool -> SparkMonad () -> SparkMonad ()
+withPred :: Seq Bool -> SparkMonad m () -> SparkMonad m ()
 withPred p (SparkMonad m) = SparkMonad $ \ st ->
         case m st { st_pred = st_pred st `PredAnd` (PredCond p) } of
           (a,st') -> (a,st' { st_pred = (st_pred st `PredAnd` (PredNot (PredCond p))) `PredOr` st_pred st' })
@@ -259,7 +259,7 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred pc (PredFalse)       = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
-spark :: forall m . (MonadFix m) => STMT () -> SuperFabric m (Seq U8)
+spark :: forall m . (SparkM m) => STMT () -> m (Seq U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
         VAR pc :: VAR U8 <- initially 0
@@ -276,7 +276,8 @@ spark stmt = do
         let ((),st1) = runSparkMonad (compile stmt') st0
         () <- trace (show ("pred", st_pred st1)) $ return ()
         -- do the actions
-        liftFabric (st_fab st1)
+        st_fab st1
+--        liftFabric (st_fab st1)
 
         -- If nothing else triggers the PC, then increment it by 1
 --        assign pc (pc + 1)
@@ -285,7 +286,7 @@ spark stmt = do
 
         return pc
   where
-        compile :: STMT a -> SparkMonad a
+        compile :: STMT a -> SparkMonad m a
         compile ((R v) := expr) = issueFab $ \ pred ->
                 writeSignalVar v (packEnabled pred expr)
         compile (p :? stmt) = withPred p (compile stmt)
