@@ -9,7 +9,7 @@ module Language.KansasLava (
     SuperFabric,
     Fabric,
     reifyFabric,
-    inStdLogic, inStdLogicVector,inGeneric,
+    inStdLogic, inStdLogicVector, -- inGeneric,
     outStdLogic, outStdLogicVector,
     theClk, theRst, theClkEn,
     hWriterFabric, IN(..),
@@ -59,7 +59,7 @@ module Language.KansasLava (
     readVCDFile,
 
 --    -- * Wakarusa Compiler
---    module Language.KansasLava.Wakarusa
+    module Language.KansasLava.Spark
      ) where
 
 import Language.KansasLava.DOT
