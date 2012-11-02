@@ -113,6 +113,10 @@ type Fabric = SuperFabric Pure -- Fabric { unFabric :: [(String,Pad)] -> (a,[(St
 class (MonadFix f, Functor f) => Reify f where
     purify :: f a -> Pure a
 
+class (MonadFix m) => InOutM m where
+        input :: String -> Pad -> m Pad
+        output :: String -> Pad ->  m ()
+
 instance Reify Pure where
     purify m = m
 
@@ -162,21 +166,21 @@ liftFabric (Fabric f) = Fabric $ \ inp st -> do
 --        g (f inp st)
 
 
--- | Generate a named input port.
-input :: (MonadFix m) => String -> Pad -> SuperFabric m Pad
-input nm deepPad = Fabric $ \ ins st -> do
+
+instance (MonadFix m) => InOutM (SuperFabric m) where
+   -- | Generate a named input port.
+  input nm deepPad = Fabric $ \ ins st -> do
         let p = case lookup nm (in_inPorts ins) of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
         return (p,mempty { out_inPorts = [(nm,deepPad)] },st)
 
--- | Generate a named output port.
-output :: (MonadFix m) => String -> Pad -> SuperFabric m ()
-output nm pad = Fabric $ \ _ins st -> return ((),mempty { out_outPorts = [(nm,pad)] },st)
+  -- | Generate a named output port.
+  output nm pad = Fabric $ \ _ins st -> return ((),mempty { out_outPorts = [(nm,pad)] },st)
 
 
 -- | Generate a named std_logic input port.
-inStdLogic :: forall a m . (MonadFix m, Rep a, W a ~ X1) => String -> SuperFabric m (Seq a)
+inStdLogic :: forall a m . (InOutM m, Rep a, W a ~ X1) => String -> m (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
@@ -188,6 +192,7 @@ inStdLogic nm = do
    where
 	ty = repType (Witness :: Witness a)
 
+{-
 -- | Generate a named generic.
 inGeneric :: String -> Fabric Integer
 inGeneric nm = do
@@ -195,9 +200,10 @@ inGeneric nm = do
         return $ case pad of
           GenericPad g -> g
           _            -> error "internal type error in inGeneric"
+-}
 
 -- | Generate a named std_logic_vector port input.
-inStdLogicVector :: forall a m . (MonadFix m, Rep a, Size (W a)) => String -> SuperFabric m (Seq a)
+inStdLogicVector :: forall a m . (InOutM m, Rep a, Size (W a)) => String -> m (Seq a)
 inStdLogicVector nm = do
 	let seq' = mkDeepS $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
@@ -228,13 +234,13 @@ theClkEn nm = input nm TheClkEn >> return ()
 
 -- | Generate a named std_logic output port, given a Lava circuit.
 outStdLogic ::
-	(MonadFix m, Rep a, W a ~ X1) => String -> Seq a -> SuperFabric m ()
+	(InOutM m, Rep a, W a ~ X1) => String -> Seq a -> m ()
 outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
 -- | Generate a named std_logic_vector output port, given a Lava circuit.
 outStdLogicVector
   :: forall a m .
-     (MonadFix m, Rep a, Size (W a)) => String -> Seq a -> SuperFabric m ()
+     (InOutM m, Rep a, Size (W a)) => String -> Seq a -> m ()
 outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfS sq) of
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
@@ -243,7 +249,6 @@ outStdLogicVector nm sq =
 
 
 -------------------------------------------------------------------------------
-
 
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
 runFabric :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m (a,[(String,Pad)])
@@ -354,121 +359,43 @@ observeFabric (Fabric f) = Fabric $ \ inps st0 -> do
         obs io (nm,pad) = (nm,rank2MapPad (probeS (io ++ "/" ++ nm)) pad)
 
 
-
 -------------------------------------------------------------------------------
 
---
+
 data SignalVar clk a = SignalVar Int
         deriving Show
 
-newSignalVar :: (Monad m) => SuperFabric m (SignalVar CLK a)
-newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
+-- What do we call SparkM?
+class Monad m => SparkM m where
+        newSignalVar   :: m (SignalVar CLK a)
+        writeSignalVar :: (Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> m ()
+        readSignalVar  :: (Rep a, Size (W a)) => SignalVar CLK a
+                                             -> ([Signal CLK a] -> Signal CLK b)
+                                             -> m (Signal CLK b)
 
-writeSignalVar :: forall m a . (Monad m,Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
-writeSignalVar (SignalVar uq) sig = Fabric $ \ inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
-    where pad = StdLogicVector $ (bitwise sig :: Seq (ExternalStdLogicVector (W a)))
 
-readSignalVar :: forall m a b . (Monad m,Rep a, Size (W a))
-              => SignalVar CLK a
-              -> ([Signal CLK a] -> Signal CLK b)
-              -> SuperFabric m (Signal CLK b)
-readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
-        return (f -- $ trace (show (uq,map g $ in_vars inps))
-                  $ [ unsafeId s
-                  | (uq',StdLogicVector s) <- in_vars inps
-                  , uq' == uq
-                  ], mempty,st)
- where g (a,StdLogicVector {}) = (a,"STDLOGICVECTOR")
-
+instance (MonadFix m) => SparkM (SuperFabric m) where
+        newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
+        writeSignalVar = write
+          where
+            write :: forall m a . (Monad m,Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
+            write (SignalVar uq) sig = Fabric $ \ inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
+                where pad = StdLogicVector $ (bitwise sig :: Seq (ExternalStdLogicVector (W a)))
+        readSignalVar = read
+          where
+            read :: forall m a b . (Monad m,Rep a, Size (W a))
+                      => SignalVar CLK a
+                      -> ([Signal CLK a] -> Signal CLK b)
+                      -> SuperFabric m (Signal CLK b)
+            read (SignalVar uq) f = Fabric $ \ inps st ->
+                return (f -- $ trace (show (uq,map g $ in_vars inps))
+                        $ [ unsafeId s
+                        | (uq',StdLogicVector s) <- in_vars inps
+                        , uq' == uq
+                        ], mempty,st)
+                where g (a,StdLogicVector {}) = (a,"STDLOGICVECTOR")
 
 -------------------------------------------------------------------------------
-
-
-{-
-
-
-------------------------------------------------------------------------------
-
--- 'writeFabric' writes the output from a circuit
-writeFabric :: String -> Fabric () -> IO ()
-writeFabric fileName fab = do
-        let h = stdout
---        h <- openFile fileName WriteMode
-        hWriteFabric h fab
-
-hWriteFabric :: Handle -> Fabric () -> IO ()
-hWriteFabric h (Fabric f) = do
-        let (_,_,result) = f []
-        -- now turn the list into RepValues
-        let txt = id
-                $ map (concatMap showPackedRepValue)
-                $ L.transpose
-                $ map padToRepValues
-                $ map snd
-                $ result
-
-        let loop [] = error "hWriteFabric output finished (should never happen)"
-            loop (t:ts) = do
-                    hPutStrLn h t
-                    hFlush h
-                    loop ts
-
-        forkIO $ loop txt
-
-        return ()
-
-readFabric :: String -> Fabric a -> IO a
-readFabric str f =
-        hReadFabric stdin f
-
-hReadFabric :: Handle -> Fabric a -> IO a
-hReadFabric h (Fabric f) = do
-        -- lazy read
-        str <- hGetContents h
-        let (a,out,_) = f out'
-
-            widths :: [Int]
-            widths = id
-                 $ map (typeWidth . fromStdLogicType)
-                   -- [StdLogicType]
-                 $ map padStdLogicType
-                   -- [Pad]
-                 $ map snd out
-
-            poss :: [(Int,Int)]
-            poss = zip (0 : [ x + y | (x,y) <- poss ])
-                       widths
-
-            strs :: [[String]]
-            strs = [ [ take w $ drop n $ s
-                     | (n,w) <- poss
-                     ]
-                   | s <- lines str
-                   ]
-
-            readALine :: [String] -> [RepValue]
-            readALine ln =
-                     [ case readPackedRepValue s' of
-                         Nothing -> error "bad input value for hReadFabric"
-                         Just v  -> v
-                     | s' <- ln
-                     ]
-
-            vals :: [[RepValue]]
-            vals = transpose
-                 $ map readALine strs
-
-            out' :: [(String,Pad)]
-            out' = [ (nm, repValuesToPad pad val)
-                   | ((nm,pad),val) <- out `zip` vals
-                   ]
-
-        print widths
-        print poss
-
-        return $ a
--}
-------------------------------------------------------------------------------
 
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
