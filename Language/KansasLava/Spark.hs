@@ -89,6 +89,7 @@ uninitialized = do
 --class Variable var where  -- something that can be both read and written to
 --        toVAR :: (REG a,Signal CLK a) -> var a
 
+-- TODO: swap order here  - we should go from left to right
 data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
 
 -- CHAN rdr wtr :: CHAN Int <- channel
@@ -148,8 +149,23 @@ fifo lhs_bus = do
 
     return rhs_bus
 
+
+latchBus :: forall a m . (Rep a, Size (W (Enabled a)), SparkM m) => Signal CLK (Enabled a) -> m (Bus a)
+latchBus inp = do
+        BUS rhs_bus rhs_bus_writer :: BUS a <- bus
+        VAR reg                    :: VAR a <- uninitialized
+        spark $ do
+                lab <- STEP
+                (isEnabled inp) :?              reg := enabledVal inp
+                (notB (isEnabled inp)) :?       GOTO lab
+                STEP
+                putBus rhs_bus_writer reg
+                                              $ GOTO lab
+        return rhs_bus
+
 data MEM a d = MEM (Signal CLK d) (REG a) (REG (a,d))
 
+-- Not compilent with protocol
 memory :: forall a d .  (Rep a, Size a, Rep d,Size (W (Enabled (a,d))), Size (W (Enabled a))) => Fabric (MEM a d)
 memory = do
         CHAN addr_out addr_in :: CHAN a     <- channel
