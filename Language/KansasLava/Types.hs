@@ -219,11 +219,6 @@ data Id = Prim String                           -- ^ built in thing
         | ClockId String                        -- ^ An environment box
 
         | Comment [String]                      -- ^ An identity; also a multi-line comments
-        | BlackBox (Box Dynamic)                -- ^ 'BlackBox' can be removed without harm
-                                                -- The rule is you can only insert you own
-                                                -- types in here (or use newtype).
-                                                -- Prelude or other peoples types
-                                                -- are not allowed (because typecase becomes ambigious)
 
     deriving (Eq, Ord)
 
@@ -241,7 +236,6 @@ instance Show Id where
     show (ClockId nm)    = '@':nm
 --    show (UniqNm n)    = "#" ++ show (hashUnique n) -- might not be uniq
     show (Function _)  = "<fn>"
-    show (BlackBox _) = "<bb>"
     show (Comment xs) = "{- " ++ show xs ++ " -}"
 
 -- | Box wraps a dynamic, so that we can define custom Eq/Ord instances.

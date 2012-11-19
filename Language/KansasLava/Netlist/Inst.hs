@@ -55,10 +55,6 @@ genInst env i e@(Entity (Prim nm) outs ins) | length ins2 > 0 =
 -}
 
 
--- Blackbox nodes should have been removed by reification, but alas, no.
-genInst env i (Entity (BlackBox _) ins outs) =
-  genInst env i (Entity (Prim "id") ins outs)
-
 genInst env i (Entity (Prim "retime") outs [("i0",ty,dr),("pulse",_,_)]) =
     genInst env i (Entity (Prim "id") outs [("i0",ty,dr)])
 
@@ -98,7 +94,7 @@ genInst _ i e@(Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
              -- no need to coerce n[B], because both sides have the
              -- same representation
              -> case toStdLogicExpr tyI d of
-                  ExprVar varname -> 
+                  ExprVar varname ->
                    [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j)
                                 $ ExprIndex varname
                                         (ExprLit Nothing $ ExprNum j)
@@ -107,7 +103,7 @@ genInst _ i e@(Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
                   ExprConcat es | length es == n ->
                    [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j) e
                    | (j,e) <- zip [0..(fromIntegral n - 1)] (reverse es)
-                   ]                   
+                   ]
            _ -> [  NetAssign (sigName vO i) $ toStdLogicExpr tyI d ]
   where
      -- we assume the expression is a var name for matrix types (no constants here)
@@ -172,7 +168,7 @@ genInst _ i e@(Entity (Prim "index")
 				   Port v n -> sigName v (fromIntegral n)
 				   _ -> error (show ("genInst/index",e,other))
 
-genInst _ i e@(Entity (Prim "unconcat")  outs ins) 
+genInst _ i e@(Entity (Prim "unconcat")  outs ins)
         = [ CommentDecl $ show (i,e) ]
 
 genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])
@@ -861,11 +857,11 @@ mkSpecialBinary coerceR coerceF ops =
                   (Plus,U x,U y)        | x ==y
                                        -> toStdLogicExpr fTy (il + ir)
                   (Plus,S x,S y)        | x == y
-                                       -> toStdLogicExpr fTy (il + ir)  
+                                       -> toStdLogicExpr fTy (il + ir)
                                                         -- unsigned addition used, but gives the same answer.
                   (Minus,S x,S y)        | x == y
-                                       -> toStdLogicExpr fTy (il - ir)  
-                                                        -- unsigned subtraction used, but gives the same answer.                                                                        
+                                       -> toStdLogicExpr fTy (il - ir)
+                                                        -- unsigned subtraction used, but gives the same answer.
                   other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
         _ -> coerceR fTy (ExprBinary op (coerceF lty l)(coerceF rty r))
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"

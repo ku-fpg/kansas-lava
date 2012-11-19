@@ -88,7 +88,6 @@ Library
        Language.KansasLava.Wakarusa.AST
        Language.KansasLava.Wakarusa.Monad
        Language.KansasLava.Stream
-       Language.KansasLava.Dynamic
        Language.KansasLava.VCD
        FED
   Other-modules:

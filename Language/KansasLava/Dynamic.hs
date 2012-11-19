@@ -5,6 +5,7 @@
 
 module Language.KansasLava.Dynamic where
 
+{-
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
@@ -26,3 +27,4 @@ getDynamics sig = find (unD $ deepS sig)
 				[(_,_,i)] -> find i
                                 _ -> error "getDynamics: no inputs"
 	find _ = []
+-}
