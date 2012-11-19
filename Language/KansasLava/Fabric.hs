@@ -168,14 +168,12 @@ liftFabric (Fabric f) = Fabric $ \ inp st -> do
 
 
 instance (MonadFix m) => InOutM (SuperFabric m) where
-   -- | Generate a named input port.
   input nm deepPad = Fabric $ \ ins st -> do
         let p = case lookup nm (in_inPorts ins) of
                    Just v -> v
                    _ -> error $ "input internal error finding : " ++ show nm
         return (p,mempty { out_inPorts = [(nm,deepPad)] },st)
 
-  -- | Generate a named output port.
   output nm pad = Fabric $ \ _ins st -> return ((),mempty { out_outPorts = [(nm,pad)] },st)
 
 
@@ -388,7 +386,7 @@ instance (MonadFix m) => SparkM (SuperFabric m) where
                       -> ([Signal CLK a] -> Signal CLK b)
                       -> SuperFabric m (Signal CLK b)
             read (SignalVar uq) f = Fabric $ \ inps st ->
-                return (f -- $ trace (show (uq,map g $ in_vars inps))
+                return (f
                         $ [ unsafeId s
                         | (uq',StdLogicVector s) <- in_vars inps
                         , uq' == uq

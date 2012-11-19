@@ -194,8 +194,8 @@ data STMT :: * -> * where
         -- control flow
         STEP   :: STMT LABEL    -- wait a cycle, give me a label
         LABEL  :: STMT LABEL    -- give a intra-clock cycle label
-                                -- | GOTO the label *on the next cycle*
-        GOTO   :: LABEL                                         -> STMT ()
+
+        GOTO   :: LABEL                                         -> STMT ()    --  GOTO the label *on the next cycle*
 
         NOP   ::                                                   STMT ()
 
