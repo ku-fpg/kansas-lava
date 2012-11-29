@@ -271,3 +271,52 @@ runDeep name cycles fabric circuitMod invoker = do
     -- there better not be any symlinks in here!
     removeDirectoryRecursive target
 -- End Thunk.hs
+
+--------------------------------------------------------------------------------------------------------
+
+
+    Fabric 
+        VAR v <- REGISTER 0
+        VAR v <- REGISTER
+        
+        v <== (v + 1)
+        
+        spark $ do
+           lab <- LABEL
+           v := v + 1 ||| GOTO lab
+
+
+
+spark :: STMT s a -> Fabric s a
+
+types
+        VAR a
+                write : Reg      a
+                read : Signal a
+
+        MEM ix a
+                write : REG (ix,a)
+                read : Signal (ix -> a)
+
+
+        MVAR a
+                write : Ack -> Enable a
+                read : 
+                
+      
+      
+        spark [ ....
+              , ....
+              ]
+        
+        spark $ do
+                
+                x := x + 1
+
+                lab <- WAIT
+
+                GOTO start
+
+                
+                
+                
