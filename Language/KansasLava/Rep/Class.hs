@@ -69,6 +69,9 @@ repWidth w = typeWidth (repType w)
 unknownRepValue :: (Rep w) => Witness w -> RepValue
 unknownRepValue w = RepValue [ Nothing | _ <- [1..repWidth w]]
 
+typeX :: forall w . (Rep w) => X w -> Type
+typeX _ = repType (Witness :: Witness w)
+
 -- | pureX lifts a value to a (known) representable value.
 pureX :: (Rep w) => w -> X w
 pureX = optX . Just
