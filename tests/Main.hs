@@ -12,7 +12,6 @@ import qualified Coerce
 import qualified Others
 import qualified Protocols
 import qualified Regression
-import qualified Wakarusa
 
 main :: IO ()
 main = do
@@ -22,10 +21,9 @@ main = do
         testDriver opt $ take 7 $ drop 0
                 [ Matrix.tests
                 , Memory.tests
-                , Coerce.tests 
+                , Coerce.tests
                 , Others.tests
-		, Protocols.tests 
+		, Protocols.tests
 		, Regression.tests
-		, Wakarusa.tests
                 ]
 
