@@ -190,6 +190,7 @@ instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     complement s   = primS1 (complement) "complement"  s
     bitSize s      = typeWidth (typeOfS s)
     isSigned s     = isTypeSigned (typeOfS s)
+    bit            = pureS . bit
 
 instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where
     s1 / s2 = primS2 (/) "/"  s1  s2
