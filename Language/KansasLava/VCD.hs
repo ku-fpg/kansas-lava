@@ -1,30 +1,29 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 -- | This module contains functions for generating VCD debug traces.
 -- It also provides functionality for (de)serializing Traces.
-module Language.KansasLava.VCD {-
+module Language.KansasLava.VCD
     ( VCD(..)
-    , writeVCDFile
-    , readVCDFile
-    , addEvent
+--    , writeVCDFile
+--    , readVCDFile
+--    , addEvent
     -- * Generate a Signature from a VCD trace
     , toSignature
-    , fromSignature
+--    , fromSignature
     -- * Compare two VCDs
-    , cmpVCD
+    , cmpVCD                    --
     , ioOnly
     -- * Make a VCD trace from a Fabric and input Pads
-    , mkVCD
+--    , mkVCD
     , mkVCDCM
     -- * Reading and Writing the Test Bench Format (.tbf)
-    , readTBF
+    , readTBF                   -- Only used for  cmpVCD
     , writeTBF
     -- * Convert Rep to Test Bench Word
-    , tbw2rep
-    , rep2tbw
+--    , tbw2rep
+--    , rep2tbw
     -- * probes
     , probesToVCD
-    , snapProbesAsVCD
-    ) -} where
+    ) where
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
@@ -40,6 +39,7 @@ import Language.KansasLava.Probes
 
 import Control.Monad
 
+import Control.Monad.Fix
 import Data.Char
 import qualified Data.Foldable as F
 import Data.Function
@@ -355,11 +355,11 @@ vcdOfProbes :: MVar VCD_
 vcdOfProbes = unsafePerformIO $ newEmptyMVar
 
 {-# NOINLINE probesToVCD #-}
-probesToVCD :: Integer -> Integer -> String -> IO () -> IO ()
+probesToVCD :: Int -> Integer -> String -> IO () -> IO ()
 probesToVCD size speed filename todo = do
         v <- newMVar emptyVCD_
         setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
-                modifyMVar_ v $ \ vcd -> return (snocVCD_ nm clkNo x vcd)
+                modifyMVar_ v $ \ vcd -> return (snocVCD_ nm (fromIntegral clkNo) x vcd)
                 return x
         todo
         vcd <- takeMVar v
@@ -400,21 +400,21 @@ flushVCD' :: VCD' -> (VCD -> VCD) -> IO ()
 flushVCD' (VCD' v i) =
 -}
 
-data VCD_ = VCD_ Integer (M.Map String VC_)
+data VCD_ = VCD_ Int (M.Map String VC_)
 --        deriving Show
 
 
 data VC_ = VC_
          { vcType     :: Type
          , vcInit     :: RepValue
-         , vcChanges  :: [(Integer,RepValue)] -- reversed list of events
-         , vcEnd      :: Integer
+         , vcChanges  :: [(Int,RepValue)] -- reversed list of events
+         , vcEnd      :: Int
          }
         deriving Show
 
 
 -- inefficent, but works
-showVCColumn :: VC_ -> Integer -> Integer -> [String]
+showVCColumn :: VC_ -> Int -> Int -> [String]
 showVCColumn vc from to = loop (show (vcInit vc)) (reverse [ (i,show v) | (i,v) <- vcChanges vc]) [from .. to]
   where
           loop _ _                []     = []
@@ -437,7 +437,7 @@ emptyVCD_ = VCD_ 0 M.empty
 -- the clock numbers *must* be acsending,
 -- and you can not add a fresh named node after a split.
 
-snocVCD_ :: (Rep a) => String -> Integer -> X a -> VCD_ -> VCD_
+snocVCD_ :: (Rep a) => String -> Int -> X a -> VCD_ -> VCD_
 snocVCD_ nm i val (VCD_ start m) = VCD_ start $
         M.alter (\ opt_vc -> case opt_vc of
                 Nothing | start == 0
@@ -452,7 +452,7 @@ snocVCD_ nm i val (VCD_ start m) = VCD_ start $
 emptyVC_ :: Type -> VC_
 emptyVC_ ty = VC_ ty (RepValue $ take (typeWidth ty) (repeat Nothing)) [] (-1)
 
-snocVC_ :: Integer -> RepValue -> VC_ -> VC_
+snocVC_ :: Int -> RepValue -> VC_ -> VC_
 snocVC_ i val vc | i <= vcEnd vc = error "snocVC_: error in order of calls"
                  | lastVC_ vc == val = vc { vcEnd = i }
                  | otherwise         = vc { vcEnd = i, vcChanges = (i,val) : vcChanges vc }
@@ -462,7 +462,7 @@ lastVC_ (VC_ _ v [] _)        = v
 lastVC_ (VC_ _ _ ((_,v):_) _) = v
 
 -- TODO: if you are past the end, you are undefined
-valueAt :: VC_ -> Integer -> RepValue
+valueAt :: VC_ -> Int -> RepValue
 valueAt (VC_ _ i c e) now | now > e   = error "valueAt passed end of time"
                           | otherwise = find c
   where
@@ -470,8 +470,22 @@ valueAt (VC_ _ i c e) now | now > e   = error "valueAt passed end of time"
           find ((clk,val):rest) = if clk <= now then val
                                                 else find rest
 
+
+-- | Convert a Pad to a Tracestream
+padToVC_ :: Int -> Pad -> VC_
+padToVC_ i (StdLogic s)       = convertVC_ i s
+padToVC_ i (StdLogicVector s) = convertVC_ i s
+padToVC_ _ other = error $ "fix padToVC for " ++ show other
+
+-- | Convert a Stream to a VC. Note this can force evaluation.
+convertVC_ :: forall clk w . (Clock clk, Rep w) => Int -> Signal clk w -> VC_
+convertVC_ len xs = foldl (\ vc (i,v) -> snocVC_ i v vc)
+                                (emptyVC_ (typeOfS xs))
+                                [ (i,toRep v)
+                                | (i,v) <- take len [0..] `zip` S.toList (shallowS xs)
+                                ]
 -- TODO: be careful about leaks. None of this should be lazy.
-splitVCD :: VCD_ -> Integer -> (VCD_,VCD_)
+splitVCD :: VCD_ -> Int -> (VCD_,VCD_)
 splitVCD (VCD_ i m) j = (VCD_ i before,VCD_ j after)
     where
           before = fmap (\ vc@(VC_ t i cs e) -> VC_ t
@@ -623,6 +637,14 @@ writeVCD h (VCD_ i m) = do
 
          vcs = vcdIds `zip` M.assocs m
 
+recordVCDFabric :: (MonadFix m) => Int -> SuperFabric m a -> SuperFabric m (a,VCD_)
+recordVCDFabric i fab = do
+        (a,ins,outs) <- recordFabric fab
+        return (a,VCD_ 0 $ foldr (\ (nm,val) -> M.insert nm (padToVC_ i val))
+                                M.empty
+                         $ [ (nm,val) | (nm,val) <- ins ] ++
+                           [ (nm,val) | (nm,val) <- outs ])
+
 main = do
         h <- openVCD 100 "x.vcd" testVCD1
         let (vc1,vc2) = splitVCD testVCD1 5
@@ -631,3 +653,23 @@ main = do
         hClose h
 
 example = probesToVCD 0 100 "x.vcd" (print (takeS 100 (probeS "x" (iterateS (\ x -> 1 + x*23) (0 :: Int) :: Seq Int))))
+
+testF :: Fabric ()
+testF = do
+        x :: Seq U8 <- inStdLogicVector "x"
+        y :: Seq U8 <- inStdLogicVector "y"
+        outStdLogicVector "z" (x + y)
+
+testF_TB :: Fabric [Bool]
+testF_TB = do
+        outStdLogicVector "x" (toS [1..100] :: Seq U8)
+        outStdLogicVector "y" (toS [100..200] :: Seq U8)
+        z :: Seq U8 <- inStdLogicVector "z"
+        return [ maybe False (\ z' -> z' == x' + y') ss | (x',y',ss) <- zip3 [1..100] [100..200] (fromS z)]
+
+foo = do
+        let Pure ~(f,vcd) = runFabricWithDriver testF (recordVCDFabric 100 testF_TB)
+        print f
+        return vcd
+--        print vcd
+
