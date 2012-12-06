@@ -254,7 +254,6 @@ runFabric (Fabric f) args = do
         rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = out_vars out }) (initFabricState)
         return (a,out_outPorts out)
 
-
 -- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.
 -- must have no (monadic) outputs. (TODO: err, this should be checked)
 runFabricWithResult :: (MonadFix m) => SuperFabric m a -> [(String,Pad)] -> m a
@@ -270,6 +269,11 @@ runFabricWithDriver (Fabric f) (Fabric g) = do
             (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
         return a
 
+recordFabric :: (MonadFix m) => SuperFabric m a -> SuperFabric m (a,[(String,Pad)],[(String,Pad)])
+recordFabric (Fabric f) = Fabric $ \ inps st0 -> do
+        rec (a,f_result,st1) <- f inps st0
+        return ((a,in_inPorts inps,out_outPorts f_result),f_result,st1)
+
 -- TODO: only used in Wakarusa Monad?
 -- 'fabricAPI' explains what the API is for a specific fabric.
 -- The input Pad's are connected to a (deep) Pad nm.
@@ -277,7 +281,6 @@ fabricAPI :: (MonadFix m) => SuperFabric m a -> m (a,[(String,Pad)],[(String,Pad
 fabricAPI (Fabric f) = do
         rec (a,result,_) <- f (initFabricInput { in_inPorts = out_inPorts result }) (initFabricState)
         return (a,out_inPorts result,out_outPorts result)
-
 
 -- 'traceFabric' returns the actual inputs and outputs, inside the monad.
 -- TODO: This is broken!!
