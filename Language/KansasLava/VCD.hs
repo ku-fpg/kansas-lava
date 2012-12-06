@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 -- | This module contains functions for generating VCD debug traces.
 -- It also provides functionality for (de)serializing Traces.
-module Language.KansasLava.VCD
+module Language.KansasLava.VCD {-
     ( VCD(..)
     , writeVCDFile
     , readVCDFile
@@ -22,9 +22,9 @@ module Language.KansasLava.VCD
     , tbw2rep
     , rep2tbw
     -- * probes
-    , resetProbesForVCD
+    , probesToVCD
     , snapProbesAsVCD
-    ) where
+    ) -} where
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
@@ -49,7 +49,13 @@ import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Data.IORef
 import Control.DeepSeq
+import System.IO
+import qualified Data.Map as M
 
+-- testing
+import Data.Sized.Unsigned
+import Data.Sized.Ix
+import Language.KansasLava.Utils
 
 ----------------------------------------------------------------------------------------
 -- | The VC (value change) is used for capturing traces of shallow-embedded
@@ -345,20 +351,283 @@ rep2tbw (RepValue vals) = [ case v of
 
 -- We keep this thread-safe, just in case.
 {-# NOINLINE vcdOfProbes #-}
-vcdOfProbes :: MVar VCD
+vcdOfProbes :: MVar VCD_
 vcdOfProbes = unsafePerformIO $ newEmptyMVar
 
-{-# NOINLINE resetProbesForVCD #-}
-resetProbesForVCD :: IO ()
-resetProbesForVCD = do
-        _ <- tryTakeMVar vcdOfProbes -- for interative use, throw away the old one
-        putMVar vcdOfProbes $ VCD []
+{-# NOINLINE probesToVCD #-}
+probesToVCD :: Integer -> Integer -> String -> IO () -> IO ()
+probesToVCD size speed filename todo = do
+        v <- newMVar emptyVCD_
         setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
-                vcd <- takeMVar vcdOfProbes
-                putMVar vcdOfProbes $ addEvent nm (fromIntegral clkNo) x vcd
+                modifyMVar_ v $ \ vcd -> return (snocVCD_ nm clkNo x vcd)
                 return x
+        todo
+        vcd <- takeMVar v
+        h <- openVCD speed filename vcd
+        writeVCD h vcd
+        hClose h
+        putStrLn $ "[Written probe values to " ++ show filename ++ "]"
         return ()
 
+{-
 {-# NOINLINE snapProbesAsVCD #-}
-snapProbesAsVCD :: IO VCD
+snapProbesAsVCD :: IO VCD_
 snapProbesAsVCD = readMVar vcdOfProbes
+-}
+
+----------------------------------------------------------------------------
+{-
+data VCD' = VCD' Handle                                            -- When we send the fine
+                 (MVar Integer)                                    -- How much we've flushed
+                 (MVar (M.Map String (M.Map Integer [RepValue])))  -- What we've got in pipeline
+
+
+openVCD' :: String -> IO VCD'
+openVCD' nm = do
+        h <- openFile nm ReadMode       -- AppendMode?
+        vI <- newMVar 0
+        vM <- newMVar M.empty
+        return $ VCD' h vI vM
+
+-- This simply records a single event.
+writeVCD' :: String -> Integer -> X a -> VCD' -> IO ()
+writeVCD' nm i x (VCD h vI vM) =
+        v <- takeMVar vM
+        -- need to de-rep the x
+        putMVar vM $ Map.alter nm (maybe (Map.insert i x) M.empy)
+
+flushVCD' :: VCD' -> (VCD -> VCD) -> IO ()
+flushVCD' (VCD' v i) =
+-}
+
+data VCD_ = VCD_ Integer (M.Map String VC_)
+--        deriving Show
+
+
+data VC_ = VC_
+         { vcType     :: Type
+         , vcInit     :: RepValue
+         , vcChanges  :: [(Integer,RepValue)] -- reversed list of events
+         , vcEnd      :: Integer
+         }
+        deriving Show
+
+
+-- inefficent, but works
+showVCColumn :: VC_ -> Integer -> Integer -> [String]
+showVCColumn vc from to = loop (show (vcInit vc)) (reverse [ (i,show v) | (i,v) <- vcChanges vc]) [from .. to]
+  where
+          loop _ _                []     = []
+          loop i rs (k:ks)
+                | k > vcEnd vc = ""  : loop i   rs ks
+          loop i rs@((clk,val):rs1) (k:ks)
+                | k == clk     = val : loop val rs1 ks
+          loop i rs (k:ks)
+                | otherwise    = i   : loop i   rs  ks
+
+-- modifyMVar_
+--alterVCD :: MVar VCD_ -> (VCD_ -> IO VCD_) -> IO ()
+--alterVCD = do
+--        v <-
+
+emptyVCD_ :: VCD_
+emptyVCD_ = VCD_ 0 M.empty
+
+-- snoc on an element onto a VC node,
+-- the clock numbers *must* be acsending,
+-- and you can not add a fresh named node after a split.
+
+snocVCD_ :: (Rep a) => String -> Integer -> X a -> VCD_ -> VCD_
+snocVCD_ nm i val (VCD_ start m) = VCD_ start $
+        M.alter (\ opt_vc -> case opt_vc of
+                Nothing | start == 0
+                        -> return (snocVC_ i (toRep val) $ emptyVC_ (typeX val))
+                        | otherwise
+                        -> error "can not add a new VC to a split VCD"
+                Just vc -> return (snocVC_ i (toRep val) vc)
+             ) nm m
+--        case M.lookup nm m of
+--          Just vc ->
+
+emptyVC_ :: Type -> VC_
+emptyVC_ ty = VC_ ty (RepValue $ take (typeWidth ty) (repeat Nothing)) [] (-1)
+
+snocVC_ :: Integer -> RepValue -> VC_ -> VC_
+snocVC_ i val vc | i <= vcEnd vc = error "snocVC_: error in order of calls"
+                 | lastVC_ vc == val = vc { vcEnd = i }
+                 | otherwise         = vc { vcEnd = i, vcChanges = (i,val) : vcChanges vc }
+
+lastVC_ :: VC_ -> RepValue
+lastVC_ (VC_ _ v [] _)        = v
+lastVC_ (VC_ _ _ ((_,v):_) _) = v
+
+-- TODO: if you are past the end, you are undefined
+valueAt :: VC_ -> Integer -> RepValue
+valueAt (VC_ _ i c e) now | now > e   = error "valueAt passed end of time"
+                          | otherwise = find c
+  where
+          find []               = i
+          find ((clk,val):rest) = if clk <= now then val
+                                                else find rest
+
+-- TODO: be careful about leaks. None of this should be lazy.
+splitVCD :: VCD_ -> Integer -> (VCD_,VCD_)
+splitVCD (VCD_ i m) j = (VCD_ i before,VCD_ j after)
+    where
+          before = fmap (\ vc@(VC_ t i cs e) -> VC_ t
+                                                   i
+                                                   (filter (\ (x,_) -> x < j) cs)
+                                                   (j - 1)
+                        ) m
+          after  = fmap (\ vc@(VC_ t i cs e) -> VC_ t
+                                                   (valueAt vc (j - 1))
+                                                   (filter (\ (x,_) -> x >= j) cs)
+                                                   e
+                        ) m
+
+testVC1 = VC_ (V 4)
+              (toRep (unknownX :: X U4))
+              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned X4))) | i <- reverse [0..10], i < 4 || i > 7]
+              10
+
+testVC2 = VC_ B
+              (toRep (unknownX :: X U1))
+              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned X1))) | i <- reverse [0..12]]
+              12
+
+testVCD1 = VCD_ 0 (M.fromList [("x",testVC1),("y",testVC2)])
+
+
+--         comment = "$comment\nclock = " ++ show i ++ "\n$end"
+
+showColumns :: [[String]] -> [String]
+showColumns xss = take height
+          [ unwords (zipWith item widths xs)
+          | xs <- transpose xss
+          ]
+  where
+          item :: Int -> String -> String
+          item i xs = replicate (i - length xs) ' ' ++ xs
+
+          widths :: [Int]
+          widths = [ maximum (map length xs) | xs <- xss ]
+
+          height :: Int
+          height = maximum (map length xss)
+
+          xss' = map ((++) (repeat "")) xss
+
+
+instance Show VCD_ where
+    show (VCD_ i m)
+        | M.null m = "empty VCD, clock = " ++ show i
+        | otherwise = unlines (showColumns (clock : columns))
+      where
+         -- last value to print
+         j = maximum [ e | VC_ _ _ _ e <- M.elems m ]
+
+         comment = "-- clock = " ++ show i ++ "-" ++ show j
+
+         names = sort (M.keys m)
+
+         clock :: [String]
+         clock = "" : "" : [ show k | k <- [i .. j]]
+
+         columns :: [[String]]
+         columns = [ case M.lookup k m of
+                       Nothing -> error "bad lookup name"
+                       Just vc -> k : "" : showVCColumn vc i j
+                   | k <- names
+                   ]
+--         maxValue = maximum [ keys
+{-
+--         wMaxLens :: [E.EventList (String,Int)]
+{-
+              wMaxLens = [ let maxlen = max $ length h
+                           in fmap (\v -> let str = showRepValue ty v in (str, maxlen $ length str)) el
+                         | (h, VC ty el) <- m ]
+
+
+--            headers -- ++ "\n" ++ E.foldrWithTime (\(clk,str) r -> pr (show clk) clkwidth str ++ "\n" ++ r) "" rows
+
+        where wMaxLens :: [E.EventList (String,Int)]
+              wMaxLens = [ let maxlen = max $ length h
+                           in fmap (\v -> let str = showRepValue ty v in (str, maxlen $ length str)) el
+                         | (h, VC ty el) <- m ]
+
+              rows = fmap fst
+                   $ E.mergeWith (\(s1,l1) (s2,l2) -> (pr s1 l1 s2, l1 + l2))
+                                 wMaxLens
+
+              clkwidth = max 3 $ length $ show $ E.length rows
+
+              widths = map (snd . E.head) wMaxLens
+
+              headers = foldr (\(h,l) r -> pr h l r) "" $ zip ("clk" : map fst m) (clkwidth : widths)
+
+              pr s1 l1 s2 = s1 ++ replicate (1 + l1 - length s1) ' ' ++ s2
+-}
+-}
+
+-- | Convert a 'VCD' to a VCD file.
+openVCD :: Integer    -- ^ Timescale in nanoseconds
+        -> FilePath   -- ^ name of VCD file
+        -> VCD_
+        -> IO Handle
+openVCD ts fileName (VCD_ start m)
+        | start /= 0 = error "can not write VCD header for VCD's that do not start at zero"
+        | otherwise  = do
+                h <- openFile fileName WriteMode
+                hPutStr h header
+                hFlush h
+                return h
+  where
+        header :: String
+        header = unlines
+                [ "$version\n   Kansas Lava\n$end"
+                , "$timescale " ++ show ts ++ "ns $end"
+                , "$scope module top $end"
+                ]
+                ++ unlines [ unwords ["$var wire", show $ typeWidth ty, ident, show k, "$end"]
+                | (ident,(k,VC_ ty _ _ _)) <- vcdIds `zip` M.assocs m ]
+                ++ "$enddefinitions $end\n"
+                ++ dumpVars [ (ident,i)
+                            | (ident,(k,VC_ _ i _ _)) <- vcdIds `zip` M.assocs m
+                            ]
+
+mkComment comm = unlines ["$comment",comm,"$end"]
+
+writeVCD :: Handle -> VCD_ -> IO ()
+writeVCD h (VCD_ i m) = do
+        hPutStr h $ if M.null m
+                    then mkComment $ "clock = " ++ show i
+                    else comment ++ unlines changes
+        hFlush h
+      where
+         -- last value to print
+         j = maximum [ e | VC_ _ _ _ e <- M.elems m ]
+
+         changes = concat
+                 $ map (\ xs -> ("#" ++ show (fst (head xs)))
+                             : [ vcdVal tag val
+                               | (_,(tag,val)) <- xs
+                               ])
+                 $ groupBy (\ a b -> fst a == fst b)
+                 $ sort
+                 [ (tm,(tag,val))
+                 | (tag,(_,VC_ _ _ cs _)) <- vcs
+                 , (tm,val) <- cs
+                 ]
+
+         comment = mkComment $ "clock = " ++ show i ++ "-" ++ show j
+
+         vcs = vcdIds `zip` M.assocs m
+
+main = do
+        h <- openVCD 100 "x.vcd" testVCD1
+        let (vc1,vc2) = splitVCD testVCD1 5
+        writeVCD h vc1
+        writeVCD h vc2
+        hClose h
+
+example = probesToVCD 0 100 "x.vcd" (print (takeS 100 (probeS "x" (iterateS (\ x -> 1 + x*23) (0 :: Int) :: Seq Int))))
