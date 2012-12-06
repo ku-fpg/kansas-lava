@@ -3,7 +3,7 @@
 -- It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.VCD
     ( VCD(..)
---    , writeVCDFile
+    , writeVCDFile
 --    , readVCDFile
 --    , addEvent
     -- * Generate a Signature from a VCD trace
