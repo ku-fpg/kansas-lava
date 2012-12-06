@@ -54,9 +54,9 @@ module Language.KansasLava (
     module Language.KansasLava.Utils,
 
     -- * Version Change Dump
-    VCD,
-    writeVCDFile,
-    readVCDFile,
+--    VCD,
+--    writeVCDFile,
+--    readVCDFile,
 
 --    -- * Wakarusa Compiler
     module Language.KansasLava.Spark
