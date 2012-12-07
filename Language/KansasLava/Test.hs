@@ -822,7 +822,7 @@ mkTestbench' path cycles circuitMod fabric fabric_tb = do
 
     createDirectoryIfMissing True path
 
-    let Pure (a, vcd) = runFabricWithDriver fabric (recordVCDFabric cycles fabric_tb)
+    let Pure (((),vcd),a) = runFabricWithDriver (recordVCDFabric cycles fabric) fabric_tb
 
     rc0 <- reifyFabric fabric
     rc <- circuitMod rc0

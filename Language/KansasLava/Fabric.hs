@@ -262,12 +262,12 @@ runFabricWithResult (Fabric f) args = do
         return a
 
 
--- | 'runFabricWithDriver' runs a Fabric () using a driver Fabric.
-runFabricWithDriver :: (MonadFix m) => SuperFabric m () -> SuperFabric m a -> m a
+-- | 'runFabricWithDriver' runs a Fabric a using a driver Fabric b.
+runFabricWithDriver :: (MonadFix m) => SuperFabric m a -> SuperFabric m b -> m (a,b)
 runFabricWithDriver (Fabric f) (Fabric g) = do
-        rec ((),f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result, in_vars = out_vars f_result }) (initFabricState)
-            (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
-        return a
+        rec (a,f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result, in_vars = out_vars f_result }) (initFabricState)
+            (b,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
+        return (a,b)
 
 recordFabric :: (MonadFix m) => SuperFabric m a -> SuperFabric m (a,[(String,Pad)],[(Int,Pad)],[(String,Pad)])
 recordFabric (Fabric f) = Fabric $ \ inps st0 -> do
