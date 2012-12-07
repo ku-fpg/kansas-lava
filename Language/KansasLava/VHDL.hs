@@ -18,6 +18,7 @@ import qualified Data.Map as M
 import System.Directory
 import System.FilePath.Posix
 import Data.Char
+import Data.List (sort)
 import Data.Reify(Unique)
 
 import Paths_kansas_lava
@@ -34,7 +35,7 @@ writeVhdlCircuit nm file cir = do
 -- | Write the Lava Prelude into this file.
 -- For example:
 --
--- > writeVhdlPrelude "Lava.vhd" 
+-- > writeVhdlPrelude "Lava.vhd"
 --
 writeVhdlPrelude :: FilePath -> IO ()
 writeVhdlPrelude prel_dest = do
@@ -139,9 +140,9 @@ stimulus name ins outs = unlines $ [
 -- Manipulating ports
 ports :: KLEG -> ([(String, Type)],[(String, Type)],[(String, Type)])
 ports reified = (ins, outs, clocks)
-    where ins  = [(nm,ty) | (nm,ty) <- theSrcs reified, nm `notElem` ["clk","rst","clk_en"]]
-          outs = [(nm,ty) | (nm,ty,_) <- theSinks reified]
-          clocks  = [(nm,ty) | (nm,ty) <- theSrcs reified, nm `elem` ["clk","rst","clk_en"]]
+    where ins  = [(nm,ty) | (nm,ty) <- sort $ theSrcs reified, nm `notElem` ["clk","rst","clk_en"]]
+          outs = [(nm,ty) | (nm,ty,_) <- sort $ theSinks reified]
+          clocks  = [(nm,ty) | (nm,ty) <- sort $ theSrcs reified, nm `elem` ["clk","rst","clk_en"]]
 --      resets = [(nm,RstTy) | (nm,RstTy) <- theSrcs reified]
 
 portType :: [(a, Type)] -> [Char]
