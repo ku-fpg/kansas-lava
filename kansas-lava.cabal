@@ -103,7 +103,6 @@ Library
        Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
        Language.KansasLava.Protocols.Patch
-       Language.KansasLava.VCD.EventList
        Paths_kansas_lava
 
 -- need a module refactor to address the orphan warnings

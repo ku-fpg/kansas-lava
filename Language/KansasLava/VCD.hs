@@ -26,8 +26,6 @@ import Language.KansasLava.Types
 import Language.KansasLava.Internal
 import Language.KansasLava.Universal
 
-import qualified Language.KansasLava.VCD.EventList as E
-
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Probes
 
@@ -70,17 +68,10 @@ vcdIds = map code [0..]
           code i | i < 0 = ""
           code i         = chr (33 + mod i 94) : code (div i 94 - 1)
 
-values :: [(VCDID, E.EventList RepValue)] -> String
-values sigs = dumpVars initials ++ eventList rest
-    where (initials,rest) = unzip [ ((i, E.head el), (i, el)) | (i, el) <- sigs ]
 
 dumpVars :: [(VCDID, RepValue)] -> String
 dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
 
-eventList :: [(VCDID, E.EventList RepValue)] -> String
-eventList strms = E.foldrWithTime (\(t,ls) r -> "#" ++ show t ++ "\n" ++ ls ++ "\n" ++ r) "" elist
-    where elist = E.mergeWith (\s1 s2 -> s1 ++ ('\n':s2))
-                              [ fmap (vcdVal ident) elist' | (ident,elist') <- strms ]
 
 vcdVal :: VCDID -> RepValue -> String
 vcdVal i r@(RepValue bs) | length bs == 1 = rep2tbw r ++ i
@@ -171,10 +162,10 @@ data VCD = VCD Int (M.Map String VC)
 
 
 data VC = VC
-         { vcType     :: Type
-         , vcInit     :: RepValue
-         , vcChanges  :: [(Int,RepValue)] -- reversed list of events
-         , vcEnd      :: Int
+         { vcType     :: !Type
+         , vcInit     :: !RepValue
+         , vcChanges  :: ![(Int,RepValue)] -- reversed list of events
+         , vcEnd      :: !Int
          }
         deriving Show
 
