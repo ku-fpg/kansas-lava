@@ -141,7 +141,7 @@ testFabrics opts simMods name count f_dut f_expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (mkTestbench' (path </> modname) count (snd cmod) f_dut inp))
+                            let sims = [ (modname, (mkTestbench' (path </> modname) count (snd cmod) f_dut f_expected))
                                        | cmod <- if permuteMods opts
                                                     then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
                                                            $ concatMap permutations
@@ -168,7 +168,7 @@ testFabrics opts simMods name count f_dut f_expected
                                            copyLavaPrelude (path </> modname)
                                            writeFile (path </> modname </> "options") $ show opts
                                            rep $ SimGenerated
-                                           vrb 9 $ show ("trace",fromJust t)
+--                                           vrb 9 $ show ("trace",fromJust t)
                                       | (modname, t) <- zip (map fst sims) ts
                                       , isJust t
                                       , let vrb = verbose (verboseOpt opts) (name </> modname)
@@ -206,17 +206,14 @@ simCompare path report verb = do
                 if success
                     then do shallow <- lines <$> Strict.readFile (path </> localname <.> "in.tbf")
                             deep    <- lines <$> Strict.readFile (path </> localname <.> "out.tbf")
-                            sig     <- read  <$> Strict.readFile (path </> localname <.> "sig")
 
-                            let t1 = readTBF shallow sig
-                                t2 = readTBF deep sig
-                            if cmpVCD (ioOnly t1) (ioOnly t2)
-                                then do verb 3 "simulation passed"
-                                        report $ Pass -- t1 t2 transcript
-                                else do verb 3 "simulation failed"
---                                        verb 4 $ show ("shallow",t1)
---                                        verb 4 $ show ("deep",t2)
-                                        report $ CompareFail
+                            case cmpTBF shallow deep of
+                              Nothing -> do
+                                      verb 3 "simulation passed"
+                                      report $ Pass -- t1 t2 transcript
+                              Just n -> do
+                                      verb 3 $ "simulation failed on cycle " ++ show n
+                                      report $ CompareFail
 
                     else do verb 3 "VHDL compilation failed"
 --                            verb 4 transcript
@@ -814,24 +811,66 @@ readPreludeFile fname = do
 -----------------------------------
 
 -- | Make a VHDL testbench from a 'Fabric' and its inputs.
-mkTestbench' :: FilePath                 -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
+mkTestbench' :: FilePath                -- ^ Directory where we should place testbench files. Will be created if it doesn't exist.
             -> Int                      -- ^ Generate inputs for this many cycles.
-            -> (KLEG -> IO KLEG)  -- ^ any operations on the circuit before VHDL generation
+            -> (KLEG -> IO KLEG)        -- ^ any operations on the circuit before VHDL generation
             -> Fabric ()                -- ^ The Fabric for which we are building a testbench.
-            -> [(String,Pad)]           -- ^ Inputs to the Fabric
-            -> IO VCD
-mkTestbench' path cycles circuitMod fabric input = do
+            -> Fabric a                 -- ^ TB fabric (generates stimuli)palate
+            -> IO (a,VCD)
+mkTestbench' path cycles circuitMod fabric fabric_tb = do
     let name = last $ splitPath path
 
     createDirectoryIfMissing True path
 
-    (vcd, rc) <- mkVCDCM cycles fabric input circuitMod
+    let Pure (a, vcd) = runFabricWithDriver fabric (recordVCDFabric cycles fabric_tb)
+
+    rc0 <- reifyFabric fabric
+    rc <- circuitMod rc0
 
     writeTBF (path </> name <.> "in.tbf") vcd
-    writeFile (path </> name <.> "sig") $ show $ toSignature vcd
     writeFile (path </> name <.> "kleg") $ show rc
 
     writeVhdlCircuit name (path </> name <.> "vhd") rc
     mkTestbench name path rc
 
-    return vcd
+    return (a,vcd)
+
+
+{-
+-- | Make a 'VCD' from a 'Fabric' and its input.
+mkVCD :: Int            -- ^ number of cycles to capture
+      -> Fabric ()      -- ^ The Fabric we are tracing
+      -> [(String,Pad)] -- ^ Inputs to the Fabric
+      -> IO VCD
+mkVCD c fabric input = do
+    (trace, _) <- mkVCDCM c fabric input (return)
+    return trace
+
+-- | Version of 'mkVCD' that accepts arbitrary circuit mods.
+mkVCDCM :: Int               -- ^ number of cycles to capture
+        -> Fabric ()         -- ^ Fabric we are tracing
+        -> [(String, Pad)]   -- ^ Inputs to the Fabric
+        -> (KLEG -> IO KLEG) -- ^ KLEG Mod
+        -> IO (VCD, KLEG)
+mkVCDCM c fabric input circuitMod = do
+    rc <- (reifyFabric >=> circuitMod) fabric
+
+    let Pure (_,output) = runFabric fabric input
+        tr = VCD $ [ ("inputs/" ++ nm, padToVC c p)
+                   | (nm,_) <- theSrcs rc
+                   , (nm',p) <- input
+                   , nm == nm' ]
+                 ++ [ ("outputs/" ++ nm, padToVC c p)
+                    | (nm,_,_) <- theSinks rc
+                    , (nm',p) <- output
+                    , nm == nm' ]
+
+    return (tr, rc)
+
+-- Wraps up a Fabric with a VCD capture of inputs and outputs.
+vcdFabric :: Fabric a -> Fabric (a,VCD)
+vcdFabric fab = do
+        (a,ins0,outs0) <- traceFabric fab
+        return $ (a,VCD [])
+-}
+

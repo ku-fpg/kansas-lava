@@ -269,10 +269,10 @@ runFabricWithDriver (Fabric f) (Fabric g) = do
             (a,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
         return a
 
-recordFabric :: (MonadFix m) => SuperFabric m a -> SuperFabric m (a,[(String,Pad)],[(String,Pad)])
+recordFabric :: (MonadFix m) => SuperFabric m a -> SuperFabric m (a,[(String,Pad)],[(Int,Pad)],[(String,Pad)])
 recordFabric (Fabric f) = Fabric $ \ inps st0 -> do
         rec (a,f_result,st1) <- f inps st0
-        return ((a,in_inPorts inps,out_outPorts f_result),f_result,st1)
+        return ((a,in_inPorts inps,out_vars f_result,out_outPorts f_result),f_result,st1)
 
 -- TODO: only used in Wakarusa Monad?
 -- 'fabricAPI' explains what the API is for a specific fabric.
