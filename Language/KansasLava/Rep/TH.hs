@@ -14,10 +14,10 @@ import Language.KansasLava.Rep.Class
 repIntegral :: Name -> KLT.Type -> Q [Dec]
 repIntegral tyName tyType = do
    x <- newName "x"
-   sequence [ instanceD 
+   sequence [ instanceD
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (mkName xSize))
+		[ tySynInstD ''W [conT tyName] (conT (integerL xSize))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName
@@ -25,14 +25,14 @@ repIntegral tyName tyType = do
 				]
 				[]
 		, funD 'optX
-		  	[clause [varP x] 
+		  	[clause [varP x]
 				      (normalB
 					 (appE (conE xConsName)
 					      (varE x)))
 		 		      []
 			]
 		, funD 'unX
-		  	[clause [conP xConsName [varP x]] 
+		  	[clause [conP xConsName [varP x]]
 				      (normalB
 					 (varE x))
 		 		      []
@@ -51,22 +51,22 @@ repIntegral tyName tyType = do
 		, valD (varP 'showRep)
 		       (normalB (varE 'showRepDefault))
 		       []
-		] 
+		]
 	]
   where
 	strName	  = nameBase tyName
 	xConsName = mkName ("X" ++ strName)
-	xSize     = "X" ++ show (typeWidth tyType)
+	xSize     = typeWidth tyType
 
 -- You would think that you could go from Name to Kansas Lava type,
 -- but this breaks the staging in Template Haskell.
 repBitRep :: Name -> Int -> Q [Dec]
 repBitRep tyName width = do -- tyType = do
    x <- newName "x"
-   sequence [ instanceD 
+   sequence [ instanceD
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (mkName xSize))
+		[ tySynInstD ''W [conT tyName] (conT (integerL xSize))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName
@@ -74,14 +74,14 @@ repBitRep tyName width = do -- tyType = do
 				]
 				[]
 		, funD 'optX
-		  	[clause [varP x] 
+		  	[clause [varP x]
 				      (normalB
 					 (appE (conE xConsName)
 					      (varE x)))
 		 		      []
 			]
 		, funD 'unX
-		  	[clause [conP xConsName [varP x]] 
+		  	[clause [conP xConsName [varP x]]
 				      (normalB
 					 (varE x))
 		 		      []
@@ -102,12 +102,12 @@ repBitRep tyName width = do -- tyType = do
 		, valD (varP 'showRep)
 		       (normalB (varE 'showRepDefault))
 		       []
-		] 
+		]
 	]
   where
 	strName	  = nameBase tyName
 	xConsName = mkName ("X" ++ strName)
-	xSize     = "X" ++ show width
+	xSize     = width
 --	(typeWidth tyType)
 
 

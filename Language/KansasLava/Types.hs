@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs, TypeOperators, EmptyDataDecls #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, ScopedTypeVariables, GADTs, TypeOperators, EmptyDataDecls,
+  DataKinds, KindSignatures #-}
 
 -- | This module contains the key internal types for Kansas Lava,
 -- and some basic utilities (like Show instances) for these types.
@@ -60,7 +61,6 @@ module Language.KansasLava.Types (
 import Control.Applicative
 
 import Data.Char
-import Data.Dynamic
 import qualified Data.Foldable as F
 import Data.List as L
 import Data.Maybe
@@ -68,8 +68,9 @@ import Data.Monoid hiding (Dual)
 import Data.Reify
 import Data.Ratio
 import qualified Data.Traversable as T
-import Data.Sized.Ix
+import Data.Sized.Sized
 import GHC.Exts( IsString(..) )
+import GHC.TypeLits
 
 -------------------------------------------------------------------------
 -- | Type captures HDL-representable types.
@@ -502,39 +503,45 @@ cmpRepValue _ _ = False
 -- It is bit-endian, unlike other parts of KL.
 -- It is also a sized version of RepValue.
 
-data BitPat w = BitPat { bitPatToRepValue :: RepValue }
-    deriving (Eq, Ord, Show)
+-- data BitPat w = BitPat { bitPatToRepValue :: RepValue }
+--     deriving (Eq, Ord, Show)
+
+data BitPat :: Nat -> *
+        where  BitPat :: RepValue -> BitPat (a :: Nat)
+   deriving (Eq, Ord, Show)
 
 -- | '&' is a sized append for BitPat.
 infixl 6 &
-(&) :: (Size w1, Size w2, Size w, w ~ ADD w1 w2, w1 ~ SUB w w2, w2 ~ SUB w w1)
+
+-- TODO. Handle SUB's,   w1 ~ SUB w w2, w2 ~ SUB w w1
+(&) :: (w ~ (w1 + w2))
     => BitPat w1 -> BitPat w2 -> BitPat w
 (BitPat a) & (BitPat b) = BitPat (appendRepValue b a)
 
-instance (Size w) => Num (BitPat w) where
+instance (SingI w) => Num (BitPat w) where
     (+) = error "(+) undefined for BitPat"
     (*) = error "(*) undefined for BitPat"
     abs = error "abs undefined for BitPat"
     signum = error "signum undefined for BitPat"
     fromInteger n
-	| n >= 2^(size (error "witness" :: w))
+	| n >= 2^(fromNat (sing :: Sing w))
 	= error $ "fromInteger: out of range, value = " ++  show n
 	| otherwise
 	= BitPat $ RepValue
-		           $ take (size (error "witness" :: w))
+		           $ take (fromIntegral (fromNat (sing :: Sing w)))
                            $ map (Just . odd)
 			   $ iterate (`div` (2::Integer))
 			   $ n
 
-instance (Size w) => Real (BitPat w) where
+instance (SingI w) => Real (BitPat w) where
 	toRational n = toInteger n % 1
 
-instance (Size w) => Enum (BitPat w) where
+instance (SingI w) => Enum (BitPat w) where
 	toEnum = fromInteger . fromIntegral
 	fromEnum p = case bitPatToInteger p of
 			Nothing -> error $ "fromEnum failure: " ++ show p
 			Just i -> fromIntegral i
-instance (Size w) => Integral (BitPat w) where
+instance (SingI w) => Integral (BitPat w) where
 	quotRem = error "quotRem undefined for BitPat"
 	toInteger p = case bitPatToInteger p of
 			Nothing -> error $ "toInteger failure: " ++ show p
@@ -563,14 +570,14 @@ bits = BitPat . RepValue . map f . reverse
 	f '-' = Nothing
 	f o   = error $ "bit pattern, expecting one of 01X_-, found " ++ show o
 
-bool :: BitPat X1 -> Bool
+bool :: BitPat 1 -> Bool
 bool (BitPat (RepValue [Just b])) = b
 bool other = error $ "bool: expecting bool isomophism, found: " ++ show other
 
-every :: forall w . (Size w) => [BitPat w]
+every :: forall w . (SingI w) => [BitPat w]
 every = [ BitPat $ RepValue (fmap Just count) | count <- counts n ]
    where
-    n = size (error "witness" :: w)
+    n = fromIntegral (fromNat (sing :: Sing w))
     counts :: Int -> [[Bool]]
     counts 0 = [[]]
     counts num = [ x : xs |  xs <- counts (num-1), x <- [False,True] ]

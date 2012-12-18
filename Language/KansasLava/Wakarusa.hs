@@ -55,7 +55,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Universal
 
 
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Matrix as M
 
 import Control.Monad.Fix

@@ -15,7 +15,7 @@ import Data.Monoid
 import Data.Maybe
 
 import Data.Word
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Unsigned
 import Control.Concurrent.STM
 import Control.Concurrent

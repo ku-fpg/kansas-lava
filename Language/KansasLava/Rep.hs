@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, EmptyDataDecls, TypeSynonymInstances, TypeOperators, TemplateHaskell  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, EmptyDataDecls, TypeSynonymInstances, TypeOperators,
+    TemplateHaskell, DataKinds  #-}
 -- | KansasLava is designed for generating hardware circuits. This module
 -- provides a 'Rep' class that allows us to model, in the shallow embedding of
 -- KL, two important features of hardware signals. First, all signals must have
@@ -14,8 +15,7 @@ module Language.KansasLava.Rep
 
 import Language.KansasLava.Types
 import Control.Monad (liftM)
-import Data.Sized.Arith
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Matrix hiding (S)
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
@@ -23,6 +23,8 @@ import Data.Sized.Signed as S
 import Data.Word
 import Data.Char
 import Data.Bits
+
+import GHC.TypeLits
 
 --import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
@@ -34,7 +36,7 @@ import Language.KansasLava.Rep.Class
 
 -- | Check to see if all bits in a bitvector (represented as a Matrix) are
 -- valid. Returns Nothing if any of the bits are unknown.
-allOkayRep :: (Size w) => Matrix w (X Bool) -> Maybe (Matrix w Bool)
+allOkayRep :: Matrix (Sized w) (X Bool) -> Maybe (Matrix (Sized w) Bool)
 allOkayRep m = sequenceA $ fmap prj m
   where prj (XBool Nothing) = Nothing
         prj (XBool (Just v)) = Just v
@@ -43,7 +45,7 @@ allOkayRep m = sequenceA $ fmap prj m
 ------------------------------------------------------------------------------------
 
 instance Rep Bool where
-    type W Bool     = X1
+    type W Bool     = 1
     data X Bool     = XBool (Maybe Bool)
     optX (Just b)   = XBool $ return b
     optX Nothing    = XBool $ fail "Wire Bool"
@@ -231,13 +233,28 @@ instance (Rep a) => Rep (Maybe a) where
     showRep (XMaybe (XBool (Just True),a))   = "Just " ++ showRep a
     showRep (XMaybe (XBool (Just False),_)) = "Nothing"
 
-instance (Size ix, Rep a) => Rep (Matrix ix a) where
-    type W (Matrix ix a) = MUL ix (W a)
-    data X (Matrix ix a) = XMatrix (Matrix ix (X a))
+
+instance (SingI x) => Rep (Sized x) where
+    -- TODO.  FIXME
+    type W (Sized x) = x  -- LOG (SUB x 1)
+    data X (Sized x)  = XSized (Maybe (Sized x))
+    optX (Just x)   = XSized $ return x
+    optX Nothing    = XSized $ fail "Sized"
+    unX (XSized (Just a)) = return a
+    unX (XSized Nothing) = fail "Sized"
+    repType _  = U (log2 (size (error "repType" :: Sized x) - 1))
+    toRep = toRepFromIntegral
+    fromRep = sizedFromRepToIntegral
+    showRep = showRepDefault
+
+instance (SingI ix, Rep a) => Rep (Matrix (Sized ix) a) where
+    -- TODO.  FIXME
+    type W (Matrix (Sized ix) a) = (ix + ix)  -- MUL ix (W a)
+    data X (Matrix (Sized ix) a) = XMatrix (Matrix (Sized ix) (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)
-    repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
+    repType Witness = MatrixTy (size (error "witness" :: (Sized ix))) (repType (Witness :: Witness a))
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
@@ -247,7 +264,7 @@ instance (Size ix, Rep a) => Rep (Matrix ix a) where
 
                   w_a = typeWidth (repType (Witness :: Witness a))
 
-instance (Size ix) => Rep (Unsigned ix) where
+instance (SingI ix) => Rep (Unsigned ix) where
     type W (Unsigned ix) = ix
     data X (Unsigned ix) = XUnsigned (Maybe (Unsigned ix))
     optX (Just b)       = XUnsigned $ return b
@@ -259,7 +276,7 @@ instance (Size ix) => Rep (Unsigned ix) where
     fromRep = fromRepToIntegral
     showRep = showRepDefault
 
-instance (Size ix) => Rep (Signed ix) where
+instance (SingI ix) => Rep (Signed ix) where
     type W (Signed ix) = ix
     data X (Signed ix) = XSigned (Maybe (Signed ix))
     optX (Just b)       = XSigned $ return b
@@ -274,9 +291,10 @@ instance (Size ix) => Rep (Signed ix) where
 -----------------------------------------------------------------------------
 -- The grandfather of them all, functions.
 
-instance (Size ix, Rep a, Rep ix) => Rep (ix -> a) where
-    type W (ix -> a) = MUL ix (W a)
-    data X (ix -> a) = XFunction (ix -> X a)
+instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
+    -- TODO. FIXME
+    type W ((Sized ix) -> a) =  (ix + (W a)) -- MUL ix (W a)
+    data X ((Sized ix) -> a) = XFunction ((Sized ix) -> X a)
 
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
     optX Nothing  = XFunction $ const $ unknownX
@@ -317,6 +335,8 @@ log2 0 = 0
 log2 1 = 1
 log2 n = log2 (n `div` 2) + 1
 
+-- TODO.  Remove.
+{-
 -- Perhaps not, because what does X0 really mean over a wire, vs X1.
 instance Rep X0 where
     type W X0 = X0
@@ -351,6 +371,7 @@ instance (Integral x, Size x) => Rep (X1_ x) where
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
+-}
 
 -- | This is a version of fromRepToIntegral that
 -- check to see if the result is inside the size bounds.

@@ -17,7 +17,7 @@ import Language.KansasLava.Types
 
 import Data.Sized.Matrix as M hiding ((!))
 import Data.Sized.Unsigned (Unsigned)
-import Data.Sized.Ix
+import Data.Sized.Sized
 
 import Data.Map as Map
 

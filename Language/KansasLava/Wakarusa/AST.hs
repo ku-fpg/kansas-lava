@@ -9,10 +9,10 @@ import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Patch
 
 
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Matrix (Matrix)
 import Control.Monad.Fix
- 
+
 infixr 1 :=
 infixr 1 :?
 infixl 0 |||
@@ -38,7 +38,7 @@ data STMT :: * -> * where
         OUTPUT   :: (Rep a) =>  (Seq (Maybe a) -> Fabric ())    -> STMT (REG a)
         INPUT    :: (Rep a) =>  Fabric (Seq a)                  -> STMT (EXPR a)
         SIGNAL   :: (Rep a) =>  (Seq (Maybe a) -> Seq a)        -> STMT (VAR a)
-        PATCH    :: (Rep a, Rep b, Rep c, Rep d) 
+        PATCH    :: (Rep a, Rep b, Rep c, Rep d)
                  => (Patch (Seq (Enabled a)) (Seq (Enabled b))
                            (Seq (Enabled c)) (Seq (Enabled d))) -> STMT ( REG a
                                                                         , EXPR (Enabled b)
@@ -53,14 +53,14 @@ data STMT :: * -> * where
         GOTO   :: LABEL         -> STMT ()
         LABEL  :: STMT LABEL
         PAR    :: STMT () -> STMT ()                            -> STMT ()
-        SPARK  :: (LABEL -> STMT ())                            -> STMT ()      
+        SPARK  :: (LABEL -> STMT ())                            -> STMT ()
                 -- Do sub-thread. TODO: Returns the PC / state value??
 
         -- real time:
-        -- wait for a cycle, or an event, or using a sample. 
+        -- wait for a cycle, or an event, or using a sample.
         -- Much to figure out here.
         NOP   ::                                                  STMT ()
- 
+
         -- macros
         IF     :: EXPR Bool -> STMT () -> STMT () -> STMT ()
         WHILE  :: EXPR Bool -> STMT () -> STMT ()
@@ -98,15 +98,15 @@ instance MonadFix STMT where
 -----------------------------------------------------------------------------------------
 
 data EXPR :: * -> * where
-        OP0 :: (Rep a) 
+        OP0 :: (Rep a)
             => (forall u . Signal u a)                                  -> EXPR a        -- also used as a lit
         OP1 :: (Rep a, Rep b)
-            => (forall u . Signal u a -> Signal u b)                         
+            => (forall u . Signal u a -> Signal u b)
             -> EXPR a                                                   -> EXPR b
-        OP2 :: (Rep a, Rep b,Rep c) 
-            => (forall u . Signal u a -> Signal u b -> Signal u c) 
+        OP2 :: (Rep a, Rep b,Rep c)
+            => (forall u . Signal u a -> Signal u b -> Signal u c)
             -> EXPR a -> EXPR b                                         -> EXPR c
-        OP3 :: (Rep a, Rep b,Rep c, Rep d) 
+        OP3 :: (Rep a, Rep b,Rep c, Rep d)
             => (forall u . Signal u a -> Signal u b -> Signal u c -> Signal u d)
             -> EXPR a -> EXPR b -> EXPR c                               -> EXPR d
         OPM :: (Rep a, Rep b, Size ix)
@@ -142,7 +142,7 @@ data STORE :: * -> * where
   UNDEFINED ::           STORE a      -- undefined default
   DEFAULT   :: a      -> STORE a      -- given default
   BUS       ::           STORE a      -- no store, just passthrough
-  ACK       ::           STORE Bool   -- 
+  ACK       ::           STORE Bool   --
 -}
 
 -----------------------------------------------------------------------------------------

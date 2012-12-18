@@ -14,7 +14,7 @@ import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
 import Data.Bits
 
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Matrix as M
 
 import Language.KansasLava.Stream (Stream(Cons))

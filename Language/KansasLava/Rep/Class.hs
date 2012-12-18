@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
-    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances, TypeOperators  #-}
+    ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, TypeSynonymInstances, TypeOperators,
+    DataKinds #-}
 -- | KansasLava is designed for generating hardware circuits. This module
 -- provides a 'Rep' class that allows us to model, in the shallow embedding of
 -- KL, two important features of hardware signals. First, all signals must have
@@ -10,8 +11,9 @@ module Language.KansasLava.Rep.Class where
 
 import Language.KansasLava.Types
 import Control.Monad (liftM)
-import Data.Sized.Ix
 import qualified Data.Map as Map
+
+import GHC.TypeLits
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
 -- wire. The general idea is that instances of Rep should have a width (for the
@@ -19,9 +21,9 @@ import qualified Data.Map as Map
 -- to represent the "unknown" -- X -- value. For example, Bools can be
 -- represented with one bit, and the inclusion of the unknown X value
 -- corresponds to three-valued logic.
-class {- (Size (W w)) => -} Rep w where
+class Rep w where
     -- | the width of the represented value, as a type-level number.
-    type W w
+    type W w ::  Nat
 
     -- | X are lifted inputs to this wire.
     data X w
@@ -47,7 +49,7 @@ class {- (Size (W w)) => -} Rep w where
 
 -- | 'Bitrep' is list of values, and their bitwise representation.
 -- It is used to derive (via Template Haskell) the Rep for user Haskell datatypes.
-class (Size (W a), Eq a, Rep a) => BitRep a where
+class (Eq a, Rep a) => BitRep a where
    bitRep :: [(a, BitPat (W a))]
 
 
@@ -142,7 +144,7 @@ cmpRep g v = toRep g `cmpRepValue` toRep v
 -------------------------------------------------------------------
 
 -- | Helper for generating the bit pattern mappings.
-bitRepEnum  :: (Rep a, Enum a, Bounded a, Size (W a)) => [(a,BitPat (W a))]
+bitRepEnum  :: (Rep a, Enum a, Bounded a, SingI (W a)) => [(a,BitPat (W a))]
 bitRepEnum = map (\ a -> (a,fromIntegral (fromEnum a))) [minBound .. maxBound]
 
 {-# INLINE bitRepToRep #-}

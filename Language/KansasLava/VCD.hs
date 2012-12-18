@@ -47,7 +47,7 @@ import System.FilePath as FP
 
 -- testing
 import Data.Sized.Unsigned
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Language.KansasLava.Utils
 
 
