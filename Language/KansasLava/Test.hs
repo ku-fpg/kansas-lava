@@ -49,7 +49,7 @@ import System.Exit
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
-import Data.Sized.Ix
+import Data.Sized.Sized
 --import System.Random
 
 import qualified Language.KansasLava.Stream as S

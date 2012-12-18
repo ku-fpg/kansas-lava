@@ -37,7 +37,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad hiding (join)
 import Data.Monoid
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.List as L
 import Data.Reify
 import qualified Data.Set as Set

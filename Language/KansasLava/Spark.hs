@@ -18,7 +18,7 @@ import Data.Boolean
 
 import Data.Monoid
 
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M
 
