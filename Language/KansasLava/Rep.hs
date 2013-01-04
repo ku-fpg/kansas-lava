@@ -23,6 +23,8 @@ import Data.Sized.Signed as S
 import Data.Word
 import Data.Char
 import Data.Bits
+import Data.Array.Base
+import Data.Array.IArray
 
 import GHC.TypeLits
 
@@ -36,7 +38,7 @@ import Language.KansasLava.Rep.Class
 
 -- | Check to see if all bits in a bitvector (represented as a Matrix) are
 -- valid. Returns Nothing if any of the bits are unknown.
-allOkayRep :: Matrix (Sized w) (X Bool) -> Maybe (Matrix (Sized w) Bool)
+allOkayRep :: (SingI w) => Matrix (Sized w) (X Bool) -> Maybe (Matrix (Sized w) Bool)
 allOkayRep m = sequenceA $ fmap prj m
   where prj (XBool Nothing) = Nothing
         prj (XBool (Just v)) = Just v
@@ -67,7 +69,7 @@ $(repIntegral ''Word32  (U 32))
 $(repIntegral ''Word64  (U 64))
 
 instance Rep () where
-    type W ()     = X0
+    type W ()     = 0
     data X ()   = XUnit (Maybe ())
     optX (Just ())   = XUnit $ return () -- we need this strict, so we can use it for consumption management
     optX Nothing    = XUnit $ fail "Wire ()"
@@ -84,7 +86,7 @@ instance Rep () where
 data IntegerWidth = IntegerWidth
 
 instance Rep Integer where
-    type W Integer  = IntegerWidth
+    type W Integer  = 64 -- IntegerWidth
     data X Integer  = XInteger Integer   -- No fail/unknown value
     optX (Just b)   = XInteger b
     optX Nothing    = XInteger $ error "Generic failed in optX"
@@ -96,6 +98,8 @@ instance Rep Integer where
 
 newtype Message ix = Message String
 
+-- TODO.  Make Message work
+{-
 instance (Integral ix, Size ix) => Rep (Message ix) where
     type W (Message ix)            = X0_ (X0_ (X0_ ix))
     data X (Message ix)            = XMessage !(Maybe String)
@@ -113,7 +117,7 @@ instance (Integral ix, Size ix) => Rep (Message ix) where
       where XMatrix (m :: Matrix ix (X U8)) = fromRep rep
             RepValue xs = rep
             vals :: [U8]
-            vals = [ x | Just x <- map unX (M.toList m) ]
+            vals = [ x | Just x <- map unX (elems m) ]
             len = foldr min (Prelude.length vals) [ i | (0,i) <- zip vals [0..]]
             msg = take len
                 [ chr (fromIntegral val)
@@ -126,14 +130,14 @@ instance (Integral ix, Size ix) => Rep (Message ix) where
 
     showRep (XMessage Nothing)     = "-"
     showRep (XMessage (Just txt))  = show txt
-
+-}
 -------------------------------------------------------------------------------------
 -- Now the containers
 
 -- TODO: fix this to use :> as the basic internal type.
 
 instance (Rep a, Rep b) => Rep (a :> b) where
-    type W (a :> b)  = ADD (W a) (W b)
+    type W (a :> b)  = (W a) + (W b)
     data X (a :> b)     = XCell (X a, X b)
     optX (Just (a :> b))   = XCell (pureX a, pureX b)
     optX Nothing        = XCell (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
@@ -154,7 +158,7 @@ instance (Rep a, Rep b) => Rep (a :> b) where
 
 
 instance (Rep a, Rep b) => Rep (a,b) where
-    type W (a,b)  = ADD (W a) (W b)
+    type W (a,b)  = (W a) + (W b)
     data X (a,b)        = XTuple (X a, X b)
     optX (Just (a,b))   = XTuple (pureX a, pureX b)
     optX Nothing        = XTuple (optX (Nothing :: Maybe a), optX (Nothing :: Maybe b))
@@ -174,7 +178,7 @@ instance (Rep a, Rep b) => Rep (a,b) where
     showRep (XTuple (a,b)) = "(" ++ showRep a ++ "," ++ showRep b ++ ")"
 
 instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
-    type W (a,b,c) = ADD (W a) (ADD (W b) (W c))
+    type W (a,b,c) = (W a) + ((W b) + (W c))
     data X (a,b,c)      = XTriple (X a, X b, X c)
     optX (Just (a,b,c))     = XTriple (pureX a, pureX b,pureX c)
     optX Nothing        = XTriple ( optX (Nothing :: Maybe a),
@@ -202,7 +206,7 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
                 "," ++ showRep c ++ ")"
 
 instance (Rep a) => Rep (Maybe a) where
-    type W (Maybe a) = ADD (W a) X1
+    type W (Maybe a) = (W a) + 1
     -- not completely sure about this representation
     data X (Maybe a) = XMaybe (X Bool, X a)
     optX b      = XMaybe ( case b of
@@ -242,20 +246,19 @@ instance (SingI x) => Rep (Sized x) where
     optX Nothing    = XSized $ fail "Sized"
     unX (XSized (Just a)) = return a
     unX (XSized Nothing) = fail "Sized"
-    repType _  = U (log2 (size (error "repType" :: Sized x) - 1))
+    repType _  = U (fromInteger(fromNat (sing :: Sing x)))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
 instance (SingI ix, Rep a) => Rep (Matrix (Sized ix) a) where
-    -- TODO.  FIXME
-    type W (Matrix (Sized ix) a) = (ix + ix)  -- MUL ix (W a)
+    type W (Matrix (Sized ix) a) = ix  * (W a)
     data X (Matrix (Sized ix) a) = XMatrix (Matrix (Sized ix) (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)
     repType Witness = MatrixTy (size (error "witness" :: (Sized ix))) (repType (Witness :: Witness a))
-    toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ M.toList m)
+    toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ elems m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
 		  unconcat ys = take len ys : unconcat (drop len ys)
@@ -271,7 +274,7 @@ instance (SingI ix) => Rep (Unsigned ix) where
     optX Nothing        = XUnsigned $ fail "Wire Int"
     unX (XUnsigned (Just a))     = return a
     unX (XUnsigned Nothing)   = fail "Wire Int"
-    repType _          = U (size (error "Wire/Unsigned" :: ix))
+    repType _          = U (fromInteger(fromNat (sing :: Sing ix)))
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -283,7 +286,7 @@ instance (SingI ix) => Rep (Signed ix) where
     optX Nothing        = XSigned $ fail "Wire Int"
     unX (XSigned (Just a))     = return a
     unX (XSigned Nothing)   = fail "Wire Int"
-    repType _          = S (size (error "Wire/Signed" :: ix))
+    repType _          = S (fromInteger (fromNat (sing :: Sing ix)))
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -292,8 +295,7 @@ instance (SingI ix) => Rep (Signed ix) where
 -- The grandfather of them all, functions.
 
 instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
-    -- TODO. FIXME
-    type W ((Sized ix) -> a) =  (ix + (W a)) -- MUL ix (W a)
+    type W ((Sized ix) -> a) =  (ix * (W a))
     data X ((Sized ix) -> a) = XFunction ((Sized ix) -> X a)
 
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
@@ -301,10 +303,11 @@ instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
 
     unX (XFunction f) = return (\ a ->
         let fromJust' (Just x) = x
-            fromJust' _ = error $ show ("X",repType (Witness :: Witness (ix -> a)), showRep (optX (Just a) :: X ix))
+            -- TODO  Fixme
+            fromJust' _ = error $ "???" -- show ("X",repType (Witness :: Witness (ix -> a)), showRep (optX (Just a) :: X ix))
         in (fromJust' . unX . f) a)
 
-    repType Witness = MatrixTy (size (error "witness" :: ix)) (repType (Witness :: Witness a))
+    repType Witness = MatrixTy (fromInteger (fromNat (sing :: Sing ix))) (repType (Witness :: Witness a))
 
     -- reuse the matrix encodings here
     -- TODO: work out how to remove the Size ix constraint,
@@ -312,7 +315,7 @@ instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
     toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
     fromRep (RepValue xs) = XFunction $ \ ix ->
         case fromRep (RepValue xs) of
-           XMatrix m -> m M.! ix
+           XMatrix m -> m ! ix
 
 {-
 infixl 4 `apX`
@@ -343,7 +346,7 @@ instance Rep X0 where
     data X X0 = X0'
     optX _ = X0'
     unX X0' = return X0
-    repType _  = V 0
+    reptype _  = V 0
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -375,7 +378,7 @@ instance (Integral x, Size x) => Rep (X1_ x) where
 
 -- | This is a version of fromRepToIntegral that
 -- check to see if the result is inside the size bounds.
-sizedFromRepToIntegral :: forall w . (Rep w, Integral w, Size w) => RepValue -> X w
+sizedFromRepToIntegral :: forall w . (Rep w, Integral w, Ix w, Bounded w) => RepValue -> X w
 sizedFromRepToIntegral w
         | val_integer >= toInteger (size (error "witness" :: w)) = unknownX
         | otherwise                                             = val
@@ -388,7 +391,9 @@ sizedFromRepToIntegral w
 
 -----------------------------------------------------------------
 
-instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
+-- TODO.  Make this work
+{-
+instance (Enum ix) => Rep (Sampled.Sampled m ix) where
         type W (Sampled.Sampled m ix) = ix
 	data X (Sampled.Sampled m ix) = XSampled (Maybe (Sampled.Sampled m ix))
 	optX (Just b)	    = XSampled $ return b
@@ -397,7 +402,7 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	unX (XSampled Nothing)   = fail "Wire Sampled"
 	repType _   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
 	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
-	toRep (XSampled (Just a))   = RepValue $ fmap Just $ M.toList $ Sampled.toMatrix a
-	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
+	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toMatrix a
+	fromRep r = optX (liftM (Sampled.fromMatrix . elems) $ getValidRepValue r)
 	showRep = showRepDefault
-
+-}

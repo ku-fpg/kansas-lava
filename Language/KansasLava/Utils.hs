@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ParallelListComp, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, RankNTypes  #-}
+{-# LANGUAGE FlexibleContexts, UndecidableInstances, TypeFamilies, ParallelListComp, ScopedTypeVariables, FlexibleInstances, MultiParamTypeClasses, RankNTypes, TypeOperators, DataKinds  #-}
 -- | This module contains a number of primitive circuits, and instance
 -- definitions for standard type classes for circuits.
 module Language.KansasLava.Utils where
@@ -7,6 +7,9 @@ import Control.Monad
 import Control.Applicative
 import Data.Bits
 import Data.Boolean
+import Data.Array.IArray
+
+import GHC.TypeLits
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
@@ -15,6 +18,7 @@ import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
+import Data.Sized.Sized
 import Data.Sized.Matrix	as M
 import Data.Sized.Signed	as SI
 
@@ -102,12 +106,17 @@ bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
-testABit :: forall a i w sig . (Bits a, Rep a, Size w, Rep w, w ~ (W a), sig ~ Signal i)
-          => sig a -> sig w -> sig Bool
+testABit :: forall a i w sig . (SingI w, Bits a, Rep a, (W (Sized w)) ~ (W a), sig ~ Signal i)
+          => sig a -> sig (Sized w) -> sig Bool
+testABit = undefined
+
+-- TODO  Fixme:      Could not deduce ((W a * 1) ~ W a)
+{-
 testABit sig0 ix = sig1 .!. ix
   where
-          sig1 :: sig (Matrix w Bool)
+          sig1 :: sig (Matrix (Sized w) Bool)
           sig1 = (bitwise) sig0
+-}
 
 {-
  - old test-a-bit
@@ -118,7 +127,7 @@ testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
 -}
 
 -- | Predicate to see if a Signed value is positive.
-isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix, Rep ix) => sig (Signed ix) -> sig Bool
+isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i) => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a (fromIntegral msb)
     where msb = bitSize a - 1
 
@@ -143,7 +152,7 @@ infixr 2 .^.
 -----------------------------------------------------------------------------------------------
 -- Map Ops
 
-rom2 :: forall a d clk sig . (Size a, Rep a, Rep d, sig ~ Signal clk) => (a -> X d) -> sig (a -> d)
+rom2 :: forall a d clk sig . (SingI a, Rep d, sig ~ Signal clk) => ((Sized a) -> X d) -> sig ((Sized a -> d))
 rom2 fn  = mustAssignSLV
       $ Signal (pure (XFunction fn))
                (D $ rom)
@@ -156,7 +165,7 @@ rom2 fn  = mustAssignSLV
               undefB = unknownRepValue (Witness :: Witness d)
 
 	      all_a_bitRep :: [RepValue]
-	      all_a_bitRep = allReps (Witness :: Witness a)
+	      all_a_bitRep = allReps (Witness :: Witness (Sized a))
 
               rom = Port "o0" $ E $ Entity (Prim "rom")
                                            [("o0",tMB)]
@@ -258,19 +267,19 @@ evalX a = count $ unRepValue $ toRep a
 -- | Alias for '.!.'
 muxMatrix
 	:: forall sig x a i
-	 . ( sig ~ Signal i, Size x, Rep x, Rep a)
-	=> sig (Matrix x a)
-	-> sig x
+	 . (SingI x,  sig ~ Signal i, Rep a)
+	=> sig (Matrix (Sized x) a)
+	-> sig (Sized x)
 	-> sig a
 muxMatrix = (.!.)
 
 -- | Extract the n'th element of a vector.
 (.!.)	:: forall sig x a i
-	 . ( sig ~ Signal i, Size x, Rep x, Rep a)
-	=> sig (Matrix x a)
-	-> sig x
+	 . (SingI x, sig ~ Signal i, Rep a)
+	=> sig (Matrix (Sized x) a)
+	-> sig (Sized x)
 	-> sig a
-(.!.) mSig xSig = primS2 (flip (M.!)) "index" xSig mSig
+(.!.) mSig xSig = primS2 (flip (!)) "index" xSig mSig
         -- order reversed on purpose
 
 -------------------------------------------------------------------------------------------------
@@ -442,11 +451,11 @@ unsafeId a = primXS1 (fromRep . toRep) "coerce"  a
 
 ----------------------------------------------------------------------------
 -- | given a signal of a1 + a2 width, yield a signal with a pair of values of width a1 and a2 respectively.
-unappendS :: forall a a1 a2 sig clk . ( sig ~ Signal clk, Rep a, Rep a1, Rep a2, W a ~ ADD (W a1) (W a2)) => sig a -> (sig a1, sig a2)
+unappendS :: forall a a1 a2 sig clk . ( sig ~ Signal clk, Rep a, Rep a1, Rep a2, W a ~ ((W a1) + (W a2))) => sig a -> (sig a1, sig a2)
 unappendS a = unpack (bitwise a :: sig (a1,a2))
 
 -- | given two signals of a1 and a2 width, respectively, pack them into a signal of a1 + a2 width.
-appendS :: forall sig a b c  clk . ( sig ~ Signal clk, Rep a, Rep b, Rep c, W c ~ ADD (W a) (W b)) => sig a -> sig b -> sig c
+appendS :: forall sig a b c  clk . ( sig ~ Signal clk, Rep a, Rep b, Rep c, W c ~ ((W a) + (W b))) => sig a -> sig b -> sig c
 appendS x y = bitwise (pack (x,y) :: sig (a,b))
 
 
@@ -491,6 +500,8 @@ loopingDecS a = mux (a .==. 0) (a - 1, pureS maxBound)
 ---------------------------------------------------------------------
 
 -- Message works in shallow only
+-- TODO  Make this work.
+{-
 message :: forall ix a clk . (Integral ix, Size ix, Rep a) => (a -> String) -> Signal clk a -> Signal clk (Message ix)
 message f (Signal i _) = Signal s (D $ Error "incorrect use of deep Signal to generate a message")
   where s = fmap (\ v -> case unX v of
@@ -501,3 +512,4 @@ message f (Signal i _) = Signal s (D $ Error "incorrect use of deep Signal to ge
            where str_len = Prelude.length str
                  ix_len  = size (error "witness" :: ix)
 
+-}
