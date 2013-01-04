@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, DataKinds #-}
 -- | This module contains functions for generating VCD debug traces.
 -- It also provides functionality for (de)serializing Traces.
 module Language.KansasLava.VCD
@@ -28,6 +28,8 @@ import Language.KansasLava.Universal
 
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Probes
+
+import GHC.TypeLits
 
 import Control.Monad
 
@@ -262,12 +264,12 @@ splitVCD (VCD i m) j = (VCD i before,VCD j after)
 
 testVC1 = VC (V 4)
               (toRep (unknownX :: X U4))
-              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned X4))) | i <- reverse [0..10], i < 4 || i > 7]
+              [(i,toRep (pureX (fromIntegral i) :: (X (Sized 4)))) | i <- reverse [0..10], i < 4 || i > 7]
               10
 
 testVC2 = VC B
               (toRep (unknownX :: X U1))
-              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned X1))) | i <- reverse [0..12]]
+              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned 1))) | i <- reverse [0..12]]
               12
 
 testVCD1 = VCD 0 (M.fromList [("inputs/x",testVC1),("outputs/y",testVC2)])

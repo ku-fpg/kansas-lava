@@ -13,6 +13,8 @@ import Control.Applicative
 import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
 import Data.Bits
+import Data.Array.IArray
+import GHC.TypeLits
 
 import Data.Sized.Sized
 import Data.Sized.Matrix as M
@@ -347,42 +349,42 @@ instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 		    )
 -}
 
-unpackMatrix :: (Rep a, Size x, sig ~ Signal clk) => sig (M.Matrix x a) -> M.Matrix x (sig a)
+unpackMatrix :: (Rep a, SingI x, sig ~ Signal clk) => sig (M.Matrix (Sized x) a) -> M.Matrix (Sized x) (sig a)
 unpackMatrix a = unpack a
 
-packMatrix :: (Rep a, Size x, sig ~ Signal clk) => M.Matrix x (sig a) -> sig (M.Matrix x a)
+packMatrix :: (Rep a, SingI x, sig ~ Signal clk) => M.Matrix (Sized x) (sig a) -> sig (M.Matrix (Sized x) a)
 packMatrix a = pack a
 
-instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
-	type Unpacked clk (Matrix ix a) = Matrix ix (Signal clk a)
+instance (Rep a, SingI ix) => Pack clk (Matrix (Sized ix) a) where
+	type Unpacked clk (Matrix (Sized ix) a) = Matrix (Sized ix) (Signal clk a)
         pack m = Signal shallow
                      deep
           where
-                shallow :: (S.Stream (X (Matrix ix a)))
+                shallow :: (S.Stream (X (Matrix (Sized ix) a)))
                 shallow = id
                         $ S.fromList            -- Stream (X (Matrix ix a))
                         $ fmap XMatrix          -- [(X (Matrix ix a))]
-                        $ fmap M.fromList       -- [Matrix ix (X a)]
+                        $ fmap M.matrix       -- [Matrix ix (X a)]
                         $ List.transpose        -- [[X a]]
                         $ fmap S.toList         -- [[X a]]
                         $ fmap shallowS         -- [Stream (X a)]
-                        $ M.toList              -- [sig a]
+                        $ elems                 -- [sig a]
                         $ m                     -- Matrix ix (sig a)
 
-                deep :: D (Matrix ix a)
+                deep :: D (Matrix (Sized ix) a)
                 deep = D
                      $ Port "o0"
                      $ E
                      $ Entity (Prim "concat")
-                                 [("o0",repType (Witness :: Witness (Matrix ix a)))]
+                                 [("o0",repType (Witness :: Witness (Matrix (Sized ix) a)))]
                                  [ ("i" ++ show i,repType (Witness :: Witness a),unD $ deepS $ x)
-                                 | (x,i) <- zip (M.toList m) ([0..] :: [Int])
+                                 | (x,i) <- zip (elems m) ([0..] :: [Int])
                                  ]
 
         unpack ms = forAll $ \ i -> Signal (shallow i) (deep i)
 
-	   where mx :: (Size ix) => Matrix ix Integer
-		 mx = matrix (Prelude.zipWith (\ _ b -> b) (M.indices mx) [0..])
+	   where mx :: Matrix (Sized ix) Integer
+		 mx = matrix (Prelude.zipWith (\ _ b -> b) (indices mx) [0..])
 
                  deep i = D
                         $ Port "o0"
@@ -390,10 +392,10 @@ instance (Rep a, Size ix) => Pack clk (Matrix ix a) where
                         $ Entity (Prim "index")
                                  [("o0",repType (Witness :: Witness a))]
                                  [("i0",GenericTy,Generic (mx ! i))
-                                 ,("i1",repType (Witness :: Witness (Matrix ix a)),unD $ deepS ms)
+                                 ,("i1",repType (Witness :: Witness (Matrix (Sized ix) a)),unD $ deepS ms)
                                  ]
 
-                 shallow i = fmap (liftX (M.! i)) (shallowS ms)
+                 shallow i = fmap (liftX (! i)) (shallowS ms)
 
 ----------------------------------------------------------------
 

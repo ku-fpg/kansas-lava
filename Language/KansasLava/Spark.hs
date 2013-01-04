@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies,
-             FlexibleInstances, FlexibleContexts #-}
+             FlexibleInstances, FlexibleContexts, DataKinds #-}
 
 module Language.KansasLava.Spark where
 
@@ -27,6 +27,8 @@ import Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
 
+import GHC.TypeLits
+
 import Debug.Trace
 import System.IO.Unsafe
 
@@ -38,7 +40,7 @@ infixr 1 :?
 
 -------------------------------------------------------------------------------
 
-data LABEL = L U8      deriving (Eq,Ord)
+newtype LABEL = L U8      deriving (Eq,Ord)
 
 instance Show LABEL where
         show (L n) = "L" ++ show n
@@ -51,7 +53,7 @@ start = L 0
 data REG a where
     R :: SignalVar CLK (Enabled a) -> REG a
 
-assign :: (SparkM m, Rep a, Size (W (Enabled a))) => REG a -> Seq a -> m ()
+assign :: (SparkM m, Rep a, SingI (W (Enabled a))) => REG a -> Seq a -> m ()
 assign (R v) e = writeSignalVar v (enabledS e)
 
 -------------------------------------------------------------------------------
@@ -67,7 +69,7 @@ instance Variable (Signal CLK) where
 
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-initially :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => a -> m (VAR a)
+initially :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
 initially a = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -76,7 +78,7 @@ initially a = do
                 in r
         return (VAR (toVAR (R var,sig :: Signal CLK a)))
 
-uninitialized :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (VAR a)
+uninitialized :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
 uninitialized = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -94,7 +96,7 @@ data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
 
 -- CHAN rdr wtr :: CHAN Int <- channel
 
-channel :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (CHAN a)
+channel :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
 channel = do
         var :: SignalVar CLK (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
@@ -108,14 +110,14 @@ data Writer a = Writer (REG a) (Signal CLK (Enabled ()))
 
 data BUS a = BUS (Bus a) (Writer a)
 
-bus :: forall a var m . (SparkM m, Rep a, Size (W (Enabled a))) => m (BUS a)
+bus :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
 bus = do CHAN rdr wtr :: CHAN a <- channel
          CHAN rdr' wtr' :: CHAN () <- channel
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
 
 -- Assumes signal input does not change when waiting for ack.
 --
-putBus :: (Rep a, Size (W (Enabled a))) => Writer a -> Signal CLK a -> STMT b -> STMT b
+putBus :: (Rep a, SingI (W (Enabled a))) => Writer a -> Signal CLK a -> STMT b -> STMT b
 putBus (Writer reg ack) sig k = do
         start <- LABEL
         -- send data
@@ -124,7 +126,7 @@ putBus (Writer reg ack) sig k = do
         notB (isEnabled ack) :? GOTO start
         k
 
-takeBus :: (Rep a, Size (W (Enabled a))) => Bus a -> REG a -> STMT b -> STMT b
+takeBus :: (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => Bus a -> REG a -> STMT b -> STMT b
 takeBus (Bus inp ack) reg k = do
         start <- LABEL
         (isEnabled inp) :? do
@@ -134,7 +136,7 @@ takeBus (Bus inp ack) reg k = do
                 GOTO start
         k
 
-fifo :: forall a . (Rep a, Size (W (Enabled a))) => Bus a -> Fabric (Bus a)
+fifo :: forall a . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)))=> Bus a -> Fabric (Bus a)
 fifo lhs_bus = do
     BUS rhs_bus rhs_bus_writer :: BUS a <- bus
     VAR reg :: VAR a <- uninitialized
@@ -150,7 +152,7 @@ fifo lhs_bus = do
     return rhs_bus
 
 
-latchBus :: forall a m . (Rep a, Size (W (Enabled a)), SparkM m) => Signal CLK (Enabled a) -> m (Bus a)
+latchBus :: forall a m . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)), SparkM m) => Signal CLK (Enabled a) -> m (Bus a)
 latchBus inp = do
         BUS rhs_bus rhs_bus_writer :: BUS a <- bus
         VAR reg                    :: VAR a <- uninitialized
@@ -166,15 +168,15 @@ latchBus inp = do
 data MEM a d = MEM (Signal CLK d) (REG a) (REG (a,d))
 
 -- Not compilent with protocol
-memory :: forall a d .  (Rep a, Size a, Rep d,Size (W (Enabled (a,d))), Size (W (Enabled a))) => Fabric (MEM a d)
+memory :: forall a d .  (SingI a, Rep d,SingI (W (Enabled ((Sized a),d))), SingI (W (Enabled (Sized a)))) => Fabric (MEM (Sized a) d)
 memory = do
-        CHAN addr_out addr_in :: CHAN a     <- channel
-        CHAN wt_out   wt_in   :: CHAN (a,d) <- channel
+        CHAN addr_out addr_in :: CHAN (Sized a)     <- channel
+        CHAN wt_out   wt_in   :: CHAN (Sized a,d) <- channel
 
-        let mem :: Signal CLK (a -> d)
+        let mem :: Signal CLK ((Sized a) -> d)
             mem = writeMemory wt_out
 
-            addr_out' :: Signal CLK a
+            addr_out' :: Signal CLK (Sized a)
             addr_out' = mux (isEnabled addr_out) (delay addr_out',enabledVal addr_out)
 
         return $ MEM (syncRead mem addr_out') addr_in wt_in
@@ -185,7 +187,7 @@ memory = do
 
 data STMT :: * -> * where
         -- Assignment
-        (:=)   :: (Rep a, Size (W (Enabled a))) => REG a -> Signal CLK a
+        (:=)   :: (Rep a, SingI (W (Enabled a))) => REG a -> Signal CLK a
                                                                 -> STMT ()
 
         -- Predicate
@@ -265,7 +267,10 @@ data Pred = PredCond (Seq Bool)
           | PredNot Pred
           | PredFalse
           | PredPC U8
-  deriving Show
+
+-- FIXME
+instance Show Pred where
+        show = undefined
 
 compilePred :: Seq U8 -> Pred -> Seq Bool
 compilePred pc (PredCond p)      = p
@@ -275,7 +280,7 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred pc (PredFalse)       = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
-spark :: forall m . (SparkM m) => STMT () -> m (Seq U8)
+spark :: forall m . (SparkM m, SingI (W (Enabled U8))) => STMT () -> m (Seq U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
         VAR pc :: VAR U8 <- initially 0

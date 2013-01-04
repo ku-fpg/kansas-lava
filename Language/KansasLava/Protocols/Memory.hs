@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, DataKinds #-}
 -- | This module provides abstractions for working with RAMs and ROMs.
 module Language.KansasLava.Protocols.Memory where
 
@@ -10,10 +10,13 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Internal
 
+import Data.Sized.Sized
 import Data.Sized.Matrix as M
 import Control.Applicative hiding (empty)
 import Data.Maybe  as Maybe
 import Control.Monad
+
+import GHC.TypeLits
 
 import Prelude hiding (tail)
 
@@ -26,9 +29,9 @@ type Pipe a d = Enabled (a,d)
 -- Does not work for two clocks, *YET*
 -- call writeMemory
 -- | Write the input pipe to memory, return a circuit that does reads.
-writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ Signal clk1, Size a, Rep a, Rep d)
-	=> sig (Pipe a d)
-	-> sig (a -> d)
+writeMemory :: forall a d clk1 sig . (Clock clk1, sig ~ Signal clk1, SingI a, Rep d)
+	=> sig (Pipe (Sized a) d)
+	-> sig ((Sized a) -> d)
 writeMemory pipe = res
   where
 	-- Adding a 1 cycle delay, to keep the Xilinx tools happy and working.
@@ -36,10 +39,10 @@ writeMemory pipe = res
 	(wEn,pipe') = unpack  {- register (pureS Nothing) $ -} pipe
 	(addr,dat) = unpack pipe'
 
-    	res :: Signal clk1 (a -> d)
+    	res :: Signal clk1 ((Sized a) -> d)
     	res = Signal shallowRes (D $ Port "o0" $ E entity)
 
-	shallowRes :: Stream (X (a -> d))
+	shallowRes :: Stream (X ((Sized a) -> d))
         shallowRes = pure (\ m -> XFunction $ \ ix ->
                         case getValidRepValue (toRep (optX (Just ix))) of
                                Nothing -> optX Nothing
@@ -52,7 +55,7 @@ writeMemory pipe = res
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
-	updates :: Stream (Maybe (Maybe (a,d)))
+	updates :: Stream (Maybe (Maybe ((Sized a),d)))
 	updates = id
 --	        $ observeStream "updates"
 	        $ stepifyStream (\ a -> case a of
@@ -100,7 +103,7 @@ writeMemory pipe = res
 			, ("wData",typeOfS dat,unD $ deepS dat)
                         , ("element_count"
                           , GenericTy
-                          , Generic (fromIntegral (M.size (error "witness" :: a)))
+                          , Generic (fromInteger(fromNat (sing :: Sing a)))
                           )
 			]
 {-
@@ -110,18 +113,18 @@ readMemory mem addr = unpack mem addr
 -}
 
 -- | Read a series of addresses. Respects the latency of Xilinx BRAMs.
-syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, Size a, Rep a, Rep d)
-	=> sig (a -> d) -> sig a -> sig d
+syncRead :: forall a d sig clk . (Clock clk, sig ~ Signal clk, SingI a, Rep d)
+	=> sig ((Sized a) -> d) -> sig (Sized a) -> sig d
 syncRead mem addr = delay (asyncRead mem addr)
 
 -- | Read a memory asyncrounously. There is no clock here,
 -- becase this is an intra-clock operation on the sig (a -> d).
 -- Compare with '<*>' from applicative functors.
 
-asyncRead :: forall a d sig clk . (sig ~ Signal clk, Size a, Rep a, Rep d)
-	=> sig (a -> d) -> sig a -> sig d
+asyncRead :: forall a d sig clk . (sig ~ Signal clk, SingI a, Rep d)
+	=> sig ((Sized a) -> d) -> sig (Sized a) -> sig d
 asyncRead a d = mustAssignSLV $ primXS2 fn "asyncRead" a d
-   where fn (XFunction f) a0 = 
+   where fn (XFunction f) a0 =
            -- We need to case of XFunction, rather than use unX,
            -- because the function may not be total.
            case unX a0 of
@@ -132,8 +135,8 @@ asyncRead a d = mustAssignSLV $ primXS2 fn "asyncRead" a d
 -- | memoryToMatrix should be used with caution/simulation  only,
 -- because this actually clones the memory to allow this to work,
 -- generating lots of LUTs and BRAMS.
-memoryToMatrix ::  (Integral a, Size a, Rep a, Rep d, Clock clk, sig ~ Signal clk)
-	=> sig (a -> d) -> sig (Matrix a d)
+memoryToMatrix ::  (SingI a, Rep d, Clock clk, sig ~ Signal clk)
+	=> sig ((Sized a) -> d) -> sig (Matrix (Sized a) d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 -- | Apply a function to the Enabled input signal producing a Pipe.

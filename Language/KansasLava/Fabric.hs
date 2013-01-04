@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
-    FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, DoRec, RankNTypes #-}
+    FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, DoRec, RankNTypes, DataKinds, InstanceSigs  #-}
 
 
 -- | The Fabric module is used for generating a top-level VHDL entity for a Lava
@@ -35,9 +35,7 @@ module Language.KansasLava.Fabric
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-import Control.Monad hiding (join)
 import Data.Monoid
-import Data.Sized.Sized
 import Data.List as L
 import Data.Reify
 import qualified Data.Set as Set
@@ -47,6 +45,8 @@ import Data.Map(Map)
 import Data.Ord(comparing)
 import System.IO
 import Control.Concurrent
+
+import GHC.TypeLits
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
@@ -84,12 +84,14 @@ data FabricInput = FabricInput
         }
 
 
+initFabricInput :: FabricInput
 initFabricInput = FabricInput [] []
 
 data FabricState = FabricState
         { st_uniq :: Int                -- a unique number for gensym
         }
 
+initFabricState :: FabricState
 initFabricState = FabricState 0 -- Hmm
 
 data FabricOutput = FabricOutput
@@ -178,7 +180,7 @@ instance (MonadFix m) => InOutM (SuperFabric m) where
 
 
 -- | Generate a named std_logic input port.
-inStdLogic :: forall a m . (InOutM m, Rep a, W a ~ X1) => String -> m (Seq a)
+inStdLogic :: forall a m . (InOutM m, Rep a, W a ~ 1) => String -> m (Seq a)
 inStdLogic nm = do
         pad <- input nm (StdLogic $ mkDeepS $ D $ Pad nm)
         return $ case pad of
@@ -201,7 +203,7 @@ inGeneric nm = do
 -}
 
 -- | Generate a named std_logic_vector port input.
-inStdLogicVector :: forall a m . (InOutM m, Rep a, Size (W a)) => String -> m (Seq a)
+inStdLogicVector :: forall a m . (InOutM m, Rep a, SingI (W a)) => String -> m (Seq a)
 inStdLogicVector nm = do
 	let seq' = mkDeepS $ D $ Pad nm :: Seq (ExternalStdLogicVector (W a))
         pad <- input nm (StdLogicVector seq')
@@ -232,13 +234,13 @@ theClkEn nm = input nm TheClkEn >> return ()
 
 -- | Generate a named std_logic output port, given a Lava circuit.
 outStdLogic ::
-	(InOutM m, Rep a, W a ~ X1) => String -> Seq a -> m ()
+	(InOutM m, Rep a, W a ~ 1) => String -> Seq a -> m ()
 outStdLogic nm seq_bool = output nm (StdLogic (bitwise seq_bool))
 
 -- | Generate a named std_logic_vector output port, given a Lava circuit.
 outStdLogicVector
   :: forall a m .
-     (InOutM m, Rep a, Size (W a)) => String -> Seq a -> m ()
+     (InOutM m, Rep a, SingI (W a)) => String -> Seq a -> m ()
 outStdLogicVector nm sq =
 		  case toStdLogicType (typeOfS sq) of
 		    G -> error "outStdLogicVector type mismatch: requiring StdLogicVector, found Generic"
@@ -266,7 +268,7 @@ runFabricWithResult (Fabric f) args = do
 runFabricWithDriver :: (MonadFix m) => SuperFabric m a -> SuperFabric m b -> m (a,b)
 runFabricWithDriver (Fabric f) (Fabric g) = do
         rec (a,f_result,st1) <- f (initFabricInput { in_inPorts = out_outPorts g_result, in_vars = out_vars f_result }) (initFabricState)
-            (b,g_result,st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
+            (b,g_result,_st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
         return (a,b)
 
 recordFabric :: (MonadFix m) => SuperFabric m a -> SuperFabric m (a,[(String,Pad)],[(Int,Pad)],[(String,Pad)])
@@ -300,7 +302,7 @@ hWriterFabric h table = do
                 | IN f <- table
                 ]
 
-        let loop n [] = error "hWriteFabric output finished (should never happen)"
+        let loop _n [] = error "hWriteFabric output finished (should never happen)"
             loop n (t:ts) = do
                     hPutStrLn h t
                     hFlush h
@@ -320,7 +322,7 @@ consume table = do
                 ]
 
         let unit [] = ()
-            unit (x:xs) = x `seq` unit xs
+            unit (x:xs') = x `seq` unit xs'
 
         return $ toS $ fmap unit $ fmap concat $ transpose xs
 
@@ -369,22 +371,21 @@ data SignalVar clk a = SignalVar Int
 -- What do we call SparkM?
 class Monad m => SparkM m where
         newSignalVar   :: m (SignalVar CLK a)
-        writeSignalVar :: (Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> m ()
-        readSignalVar  :: (Rep a, Size (W a)) => SignalVar CLK a
-                                             -> ([Signal CLK a] -> Signal CLK b)
-                                             -> m (Signal CLK b)
+        writeSignalVar :: (Rep a, SingI (W a)) => SignalVar CLK a -> Signal CLK a -> m ()
+        readSignalVar  :: (Rep a, SingI (W a)) => SignalVar CLK a -> ([Signal CLK a] -> Signal CLK b)
+                                                                  -> m (Signal CLK b)
 
 
 instance (MonadFix m) => SparkM (SuperFabric m) where
         newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
         writeSignalVar = write
           where
-            write :: forall m a . (Monad m,Rep a, Size (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
-            write (SignalVar uq) sig = Fabric $ \ inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
+            write :: forall a . (Rep a, SingI (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
+            write (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
                 where pad = StdLogicVector $ (bitwise sig :: Seq (ExternalStdLogicVector (W a)))
         readSignalVar = read
           where
-            read :: forall m a b . (Monad m,Rep a, Size (W a))
+            read :: forall a b . (Rep a, SingI (W a))
                       => SignalVar CLK a
                       -> ([Signal CLK a] -> Signal CLK b)
                       -> SuperFabric m (Signal CLK b)
@@ -394,7 +395,6 @@ instance (MonadFix m) => SparkM (SuperFabric m) where
                         | (uq',StdLogicVector s) <- in_vars inps
                         , uq' == uq
                         ], mempty,st)
-                where g (a,StdLogicVector {}) = (a,"STDLOGICVECTOR")
 
 -------------------------------------------------------------------------------
 
@@ -640,7 +640,7 @@ joinStdLogicVector kleg =
                                     [ ("i" ++ show n,B,src)
                                     | n <- [0..mx]
                                     , src <- case lookup (nm ++ "<" ++ show n ++ ">")
-                                                         [ (nm,src) | (nm,B,src) <- theSinks kleg ] of
+                                                         [ (nm',src) | (nm',B,src) <- theSinks kleg ] of
                                           Nothing  -> return $ Lit $ RepValue [return False]
                                           Just src -> return src
 

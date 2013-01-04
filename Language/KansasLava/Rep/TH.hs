@@ -17,7 +17,7 @@ repIntegral tyName tyType = do
    sequence [ instanceD
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (integerL xSize))
+		[ tySynInstD ''W [conT tyName] (litT (numTyLit xSize))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName
@@ -56,7 +56,7 @@ repIntegral tyName tyType = do
   where
 	strName	  = nameBase tyName
 	xConsName = mkName ("X" ++ strName)
-	xSize     = typeWidth tyType
+	xSize     = toInteger (typeWidth tyType)
 
 -- You would think that you could go from Name to Kansas Lava type,
 -- but this breaks the staging in Template Haskell.
@@ -66,7 +66,7 @@ repBitRep tyName width = do -- tyType = do
    sequence [ instanceD
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (integerL xSize))
+		[ tySynInstD ''W [conT tyName] (litT (numTyLit xSize))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName
@@ -107,7 +107,7 @@ repBitRep tyName width = do -- tyType = do
   where
 	strName	  = nameBase tyName
 	xConsName = mkName ("X" ++ strName)
-	xSize     = width
+	xSize     = toInteger width
 --	(typeWidth tyType)
 
 

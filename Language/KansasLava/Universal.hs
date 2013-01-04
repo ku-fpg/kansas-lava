@@ -1,6 +1,8 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, RankNTypes #-}
+{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, RankNTypes, DataKinds #-}
 
 module Language.KansasLava.Universal where
+
+import GHC.TypeLits
 
 import Data.Sized.Sized
 
@@ -62,10 +64,10 @@ fromUni' a = case fromUni a of
                Just x  -> x
 
 --------------------------------------------------
-newtype ExternalStdLogicVector x = ExternalStdLogicVector RepValue
+newtype ExternalStdLogicVector (x :: Nat) = ExternalStdLogicVector RepValue
         deriving Show
 
-instance (Size ix) => Rep (ExternalStdLogicVector ix) where
+instance (SingI ix) => Rep (ExternalStdLogicVector ix) where
     type W (ExternalStdLogicVector ix) = ix
     data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (ExternalStdLogicVector ix)
 
@@ -73,10 +75,10 @@ instance (Size ix) => Rep (ExternalStdLogicVector ix) where
     optX Nothing        = XExternalStdLogicVector
                         $ ExternalStdLogicVector
                         $ RepValue
-                        $ replicate (size (error "Rep/ExternalStdLogicVector" :: ix)) Nothing
+                        $ replicate (fromInteger(fromNat (sing :: Sing ix))) Nothing
     unX (XExternalStdLogicVector a) = return a
 
-    repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
+    repType _          = V (fromInteger(fromNat (sing :: Sing ix)))
     toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
     fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
     showRep = showRepDefault
