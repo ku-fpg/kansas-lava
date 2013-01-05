@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, FlexibleContexts,
+  DataKinds, TypeOperators #-}
 
 module Language.KansasLava.Wakarusa
         ( STMT(..)
@@ -59,9 +60,12 @@ import Data.Sized.Sized
 import Data.Sized.Matrix as M
 
 import Control.Monad.Fix
+import Data.Array.IArray as A
 import Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Reader
+
+import GHC.TypeLits
 
 import Debug.Trace
 import System.IO.Unsafe
@@ -455,7 +459,7 @@ compWakarusaExpr (OP3 f e1 e2 e3) = do
         c3 <- compWakarusaExpr e3
         return $ f c1 c2 c3
 compWakarusaExpr (OPM f es) = do
-        cs <- mapM compWakarusaExpr $ M.toList es
+        cs <- mapM compWakarusaExpr $ A.elems es
         return $ f $ matrix cs
 
 ppEXPR :: Pass -> EXPR a -> String
@@ -464,7 +468,7 @@ ppEXPR _ (OP0 lit) = "(OP0 " ++ show lit ++ ")"
 ppEXPR p (OP1 _ e1) = "(OP1 (...) " ++ ppEXPR p e1 ++ ")"
 ppEXPR p (OP2 _ e1 e2) = "(OP2 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ ")"
 ppEXPR p (OP3 _ e1 e2 e3) = "(OP3 (...) " ++ ppEXPR p e1 ++ " " ++ ppEXPR p e2 ++ " " ++ ppEXPR p e3 ++ ")"
-ppEXPR p (OPM _ es) = "(OPM (...) " ++ ppEXPRs p (M.toList es) ++ ")"
+ppEXPR p (OPM _ es) = "(OPM (...) " ++ ppEXPRs p (A.elems es) ++ ")"
 
 ppEXPRs :: Pass -> [EXPR a] -> String
 ppEXPRs p [] = "[]"
@@ -499,7 +503,7 @@ transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
 data ReadAckBox a = ReadAckBox (EXPR (Enabled a)) (REG ())
 
 connectReadAckBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        :: forall a . (Rep a, SingI ((W a) + 1), Show a)
         => String -> String -> STMT (ReadAckBox a)
 connectReadAckBox inpName ackName = do
         i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)
@@ -524,7 +528,7 @@ fullAckBox (ReadAckBox iA _) = OP1 isEnabled iA
 data WriteAckBox a = WriteAckBox (REG a) (EXPR (Enabled ()))
 
 connectWriteAckBox
-        :: forall a . (Rep a, Size (ADD (W a) X1), Show a)
+        :: forall a . (Rep a, SingI ((W a)), SingI (W(Enabled a)), SingI (W(Enabled ())), W(Enabled ()) ~ 1, Show a)
         => String -> String -> STMT (WriteAckBox a)
 connectWriteAckBox outName ackName = do
         iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
@@ -550,7 +554,7 @@ newAckBox = do
 data ReadReadyBox a = ReadReadyBox (EXPR (Enabled a)) (REG ())
 
 connectReadReadyBox
-        :: forall a . (Rep a, Size (W a), Show a)
+        :: forall a . (Rep a, SingI (W a), Show a)
         => String -> String -> String -> STMT (ReadReadyBox a)
 connectReadReadyBox inpName inpValid ackName = do
         i :: EXPR (Maybe a)   <- INPUT $ do
@@ -579,10 +583,10 @@ fullReadyBox (ReadReadyBox iA _) = OP1 isEnabled iA
 data WriteReadyBox a = WriteReadyBox (REG a) (EXPR (Enabled ()))
 
 connectWriteReadyBox
-        :: forall a . (Rep a, Size (W a), Show a)
+        :: forall a . (Rep a, SingI (W a), Show a, SingI (W(Enabled ())), W(Enabled ()) ~ 1)
         => String -> String -> String -> STMT (WriteReadyBox a)
 connectWriteReadyBox outName outValid ackName = do
-        iB :: EXPR (Enabled ()) <- INPUT  (inStdLogic ackName)
+        iB :: EXPR (Enabled ()) <- INPUT  ((inStdLogic ackName) :: Fabric (Seq (Enabled ())))
         oB :: REG a             <- OUTPUT $ \ o -> do
                                 outStdLogicVector outName (enabledVal o)
                                 outStdLogicVector outValid (isEnabled o)
@@ -624,10 +628,10 @@ data Memory ix a = Memory
         , valueM  :: EXPR a      -- ^ where the read requests appear (same cycle)
         }
 
-memory :: forall a ix . (Rep a, Rep ix, Size ix) => STMT (Memory ix a)
+memory :: forall a ix . (Rep a, SingI ix) => STMT (Memory (Sized ix) a)
 memory = do
-        (r1,e1) <- mkChannel (writeMemory :: Seq (Enabled (ix,a)) -> Seq (ix -> a))
-        VAR v2 :: VAR ix <- mkTemp
+        (r1,e1) <- mkChannel (writeMemory :: Seq (Enabled ((Sized ix),a)) -> Seq ((Sized ix) -> a))
+        VAR v2 :: VAR (Sized ix) <- mkTemp
         VAR v3 :: VAR a  <- mkTemp
 
         always $ v3 := OP2 asyncRead e1 v2
@@ -673,7 +677,7 @@ mkChannel fn = do
         return (R uq,REG (R uq))
 
 -- We should be able to use overloading here.
-mkChannel2 :: forall a b c . (Rep a, Size (W (Enabled a)), Rep b, Size (W (Enabled b)), Rep c, Size (W c))
+mkChannel2 :: forall a b c . (Rep a, SingI (W (Enabled a)), Rep b, SingI (W (Enabled b)), Rep c, SingI (W c))
            => (Seq (Enabled a) -> Seq (Enabled b) -> Seq c) -> STMT (REG a, REG b, EXPR c)
 mkChannel2 fn = do
         ([a,b],[r]) <- GENERIC $ do
@@ -682,7 +686,7 @@ mkChannel2 fn = do
                         outStdLogicVector "o0" (fn i0 i1)
         return $ (R a,R b,REG (R r))
 
-mkChannel3 :: forall a b c . (Rep a, Size (W (Enabled a)), Rep b, Size (W b))
+mkChannel3 :: forall a b c . (Rep a, SingI (W (Enabled a)), Rep b, SingI (W b))
            => (Seq (Enabled a) -> Seq b) -> STMT (REG a, EXPR b)
 mkChannel3 fn = do
         ([a],[r]) <- GENERIC $ do

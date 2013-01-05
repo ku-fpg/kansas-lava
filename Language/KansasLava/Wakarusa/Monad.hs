@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, DataKinds #-}
 
 module Language.KansasLava.Wakarusa.Monad where
 
@@ -20,6 +20,8 @@ import Data.Sized.Unsigned (Unsigned)
 import Data.Sized.Sized
 
 import Data.Map as Map
+
+import GHC.TypeLits
 
 import Control.Monad.State
 import Control.Monad.Reader
@@ -143,7 +145,12 @@ data WakarusaEnv = WakarusaEnv
         , we_tid      :: Maybe Uniq      -- The current thread id
 
         }
-        deriving Show
+--        deriving Show
+
+-- TODO
+instance Show WakarusaEnv  where
+    show = undefined
+
 
 data Pass
         = Parsed
@@ -160,7 +167,7 @@ type WakarusaComp = StateT WakarusaState (ReaderT WakarusaEnv Fabric)
 ------------------------------------------------------------------------------
 
 type Uniq = Int
-type PC = X256
+type PC = (Sized 256)
 type TID = Int          -- thread Id
 
 ------------------------------------------------------------------------------
@@ -429,14 +436,14 @@ registerAction (R k) en val = do
         return ()
 
 
-addMemory :: forall ix a. (Rep a, Rep ix, Size ix) => Uniq -> Witness (MEM ix a) -> WakarusaComp ()
+addMemory :: forall ix a. (Rep a, SingI ix) => Uniq -> Witness (MEM (Sized ix) a) -> WakarusaComp ()
 addMemory k Witness = do
         st <- get
         let m = Map.insert k (\ ix a -> toUni (f (fmap fromUni ix) (fmap fromUni a))) (ws_mems st)
         put $ st { ws_mems = m }
         return ()
   where
-          f :: Maybe (Maybe (Seq (Enabled (ix,a)))) -> Maybe (Maybe (Seq ix)) -> Seq a
+          f :: Maybe (Maybe (Seq (Enabled ((Sized ix),a)))) -> Maybe (Maybe (Seq (Sized ix))) -> Seq a
           f Nothing _ = undefinedS
           f _ Nothing = undefinedS
           f (Just (Just wt)) (Just (Just rd)) = asyncRead (writeMemory wt) rd
@@ -504,7 +511,7 @@ getRegRead k = do
                         Just e -> e
 
 
-getMemRead :: forall a ix . (Rep a, Rep ix, Size ix) => Uniq -> Seq ix -> WakarusaComp (Seq a)
+getMemRead :: forall a ix . (Rep a, SingI ix) => Uniq -> Seq (Sized ix) -> WakarusaComp (Seq a)
 getMemRead k ix = do
         p <- getPred
         -- There are two parts, recording the *read* address as a type

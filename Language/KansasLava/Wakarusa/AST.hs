@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, DataKinds #-}
 
 module Language.KansasLava.Wakarusa.AST where
 
@@ -12,6 +12,8 @@ import Language.KansasLava.Protocols.Patch
 import Data.Sized.Sized
 import Data.Sized.Matrix (Matrix)
 import Control.Monad.Fix
+
+import GHC.TypeLits
 
 infixr 1 :=
 infixr 1 :?
@@ -109,12 +111,12 @@ data EXPR :: * -> * where
         OP3 :: (Rep a, Rep b,Rep c, Rep d)
             => (forall u . Signal u a -> Signal u b -> Signal u c -> Signal u d)
             -> EXPR a -> EXPR b -> EXPR c                               -> EXPR d
-        OPM :: (Rep a, Rep b, Size ix)
-            => (forall u . Matrix ix (Signal u a) -> Signal u b)
-            -> Matrix ix (EXPR a)                                       -> EXPR b
+        OPM :: (Rep a, Rep b, SingI ix)
+            => (forall u . Matrix (Sized ix) (Signal u a) -> Signal u b)
+            -> Matrix (Sized ix) (EXPR a)                                       -> EXPR b
         REG :: REG a                                                    -> EXPR a          -- only needed internally
-        READ :: (Rep ix, Rep a, Size ix)                                                   -- is this used?
-             => MEM ix a -> EXPR ix                                     -> EXPR a
+        READ :: (Rep a, SingI ix)                                                   -- is this used?
+             => MEM (Sized ix) a -> EXPR (Sized ix)                                     -> EXPR a
 
 instance Eq (EXPR a) where {}
 instance Show (EXPR a) where
