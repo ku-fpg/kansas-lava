@@ -38,7 +38,7 @@ import Language.KansasLava.Rep.Class
 
 -- | Check to see if all bits in a bitvector (represented as a Matrix) are
 -- valid. Returns Nothing if any of the bits are unknown.
-allOkayRep :: (SingI w) => Matrix (Sized w) (X Bool) -> Maybe (Matrix (Sized w) Bool)
+allOkayRep :: (SingI w) => Vector w (X Bool) -> Maybe (Vector w Bool)
 allOkayRep m = sequenceA $ fmap prj m
   where prj (XBool Nothing) = Nothing
         prj (XBool (Just v)) = Just v
@@ -251,9 +251,9 @@ instance (SingI x) => Rep (Sized x) where
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
-instance (SingI ix, Rep a) => Rep (Matrix (Sized ix) a) where
-    type W (Matrix (Sized ix) a) = ix  * (W a)
-    data X (Matrix (Sized ix) a) = XMatrix (Matrix (Sized ix) (X a))
+instance (SingI ix, Rep a) => Rep (Vector ix a) where
+    type W (Vector ix a) = ix  * (W a)
+    data X (Vector ix a) = XMatrix (Vector ix (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)

@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification,
-  ScopedTypeVariables, TypeFamilies, TypeSynonymInstances #-}
+  ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, DataKinds #-}
 
 -- | The RTL module provides a small DSL that's useful for control-oriented -- stateful -- computations.
 module Language.KansasLava.RTL (
@@ -18,10 +18,12 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes
-import Data.Sized.Matrix
+import Data.Sized.Sized
 import Control.Monad.ST
 import Data.STRef
 import Data.List as L
+
+import GHC.TypeLits
 
 --import Debug.Trace
 
@@ -160,7 +162,7 @@ newReg def = RTL $ \ _ u -> do
 	return (Reg regRes variable varSt debugSt uq,[])
 
 -- | Declare an array. Arrays support partual updates.
-newArr :: forall a c ix s . (Size ix, Clock c, Rep a, Num ix, Rep ix) => Witness ix -> RTL s c (Signal c ix -> Reg s c a)
+newArr :: forall a c ix s . (SingI ix, Clock c, Rep a) => Witness (Sized ix) -> RTL s c (Signal c (Sized ix) -> Reg s c a)
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
@@ -168,7 +170,7 @@ newArr Witness = RTL $ \ _ u -> do
 	proj <- unsafeInterleaveST $ do
 		assigns <- readSTRef varSt
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
-		let look ix = writeMemory (ass :: Signal c (Maybe (ix,a)))
+		let look ix = writeMemory (ass :: Signal c (Enabled ((Sized ix),a)))
 					`asyncRead` ix
 		return look
 	return (\ ix -> Arr (proj ix) ix varSt uq, [])

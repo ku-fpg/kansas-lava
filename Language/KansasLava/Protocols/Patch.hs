@@ -1,6 +1,7 @@
-{-# LANGUAGE RecursiveDo, DoRec, ScopedTypeVariables, FlexibleContexts, TypeFamilies, 
-             ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, 
-             RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction #-}
+{-# LANGUAGE RecursiveDo, DoRec, ScopedTypeVariables, FlexibleContexts, TypeFamilies,
+             ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs,
+             RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction,
+             DataKinds #-}
 module Language.KansasLava.Protocols.Patch
   -- (Patch, bus, ($$),
   -- emptyP,forwardP, backwardP,dupP,zipPatch,
@@ -17,12 +18,17 @@ import Language.KansasLava.Utils
 import Language.KansasLava.Signal
 --import Language.KansasLava.Probes
 
+import Data.Sized.Sized
 import Data.Sized.Unsigned (U8)
 import Data.Sized.Matrix as M
 
 import qualified Data.ByteString.Lazy as B
 import Control.Applicative
 import Control.Monad.Fix
+
+import Data.Array.IArray
+
+import GHC.TypeLits
 
 ---------------------------------------------------------------------------
 -- The Patch.
@@ -132,7 +138,7 @@ stackP p1 p2 inp = (lo1 :> lo2,ro1 :> ro2)
 
 -- | Given a homogeneous list (Matrix) of patches, combine them into a single
 -- patch, collecting the data/control inputs/outputs into matrices.
-matrixStackP :: (m ~ (Matrix x), Size x)
+matrixStackP :: (SingI x, m ~ (Matrix (Sized x)))
  	=> m (Patch li   ro
 	   	    lo   ri)
 	-> Patch (m li)         (m ro)
@@ -192,7 +198,7 @@ unUnit _ = ()
 instance Unit () where unit = ()
 instance (Unit a,Unit b) => Unit (a,b) where unit = (unit,unit)
 instance (Unit a,Unit b) => Unit (a :> b) where unit = (unit :> unit)
-instance (Unit a,Size x) => Unit (Matrix x a) where unit = pure unit
+instance (Unit a, SingI x) => Unit (Matrix (Sized x) a) where unit = pure unit
 
 ------------------------------------------------
 -- File I/O for Patches
@@ -360,7 +366,7 @@ dupP ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2)
 	written1  = (state ./=. 0) .&&. fromAck ack1
 	written2  = (state ./=. 0) .&&. fromAck ack2
 
-	state :: sig X4
+	state :: sig (Sized 4)
 	state = register 0
 	      $ cASE [ (have_read,	                pureS 1)
 		     , (written1 .&&. written2,	        pureS 0)
@@ -379,13 +385,13 @@ dupP ~(inp,ack1 :> ack2) = (toAck have_read,out1 :> out2)
 	out2 = packEnabled (state .==. 1 .||. state .==. 3) store
 
 -- | This duplicate the incoming datam over many handshaken streams.
-matrixDupP :: (Clock c, sig ~ Signal c, Rep a, Size x)
-         => Patch (sig (Enabled a))     (Matrix x (sig (Enabled a)))
-	          (sig Ack)             (Matrix x (sig Ack))
+matrixDupP :: (Clock c, sig ~ Signal c, Rep a, SingI x)
+         => Patch (sig (Enabled a))     (Matrix (Sized x) (sig (Enabled a)))
+	          (sig Ack)             (Matrix (Sized x) (sig Ack))
 matrixDupP = ackToReadyBridge $$ matrixDupP' $$ matrixStackP (pure readyToAckBridge) where
  matrixDupP' ~(inp,readys) = (toReady go, pure out)
     where
-	go = foldr1 (.&&.) $ map fromReady $ M.toList readys
+	go = foldr1 (.&&.) $ map fromReady $ elems readys
 	out = packEnabled (go .&&. isEnabled inp) (enabledVal inp)
 
 -- | unzipP creates a patch that takes in an Enabled data pair, and produces a
@@ -398,9 +404,9 @@ unzipP = dupP $$
 		      (forwardP $ mapEnabled (snd . unpack))
 
 -- | matrixUnzipP is the generalization of unzipP to homogeneous matrices.
-matrixUnzipP :: (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
-         => Patch (sig (Enabled (Matrix x a)))    (Matrix x (sig (Enabled a)))
-	          (sig Ack)          		  (Matrix x (sig Ack))
+matrixUnzipP :: (Clock c, sig ~ Signal c, Rep a, SingI x)
+         => Patch (sig (Enabled (Matrix (Sized x) a)))    (Matrix (Sized x) (sig (Enabled a)))
+	          (sig Ack)          		  (Matrix (Sized x) (sig Ack))
 matrixUnzipP =
 	matrixDupP $$
 	matrixStackP (forAll $ \ x ->  forwardP (mapEnabled $ \ v -> v .!. pureS x))
@@ -414,12 +420,12 @@ deMuxP = fe $$ matrixDeMuxP $$ be
 --	fe = fstP (forwardP ((unsigned)))
 	fe = fstP (mapP (unsigned))
 	be = backwardP (\ ~(b :> c) -> matrix [c,b]) $$
-	     forwardP (\ m -> ((m M.! (1 :: X2)) :> (m M.! 0)))
+	     forwardP (\ m -> ((m ! ((MkSized 1) :: (Sized 2))) :> (m ! 0)))
 
 -- | matrixDeMuxP is the generalization of deMuxP to a matrix of signals.
-matrixDeMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
-  => Patch (sig (Enabled x)    :> sig (Enabled a)) 		  (Matrix x (sig (Enabled a)))
-	   (sig Ack            :> sig Ack)		          (Matrix x (sig Ack))
+matrixDeMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
+  => Patch (sig (Enabled (Sized x))    :> sig (Enabled a)) 		  (Matrix (Sized x) (sig (Enabled a)))
+	   (sig Ack            :> sig Ack)		          (Matrix (Sized x) (sig Ack))
 matrixDeMuxP = matrixDeMuxP' $$ matrixStackP (pure readyToAckBridge) where
  matrixDeMuxP' ~(ix :> inp, m_ready) = (toAck ackCond :> toAck ackIn,out)
     where
@@ -449,16 +455,16 @@ zipP ~(in1 :> in2, outReady) = (toAck ack :> toAck ack, out)
 	out = packEnabled try (pack (enabledVal in1, enabledVal in2))
 
 -- | Extension of zipP to homogeneous matrices.
-matrixZipP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
-         => Patch (Matrix x (sig (Enabled a)))	(sig (Enabled (Matrix x a)))
-	          (Matrix x (sig Ack))		(sig Ack)
+matrixZipP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
+         => Patch (Matrix (Sized x) (sig (Enabled a)))	(sig (Enabled (Matrix (Sized x) a)))
+	          (Matrix (Sized x) (sig Ack))		(sig Ack)
 matrixZipP ~(mIn, outReady) = (mAcks, out)
    where
-	try    = foldr1 (.&&.) (map isEnabled $ M.toList mIn)
+	try    = foldr1 (.&&.) (map isEnabled $ elems mIn)
 
 	mAcks = fmap toAck $ pure (try .&&. fromAck outReady)
 	mIn'  = fmap enabledVal mIn
-	out   = packEnabled try (pack mIn' :: sig (Matrix x a))
+	out   = packEnabled try (pack mIn' :: sig (Matrix (Sized x) a))
 
 -- | 'muxP' chooses a the 2nd or 3rd value, based on the Boolean value.
 muxP :: (Clock c, sig ~ Signal c, Rep a)
@@ -468,28 +474,28 @@ muxP :: (Clock c, sig ~ Signal c, Rep a)
 muxP = fe $$ matrixMuxP
    where
 	fe = forwardP (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) $$
-	     backwardP (\ ~(a :> m) -> (a :> (m M.! (1 :: X2)) :> (m M.! 0)))
+	     backwardP (\ ~(a :> m) -> (a :> (m ! ((MkSized 1) :: (Sized 2))) :> (m ! 0)))
 
 
 -- | 'matrixMuxP' chooses the n-th value, based on the index value.
-matrixMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x)
-  => Patch (sig (Enabled x)    :> Matrix x (sig (Enabled a)))		(sig (Enabled a))
-	   (sig Ack            :> Matrix x (sig Ack))		  	(sig Ack)
+matrixMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
+  => Patch (sig (Enabled (Sized x))    :> Matrix (Sized x) (sig (Enabled a)))		(sig (Enabled a))
+	   (sig Ack            :> Matrix (Sized x) (sig Ack))		  	(sig Ack)
 matrixMuxP  ~(~(cond :> m),ack) = ((toAck ackCond :> fmap toAck m_acks),out)
    where
 	-- set when conditional value on cond port
  	try = isEnabled cond
 
 	-- only respond/ack when you are ready to go, the correct lane, and have input
-	gos :: Matrix x (sig Bool)
+	gos :: Matrix (Sized x) (sig Bool)
 	gos = forEach m $ \ x inp -> try
 				.&&. (enabledVal cond .==. pureS x)
 				.&&. isEnabled inp
 
-	ackCond = foldr1 (.||.) $ M.toList m_acks
+	ackCond = foldr1 (.||.) $ elems m_acks
 	m_acks = fmap (\ g -> g .&&. fromAck ack) gos
 
-	out = cASE (zip (M.toList gos) (M.toList m))	-- only one can ever be true
+	out = cASE (zip (elems gos) (elems m))	-- only one can ever be true
 		   disabledS
 
 ---------------------------------------------------------------------------------
@@ -507,7 +513,7 @@ fifo1 ~(inp,ack) = (toAck have_read, out)
 	have_read = (state .==. 0) .&&. isEnabled inp
 	written   = (state .==. 1) .&&. fromAck ack
 
-	state :: sig X2
+	state :: sig (Sized 2)
 	state = register 0
 	      $ cASE [ (have_read,	pureS 1)
 		     , (written,	pureS 0)
@@ -539,7 +545,7 @@ fifo2 = ackToReadyBridge $$ fifo2' where
         --   2 = First empty, second full
         --   3 = First full, second full, read second store
         --   4 = First full, second full, read first store
-        state :: sig X5
+        state :: sig (Sized 5)
         state = register 0
               $ cASE [ ((state.==.0) .&&. dataIncoming,                  1)
                      , ((state.==.1) .&&. dataIncoming .&&. dataOutRead, 2)
@@ -575,24 +581,24 @@ fifo2 = ackToReadyBridge $$ fifo2' where
 ---------------------------------------------------------------------------------
 
 -- | 'matrixToElementsP' turns a matrix into a sequences of elements from the array, in ascending order.
-matrixToElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
-         => Patch (sig (Enabled (Matrix x a)))	(sig (Enabled a))
+matrixToElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
+         => Patch (sig (Enabled (Matrix (Sized x) a)))	(sig (Enabled a))
 	          (sig Ack)			(sig Ack)
 matrixToElementsP =
 	   openP
 	$$ stackP
-		 (cycleP (coord :: Matrix x x))
+		 (cycleP (coord :: Matrix (Sized x) (Sized x)))
 		 (matrixUnzipP)
 	$$ matrixMuxP
 
 -- | 'matrixFromElementsP' turns a sequence of elements (in ascending order) into a matrix.
 -- ascending order.
-matrixFromElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
-         => Patch (sig (Enabled a)) (sig (Enabled (Matrix x a)))
+matrixFromElementsP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
+         => Patch (sig (Enabled a)) (sig (Enabled (Matrix (Sized x) a)))
 	          (sig Ack)	    (sig Ack)
 matrixFromElementsP =
 	   openP
-	$$ fstP (cycleP (coord :: Matrix x x))
+	$$ fstP (cycleP (coord :: Matrix (Sized x) (Sized x)))
 	$$ matrixDeMuxP
 	$$ matrixZipP
 
@@ -609,53 +615,49 @@ globalClockP ~(li,ri) = (ri,li)
 -- | cycleP cycles through a constant list (actually a matrix) of values.
 -- Generates an async ROM on hardware.
 cycleP :: forall a c ix sig .
-        ( Size ix
-        , Rep a
-        , Rep ix
-        , Num ix
+        ( Rep a
         , Clock c
 	, sig ~ Signal c
+        , SingI ix
         )
-	=> Matrix ix a
+	=> Matrix (Sized ix) a
 	-> Patch ()		(sig (Enabled a))
 	         ()		(sig Ack)
 cycleP m ~(_,ack) = ((),out)
   where
-	ix :: sig ix
+	ix :: sig (Sized ix)
 	ix = register 0
 	   $ cASE [ (fromAck ack, loopingIncS ix) ]
 		  ix
 
 	out = packEnabled high
-            $ funMap (\ x -> return (m M.! x))
+            $ funMap (\ x -> return (m ! x))
 		     ix
 
 constP :: forall a c ix sig .
-        ( Size ix
-        , Rep a
-        , Rep ix
-        , Num ix
+        ( Rep a
         , Clock c
 	, sig ~ Signal c
-        )
-	=> Matrix ix a
+        , SingI ix
+       )
+	=> Matrix (Sized ix) a
 	-> Patch ()	(sig (Enabled a))
 	         ()	(sig Ack)
 constP m ~(_,ackOut) = ((),out)
   where
-	ix :: sig ix
+	ix :: sig (Sized ix)
 	ix = register 0
 	   $ cASE [ (fromAck ackOut, loopingIncS ix) ]
 		  ix
 
 	st :: sig Bool
 	st = register False
-	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig ix), high) ]
+	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig (Sized ix)), high) ]
 		  st
 
 	out :: sig (Enabled a)
 	out = mux st
-		(packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+		(packEnabled high $ funMap (\ x -> return (m ! x)) ix
                 , disabledS
 		)
 
@@ -664,26 +666,24 @@ constP m ~(_,ackOut) = ((),out)
 -- a stream of handshaken values.
 
 prependP :: forall a c ix sig .
-        ( Size ix
-        , Rep a
-        , Rep ix
-        , Num ix
+        ( Rep a
         , Clock c
 	, sig ~ Signal c
+        , SingI ix
         )
-	=> Matrix ix a
+	=> Matrix (Sized ix) a
 	-> Patch (sig (Enabled a))	(sig (Enabled a))
 	         (sig Ack)		(sig Ack)
 prependP m ~(inp,ackOut) = (ackIn,out)
   where
-	ix :: sig ix
+	ix :: sig (Sized ix)
 	ix = register 0
 	   $ cASE [ (fromAck ackOut, loopingIncS ix) ]
 		  ix
 
 	st :: sig Bool
 	st = register False
-	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig ix), high) ]
+	   $ cASE [ (fromAck ackOut .&&. ix .==. (maxBound :: sig (Sized ix)), high) ]
 		  st
 
 	ackIn :: sig Ack
@@ -693,7 +693,7 @@ prependP m ~(inp,ackOut) = (ackIn,out)
 		)
 	out :: sig (Enabled a)
 	out = mux st
-		( packEnabled high $ funMap (\ x -> return (m M.! x)) ix
+		( packEnabled high $ funMap (\ x -> return (m ! x)) ix
 		, inp
 		)
 
@@ -730,22 +730,22 @@ mergeP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
 mergeP plan = fe $$ matrixMergeP plan
   where
 	fe = forwardP (\ ~(b :> c) -> (matrix [b,c])) $$
-	     backwardP (\ ~m -> ( (m M.! (0 :: X2)) :> (m M.! (1 :: X2))))
+	     backwardP (\ ~m -> ( (m ! ((MkSized 0) :: (Sized 2))) :> (m ! ((MkSized 1) :: (Sized 2)))))
 
 
-matrixMergeP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, Rep x, Size x, Num x, Enum x)
+matrixMergeP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
   => MergePlan
-  -> Patch (Matrix x (sig (Enabled a)))		(sig (Enabled a))
-	   (Matrix x (sig Ack))		  	(sig Ack)
+  -> Patch (Matrix (Sized x) (sig (Enabled a)))		(sig (Enabled a))
+	   (Matrix (Sized x) (sig Ack))		  	(sig Ack)
 matrixMergeP plan ~(mInp, ackOut) = (mAckInp, out)
  where
-   isEs :: sig (Matrix x Bool)
+   isEs :: sig (Matrix (Sized x) Bool)
    isEs = pack (fmap isEnabled mInp)
 
    -- Value to consider selecting.
-   inpIndex :: sig x
+   inpIndex :: sig (Sized x)
    inpIndex = case plan of
-		PriorityMerge   -> cASE (zip (map isEnabled $ M.toList mInp) (map pureS [0..])) (pureS 0)
+		PriorityMerge   -> cASE (zip (map isEnabled $ elems mInp) (map pureS [0..])) (pureS 0)
 		RoundRobinMerge -> let reg = register 0 (mux ((isEs .!. reg) .&&. bitNot (fromAck ackOut))
 								-- stop looking if found enable
 								-- an no ack

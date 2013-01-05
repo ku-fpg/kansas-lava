@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable, DataKinds #-}
 module Language.KansasLava.Test
         ( testMe
         , neverTestMe
@@ -32,6 +32,8 @@ import Control.Exception
 
 -- found in dist/build/autogen
 import Paths_kansas_lava
+
+import GHC.TypeLits
 
 import Control.Applicative
 import qualified Control.Exception as E
@@ -674,7 +676,7 @@ data Result = ShallowFail {- Trace String -}      -- Shallow result doesn't matc
 -- of a given "specification" of the output.
 -- If there is a problem, issue an error message.
 
-matchExpected :: (Rep a, Size (W a), Show a) => String -> Seq a -> Fabric (Int -> Maybe String)
+matchExpected :: (Rep a, SingI (W a), Show a) => String -> Seq a -> Fabric (Int -> Maybe String)
 matchExpected out_name ref = do
         o0 <- inStdLogicVector out_name
         let sq = o0 `refinesFrom` ref
@@ -703,8 +705,8 @@ data StreamTest w1 w2 = StreamTest
             , theStreamName        :: String
             }
 
-testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, Size (W w1)
-                             , Eq w2, Rep w2, Show w2, Size (W w2)
+testStream :: forall w1 w2 . ( Eq w1, Rep w1, Show w1, SingI (W w1)
+                             , Eq w2, Rep w2, Show w2, SingI (W w2)
                              )
         => TestSeq -> String -> StreamTest w1 w2 -> IO ()
 testStream (TestSeq test _) tyName streamTest = do
