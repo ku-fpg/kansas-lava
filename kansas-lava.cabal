@@ -103,7 +103,7 @@ Library
        Language.KansasLava.Protocols.AckBox
        Language.KansasLava.Protocols.ReadyBox
        Language.KansasLava.Protocols.Types
---       Language.KansasLava.Protocols.Patch
+       Language.KansasLava.Protocols.Patch
        Paths_kansas_lava
 
 -- need a module refactor to address the orphan warnings
