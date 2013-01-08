@@ -96,25 +96,23 @@ instance Rep Integer where
     fromRep = error "can not turn a Rep to a Generic"
     showRep (XInteger v) = show v
 
-newtype Message ix = Message String
+newtype Message (ix :: Nat) = Message String
 
--- TODO.  Make Message work
-{-
-instance (Integral ix, Size ix) => Rep (Message ix) where
-    type W (Message ix)            = X0_ (X0_ (X0_ ix))
+instance (SingI ix) => Rep (Message ix) where
+    type W (Message ix)            = ix + 3
     data X (Message ix)            = XMessage !(Maybe String)
     optX b                         = XMessage $ fmap (\ (Message m) -> m) b
     unX (XMessage v)               = fmap Message v
-    repType _                      = MatrixTy (size (error "witness" :: ix)) (U 8)
-    toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Matrix ix (X U8))
+    repType _                      = MatrixTy (fromInteger(fromNat (sing :: Sing ix))) (U 8)
+    toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Vector ix (X U8))
     toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i ->
                                                 if fromIntegral i < Prelude.length m
                                                 then optX (Just $ fromIntegral $ ord $ (m !! (fromIntegral i)))
-                                                else optX (Just 0)) :: Matrix ix (X U8))
+                                                else optX (Just 0)) :: Vector ix (X U8))
     fromRep rep
         | okay      = XMessage $ return $ msg
         | otherwise = XMessage Nothing
-      where XMatrix (m :: Matrix ix (X U8)) = fromRep rep
+      where XMatrix (m :: Vector ix (X U8)) = fromRep rep
             RepValue xs = rep
             vals :: [U8]
             vals = [ x | Just x <- map unX (elems m) ]
@@ -130,7 +128,7 @@ instance (Integral ix, Size ix) => Rep (Message ix) where
 
     showRep (XMessage Nothing)     = "-"
     showRep (XMessage (Just txt))  = show txt
--}
+
 -------------------------------------------------------------------------------------
 -- Now the containers
 
@@ -239,7 +237,7 @@ instance (Rep a) => Rep (Maybe a) where
 
 
 instance (SingI x) => Rep (Sized x) where
-    -- TODO.  FIXME
+    -- TODO.  FIXME:  W (Sized x) should be LOG (SUB x 1)
     type W (Sized x) = x  -- LOG (SUB x 1)
     data X (Sized x)  = XSized (Maybe (Sized x))
     optX (Just x)   = XSized $ return x
@@ -303,8 +301,7 @@ instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
 
     unX (XFunction f) = return (\ a ->
         let fromJust' (Just x) = x
-            -- TODO  Fixme
-            fromJust' _ = error $ "???" -- show ("X",repType (Witness :: Witness (ix -> a)), showRep (optX (Just a) :: X ix))
+            fromJust' _ = error $ show ("X",repType (Witness :: Witness ((Sized ix) -> a)), showRep (optX (Just a) :: X (Sized ix)))
         in (fromJust' . unX . f) a)
 
     repType Witness = MatrixTy (fromInteger (fromNat (sing :: Sing ix))) (repType (Witness :: Witness a))
@@ -391,18 +388,16 @@ sizedFromRepToIntegral w
 
 -----------------------------------------------------------------
 
--- TODO.  Make this work
-{-
-instance (Enum ix) => Rep (Sampled.Sampled m ix) where
+instance (SingI m, SingI ix) => Rep (Sampled.Sampled m ix) where
         type W (Sampled.Sampled m ix) = ix
 	data X (Sampled.Sampled m ix) = XSampled (Maybe (Sampled.Sampled m ix))
 	optX (Just b)	    = XSampled $ return b
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (Just a))     = return a
 	unX (XSampled Nothing)   = fail "Wire Sampled"
-	repType _   	    = SampledTy (size (error "witness" :: m)) (size (error "witness" :: ix))
+	repType _   	    = SampledTy (fromIntegral (fromSing (sing :: Sing m))  - 1)
+                                        (fromIntegral (fromSing (sing :: Sing ix)) - 1)
 	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toMatrix a
-	fromRep r = optX (liftM (Sampled.fromMatrix . elems) $ getValidRepValue r)
+	fromRep r = optX (liftM (Sampled.fromMatrix . M.matrix) $ getValidRepValue r)
 	showRep = showRepDefault
--}

@@ -136,7 +136,7 @@ asyncRead a d = mustAssignSLV $ primXS2 fn "asyncRead" a d
 -- because this actually clones the memory to allow this to work,
 -- generating lots of LUTs and BRAMS.
 memoryToMatrix ::  (SingI a, Rep d, Clock clk, sig ~ Signal clk)
-	=> sig ((Sized a) -> d) -> sig (Matrix (Sized a) d)
+	=> sig ((Sized a) -> d) -> sig (Vector a d)
 memoryToMatrix mem = pack (forAll $ \ x -> asyncRead mem (pureS x))
 
 -- | Apply a function to the Enabled input signal producing a Pipe.

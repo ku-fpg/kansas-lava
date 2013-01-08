@@ -106,17 +106,13 @@ bitNot :: ( sig ~ Signal i) => sig Bool -> sig Bool
 bitNot s1 = primS1 not "not"  s1
 
 -- | Extract the n'th bit of a signal that can be represented as Bits.
-testABit :: forall a i w sig . (SingI w, Bits a, Rep a, (W (Sized w)) ~ (W a), sig ~ Signal i)
+-- testABit :: forall a i w sig . (SingI w, Bits a, Rep a, W (Vector w Bool) ~ (W a), sig ~ Signal i)
+testABit :: forall a i w sig . (SingI w, Bits a, Rep a, w ~ (W a), sig ~ Signal i)
           => sig a -> sig (Sized w) -> sig Bool
-testABit = undefined
-
--- TODO  Fixme:      Could not deduce ((W a * 1) ~ W a)
-{-
 testABit sig0 ix = sig1 .!. ix
   where
-          sig1 :: sig (Matrix (Sized w) Bool)
+          sig1 :: sig (Vector w Bool)
           sig1 = (bitwise) sig0
--}
 
 {-
  - old test-a-bit
@@ -127,9 +123,12 @@ testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
 -}
 
 -- | Predicate to see if a Signed value is positive.
-isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i) => sig (Signed ix) -> sig Bool
-isPositive a = bitNot $ testABit a (fromIntegral msb)
-    where msb = bitSize a - 1
+-- isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i, W (Signed ix) ~  W (Vector ix Bool))
+isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i)
+              => sig (Signed ix) -> sig Bool
+isPositive a = bitNot $ testABit a (pureS asSized)
+    where msb = toInteger $ typeWidth (typeOfS a) - 1
+          asSized = (mkSized msb) :: Sized (W (Signed ix))
 
 infixr 3 .&&.
 infixr 2 .||.
@@ -500,9 +499,7 @@ loopingDecS a = mux (a .==. 0) (a - 1, pureS maxBound)
 ---------------------------------------------------------------------
 
 -- Message works in shallow only
--- TODO  Make this work.
-{-
-message :: forall ix a clk . (Integral ix, Size ix, Rep a) => (a -> String) -> Signal clk a -> Signal clk (Message ix)
+message :: forall ix a clk . (SingI ix, Rep a) => (a -> String) -> Signal clk a -> Signal clk (Message ix)
 message f (Signal i _) = Signal s (D $ Error "incorrect use of deep Signal to generate a message")
   where s = fmap (\ v -> case unX v of
                            Nothing -> unknownX
@@ -510,6 +507,4 @@ message f (Signal i _) = Signal s (D $ Error "incorrect use of deep Signal to ge
         check_len str | str_len <= ix_len = str
                       | otherwise  = error $ "message string to long (found " ++ show str_len ++ ", expecting <= " ++ show ix_len ++ ")"
            where str_len = Prelude.length str
-                 ix_len  = size (error "witness" :: ix)
-
--}
+                 ix_len  = fromInteger $ fromNat (sing :: Sing ix)
