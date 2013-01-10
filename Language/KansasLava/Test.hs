@@ -51,8 +51,6 @@ import System.Exit
 import System.FilePath as FP
 import qualified System.IO.Strict as Strict
 import qualified System.Random as R
-import Data.Sized.Sized
---import System.Random
 
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Universal
@@ -173,7 +171,7 @@ testFabrics opts simMods name count f_dut f_expected
 --                                           vrb 9 $ show ("trace",fromJust t)
                                       | (modname, t) <- zip (map fst sims) ts
                                       , isJust t
-                                      , let vrb = verbose (verboseOpt opts) (name </> modname)
+                                      , let _vrb = verbose (verboseOpt opts) (name </> modname)
                                       , let rep = report (name </> modname)
                                       ]
 

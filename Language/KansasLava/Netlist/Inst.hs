@@ -101,15 +101,15 @@ genInst _ i e@(Entity (Prim "id") [(vO,tyO)] [(_,tyI,d)]) =
                    | j <- [0..(fromIntegral n - 1)]
                    ]
                   ExprConcat es | length es == n ->
-                   [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j) e
-                   | (j,e) <- zip [0..(fromIntegral n - 1)] (reverse es)
+                   [  MemAssign (sigName vO i) (ExprLit Nothing $ ExprNum j) e'
+                   | (j,e') <- zip [0..(fromIntegral n - 1)] (reverse es)
                    ]
            _ -> [  NetAssign (sigName vO i) $ toStdLogicExpr tyI d ]
   where
      -- we assume the expression is a var name for matrix types (no constants here)
-     (ExprVar varname) = case toStdLogicExpr tyI d of
-                             ExprVar varname -> ExprVar varname
-                             other -> error $ "Prim id " ++ show (i,e,other)
+     (ExprVar _) = case toStdLogicExpr tyI d of
+                     ExprVar varname -> ExprVar varname
+                     other -> error $ "Prim id " ++ show (i,e,other)
 
 -- Concat and index (join, project)
 
@@ -168,7 +168,7 @@ genInst _ i e@(Entity (Prim "index")
 				   Port v n -> sigName v (fromIntegral n)
 				   _ -> error (show ("genInst/index",e,other))
 
-genInst _ i e@(Entity (Prim "unconcat")  outs ins)
+genInst _ i e@(Entity (Prim "unconcat")  _outs _ins)
         = [ CommentDecl $ show (i,e) ]
 
 genInst _ i (Entity (Prim "unconcat")  outs [("i0", ty@(MatrixTy n inTy), dr)])

@@ -27,7 +27,7 @@ data Pad = StdLogic (Seq Bool)
 rank2MapPad :: (forall a . Rep a => Seq a -> Seq a) -> Pad -> Pad
 rank2MapPad f (StdLogic ss)       = StdLogic       (f ss)
 rank2MapPad f (StdLogicVector ss) = StdLogicVector (f ss)
-rank2MapPad f other               = other
+rank2MapPad _f other              = other
 
 
 -- | Get the type of a pad.
@@ -96,7 +96,7 @@ repValuesToPad other _ = error $ "can not find Pad for " ++ show other
 
 -- internal
 padToPad :: forall a . (Rep a) => Seq a -> [RepValue] -> Seq a
-padToPad s rep = id
+padToPad _s rep = id
         $ mkShallowS
         $ fmap fromRep
         $ S.fromList

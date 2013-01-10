@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, FlexibleContexts,
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, TypeFamilies, FlexibleContexts,
   DataKinds, TypeOperators #-}
 
 module Language.KansasLava.Wakarusa
@@ -51,8 +51,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
-import Language.KansasLava.Protocols.Types
-import Language.KansasLava.Types
 import Language.KansasLava.Universal
 
 
@@ -68,7 +66,6 @@ import Control.Monad.Reader
 import GHC.TypeLits
 
 import Debug.Trace
-import System.IO.Unsafe
 
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -503,7 +500,7 @@ transitiveClosure f a = fixpoint $ iterate step (Set.singleton a)
 data ReadAckBox a = ReadAckBox (EXPR (Enabled a)) (REG ())
 
 connectReadAckBox
-        :: forall a . (Rep a, SingI ((W a) + 1), Show a)
+        :: forall a . (Rep a, SingI (1 + (W a)), Show a)
         => String -> String -> STMT (ReadAckBox a)
 connectReadAckBox inpName ackName = do
         i :: EXPR (Maybe a)   <- INPUT  (inStdLogicVector inpName)

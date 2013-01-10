@@ -1,6 +1,6 @@
 -- Stuff for the FED / LHC work
 
-{-# LANGUAGE ScopedTypeVariables, BangPatterns, RecursiveDo, DoRec, UndecidableInstances, FlexibleContexts, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, BangPatterns, RecursiveDo, UndecidableInstances, FlexibleContexts, KindSignatures, RankNTypes, GADTs, RecordWildCards, FlexibleInstances #-}
 module FED where
 
 import Language.KansasLava

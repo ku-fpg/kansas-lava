@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, RecursiveDo, DoRec #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, TypeOperators, RecursiveDo #-}
 module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Enabled,
 	module Language.KansasLava.Protocols.Memory,
@@ -20,15 +20,9 @@ import Language.KansasLava.Protocols.Patch
 import Language.KansasLava.Types
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
-import  qualified Language.KansasLava.Stream as S
-import Language.KansasLava.Stream (Stream(..), cons)
-import Language.KansasLava.Utils
-import Data.Sized.Unsigned
 
-import Control.Monad.ST
 import Control.Concurrent
 import Control.Concurrent.STM
-import Data.STRef
 
 
 --takeMVarS :: MVar (X a) -> IO (Signal i a)
@@ -70,7 +64,7 @@ instance Response Ready where
                     _                       -> return Nothing
                   putMVar out (pureX o)
                   loop ens
-          forkIO $ loop $ fromS enB
+          _ <- ($) forkIO $ loop $ fromS enB
 
           return r
 
@@ -96,7 +90,7 @@ instance Response Ready where
                     False -> return ()
                   loop ens
 
-          forkIO $ loop $ fromS enB
+          _ <- ($) forkIO $ loop $ fromS enB
 
           return r
 

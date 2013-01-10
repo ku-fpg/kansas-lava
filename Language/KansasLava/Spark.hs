@@ -1,39 +1,27 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies,
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, TypeFamilies,
              FlexibleInstances, FlexibleContexts, DataKinds #-}
 
 module Language.KansasLava.Spark where
 
 import Language.KansasLava.Signal
-import Language.KansasLava.Probes
 import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
-import Language.KansasLava.Protocols.Types
 import Language.KansasLava.Types
-import Language.KansasLava.Universal
 
 import Data.Boolean
 
-import Data.Monoid
-
 import Data.Sized.Sized
 import Data.Sized.Unsigned
-import Data.Sized.Matrix as M
 
 import Control.Monad.Fix
-import Data.Map as Map
 import Control.Monad.State
-import Control.Monad.Reader
 
 import GHC.TypeLits
 
 import Debug.Trace
-import System.IO.Unsafe
-
-import qualified Data.Set as Set
-import Data.Set (Set)
 
 infixr 1 :=
 infixr 1 :?
@@ -69,16 +57,16 @@ instance Variable (Signal CLK) where
 
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-initially :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
+initially :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
 initially a = do
         var <- newSignalVar
-        let f a rest = mux (isEnabled a) (rest,enabledVal a)
+        let f x rest = mux (isEnabled x) (rest,enabledVal x)
         sig <- readSignalVar var $ \ xs ->
                 let r = register a $ Prelude.foldr f r xs
                 in r
         return (VAR (toVAR (R var,sig :: Signal CLK a)))
 
-uninitialized :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
+uninitialized :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
 uninitialized = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -96,7 +84,7 @@ data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
 
 -- CHAN rdr wtr :: CHAN Int <- channel
 
-channel :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
+channel :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
 channel = do
         var :: SignalVar CLK (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
@@ -110,7 +98,7 @@ data Writer a = Writer (REG a) (Signal CLK (Enabled ()))
 
 data BUS a = BUS (Bus a) (Writer a)
 
-bus :: forall a var m . (SparkM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
+bus :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
 bus = do CHAN rdr wtr :: CHAN a <- channel
          CHAN rdr' wtr' :: CHAN () <- channel
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
@@ -119,21 +107,21 @@ bus = do CHAN rdr wtr :: CHAN a <- channel
 --
 putBus :: (Rep a, SingI (W (Enabled a))) => Writer a -> Signal CLK a -> STMT b -> STMT b
 putBus (Writer reg ack) sig k = do
-        start <- LABEL
+        startLoc <- LABEL
         -- send data
         reg := sig
         -- wait for ack
-        notB (isEnabled ack) :? GOTO start
+        notB (isEnabled ack) :? GOTO startLoc
         k
 
 takeBus :: (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => Bus a -> REG a -> STMT b -> STMT b
 takeBus (Bus inp ack) reg k = do
-        start <- LABEL
+        startLoc <- LABEL
         (isEnabled inp) :? do
                 reg := enabledVal inp
                 ack := pureS ()
         (notB (isEnabled inp)) :? do
-                GOTO start
+                GOTO startLoc
         k
 
 fifo :: forall a . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)))=> Bus a -> Fabric (Bus a)
@@ -143,8 +131,8 @@ fifo lhs_bus = do
 
     pc <- spark $ do
             lab <- LABEL
-            takeBus lhs_bus reg         $ STEP
-            putBus rhs_bus_writer reg   $ GOTO lab
+            _ <- ($) takeBus lhs_bus reg   $ STEP
+            putBus rhs_bus_writer reg      $ GOTO lab
             return ()
 
     outStdLogicVector "fifo_pc" pc
@@ -156,13 +144,12 @@ latchBus :: forall a m . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), 
 latchBus inp = do
         BUS rhs_bus rhs_bus_writer :: BUS a <- bus
         VAR reg                    :: VAR a <- uninitialized
-        spark $ do
-                lab <- STEP
-                (isEnabled inp) :?              reg := enabledVal inp
-                (notB (isEnabled inp)) :?       GOTO lab
-                STEP
-                putBus rhs_bus_writer reg
-                                              $ GOTO lab
+        _ <- ($) spark $ do
+                         lab <- STEP
+                         (isEnabled inp) :?              reg := enabledVal inp
+                         (notB (isEnabled inp)) :?       GOTO lab
+                         _ <- STEP
+                         putBus rhs_bus_writer reg $ GOTO lab
         return rhs_bus
 
 data MEM a d = MEM (Signal CLK d) (REG a) (REG (a,d))

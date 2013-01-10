@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
-    FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, DoRec, RankNTypes, DataKinds, InstanceSigs  #-}
+    FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, RankNTypes, DataKinds, InstanceSigs  #-}
 
 
 -- | The Fabric module is used for generating a top-level VHDL entity for a Lava
@@ -309,7 +309,7 @@ hWriterFabric h table = do
 --                    print (n,t)
                     loop (n+1) ts
 
-        liftIO $ forkIO $ loop 0 $  map (concatMap showPackedRepValue) $ transpose xs
+        _ <- ($) liftIO $ forkIO $ loop 0 $  map (concatMap showPackedRepValue) $ transpose xs
 
         return ()
 
@@ -335,7 +335,7 @@ hReaderFabric h table = do
         str <- liftIO $ hGetContents h
         let strs :: [String] = lines str
 
-        foldl (>>=) (return 0)
+        _ <- foldl (>>=) (return 0)
                 [ \ p -> do -- infinite stream of inputs, space leak generator
                             -- NOTE: External is MSF, internally (RepValue) is LSF.
                      let xs = [ case readPackedRepValue $ take w $ drop p $ s of
@@ -383,13 +383,13 @@ instance (MonadFix m) => SparkM (SuperFabric m) where
             write :: forall a . (Rep a, SingI (W a)) => SignalVar CLK a -> Signal CLK a -> SuperFabric m ()
             write (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
                 where pad = StdLogicVector $ (bitwise sig :: Seq (ExternalStdLogicVector (W a)))
-        readSignalVar = read
+        readSignalVar = readSV
           where
-            read :: forall a b . (Rep a, SingI (W a))
+            readSV :: forall a b . (Rep a, SingI (W a))
                       => SignalVar CLK a
                       -> ([Signal CLK a] -> Signal CLK b)
                       -> SuperFabric m (Signal CLK b)
-            read (SignalVar uq) f = Fabric $ \ inps st ->
+            readSV (SignalVar uq) f = Fabric $ \ inps st ->
                 return (f
                         $ [ unsafeId s
                         | (uq',StdLogicVector s) <- in_vars inps
@@ -430,11 +430,11 @@ reifyFabric (Fabric circuit) = do
         -- output pad names.
         (gr, outpads) <- case o of
                 Port _ o' -> do
-                   (Graph gr out) <- reifyGraph o'
+                   (Graph gr gr_out) <- reifyGraph o'
                    let gr' = [ (nid,nd) | (nid,nd) <- gr
-                                        , nid /= out
+                                        , nid /= gr_out
                              ]
-                   case lookup out gr of
+                   case lookup gr_out gr of
                      Just (Entity (Prim "top")  _ ins) ->
                        return (gr',[(nm,ity, driver)
                                        | (nm,ity,driver) <- ins
@@ -628,7 +628,7 @@ joinStdLogicVector kleg =
                                               Pad nm1 -> case lookup nm1 oldInputs of
                                                         Just port -> port
                                                         Nothing   -> src
-                                              other -> src
+                                              _other -> src
                                       ])
 
           newNames = allocEntities kleg
