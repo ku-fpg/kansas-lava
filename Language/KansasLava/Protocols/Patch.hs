@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, DoRec, ScopedTypeVariables, FlexibleContexts, TypeFamilies,
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TypeFamilies,
              ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs,
              RankNTypes, UndecidableInstances, TypeOperators, NoMonomorphismRestriction,
              DataKinds #-}
@@ -21,6 +21,7 @@ import Language.KansasLava.Signal
 import Data.Sized.Sized
 import Data.Sized.Unsigned (U8)
 import Data.Sized.Matrix as M
+import Data.Sized.TypeNatInstances()
 
 import qualified Data.ByteString.Lazy as B
 import Control.Applicative
@@ -420,7 +421,7 @@ deMuxP = fe $$ matrixDeMuxP $$ be
 --	fe = fstP (forwardP ((unsigned)))
 	fe = fstP (mapP (unsigned))
 	be = backwardP (\ ~(b :> c) -> matrix [c,b]) $$
-	     forwardP (\ m -> ((m ! ((MkSized 1) :: (Sized 2))) :> (m ! 0)))
+	     forwardP (\ m -> ((m ! (1 :: (Sized 2))) :> (m ! (0:: (Sized 2)))))
 
 -- | matrixDeMuxP is the generalization of deMuxP to a matrix of signals.
 matrixDeMuxP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)
@@ -474,7 +475,7 @@ muxP :: (Clock c, sig ~ Signal c, Rep a)
 muxP = fe $$ matrixMuxP
    where
 	fe = forwardP (\ ~(a :> b :> c) -> (mapEnabled (unsigned) a :> matrix [c,b])) $$
-	     backwardP (\ ~(a :> m) -> (a :> (m ! ((MkSized 1) :: (Sized 2))) :> (m ! 0)))
+	     backwardP (\ ~(a :> m) -> (a :> (m ! (1:: (Sized 2))) :> (m ! (0:: (Sized 2)))))
 
 
 -- | 'matrixMuxP' chooses the n-th value, based on the index value.
@@ -730,7 +731,7 @@ mergeP :: forall c sig a . (Clock c, sig ~ Signal c, Rep a)
 mergeP plan = fe $$ matrixMergeP plan
   where
 	fe = forwardP (\ ~(b :> c) -> (matrix [b,c])) $$
-	     backwardP (\ ~m -> ( (m ! ((MkSized 0) :: (Sized 2))) :> (m ! ((MkSized 1) :: (Sized 2)))))
+	     backwardP (\ ~m -> ( (m ! (0:: (Sized 2))) :> (m ! (1:: (Sized 2)))))
 
 
 matrixMergeP :: forall c sig a x . (Clock c, sig ~ Signal c, Rep a, SingI x)

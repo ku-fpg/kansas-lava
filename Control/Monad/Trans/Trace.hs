@@ -34,7 +34,7 @@ data Trace :: * -> * -> * where
         ReturnTrace :: a                -> Trace e a
 
 instance Show e => Show (Trace e a) where
-        show (EventTrace event _) = show event
+        show (EventTrace ev _) = show ev
         show (BindTrace m n) = show m ++ ";" ++ show n
         show (ReturnTrace _) = "-"
 

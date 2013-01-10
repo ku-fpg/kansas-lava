@@ -15,7 +15,6 @@ import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 --import Language.KansasLava.VCD
 
-import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Data.IORef
 import Control.DeepSeq

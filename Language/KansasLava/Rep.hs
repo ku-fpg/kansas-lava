@@ -204,7 +204,7 @@ instance (Rep a, Rep b, Rep c) => Rep (a,b,c) where
                 "," ++ showRep c ++ ")"
 
 instance (Rep a) => Rep (Maybe a) where
-    type W (Maybe a) = (W a) + 1
+    type W (Maybe a) = 1 + W a
     -- not completely sure about this representation
     data X (Maybe a) = XMaybe (X Bool, X a)
     optX b      = XMaybe ( case b of
@@ -398,6 +398,6 @@ instance (SingI m, SingI ix) => Rep (Sampled.Sampled m ix) where
 	repType _   	    = SampledTy (fromIntegral (fromSing (sing :: Sing m))  - 1)
                                         (fromIntegral (fromSing (sing :: Sing ix)) - 1)
 	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
-	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toMatrix a
-	fromRep r = optX (liftM (Sampled.fromMatrix . M.matrix) $ getValidRepValue r)
+	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toVector a
+	fromRep r = optX (liftM (Sampled.fromVector . M.matrix) $ getValidRepValue r)
 	showRep = showRepDefault

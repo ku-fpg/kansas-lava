@@ -16,7 +16,6 @@ import Data.Bits
 import Data.Array.IArray
 import GHC.TypeLits
 
-import Data.Sized.Sized
 import Data.Sized.Matrix as M
 
 import Language.KansasLava.Stream (Stream(Cons))
@@ -24,7 +23,6 @@ import Language.KansasLava.Rep
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
-import Control.Concurrent.STM
 import Control.Concurrent
 import System.IO.Unsafe
 
@@ -92,7 +90,7 @@ widthS _ = repWidth (Witness :: Witness a)
 
 writeIOS :: Signal i a -> (X a -> IO ()) -> IO ()
 writeIOS sig m = do
-        forkIO $ loop (shallowS sig)
+        _ <- ($) forkIO $ loop (shallowS sig)
         return ()
   where
           loop (Cons x r) = do
@@ -193,6 +191,11 @@ instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     bitSize s      = typeWidth (typeOfS s)
     isSigned s     = isTypeSigned (typeOfS s)
     bit            = pureS . bit
+    -- TODO.  testBit for  Bits (Signal i a)
+    testBit        = undefined
+    -- TODO.  popCount for  Bits (Signal i a)
+    popCount       = undefined
+
 
 instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where
     s1 / s2 = primS2 (/) "/"  s1  s2
@@ -349,18 +352,18 @@ instance (Rep a, Rep b, Rep c, Signal sig) => Pack sig (a,b,c) where
 		    )
 -}
 
-unpackMatrix :: (Rep a, SingI x, sig ~ Signal clk) => sig (M.Matrix (Sized x) a) -> M.Matrix (Sized x) (sig a)
+unpackMatrix :: (Rep a, SingI x, sig ~ Signal clk) => sig (M.Vector x a) -> M.Vector x (sig a)
 unpackMatrix a = unpack a
 
-packMatrix :: (Rep a, SingI x, sig ~ Signal clk) => M.Matrix (Sized x) (sig a) -> sig (M.Matrix (Sized x) a)
+packMatrix :: (Rep a, SingI x, sig ~ Signal clk) => M.Vector x (sig a) -> sig (M.Vector x a)
 packMatrix a = pack a
 
-instance (Rep a, SingI ix) => Pack clk (Matrix (Sized ix) a) where
-	type Unpacked clk (Matrix (Sized ix) a) = Matrix (Sized ix) (Signal clk a)
+instance (Rep a, SingI ix) => Pack clk (M.Vector ix a) where
+	type Unpacked clk (M.Vector ix a) = M.Vector ix (Signal clk a)
         pack m = Signal shallow
                      deep
           where
-                shallow :: (S.Stream (X (Matrix (Sized ix) a)))
+                shallow :: (S.Stream (X (M.Vector ix a)))
                 shallow = id
                         $ S.fromList            -- Stream (X (Matrix ix a))
                         $ fmap XMatrix          -- [(X (Matrix ix a))]
@@ -371,19 +374,19 @@ instance (Rep a, SingI ix) => Pack clk (Matrix (Sized ix) a) where
                         $ elems                 -- [sig a]
                         $ m                     -- Matrix ix (sig a)
 
-                deep :: D (Matrix (Sized ix) a)
+                deep :: D (M.Vector ix a)
                 deep = D
                      $ Port "o0"
                      $ E
                      $ Entity (Prim "concat")
-                                 [("o0",repType (Witness :: Witness (Matrix (Sized ix) a)))]
+                                 [("o0",repType (Witness :: Witness (M.Vector ix a)))]
                                  [ ("i" ++ show i,repType (Witness :: Witness a),unD $ deepS $ x)
                                  | (x,i) <- zip (elems m) ([0..] :: [Int])
                                  ]
 
-        unpack ms = forAll $ \ i -> Signal (shallow i) (deep i)
+        unpack ms = M.forAll $ \ i -> Signal (shallow i) (deep i)
 
-	   where mx :: Matrix (Sized ix) Integer
+	   where mx :: M.Vector ix Integer
 		 mx = matrix (Prelude.zipWith (\ _ b -> b) (indices mx) [0..])
 
                  deep i = D
@@ -392,7 +395,7 @@ instance (Rep a, SingI ix) => Pack clk (Matrix (Sized ix) a) where
                         $ Entity (Prim "index")
                                  [("o0",repType (Witness :: Witness a))]
                                  [("i0",GenericTy,Generic (mx ! i))
-                                 ,("i1",repType (Witness :: Witness (Matrix (Sized ix) a)),unD $ deepS ms)
+                                 ,("i1",repType (Witness :: Witness (M.Vector ix a)),unD $ deepS ms)
                                  ]
 
                  shallow i = fmap (liftX (! i)) (shallowS ms)

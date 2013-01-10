@@ -19,7 +19,8 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes
 import Data.Sized.Sized
-import Control.Monad.ST
+import Control.Monad.ST hiding (unsafeInterleaveST)
+import Control.Monad.ST.Unsafe
 import Data.STRef
 import Data.List as L
 

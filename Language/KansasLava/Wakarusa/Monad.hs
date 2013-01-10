@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, DataKinds #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, TypeFamilies, DataKinds #-}
 
 module Language.KansasLava.Wakarusa.Monad where
 
@@ -6,7 +6,6 @@ import Language.KansasLava.Wakarusa.AST
 
 import Language.KansasLava.Signal
 import Language.KansasLava.Fabric
-import Language.KansasLava.Probes
 import Language.KansasLava.Rep
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
@@ -15,8 +14,6 @@ import Language.KansasLava.Universal
 import Language.KansasLava.Utils
 import Language.KansasLava.Types
 
-import Data.Sized.Matrix as M hiding ((!))
-import Data.Sized.Unsigned (Unsigned)
 import Data.Sized.Sized
 
 import Data.Map as Map
@@ -25,8 +22,6 @@ import GHC.TypeLits
 
 import Control.Monad.State
 import Control.Monad.Reader
-
-import Debug.Trace
 
 data WakarusaState = WakarusaState
         { ws_uniq     :: Uniq
@@ -299,6 +294,7 @@ prepareInstSlot = do
           SlotStatus True  True ->
                 error "attempting to insert more than one consecutive instruction into a par"
 
+prettyPrintPC :: StateT WakarusaState (ReaderT WakarusaEnv Fabric) ()
 prettyPrintPC = do
         st <- get
         env <- ask

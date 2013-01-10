@@ -29,22 +29,13 @@ import Language.KansasLava.Universal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Probes
 
-import GHC.TypeLits
-
-import Control.Monad
-
 import Control.Monad.Fix
 import Data.Char
-import qualified Data.Foldable as F
-import Data.Function
 import Data.List
 import qualified Data.Map as M
 import Control.Concurrent.MVar
 import System.IO.Unsafe
-import Data.IORef
-import Control.DeepSeq
 import System.IO
-import qualified Data.Map as M
 import System.FilePath as FP
 
 -- testing
@@ -138,14 +129,9 @@ rep2tbw (RepValue vals) = [ case v of
 
 ----------------------------------------------------------------------------
 
--- We keep this thread-safe, just in case.
-{-# NOINLINE vcdOfProbes #-}
-vcdOfProbes :: MVar VCD
-vcdOfProbes = unsafePerformIO $ newEmptyMVar
-
 {-# NOINLINE probesToVCD #-}
 probesToVCD :: Int -> Integer -> String -> IO () -> IO ()
-probesToVCD size speed filename todo = do
+probesToVCD _size speed filename todo = do
         v <- newMVar emptyVCD
         setShallowProbes $ \ nm clkNo x -> unsafePerformIO $ do
                 modifyMVar_ v $ \ vcd -> return (snocVCD nm (fromIntegral clkNo) x vcd)
@@ -178,11 +164,11 @@ vcSplice vc from to = loop (vcInit vc) (reverse [ (i,v) | (i,v) <- vcChanges vc]
           loop _ _                []     = []
           loop (RepValue xs) rs (k:ks)
                 | k > vcEnd vc = RepValue (map (const Nothing) xs) : loop (RepValue xs) rs ks
-          loop i rs@((clk,val):rs1) (k:ks)
+          loop _ ((clk,val):rs1) (k:ks)
                 | k > clk      = loop val rs1 (k:ks)
-          loop i rs@((clk,val):rs1) (k:ks)
+          loop _ ((clk,val):rs1) (k:ks)
                 | k == clk     = val : loop val rs1 ks
-          loop i rs (k:ks)
+          loop i rs (_k:ks)
                 | otherwise    = i   : loop i   rs  ks
 
 showVCColumn :: VC -> Int -> Int -> [String]
@@ -262,16 +248,19 @@ splitVCD (VCD i m) j = (VCD i before,VCD j after)
                                                    e
                         ) m
 
+testVC1 :: VC
 testVC1 = VC (V 4)
               (toRep (unknownX :: X U4))
               [(i,toRep (pureX (fromIntegral i) :: (X (Sized 4)))) | i <- reverse [0..10], i < 4 || i > 7]
               10
 
+testVC2 :: VC
 testVC2 = VC B
               (toRep (unknownX :: X U1))
               [(i,toRep (pureX (fromIntegral i) :: X (Unsigned 1))) | i <- reverse [0..12]]
               12
 
+testVCD1 :: VCD
 testVCD1 = VCD 0 (M.fromList [("inputs/x",testVC1),("outputs/y",testVC2)])
 
 
@@ -402,10 +391,4 @@ testF_TB = do
         outStdLogicVector "y" (toS [100..200] :: Seq U8)
         z :: Seq U8 <- inStdLogicVector "z"
         return [ maybe False (\ z' -> z' == x' + y') ss | (x',y',ss) <- zip3 [1..100] [100..200] (fromS z)]
-
-foo = do
-        let Pure ~(f,vcd) = runFabricWithDriver testF (recordVCDFabric 100 testF_TB)
-        print f
-        return vcd
---        print vcd
 

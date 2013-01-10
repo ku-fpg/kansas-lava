@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, DoRec, TypeFamilies, DataKinds #-}
+{-# LANGUAGE GADTs, KindSignatures, RankNTypes, ScopedTypeVariables, RecursiveDo, TypeFamilies, DataKinds #-}
 
 module Language.KansasLava.Wakarusa.AST where
 
@@ -72,6 +72,7 @@ data STMT :: * -> * where
         BIND   :: STMT a -> (a -> STMT b) -> STMT b
         MFIX   :: (a -> STMT a) -> STMT a
 
+(|||) :: STMT () -> STMT () -> STMT ()
 a ||| b = PAR a b
 
 

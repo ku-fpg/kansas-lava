@@ -72,7 +72,6 @@ import Language.KansasLava.Rep
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
-import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
 import Language.KansasLava.Spark
 

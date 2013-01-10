@@ -21,6 +21,7 @@ import Language.KansasLava.Types
 import Data.Sized.Sized
 import Data.Sized.Matrix	as M
 import Data.Sized.Signed	as SI
+import Data.Sized.TypeNatInstances()
 
 -----------------------------------------------------------------------------------------------
 
@@ -128,7 +129,8 @@ isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i)
               => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a (pureS asSized)
     where msb = toInteger $ typeWidth (typeOfS a) - 1
-          asSized = (mkSized msb) :: Sized (W (Signed ix))
+          asSized :: Sized (W (Signed ix))
+          asSized = fromInteger msb
 
 infixr 3 .&&.
 infixr 2 .||.
