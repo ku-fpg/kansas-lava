@@ -99,7 +99,7 @@ instance Rep Integer where
 newtype Message (ix :: Nat) = Message String
 
 instance (SingI ix) => Rep (Message ix) where
-    type W (Message ix)            = ix + 3
+    type W (Message ix)            = ix * 8
     data X (Message ix)            = XMessage !(Maybe String)
     optX b                         = XMessage $ fmap (\ (Message m) -> m) b
     unX (XMessage v)               = fmap Message v
