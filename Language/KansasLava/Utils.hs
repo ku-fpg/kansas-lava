@@ -72,7 +72,7 @@ or2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
 xor2 :: ( sig ~ Signal i) => sig Bool -> sig Bool -> sig Bool
 xor2 s1 s2 = primXS2 (\ a b -> case (unX a,unX b) of
 	     (Just a',Just b') -> optX $ Just (a' /= b')
-             _                 -> optX $ Nothing ) "or2"
+             _                 -> optX $ Nothing ) "xor2"
          s1
          s2
 
