@@ -85,9 +85,6 @@ Library
        Language.KansasLava.Utils
        Language.KansasLava.Universal
        Language.KansasLava.VHDL
-       Language.KansasLava.Wakarusa
-       Language.KansasLava.Wakarusa.AST
-       Language.KansasLava.Wakarusa.Monad
        Language.KansasLava.Stream
        Language.KansasLava.VCD
        FED
