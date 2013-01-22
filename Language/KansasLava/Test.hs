@@ -123,10 +123,10 @@ testFabrics opts simMods name count f_dut f_expected
 
         verb 2 $ "testing(" ++ show count ++ ")"
 
-        let inp :: [(String,Pad)]
+        let inp :: [(String,Pad CLK)]
             Pure (expected_fn,inp) = runFabric f_expected shallow
 
-            shallow :: [(String,Pad)]
+            shallow :: [(String,Pad CLK)]
             Pure (_,shallow) = runFabric f_dut inp
 
             expected = expected_fn count

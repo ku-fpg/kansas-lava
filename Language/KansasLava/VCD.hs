@@ -221,7 +221,7 @@ valueAt (VC _ i c e) now | now > e   = error "valueAt passed end of time"
 
 
 -- | Convert a Pad to a Tracestream
-padToVC :: Int -> Pad -> VC
+padToVC :: (Clock c) => Int -> Pad c -> VC
 padToVC i (StdLogic s)       = convertVC i s
 padToVC i (StdLogicVector s) = convertVC i s
 padToVC _ other = error $ "fix padToVC for " ++ show other
@@ -360,7 +360,7 @@ writeVCD h (VCD i m) = do
 
          vcs = vcdIds `zip` M.assocs m
 
-recordVCDFabric :: (MonadFix m) => Int -> SuperFabric m a -> SuperFabric m (a,VCD)
+recordVCDFabric :: (MonadFix m, Clock c) => Int -> SuperFabric c m a -> SuperFabric c m (a,VCD)
 recordVCDFabric i fab = do
         (a,ins,vars,outs) <- recordFabric fab
         return (a,VCD 0 $ foldr (\ (nm,val) -> M.insert nm (padToVC i val))

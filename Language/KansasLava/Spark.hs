@@ -23,6 +23,7 @@ import GHC.TypeLits
 
 import Debug.Trace
 
+{-
 infixr 1 :=
 infixr 1 :?
 
@@ -41,7 +42,7 @@ start = L 0
 data REG a where
     R :: SignalVar CLK (Enabled a) -> REG a
 
-assign :: (SparkM m, Rep a, SingI (W (Enabled a))) => REG a -> Seq a -> m ()
+assign :: (LocalM m, Rep a, SingI (W (Enabled a))) => REG a -> Seq a -> m ()
 assign (R v) e = writeSignalVar v (enabledS e)
 
 -------------------------------------------------------------------------------
@@ -57,7 +58,7 @@ instance Variable (Signal CLK) where
 
 data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-initially :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
+initially :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
 initially a = do
         var <- newSignalVar
         let f x rest = mux (isEnabled x) (rest,enabledVal x)
@@ -66,7 +67,7 @@ initially a = do
                 in r
         return (VAR (toVAR (R var,sig :: Signal CLK a)))
 
-uninitialized :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
+uninitialized :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
 uninitialized = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
@@ -84,7 +85,7 @@ data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
 
 -- CHAN rdr wtr :: CHAN Int <- channel
 
-channel :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
+channel :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
 channel = do
         var :: SignalVar CLK (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
@@ -98,7 +99,7 @@ data Writer a = Writer (REG a) (Signal CLK (Enabled ()))
 
 data BUS a = BUS (Bus a) (Writer a)
 
-bus :: forall a m . (SparkM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
+bus :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
 bus = do CHAN rdr wtr :: CHAN a <- channel
          CHAN rdr' wtr' :: CHAN () <- channel
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
@@ -140,7 +141,7 @@ fifo lhs_bus = do
     return rhs_bus
 
 
-latchBus :: forall a m . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)), SparkM m) => Signal CLK (Enabled a) -> m (Bus a)
+latchBus :: forall a m . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)), LocalM m) => Signal CLK (Enabled a) -> m (Bus a)
 latchBus inp = do
         BUS rhs_bus rhs_bus_writer :: BUS a <- bus
         VAR reg                    :: VAR a <- uninitialized
@@ -203,7 +204,7 @@ data SMState m = SMState
         { pc_reg :: REG U8
         , pc_sig :: Seq U8
         , pc_val :: U8
-        , st_fab :: (SparkM m) => m ()
+        , st_fab :: (LocalM m) => m ()
         , st_pred :: Pred
         }
 
@@ -267,7 +268,7 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred pc (PredFalse)       = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
-spark :: forall m . (SparkM m, SingI (W (Enabled U8))) => STMT () -> m (Seq U8)
+spark :: forall m . (LocalM m, SingI (W (Enabled U8))) => STMT () -> m (Seq U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
         VAR pc :: VAR U8 <- initially 0
@@ -342,4 +343,4 @@ instance IfB (STMT ()) where
                 return ()
             return ()
 
-
+-}

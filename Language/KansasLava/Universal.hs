@@ -17,21 +17,21 @@ import qualified Language.KansasLava.Stream as S
 -- 'Uni' is a universal signal. Called Pad for now.
 -- TODO: rename as Pad.
 
-data Pad = StdLogic (Seq Bool)
-         | forall a . (Rep a) => StdLogicVector (Seq a)
+data Pad c = StdLogic (Signal c Bool)
+         | forall a . (Rep a) => StdLogicVector (Signal c a)
          | GenericPad Integer
 	 | TheClk
 	 | TheRst
 	 | TheClkEn
 
-rank2MapPad :: (forall a . Rep a => Seq a -> Seq a) -> Pad -> Pad
+rank2MapPad :: (forall a c . Rep a => Signal c a -> Signal c a) -> Pad c -> Pad c
 rank2MapPad f (StdLogic ss)       = StdLogic       (f ss)
 rank2MapPad f (StdLogicVector ss) = StdLogicVector (f ss)
 rank2MapPad _f other              = other
 
 
 -- | Get the type of a pad.
-padStdLogicType :: Pad -> StdLogicType
+padStdLogicType :: Pad c -> StdLogicType
 padStdLogicType (StdLogic _)       = SL
 padStdLogicType (StdLogicVector s) = SLV $ widthS s
 padStdLogicType (GenericPad _)     = G
@@ -39,7 +39,7 @@ padStdLogicType (TheClk) 	   = SL
 padStdLogicType (TheRst) 	   = SL
 padStdLogicType (TheClkEn) 	   = SL
 
-instance Show Pad where
+instance Show (Pad c) where
         show (StdLogic sq)       = "StdLogic " ++ show sq
         show (StdLogicVector sq) = "StdLogicVector " ++ show sq
         show (GenericPad i)      = "Generic " ++ show i
@@ -48,17 +48,17 @@ instance Show Pad where
         show (TheClkEn)          = "ClkEn"
 
 -- NOTE: (2) Also, we need to match on Boolean.
-toUni :: (Rep a) => Seq a -> Pad
+toUni :: (Rep a) => Signal c a -> Pad c
 toUni = StdLogicVector
 
-fromUni :: forall a . (Rep a) => Pad -> Maybe (Seq a)
+fromUni :: forall a c . (Rep a) => Pad c -> Maybe (Signal c a)
 fromUni (StdLogicVector sig)
-        | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
+        | widthS sig == widthS (error "witness" :: Signal c a) =  return (unsafeId sig)
 fromUni (StdLogic sig)
-        | widthS sig == widthS (error "witness" :: Seq a) =  return (unsafeId sig)
+        | widthS sig == widthS (error "witness" :: Signal c a) =  return (unsafeId sig)
 fromUni _ = Nothing
 
-fromUni' :: forall a . (Rep a) => Pad -> Seq a
+fromUni' :: forall a c . (Rep a) => Pad c -> Signal c a
 fromUni' a = case fromUni a of
                Nothing -> error "fromUni' failed"
                Just x  -> x
@@ -84,18 +84,18 @@ instance (SingI ix) => Rep (ExternalStdLogicVector ix) where
     showRep = showRepDefault
 
 -- TODO: should be Stream
-padToRepValues :: Pad -> [RepValue]
+padToRepValues :: Pad c -> [RepValue]
 padToRepValues (StdLogic s)             = S.toList $ fmap toRep $ shallowS s
 padToRepValues (StdLogicVector s)       = S.toList $ fmap toRep $ shallowS s
 padToRepValues other                    = error $ "can not find RepValue for " ++ show other
 
-repValuesToPad :: Pad -> [RepValue] -> Pad
+repValuesToPad :: (Clock c) => Pad c -> [RepValue] -> Pad c
 repValuesToPad (StdLogic s) rep         = StdLogic (padToPad s rep)
 repValuesToPad (StdLogicVector s) rep   = StdLogicVector (padToPad s rep)
 repValuesToPad other _ = error $ "can not find Pad for " ++ show other
 
 -- internal
-padToPad :: forall a . (Rep a) => Seq a -> [RepValue] -> Seq a
+padToPad :: forall a c . (Rep a, Clock c) => Signal c a -> [RepValue] -> Signal c a
 padToPad _s rep = id
         $ mkShallowS
         $ fmap fromRep
