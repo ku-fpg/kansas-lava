@@ -169,7 +169,7 @@ liftFabric (Fabric f) = Fabric $ \ inp st -> do
 
 
 
-instance (MonadFix m) => InOutM (SuperFabric c m) where
+instance (Clock c, MonadFix m) => InOutM (SuperFabric c m) where
   input nm deepPad = Fabric $ \ ins st -> do
         let p = case lookup nm (in_inPorts ins) of
                    Just v -> v
@@ -370,17 +370,17 @@ data SignalVar clk a = SignalVar Int
 
 -- What do we call SparkM?
 -- TODO: BlockM?
-class Monad m => LocalM m where
+class (Clock (LocalClock m), Monad m) => LocalM m where
         type LocalClock m :: *
         newSignalVar   :: (clk ~ LocalClock m) => m (SignalVar clk a)
         writeSignalVar :: (clk ~ LocalClock m, Rep a, SingI (W a))
                        => SignalVar clk a -> Signal clk a -> m ()
         readSignalVar  :: (clk ~ LocalClock m, Rep a, SingI (W a))
                        => SignalVar clk a
-                       -> (forall clk' . [Signal clk' a] -> Signal clk' b)
+                       -> ([Signal clk a] -> Signal clk b)
                        -> m (Signal clk b)
 
-instance forall c m . (MonadFix m) => LocalM (SuperFabric c m) where
+instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
         type LocalClock (SuperFabric c m) = c
         newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
 --        writeSignalVar = write
@@ -397,7 +397,7 @@ instance forall c m . (MonadFix m) => LocalM (SuperFabric c m) where
         readSignalVar :: forall clk a b
                        . (clk ~ LocalClock (SuperFabric c m), Rep a, SingI (W a))
                       => SignalVar clk a
-                      -> (forall clk' . [Signal clk' a] -> Signal clk' b)
+                      -> ([Signal clk a] -> Signal clk b)
                       -> SuperFabric c m (Signal clk b)
         readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
                 return (f
