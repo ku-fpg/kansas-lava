@@ -192,9 +192,9 @@ instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     isSigned s     = isTypeSigned (typeOfS s)
     bit            = pureS . bit
     -- TODO.  testBit for  Bits (Signal i a)
-    testBit        = undefined
+    testBit        = error "testBit for Signal"
     -- TODO.  popCount for  Bits (Signal i a)
-    popCount       = undefined
+    popCount       = error "popCount for Signal"
 
 
 instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where

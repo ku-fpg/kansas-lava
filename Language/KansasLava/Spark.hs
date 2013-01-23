@@ -42,11 +42,8 @@ start = L 0
 data REG c a where
     R :: (SingI (W (Enabled a))) => SignalVar c (Enabled a) -> REG c a
 
-
 assign :: (c ~ LocalClock m, LocalM m, Rep a) => REG c a -> Signal c a -> m ()
 assign (R v) e = writeSignalVar v (enabledS e)
-
-
 
 -------------------------------------------------------------------------------
 
@@ -258,9 +255,8 @@ data Pred c = PredCond (Signal c Bool)
             | PredFalse
             | PredPC U8
 
--- FIXME
 instance Show (Pred c) where
-        show = undefined
+        show _ = "Show Pred"
 
 compilePred :: Signal c U8 -> Pred c -> Signal c Bool
 compilePred pc (PredCond p)      = p
