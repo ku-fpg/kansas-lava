@@ -135,6 +135,7 @@ Executable kansas-lava-testreport
       buildable: True
       Build-Depends:
         base >= 4 && < 5,
+        array,
         kansas-lava
       Other-modules:
     else

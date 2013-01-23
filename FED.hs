@@ -4,29 +4,28 @@
 module FED where
 
 import Language.KansasLava
-import Language.KansasLava.Protocols
-import Language.KansasLava.Utils
-import Language.KansasLava.Fabric (observeFabric)
-import Control.Monad.Fix
-import Control.Monad.IO.Class
-import Control.Monad
-import System.IO
-import Data.Monoid
-import Data.Maybe
+-- import Language.KansasLava.Protocols
+-- import Language.KansasLava.Utils
+-- import Language.KansasLava.Fabric (observeFabric)
+-- import Control.Monad.Fix
+-- import Control.Monad.IO.Class
+-- import Control.Monad
+-- import System.IO
+-- import Data.Monoid
+-- import Data.Maybe
 
-import Data.Word
-import Data.Sized.Sized
-import Data.Sized.Unsigned
-import Control.Concurrent.STM
-import Control.Concurrent
-import System.Environment
+-- import Data.Word
+-- import Data.Sized.Sized
+-- import Data.Sized.Unsigned
+-- import Control.Concurrent.STM
+-- import Control.Concurrent
+-- import System.Environment
 
-import Control.Concurrent.MVar
-import System.IO.Unsafe
-import Control.Monad.Trans.Class
-import System.Random
-import Control.Monad
-import Control.Monad.Trans.Trace
+-- import Control.Concurrent.MVar
+-- import System.IO.Unsafe
+-- import Control.Monad.Trans.Class
+-- import System.Random
+-- import Control.Monad.Trans.Trace
 
 --------------------------------------------------------------------------
 
@@ -73,7 +72,7 @@ writeDatum :: (Rep a)
           -> SendDatum a
           -> IO ()
 writeDatum dat en cmd = do
-        sendDatum (return $ pureX True) dat en cmd
+        _ <- sendDatum (return $ pureX True) dat en cmd
         return ()
 
 data RecvDatum

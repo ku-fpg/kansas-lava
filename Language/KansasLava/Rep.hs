@@ -395,9 +395,9 @@ instance (SingI m, SingI ix) => Rep (Sampled.Sampled m ix) where
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (Just a))     = return a
 	unX (XSampled Nothing)   = fail "Wire Sampled"
-	repType _   	    = SampledTy (fromIntegral (fromSing (sing :: Sing m))  - 1)
-                                        (fromIntegral (fromSing (sing :: Sing ix)) - 1)
-	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
+	repType _   	    = SampledTy (fromInteger (fromNat (sing :: Sing m)))
+                                        (fromInteger (fromNat (sing :: Sing ix)))
+  	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toVector a
 	fromRep r = optX (liftM (Sampled.fromVector . M.matrix) $ getValidRepValue r)
 	showRep = showRepDefault

@@ -1,21 +1,28 @@
-{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification #-}
+{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification, DataKinds #-}
 
 module Protocols where
 
 import Language.KansasLava
 import Language.KansasLava.Test
 
-import Data.Sized.Ix
+import Data.Sized.Sized
 import Data.Sized.Unsigned
-import Data.Sized.Matrix ((!), matrix, Matrix)
+import Data.Sized.Matrix (matrix, Matrix)
+
+import Data.Array.IArray
+import GHC.TypeLits
+
 --import qualified Data.Sized.Matrix as M
 --import Debug.Trace
+
+type instance (5 + 5) = 10
+type instance (3 * 5) = 15
 
 tests :: TestSeq -> IO ()
 tests test = do
         -- testing Streams
 
-        let fifoTest :: forall w . (Rep w, Eq w, Show w, Size (W w)) 
+        let fifoTest :: forall w . (Rep w, Eq w, Show w, SingI (W w))
 		      => String
 		      -> Patch (Seq (Enabled w)) (Seq (Enabled w)) (Seq Ack) (Seq Ack) -> StreamTest w w
             fifoTest n f = StreamTest
@@ -23,7 +30,7 @@ tests test = do
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
                                 case () of
                                   () | outs /= take (length outs) ins -> return "in/out differences"
-                                  () | length outs < fromIntegral count 
+                                  () | length outs < fromIntegral count
      								      -> return ("to few transfers: " ++ show (length outs))
                                      | otherwise -> Nothing
 
@@ -35,7 +42,7 @@ tests test = do
 			count = 100
 
 {-
-	let bridge' :: forall w . (Rep w,Eq w, Show w, Size (W w)) 
+	let bridge' :: forall w . (Rep w,Eq w, Show w, Size (W w))
 		      	=> (Seq (Enabled w), Seq Full) -> (Seq Ack, Seq (Enabled w))
 	    bridge' =  bridge `connect` shallowFIFO `connect` bridge
 -}
@@ -49,12 +56,12 @@ tests test = do
 
 
 	-- This tests dupP and zipP
-        let patchTest1 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
+        let patchTest1 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w)
 		      => StreamTest w (w,w)
             patchTest1 = StreamTest
                         { theStream = dupP $$ fstP (forwardP $ mapEnabled (+1)) $$ zipP
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
---				trace (show (ins,outs)) $ 
+--				trace (show (ins,outs)) $
                                 case () of
 				  () | length outs /= length ins -> return "in/out differences"
 				     | any (\ (x,y) -> x - 1 /= y) outs -> return "bad result value"
@@ -72,16 +79,16 @@ tests test = do
 
 
 	-- This tests matrixDupP and matrixZipP
-        let patchTest2 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w) 
-		      => StreamTest w (Matrix X3 w)
+        let patchTest2 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w)
+		      => StreamTest w (Matrix (Sized 3) w)
             patchTest2 = StreamTest
-                        { theStream = matrixDupP $$ matrixStackP (matrix [ 
+                        { theStream = matrixDupP $$ matrixStackP (matrix [
 								forwardP $ mapEnabled (+0),
 								forwardP $ mapEnabled (+1),
-								forwardP $ mapEnabled (+2)]								
+								forwardP $ mapEnabled (+2)]
 								) $$ matrixZipP
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
---				trace (show (ins,outs)) $ 
+--				trace (show (ins,outs)) $
                                 case () of
 				  () | length outs /= length ins -> return "in/out differences"
 				     | any (\ m -> m ! 0 /= (m ! 1) - 1) outs -> return "bad result value 0,1"
@@ -96,24 +103,24 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix X3 U5))
+	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix (Sized 3) U5))
 
 	-- This tests muxP (and matrixMuxP)
-        let patchTest3 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
+        let patchTest3 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w, w ~ U5)
 		      => StreamTest w w
             patchTest3 = StreamTest
-                        { theStream = 
+                        { theStream =
 				fifo1 $$
-				dupP $$ 
+				dupP $$
 				stackP (forwardP (mapEnabled (*2)) $$ fifo1)
 				      (forwardP (mapEnabled (*3)) $$ fifo1) $$
 				openP $$
-				fstP (cycleP (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
+				fstP (cycleP (matrix [True,False] :: Matrix (Sized 2) Bool) $$ fifo1) $$
 				muxP
 
 
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
---				trace (show (ins,outs)) $ 
+--				trace (show (ins,outs)) $
                                 case () of
 				  () | length outs /= length ins * 2 -> return "in/out size issues"
 			             | outs /= concat [ [n * 2,n * 3] | n <- ins ]
@@ -130,17 +137,17 @@ tests test = do
 	testStream test "U5" (patchTest3 :: StreamTest U5 U5)
 
 	-- This tests deMuxP (and matrixDeMuxP), and zipP
-        let patchTest4 :: forall w . (Rep w,Eq w, Show w, Size (W w), Num w, w ~ U5)
+        let patchTest4 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w, w ~ U5)
 		      => StreamTest w (w,w)
             patchTest4 = StreamTest
-                        { theStream = 
+                        { theStream =
 				openP $$
-				fstP (cycleP (matrix [True,False] :: Matrix X2 Bool) $$ fifo1) $$
+				fstP (cycleP (matrix [True,False] :: Matrix (Sized 2) Bool) $$ fifo1) $$
 				deMuxP $$
 				stackP (fifo1) (fifo1) $$
-				zipP 
+				zipP
                         , correctnessCondition = \ ins outs -> -- trace (show ("cc",length ins,length outs)) $
---				trace (show (ins,outs)) $ 
+--				trace (show (ins,outs)) $
                                 case () of
 				  () | length outs /= length ins `div` 2 -> return "in/out size issues"
 			             | concat [ [a,b] | (a,b) <- outs ] /= ins

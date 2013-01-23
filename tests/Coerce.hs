@@ -1,20 +1,29 @@
-{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification #-}
+{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification, DataKinds, TypeOperators #-}
 
 module Coerce where
 
 import Language.KansasLava
 import Language.KansasLava.Test
 
+import Data.Sized.Sized
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed
 
+import GHC.TypeLits
+
 type List a = [a]
+
+type instance (4 * 4) = 16
+type instance (3 * 5) = 15
+type instance (3 + 2) = 5
+type instance (3 + 1) = 4
+
 
 tests :: TestSeq -> IO ()
 tests test = do
 
-        let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Show w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Show w2, Rep w1, SingI (W w1), SingI (W w2)) =>
                   String -> Witness w2 -> List w1 -> IO ()
 
             t1 str witness arb = testUnsigned test str witness arb
@@ -39,27 +48,27 @@ tests test = do
         t1 "U3_S3" (Witness :: Witness U3) ((allCases :: List S3))
         t1 "U8_S4" (Witness :: Witness U8) ((allCases :: List S4))
 
-        t1 "X2_X2" (Witness :: Witness X2) ((allCases :: List X2))
-        t1 "X2_X3" (Witness :: Witness X2) ((allCases :: List X3))
-        t1 "X2_X4" (Witness :: Witness X2) ((allCases :: List X4))
-        t1 "X2_X5" (Witness :: Witness X2) ((allCases :: List X5))
+        t1 "X2_X2" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 2)))
+        t1 "X2_X3" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 3)))
+        t1 "X2_X4" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 4)))
+        t1 "X2_X5" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 5)))
 
-        t1 "X3_X2" (Witness :: Witness X3) ((allCases :: List X2))
-        t1 "X3_X3" (Witness :: Witness X3) ((allCases :: List X3))
-        t1 "X3_X4" (Witness :: Witness X3) ((allCases :: List X4))
-        t1 "X3_X5" (Witness :: Witness X3) ((allCases :: List X5))
+        t1 "X3_X2" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 2)))
+        t1 "X3_X3" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 3)))
+        t1 "X3_X4" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 4)))
+        t1 "X3_X5" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 5)))
 
-        t1 "X4_X2" (Witness :: Witness X4) ((allCases :: List X2))
-        t1 "X4_X3" (Witness :: Witness X4) ((allCases :: List X3))
-        t1 "X4_X4" (Witness :: Witness X4) ((allCases :: List X4))
-        t1 "X4_X5" (Witness :: Witness X4) ((allCases :: List X5))
+        t1 "X4_X2" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 2)))
+        t1 "X4_X3" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 3)))
+        t1 "X4_X4" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 4)))
+        t1 "X4_X5" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 5)))
 
-        t1 "X5_X2" (Witness :: Witness X5) ((allCases :: List X2))
-        t1 "X5_X3" (Witness :: Witness X5) ((allCases :: List X3))
-        t1 "X5_X4" (Witness :: Witness X5) ((allCases :: List X4))
-        t1 "X5_X5" (Witness :: Witness X5) ((allCases :: List X5))
+        t1 "X5_X2" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 2)))
+        t1 "X5_X3" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 3)))
+        t1 "X5_X4" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 4)))
+        t1 "X5_X5" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 5)))
 
-        let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Show w2, Rep w2, Rep w1, Size (W w1), Size (W w2)) =>
+        let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Show w2, Rep w2, Rep w1, SingI (W w1), SingI (W w2)) =>
                   String -> Witness w2 -> List w1 -> IO ()
             t2 str witness arb = testSigned test str witness arb
 
@@ -79,21 +88,21 @@ tests test = do
         t2 "S4_S8" (Witness :: Witness S4) ((allCases :: List S8))
         t2 "S8_S4" (Witness :: Witness S8) ((allCases :: List S4))
 
-        let t3 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
+        let t3 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, SingI (W w1)) =>
                  String -> Witness w2 -> List w1 -> IO ()
             t3 str witness arb = testBitwise test str witness arb
 
-        t3 "S16_M_X4_S4"    (Witness :: Witness S16) ((allCases :: List (Matrix X4 S4)))
-        t3 "U15_M_X3_S5"    (Witness :: Witness U15) ((allCases :: List (Matrix X3 S5)))
-        t3 "U3_M_X3_Bool"   (Witness :: Witness U3) ((allCases :: List (Matrix X3 Bool)))
-        t3 "U1_M_X1_Bool"   (Witness :: Witness U1) ((allCases :: List (Matrix X1 Bool)))
-        t3 "Bool_M_X1_Bool" (Witness :: Witness Bool) ((allCases :: List (Matrix X1 Bool)))
+        t3 "S16_M_X4_S4"    (Witness :: Witness S16) ((allCases :: List (Matrix (Sized 4) S4)))
+        t3 "U15_M_X3_S5"    (Witness :: Witness U15) ((allCases :: List (Matrix (Sized 3) S5)))
+        t3 "U3_M_X3_Bool"   (Witness :: Witness U3) ((allCases :: List (Matrix (Sized 3) Bool)))
+        t3 "U1_M_X1_Bool"   (Witness :: Witness U1) ((allCases :: List (Matrix (Sized 1) Bool)))
+        t3 "Bool_M_X1_Bool" (Witness :: Witness Bool) ((allCases :: List (Matrix (Sized 1) Bool)))
 
-        t3 "M_X4_S4_S16"    (Witness :: Witness (Matrix X4 S4)) ((allCases :: List S16))
-        t3 "M_X3_S5_U15"    (Witness :: Witness (Matrix X3 S5)) ((allCases :: List U15))
-        t3 "M_X3_Bool_U3"   (Witness :: Witness (Matrix X3 Bool)) ((allCases :: List U3))
-        t3 "M_X1_Bool_U1"   (Witness :: Witness (Matrix X1 Bool)) ((allCases :: List U1))
-        t3 "M_X1_Bool_Bool" (Witness :: Witness (Matrix X1 Bool)) ((allCases :: List Bool))
+        t3 "M_X4_S4_S16"    (Witness :: Witness (Matrix (Sized 4) S4)) ((allCases :: List S16))
+        t3 "M_X3_S5_U15"    (Witness :: Witness (Matrix (Sized 3) S5)) ((allCases :: List U15))
+        t3 "M_X3_Bool_U3"   (Witness :: Witness (Matrix (Sized 3) Bool)) ((allCases :: List U3))
+        t3 "M_X1_Bool_U1"   (Witness :: Witness (Matrix (Sized 1) Bool)) ((allCases :: List U1))
+        t3 "M_X1_Bool_Bool" (Witness :: Witness (Matrix (Sized 1) Bool)) ((allCases :: List Bool))
 
         t3 "U3_x_U2_U5"     (Witness :: Witness (U3,U2)) ((allCases :: List U5))
         t3 "U5_U3_x_U2"     (Witness :: Witness U5) ((allCases :: List (U3,U2)))
@@ -105,7 +114,7 @@ tests test = do
         t3 "Bool_Bool"      (Witness :: Witness Bool) ((allCases :: List Bool))
         t3 "U8_U8"          (Witness :: Witness U8)   ((allCases :: List U8))
 
-        let t4 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, Size (W w1)) =>
+        let t4 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, SingI (W w1)) =>
                  String -> Witness w2 -> List w1 -> (w1 -> w2) -> IO ()
             t4 str witness arb f = testCoerce test str witness arb f
 
@@ -119,7 +128,7 @@ tests test = do
         return ()
 
 
-testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (W w1), Size (W w2))
+testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, SingI (W w1), SingI (W w2))
             => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
 testUnsigned (TestSeq test _) tyName Witness ws = do
         let ms = ws
@@ -142,7 +151,7 @@ testUnsigned (TestSeq test _) tyName Witness ws = do
         test ("unsigned/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
-testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, Size (W w1), Size (W w2))
+testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, SingI (W w1), SingI (W w2))
             => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
 testSigned (TestSeq test _) tyName Witness ws = do
         let ms = ws
@@ -165,7 +174,7 @@ testSigned (TestSeq test _) tyName Witness ws = do
         test ("signed/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
-testBitwise :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
+testBitwise :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, SingI (W w2))
             => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
 testBitwise (TestSeq test _) tyName Witness ws = do
         let ms = ws
@@ -182,7 +191,7 @@ testBitwise (TestSeq test _) tyName Witness ws = do
         test ("bitwise/" ++ tyName) (length ms) dut (driver >> matchExpected "o0" res)
         return ()
 
-testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, Size (W w2))
+testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, SingI (W w2))
             => TestSeq -> String -> Witness w2 -> List w1 -> (w1 -> w2) -> IO ()
 testCoerce (TestSeq test _) tyName Witness ws f = do
         let ms =  ws
