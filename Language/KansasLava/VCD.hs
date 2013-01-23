@@ -38,10 +38,9 @@ import System.IO.Unsafe
 import System.IO
 import System.FilePath as FP
 
--- testing
-import Data.Sized.Unsigned
-import Data.Sized.Sized
-import Language.KansasLava.Utils
+-- for testing
+-- import Data.Sized.Unsigned
+-- import Data.Sized.Sized
 
 
 scope :: String -> VCD -> [(String,VC)]
@@ -210,15 +209,6 @@ lastVC :: VC -> RepValue
 lastVC (VC _ v [] _)        = v
 lastVC (VC _ _ ((_,v):_) _) = v
 
--- TODO: if you are past the end, you are undefined
-valueAt :: VC -> Int -> RepValue
-valueAt (VC _ i c e) now | now > e   = error "valueAt passed end of time"
-                          | otherwise = find c
-  where
-          find []               = i
-          find ((clk,val):rest) = if clk <= now then val
-                                                else find rest
-
 
 -- | Convert a Pad to a Tracestream
 padToVC :: (Clock c) => Int -> Pad c -> VC
@@ -233,38 +223,6 @@ convertVC len xs = foldl (\ vc (i,v) -> snocVC i v vc)
                                 [ (i,toRep v)
                                 | (i,v) <- take len [0..] `zip` S.toList (shallowS xs)
                                 ]
--- TODO: be careful about leaks. None of this should be lazy.
-splitVCD :: VCD -> Int -> (VCD,VCD)
-splitVCD (VCD i m) j = (VCD i before,VCD j after)
-    where
-          before = fmap (\ vc@(VC t i cs e) -> VC t
-                                                   i
-                                                   (filter (\ (x,_) -> x < j) cs)
-                                                   (j - 1)
-                        ) m
-          after  = fmap (\ vc@(VC t i cs e) -> VC t
-                                                   (valueAt vc (j - 1))
-                                                   (filter (\ (x,_) -> x >= j) cs)
-                                                   e
-                        ) m
-
-testVC1 :: VC
-testVC1 = VC (V 4)
-              (toRep (unknownX :: X U4))
-              [(i,toRep (pureX (fromIntegral i) :: (X (Sized 4)))) | i <- reverse [0..10], i < 4 || i > 7]
-              10
-
-testVC2 :: VC
-testVC2 = VC B
-              (toRep (unknownX :: X U1))
-              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned 1))) | i <- reverse [0..12]]
-              12
-
-testVCD1 :: VCD
-testVCD1 = VCD 0 (M.fromList [("inputs/x",testVC1),("outputs/y",testVC2)])
-
-
---         comment = "$comment\nclock = " ++ show i ++ "\n$end"
 
 showColumns :: [[String]] -> [String]
 showColumns xss = take height
@@ -281,8 +239,6 @@ showColumns xss = take height
           height :: Int
           height = maximum (map length xss)
 
-          xss' = map ((++) (repeat "")) xss
-
 
 instance Show VCD where
     show (VCD i m)
@@ -291,8 +247,6 @@ instance Show VCD where
       where
          -- last value to print
          j = maximum [ e | VC _ _ _ e <- M.elems m ]
-
-         comment = "-- clock = " ++ show i ++ "-" ++ show j
 
          names = sort (M.keys m)
 
@@ -329,9 +283,10 @@ openVCD ts fileName (VCD start m)
                 | (ident,(k,VC ty _ _ _)) <- vcdIds `zip` M.assocs m ]
                 ++ "$enddefinitions $end\n"
                 ++ dumpVars [ (ident,i)
-                            | (ident,(k,VC _ i _ _)) <- vcdIds `zip` M.assocs m
+                            | (ident,(_,VC _ i _ _)) <- vcdIds `zip` M.assocs m
                             ]
 
+mkComment :: String -> String
 mkComment comm = unlines ["$comment",comm,"$end"]
 
 writeVCD :: Handle -> VCD -> IO ()
@@ -368,7 +323,22 @@ recordVCDFabric i fab = do
                          $ [ ("inputs/" ++ nm,val) | (nm,val) <- ins ] ++
                            [ ("vars/v" ++ show n,val) | (n,val) <- vars ] ++
                            [ ("outputs/" ++ nm,val) | (nm,val) <- outs ])
+{-
 
+testVC1 :: VC
+testVC1 = VC (V 4)
+              (toRep (unknownX :: X U4))
+              [(i,toRep (pureX (fromIntegral i) :: (X (Sized 4)))) | i <- reverse [0..10], i < 4 || i > 7]
+              10
+
+testVC2 :: VC
+testVC2 = VC B
+              (toRep (unknownX :: X U1))
+              [(i,toRep (pureX (fromIntegral i) :: X (Unsigned 1))) | i <- reverse [0..12]]
+              12
+
+testVCD1 :: VCD
+testVCD1 = VCD 0 (M.fromList [("inputs/x",testVC1),("outputs/y",testVC2)])
 
 main = do
         h <- openVCD 100 "x.vcd" testVCD1
@@ -392,3 +362,4 @@ testF_TB = do
         z :: Seq U8 <- inStdLogicVector "z"
         return [ maybe False (\ z' -> z' == x' + y') ss | (x',y',ss) <- zip3 [1..100] [100..200] (fromS z)]
 
+-}

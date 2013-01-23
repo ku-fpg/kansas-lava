@@ -8,16 +8,12 @@ import Language.KansasLava.Fabric
 import Language.KansasLava.Rep
 import Language.KansasLava.Utils
 import Language.KansasLava.Protocols.Enabled
-import Language.KansasLava.Protocols.Memory
-import Language.KansasLava.Types
 
 import Data.Boolean
 
-import Data.Sized.Sized
 import Data.Sized.Unsigned
 
 import Control.Monad.Fix
-import Control.Monad.State
 
 import GHC.TypeLits
 
@@ -137,7 +133,7 @@ fifo lhs_bus = do
     BUS rhs_bus rhs_bus_writer :: BUS c a <- bus
     VAR reg                    :: VAR c a <- uninitialized
 
-    pc <- spark $ do
+    _pc <- spark $ do
             lab <- LABEL
             _ <- ($) takeBus lhs_bus reg   $ STEP
             putBus rhs_bus_writer reg      $ GOTO lab
@@ -259,11 +255,11 @@ instance Show (Pred c) where
         show _ = "Show Pred"
 
 compilePred :: Signal c U8 -> Pred c -> Signal c Bool
-compilePred pc (PredCond p)      = p
+compilePred _pc (PredCond p)     = p
 compilePred pc (PredOr p1 p2)    = compilePred pc p1 .||. compilePred pc p2
 compilePred pc (PredAnd p1 p2)   = compilePred pc p1 .&&. compilePred pc p2
 compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
-compilePred pc (PredFalse)       = low
+compilePred _pc (PredFalse)      = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
 spark :: forall m c . (LocalM m, c ~ LocalClock m) => STMT c () -> m (Signal c U8)
@@ -294,12 +290,12 @@ spark stmt = do
         return pc
 
 compile :: (LocalM m, c ~ LocalClock m) => STMT (LocalClock m) a -> SparkMonad m a
-compile ((R v) := expr) = issueFab $ \ pred ->
-        writeSignalVar v (packEnabled pred expr)
+compile ((R v) := expr) = issueFab $ \ predArg ->
+        writeSignalVar v (packEnabled predArg expr)
 compile (p :? stmt) = withPred p (compile stmt)
 compile STEP = do
-    rec issueFab $ \ pred -> writeSignalVar pc_reg (packEnabled pred (pureS pc))
-        pc <- incPC $ \ pc _ -> PredPC pc
+    rec issueFab $ \ predArg -> writeSignalVar pc_reg (packEnabled predArg (pureS pc))
+        pc <- incPC $ \ pcArg _ -> PredPC pcArg
         (R pc_reg) <- regPC
     return (L pc)
 compile LABEL = do
@@ -307,7 +303,7 @@ compile LABEL = do
         return (L pc)
 compile (GOTO ~(L n)) = do      -- the ~ allows for forward jumping
         (R pc) <- regPC
-        issueFab $ \ pred -> writeSignalVar pc (packEnabled pred (pureS n))
+        issueFab $ \ predArg -> writeSignalVar pc (packEnabled predArg (pureS n))
         falsifyPred
 compile NOP = return ()                 -- is this needed?
 
