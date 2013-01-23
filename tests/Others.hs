@@ -30,8 +30,7 @@ tests test = do
         t1 "Sampled/X8xX8" (allCases :: [Sampled 8 8])
         t1 "Sampled/X1xX4" (allCases :: [Sampled 1 4])
         t1 "Sampled/X8xX10"(finiteCases 100 :: [Sampled 8 10])
--- Hangs right now (not sure why)	
---        t1 "Sampled/X128xX16"(finiteCases 100 ::[Sampled 128 16])
+        t1 "Sampled/X128xX16"(finiteCases 100 ::[Sampled 128 16])
 
         -- Just the Bits Stuff
         let t2 :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a)) => String -> List a -> IO ()
