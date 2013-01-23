@@ -23,7 +23,6 @@ import GHC.TypeLits
 
 import Debug.Trace
 
-{-
 infixr 1 :=
 infixr 1 :?
 
@@ -39,74 +38,85 @@ start :: LABEL
 start = L 0
 -------------------------------------------------------------------------------
 
-data REG a where
-    R :: SignalVar CLK (Enabled a) -> REG a
 
-assign :: (LocalM m, Rep a, SingI (W (Enabled a))) => REG a -> Seq a -> m ()
+data REG c a where
+    R :: (SingI (W (Enabled a))) => SignalVar c (Enabled a) -> REG c a
+
+
+assign :: (c ~ LocalClock m, LocalM m, Rep a) => REG c a -> Signal c a -> m ()
 assign (R v) e = writeSignalVar v (enabledS e)
+
+
 
 -------------------------------------------------------------------------------
 
 -- TODO: call assignable
 class Variable var where  -- something that can be both read and written to
-        toVAR :: (REG a,Signal CLK a) -> var a
+        toVAR :: (REG c a,Signal c a) -> var c a
+
 
 instance Variable REG where
         toVAR (r,_) = r
-instance Variable (Signal CLK) where
+
+instance Variable Signal where
         toVAR (_,r) = r
 
-data VAR a = VAR (forall (var :: * -> *) . (Variable var) => var a)
 
-initially :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => a -> m (VAR a)
+data VAR c a = VAR (forall (var :: * -> * -> *) . (Variable var) => var c a)
+
+type instance (1 + 64) = 65
+type instance (1 + 8)  = 9
+type instance (1 + 0)  = 1
+
+initially :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => a -> m (VAR c a)
 initially a = do
         var <- newSignalVar
         let f x rest = mux (isEnabled x) (rest,enabledVal x)
         sig <- readSignalVar var $ \ xs ->
                 let r = register a $ Prelude.foldr f r xs
                 in r
-        return (VAR (toVAR (R var,sig :: Signal CLK a)))
+        return (VAR (toVAR (R var,sig :: Signal c a)))
 
-uninitialized :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => m (VAR a)
+uninitialized :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (VAR c a)
 uninitialized = do
         var <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,enabledVal a)
         sig <- readSignalVar var $ \ xs ->
                 let r = delay $ Prelude.foldr f r xs
                 in r
-        return (VAR (toVAR (R var,sig :: Signal CLK a)))
+        return (VAR (toVAR (R var,sig :: Signal c a)))
 
--- TODO: call assignable
---class Variable var where  -- something that can be both read and written to
---        toVAR :: (REG a,Signal CLK a) -> var a
 
--- TODO: swap order here  - we should go from left to right
-data CHAN a = CHAN (Signal CLK (Enabled a)) (REG a)
+--------------------------------------------------------------------------
+-- CHAN rdr wtr :: CHAN c Int <- channel
 
--- CHAN rdr wtr :: CHAN Int <- channel
+data CHAN c a = CHAN (Signal c (Enabled a)) (REG c a)
 
-channel :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a))) => m (CHAN a)
+channel :: forall a c m . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (CHAN c a)
 channel = do
-        var :: SignalVar CLK (Enabled a) <- newSignalVar
+        var :: SignalVar c (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
         sig <- readSignalVar var $ \ xs -> Prelude.foldr f disabledS xs
         return $ CHAN sig (R var)
 
---- Acknowledged ??
-data Bus a = Bus (Signal CLK (Enabled a)) (REG ())
 
-data Writer a = Writer (REG a) (Signal CLK (Enabled ()))
 
-data BUS a = BUS (Bus a) (Writer a)
+--------------------------------------------------------------------------
 
-bus :: forall a m . (LocalM m, Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => m (BUS a)
-bus = do CHAN rdr wtr :: CHAN a <- channel
-         CHAN rdr' wtr' :: CHAN () <- channel
+--  Reader?
+data Bus c a = Bus (Signal c (Enabled a)) (REG c ())
+
+data Writer c a = Writer (REG c a) (Signal c (Enabled ()))
+
+data BUS c a = BUS (Bus c a) (Writer c a)
+
+bus :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (BUS c a)
+bus = do CHAN rdr wtr   :: CHAN c a <- channel
+         CHAN rdr' wtr' :: CHAN c () <- channel
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
 
--- Assumes signal input does not change when waiting for ack.
---
-putBus :: (Rep a, SingI (W (Enabled a))) => Writer a -> Signal CLK a -> STMT b -> STMT b
+-- Assumes signal input does not change when waiting for ack.--
+putBus :: (Rep a, SingI (W (Enabled a))) => Writer c a -> Signal c a -> STMT c b -> STMT c b
 putBus (Writer reg ack) sig k = do
         startLoc <- LABEL
         -- send data
@@ -114,8 +124,7 @@ putBus (Writer reg ack) sig k = do
         -- wait for ack
         notB (isEnabled ack) :? GOTO startLoc
         k
-
-takeBus :: (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ()))) => Bus a -> REG a -> STMT b -> STMT b
+takeBus :: (Rep a, SingI (W (Enabled a))) => Bus c a -> REG c a -> STMT c b -> STMT c b
 takeBus (Bus inp ack) reg k = do
         startLoc <- LABEL
         (isEnabled inp) :? do
@@ -125,10 +134,11 @@ takeBus (Bus inp ack) reg k = do
                 GOTO startLoc
         k
 
-fifo :: forall a . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)))=> Bus a -> Fabric (Bus a)
+
+fifo :: forall a c m . (Rep a, LocalM m, c ~ LocalClock m, SingI (W (Enabled a))) => Bus c a -> m (Bus c a)
 fifo lhs_bus = do
-    BUS rhs_bus rhs_bus_writer :: BUS a <- bus
-    VAR reg :: VAR a <- uninitialized
+    BUS rhs_bus rhs_bus_writer :: BUS c a <- bus
+    VAR reg                    :: VAR c a <- uninitialized
 
     pc <- spark $ do
             lab <- LABEL
@@ -136,15 +146,16 @@ fifo lhs_bus = do
             putBus rhs_bus_writer reg      $ GOTO lab
             return ()
 
-    outStdLogicVector "fifo_pc" pc
+--    outStdLogicVector "fifo_pc" pc
 
-    return rhs_bus
+    return $ rhs_bus
 
 
-latchBus :: forall a m . (Rep a, SingI (W (Enabled a)), SingI (W (Enabled ())), SingI (W (Enabled U8)), LocalM m) => Signal CLK (Enabled a) -> m (Bus a)
+latchBus :: forall a m c
+          . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => Signal c (Enabled a) -> m (Bus c a)
 latchBus inp = do
-        BUS rhs_bus rhs_bus_writer :: BUS a <- bus
-        VAR reg                    :: VAR a <- uninitialized
+        BUS rhs_bus rhs_bus_writer :: BUS c a <- bus
+        VAR reg                    :: VAR c a <- uninitialized
         _ <- ($) spark $ do
                          lab <- STEP
                          (isEnabled inp) :?              reg := enabledVal inp
@@ -153,10 +164,12 @@ latchBus inp = do
                          putBus rhs_bus_writer reg $ GOTO lab
         return rhs_bus
 
-data MEM a d = MEM (Signal CLK d) (REG a) (REG (a,d))
+data MEM c a d = MEM (Signal c d) (REG c a) (REG c (a,d))
 
+{-
 -- Not compilent with protocol
-memory :: forall a d .  (SingI a, Rep d,SingI (W (Enabled ((Sized a),d))), SingI (W (Enabled (Sized a)))) => Fabric (MEM (Sized a) d)
+memory :: forall a d
+        .  (SingI a, Rep d, SingI (W (Enabled ((Sized a),d))), SingI (W (Enabled (Sized a)))) => Fabric (MEM (Sized a) d)
 memory = do
         CHAN addr_out addr_in :: CHAN (Sized a)     <- channel
         CHAN wt_out   wt_in   :: CHAN (Sized a,d) <- channel
@@ -168,52 +181,44 @@ memory = do
             addr_out' = mux (isEnabled addr_out) (delay addr_out',enabledVal addr_out)
 
         return $ MEM (syncRead mem addr_out') addr_in wt_in
-
--- readMemory :: Signal CLK (a -> d) -> S
+-}
 
 --------------------------------------------------------------------------------------
 
-data STMT :: * -> * where
+data STMT :: * -> * -> * where
         -- Assignment
-        (:=)   :: (Rep a, SingI (W (Enabled a))) => REG a -> Signal CLK a
-                                                                -> STMT ()
+        (:=)   :: (Rep a) => REG c a -> Signal c a          -> STMT c ()
 
         -- Predicate
-        (:?)   :: Signal CLK Bool  -> STMT ()                   -> STMT ()
+        (:?)   :: Signal c Bool  -> STMT c ()                   -> STMT c ()
+
 
         -- control flow
-        STEP   :: STMT LABEL    -- wait a cycle, give me a label
-        LABEL  :: STMT LABEL    -- give a intra-clock cycle label
+        STEP   :: STMT c LABEL    -- wait a cycle, give me a label
+        LABEL  :: STMT c LABEL    -- give a intra-clock cycle label
 
-        GOTO   :: LABEL                                         -> STMT ()    --  GOTO the label *on the next cycle*
+        GOTO   :: LABEL                                         -> STMT c ()    --  GOTO the label *on the next cycle*
 
-        NOP   ::                                                   STMT ()
+        NOP   ::                                                   STMT c ()
 
         -- Monad stuff
-        RETURN :: a -> STMT a
-        BIND   :: STMT a -> (a -> STMT b) -> STMT b
-        MFIX   :: (a -> STMT a) -> STMT a
+        RETURN :: a -> STMT c a
+        BIND   :: STMT c a -> (a -> STMT c b) -> STMT c b
+        MFIX   :: (a -> STMT c a) -> STMT c a
 
-instance Monad STMT where
+instance Monad (STMT c) where
         return = RETURN
         (>>=) = BIND
-instance MonadFix STMT where
+instance MonadFix (STMT c) where
         mfix = MFIX
 
 data SMState m = SMState
-        { pc_reg :: REG U8
-        , pc_sig :: Seq U8
+        { pc_reg :: REG (LocalClock m) U8
+        , pc_sig :: Signal (LocalClock m) U8
         , pc_val :: U8
         , st_fab :: (LocalM m) => m ()
-        , st_pred :: Pred
+        , st_pred :: Pred (LocalClock m)
         }
-
-{-
-(&&&) :: STMT a -> STMT () -> STMT a
-(&&&) (RETURN a) _ = error "no STEP found"
-(&&&) (STEP) stmts = do { stmts ; STEP }
-(&&&) (BIND (BIND m k1) k2) rest = m
--}
 
 data SparkMonad m a = SparkMonad { runSparkMonad :: SMState m -> (a,SMState m) }
 
@@ -226,41 +231,38 @@ instance MonadFix (SparkMonad m) where
         mfix k = SparkMonad $ \ st -> let (a,st') = runSparkMonad (k a) st
                                       in (a,st')
 
-issueFab :: (Seq Bool -> m ()) -> SparkMonad m ()
+issueFab :: (Signal (LocalClock m) Bool -> m ()) -> SparkMonad m ()
 issueFab fab = SparkMonad $ \ st ->
         ((),st { st_fab = st_fab st >> fab (compilePred (pc_sig st) (st_pred st)) })
 
-
-regPC :: SparkMonad m (REG U8)
+regPC :: SparkMonad m (REG (LocalClock m) U8)
 regPC = SparkMonad $ \ st -> (pc_reg st,st)
 
 -- takes a function that takes the old predicate, and gives the new one
-incPC :: (U8 -> Pred -> Pred) -> SparkMonad m U8
+incPC :: (c ~ LocalClock m) => (U8 -> Pred c -> Pred c) -> SparkMonad m U8
 incPC f = SparkMonad $ \ st -> let pc1 = pc_val st + 1
                              in (pc1,st { pc_val = pc1, st_pred = f pc1 (st_pred st) })
-
 
 falsifyPred :: SparkMonad m ()
 falsifyPred = SparkMonad $ \ st -> ((),st { st_pred = PredFalse })
 
-
-withPred :: Seq Bool -> SparkMonad m () -> SparkMonad m ()
+withPred :: Signal (LocalClock m) Bool -> SparkMonad m () -> SparkMonad m ()
 withPred p (SparkMonad m) = SparkMonad $ \ st ->
         case m st { st_pred = st_pred st `PredAnd` (PredCond p) } of
           (a,st') -> (a,st' { st_pred = (st_pred st `PredAnd` (PredNot (PredCond p))) `PredOr` st_pred st' })
 
-data Pred = PredCond (Seq Bool)
-          | PredOr Pred Pred
-          | PredAnd Pred Pred
-          | PredNot Pred
-          | PredFalse
-          | PredPC U8
+data Pred c = PredCond (Signal c Bool)
+            | PredOr (Pred c) (Pred c)
+            | PredAnd (Pred c) (Pred c)
+            | PredNot (Pred c)
+            | PredFalse
+            | PredPC U8
 
 -- FIXME
-instance Show Pred where
+instance Show (Pred c) where
         show = undefined
 
-compilePred :: Seq U8 -> Pred -> Seq Bool
+compilePred :: Signal c U8 -> Pred c -> Signal c Bool
 compilePred pc (PredCond p)      = p
 compilePred pc (PredOr p1 p2)    = compilePred pc p1 .||. compilePred pc p2
 compilePred pc (PredAnd p1 p2)   = compilePred pc p1 .&&. compilePred pc p2
@@ -268,10 +270,10 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred pc (PredFalse)       = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
-spark :: forall m . (LocalM m, SingI (W (Enabled U8))) => STMT () -> m (Seq U8)
+spark :: forall m c . (LocalM m, c ~ LocalClock m) => STMT c () -> m (Signal c U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
-        VAR pc :: VAR U8 <- initially 0
+        VAR pc :: VAR c U8 <- initially 0
         let st0 = SMState
                 { pc_reg = pc
                 , pc_sig = pc
@@ -294,43 +296,45 @@ spark stmt = do
 
 
         return pc
-  where
-        compile :: STMT a -> SparkMonad m a
-        compile ((R v) := expr) = issueFab $ \ pred ->
-                writeSignalVar v (packEnabled pred expr)
-        compile (p :? stmt) = withPred p (compile stmt)
-        compile STEP = do
-            rec issueFab $ \ pred -> writeSignalVar pc_reg (packEnabled pred (pureS pc))
-                pc <- incPC $ \ pc _ -> PredPC pc
-                (R pc_reg) <- regPC
-            return (L pc)
-        compile LABEL = do
-                pc <- incPC $ \ pc old_pred -> (PredPC pc) `PredOr` old_pred
-                return (L pc)
-        compile (GOTO ~(L n)) = do      -- the ~ allows for forward jumping
-                (R pc) <- regPC
-                issueFab $ \ pred -> writeSignalVar pc (packEnabled pred (pureS n))
-                falsifyPred
-        compile NOP = return ()                 -- is this needed?
 
-        compile (RETURN a) = return a
-        compile (BIND m k) = do
-                a <- compile m
-                compile (k a)
-        compile (MFIX k) = mfix (compile . k)
+compile :: (LocalM m, c ~ LocalClock m) => STMT (LocalClock m) a -> SparkMonad m a
+compile ((R v) := expr) = issueFab $ \ pred ->
+        writeSignalVar v (packEnabled pred expr)
+compile (p :? stmt) = withPred p (compile stmt)
+compile STEP = do
+    rec issueFab $ \ pred -> writeSignalVar pc_reg (packEnabled pred (pureS pc))
+        pc <- incPC $ \ pc _ -> PredPC pc
+        (R pc_reg) <- regPC
+    return (L pc)
+compile LABEL = do
+        pc <- incPC $ \ pc old_pred -> (PredPC pc) `PredOr` old_pred
+        return (L pc)
+compile (GOTO ~(L n)) = do      -- the ~ allows for forward jumping
+        (R pc) <- regPC
+        issueFab $ \ pred -> writeSignalVar pc (packEnabled pred (pureS n))
+        falsifyPred
+compile NOP = return ()                 -- is this needed?
+
+compile (RETURN a) = return a
+compile (BIND m k) = do
+        a <- compile m
+        compile (k a)
+compile (MFIX k) = mfix (compile . k)
 
 --------------------------------------------------
 
-instance Boolean (STMT (Seq Bool)) where
+{-
+-- These are not right
+instance Boolean (STMT c (Signal c Bool)) where
         true = return true
         false = return false
         notB = liftM notB
         (&&*) = liftM2 (&&*)
         (||*) = liftM2 (||*)
 
-type instance BooleanOf (STMT s) = STMT (Seq Bool)
+type instance BooleanOf (STMT c s) = STMT c (Signal c Bool)
 
-instance IfB (STMT ()) where
+instance IfB (STMT c ()) where
         ifB i t f = do
             rec b <- i
                 b :? GOTO t_lab
