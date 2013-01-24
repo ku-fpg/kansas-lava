@@ -277,14 +277,14 @@ spark stmt = do
                        lab <- STEP
                        GOTO lab
         let ((),st1) = runSparkMonad (compile stmt') st0
-        () <- trace (show ("pred", st_pred st1)) $ return ()
+--        () <- trace (show ("pred", st_pred st1)) $ return ()
         -- do the actions
         st_fab st1
 --        liftFabric (st_fab st1)
 
         -- If nothing else triggers the PC, then increment it by 1
 --        assign pc (pc + 1)
-        () <- trace (show ("done")) $ return ()
+--        () <- trace (show ("done")) $ return ()
 
 
         return pc
