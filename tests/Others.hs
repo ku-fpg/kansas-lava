@@ -390,7 +390,7 @@ testDelay  (TestSeq test _) tyName (us0) = do
                 let o0 = dlay $ i0
                 outStdLogicVector "o0" o0
 
-            res = mkShallowS (S.Cons unknownX (Just (S.fromList (map pureX us0))))
+            res = mkShallowXS (S.Cons unknownX (Just (S.fromList (map pureX us0))))
 
         test ("delay/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()

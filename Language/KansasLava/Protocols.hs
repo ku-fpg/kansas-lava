@@ -111,7 +111,7 @@ takeTMVarS var sig = do
         return $ f res sig
     where
          f :: Signal c (Enabled a) -> Signal c r -> Signal c (Enabled a)
-         f a b = mkShallowS $ fmap pureX $ takeWithResponse (fmap unpureX (shallowXS a)) (fmap unpureX (shallowXS b))
+         f a b = mkShallowXS $ fmap pureX $ takeWithResponse (fmap unpureX (shallowXS a)) (fmap unpureX (shallowXS b))
 
 putTMVarS :: forall r c a . (Response r, Clock c, Rep a) => TMVar a -> Signal c (Enabled a) -> IO (Signal c r)
 putTMVarS var sig = do
@@ -124,7 +124,7 @@ putTMVarS var sig = do
 
     where
 	 f :: (Clock clk, Response r) => Signal clk (Enabled a) -> (Signal clk r,Signal clk (Enabled a))
-         f a = (mkShallowS $ fmap pureX r, mkShallowS $ fmap pureX $ val)
+         f a = (mkShallowXS $ fmap pureX r, mkShallowXS $ fmap pureX $ val)
            where
                 (r,val) = S.unzip (putWithResponse $ fmap unpureX (shallowXS a))
 

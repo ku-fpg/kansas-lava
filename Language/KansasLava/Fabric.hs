@@ -342,7 +342,7 @@ hReaderFabric h table = do
                                      Nothing -> error "bad input value for hReadFabric"
                                      Just v  -> v
                                   | s <- strs ]
-                         a = mkShallowS $ fmap fromRep $ S.fromList $ xs
+                         a = mkShallowXS $ fmap fromRep $ S.fromList $ xs
                          w = widthS a
                      f a        -- This is actual connection to the fabric
                      return (p + w)

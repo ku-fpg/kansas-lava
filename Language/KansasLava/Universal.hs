@@ -97,7 +97,7 @@ repValuesToPad other _ = error $ "can not find Pad for " ++ show other
 -- internal
 padToPad :: forall a c . (Rep a, Clock c) => Signal c a -> [RepValue] -> Signal c a
 padToPad _s rep = id
-        $ mkShallowS
+        $ mkShallowXS
         $ fmap fromRep
         $ S.fromList
         $ rep

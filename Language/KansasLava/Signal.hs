@@ -70,8 +70,11 @@ mkDeepS = Signal (error "incorrect use of shallow Signal")
 
 -- | Inject a shallow value into a Signal. The deep portion of the Signal will be an
 -- Error if it is ever used.
-mkShallowS :: (Clock c) => S.Stream (X a) -> Signal c a
-mkShallowS s = Signal s (D $ Error "incorrect use of deep Signal")
+mkShallowS :: (Rep a, Clock c) => S.Stream (Maybe a) -> Signal c a
+mkShallowS = mkShallowXS . fmap optX
+
+mkShallowXS :: (Clock c) => S.Stream (X a) -> Signal c a
+mkShallowXS s = Signal s (D $ Error "incorrect use of deep Signal")
 
 -- | Create a Signal with undefined for both the deep and shallow elements.
 undefinedS ::  forall a sig clk . (Rep a, sig ~ Signal clk) => sig a
@@ -110,7 +113,7 @@ readIOS m = do
                 xs <- loop
                 return $ S.cons x xs
         xs <- loop
-        return (mkShallowS xs)
+        return (mkShallowXS xs)
 
 -----------------------------------------------------------------------
 -- primitive builders
@@ -249,7 +252,7 @@ toS' = toXS . map optX
 
 -- | Convert a list of X values to a Signal. Pad the end with an infinite list of X unknowns.
 toXS :: forall a c . (Clock c, Rep a) => [X a] -> Signal c a
-toXS xs = mkShallowS (S.fromFiniteList xs unknownX)
+toXS xs = mkShallowXS (S.fromFiniteList xs unknownX)
 
 -- | Convert a Signal of values into a list of Maybe values.
 fromS :: (Rep a) => Signal c a -> [Maybe a]
@@ -261,7 +264,7 @@ fromXS = S.toList . shallowXS
 
 -- | take the first n elements of a 'Signal'; the rest is undefined.
 takeS :: (Rep a, Clock c) => Int -> Signal c a -> Signal c a
-takeS n s = mkShallowS (S.fromFiniteList (take n (S.toList (shallowXS s))) unknownX)
+takeS n s = mkShallowXS (S.fromFiniteList (take n (S.toList (shallowXS s))) unknownX)
 
 -- | Compare the first depth elements of two Signals.
 cmpSignalRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
