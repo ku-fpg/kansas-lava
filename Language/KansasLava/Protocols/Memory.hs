@@ -51,7 +51,7 @@ writeMemory pipe = res
                                             Just v -> optX (Just v)
                           )
 			<*> mem -- (emptyMEM :~ mem)
---			    <*> ({- optX Nothing :~ -} shallowS addr2)
+--			    <*> ({- optX Nothing :~ -} shallowXS addr2)
 
 	-- This could have more fidelity, and allow you
 	-- to say only a single location is undefined
@@ -72,9 +72,9 @@ writeMemory pipe = res
 			      		addr' <- unX a
 			      		dat'  <- unX b
 			      		return $ Just (addr',dat')
-		       ) <*> shallowS wEn
-			 <*> shallowS addr
-			 <*> shallowS dat
+		       ) <*> shallowXS wEn
+			 <*> shallowXS addr
+			 <*> shallowXS dat
 
 	mem :: Stream (Radix d)
 	mem = id

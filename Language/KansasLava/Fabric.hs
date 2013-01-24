@@ -298,7 +298,7 @@ hWriterFabric :: (MonadIO m) => Handle -> [IN m] -> m ()
 hWriterFabric h table = do
         xs <- sequence
                 [ do sq <- f
-                     return $ S.toList $ fmap toRep $ shallowS sq
+                     return $ S.toList $ fmap toRep $ shallowXS sq
                 | IN f <- table
                 ]
 
@@ -317,7 +317,7 @@ consume :: (Monad m) => [IN m] -> m (Seq ())
 consume table = do
         xs <- sequence
                 [ do sq <- f
-                     return $ S.toList $ fmap (showPackedRepValue . toRep) $ shallowS sq
+                     return $ S.toList $ fmap (showPackedRepValue . toRep) $ shallowXS sq
                 | IN f <- table
                 ]
 

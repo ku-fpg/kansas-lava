@@ -46,7 +46,7 @@ setProbes = writeIORef probeFn . ProbeFn
 -- The arguments are fully evaluted (so printing them will not cause any side-effects of evaluation.
 {-# NOINLINE setShallowProbes #-}
 setShallowProbes :: (forall a . (Rep a) => String -> Integer -> X a -> X a) -> IO ()
-setShallowProbes write = setProbes $ \ nm sig -> shallowMapS (probe_shallow nm) sig
+setShallowProbes write = setProbes $ \ nm sig -> shallowMapXS (probe_shallow nm) sig
   where
         probe_shallow :: forall a . (Rep a) => String -> S.Stream (X a) -> S.Stream (X a)
         probe_shallow nm = id

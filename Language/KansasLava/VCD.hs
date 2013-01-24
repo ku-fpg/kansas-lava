@@ -221,7 +221,7 @@ convertVC :: forall clk w . (Clock clk, Rep w) => Int -> Signal clk w -> VC
 convertVC len xs = foldl (\ vc (i,v) -> snocVC i v vc)
                                 (emptyVC (typeOfS xs))
                                 [ (i,toRep v)
-                                | (i,v) <- take len [0..] `zip` S.toList (shallowS xs)
+                                | (i,v) <- take len [0..] `zip` S.toList (shallowXS xs)
                                 ]
 
 showColumns :: [[String]] -> [String]

@@ -38,8 +38,12 @@ data Signal (c :: *) a = Signal (S.Stream (X a)) (D a)
 type Seq a = Signal CLK a
 
 -- | Extract the shallow portion of a 'Signal'.
-shallowS :: Signal c a -> S.Stream (X a)
-shallowS (Signal a _) = a
+shallowXS :: Signal c a -> S.Stream (X a)
+shallowXS (Signal a _) = a
+
+-- | Extract the shallow portion of a 'Signal'.
+shallowS :: (Rep a) => Signal c a -> S.Stream (Maybe a)
+shallowS = fmap unX . shallowXS
 
 -- | Extract the deep portion of a 'Signal'.
 deepS :: Signal c a -> D a
@@ -48,8 +52,8 @@ deepS (Signal _ d) = d
 deepMapS :: (D a -> D a) -> Signal c a -> Signal c a
 deepMapS f (Signal a d) = (Signal a (f d))
 
-shallowMapS :: (S.Stream (X a) -> S.Stream (X a)) -> Signal c a -> Signal c a
-shallowMapS f (Signal a d) = (Signal (f a) d)
+shallowMapXS :: (S.Stream (X a) -> S.Stream (X a)) -> Signal c a -> Signal c a
+shallowMapXS f (Signal a d) = (Signal (f a) d)
 
 -- | A pure 'Signal'.
 pureS :: (Rep a) => a -> Signal i a
@@ -90,7 +94,7 @@ widthS _ = repWidth (Witness :: Witness a)
 
 writeIOS :: Signal i a -> (X a -> IO ()) -> IO ()
 writeIOS sig m = do
-        _ <- ($) forkIO $ loop (shallowS sig)
+        _ <- ($) forkIO $ loop (shallowXS sig)
         return ()
   where
           loop (Cons x r) = do
@@ -241,34 +245,34 @@ toS = toS' . map Just
 -- | Convert a list of values into a Signal. The input list is wrapped with a
 -- Maybe, and any Nothing elements are mapped to X's unknowns.
 toS' :: (Clock c, Rep a) => [Maybe a] -> Signal c a
-toS' = toSX . map optX
+toS' = toXS . map optX
 
 -- | Convert a list of X values to a Signal. Pad the end with an infinite list of X unknowns.
-toSX :: forall a c . (Clock c, Rep a) => [X a] -> Signal c a
-toSX xs = mkShallowS (S.fromFiniteList xs unknownX)
+toXS :: forall a c . (Clock c, Rep a) => [X a] -> Signal c a
+toXS xs = mkShallowS (S.fromFiniteList xs unknownX)
 
 -- | Convert a Signal of values into a list of Maybe values.
 fromS :: (Rep a) => Signal c a -> [Maybe a]
-fromS = fmap unX . S.toList . shallowS
+fromS = S.toList . shallowS
 
 -- | Convret a Signal of values into a list of representable values.
-fromSX :: (Rep a) => Signal c a -> [X a]
-fromSX = S.toList . shallowS
+fromXS :: (Rep a) => Signal c a -> [X a]
+fromXS = S.toList . shallowXS
 
 -- | take the first n elements of a 'Signal'; the rest is undefined.
 takeS :: (Rep a, Clock c) => Int -> Signal c a -> Signal c a
-takeS n s = mkShallowS (S.fromFiniteList (take n (S.toList (shallowS s))) unknownX)
+takeS n s = mkShallowS (S.fromFiniteList (take n (S.toList (shallowXS s))) unknownX)
 
 -- | Compare the first depth elements of two Signals.
 cmpSignalRep :: forall a c . (Rep a) => Int -> Signal c a -> Signal c a -> Bool
 cmpSignalRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
-								(shallowS s1)
-								(shallowS s2)
+								(shallowXS s1)
+								(shallowXS s2)
 
 -----------------------------------------------------------------------------------
 
 instance Dual (Signal c a) where
-    dual c d = Signal (shallowS c) (deepS d)
+    dual c d = Signal (shallowXS c) (deepS d)
 
 -- | Return the Lava type of a representable signal.
 typeOfS :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type
@@ -370,7 +374,7 @@ instance (Rep a, SingI ix) => Pack clk (M.Vector ix a) where
                         $ fmap M.matrix       -- [Matrix ix (X a)]
                         $ List.transpose        -- [[X a]]
                         $ fmap S.toList         -- [[X a]]
-                        $ fmap shallowS         -- [Stream (X a)]
+                        $ fmap shallowXS        -- [Stream (X a)]
                         $ elems                 -- [sig a]
                         $ m                     -- Matrix ix (sig a)
 
@@ -398,7 +402,7 @@ instance (Rep a, SingI ix) => Pack clk (M.Vector ix a) where
                                  ,("i1",repType (Witness :: Witness (M.Vector ix a)),unD $ deepS ms)
                                  ]
 
-                 shallow i = fmap (liftX (! i)) (shallowS ms)
+                 shallow i = fmap (liftX (! i)) (shallowXS ms)
 
 ----------------------------------------------------------------
 

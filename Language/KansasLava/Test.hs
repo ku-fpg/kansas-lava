@@ -102,8 +102,8 @@ cmpFabricOutputs count expected shallow =
         ]
     where getTyRep :: Pad -> (StdLogicType, [RepValue])
           getTyRep pad = case pad of
-                           StdLogic s -> (padStdLogicType pad,map toRep $ toList $ shallowS s)
-                           StdLogicVector s -> (padStdLogicType pad,map toRep $ toList $ shallowS s)
+                           StdLogic s -> (padStdLogicType pad,map toRep $ toList $ shallowXS s)
+                           StdLogicVector s -> (padStdLogicType pad,map toRep $ toList $ shallowXS s)
                            GenericPad _ -> error "testFabrics: Generic output pad?"
 -}
 
@@ -683,8 +683,8 @@ matchExpected out_name ref = do
                      | (i,v,o,r) <- take (fromIntegral count)
                                 $ zip4 [0..]
                                   (fromS sq)
-                                  (S.toList (fmap (show . unRepValue . toRep) (shallowS o0)))
-                                  (S.toList (fmap (show . unRepValue . toRep) (shallowS ref)))
+                                  (S.toList (fmap (show . unRepValue . toRep) (shallowXS o0)))
+                                  (S.toList (fmap (show . unRepValue . toRep) (shallowXS ref)))
 
                      , v /= Just True
                      ] of

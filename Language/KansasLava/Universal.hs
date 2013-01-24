@@ -85,8 +85,8 @@ instance (SingI ix) => Rep (ExternalStdLogicVector ix) where
 
 -- TODO: should be Stream
 padToRepValues :: Pad c -> [RepValue]
-padToRepValues (StdLogic s)             = S.toList $ fmap toRep $ shallowS s
-padToRepValues (StdLogicVector s)       = S.toList $ fmap toRep $ shallowS s
+padToRepValues (StdLogic s)             = S.toList $ fmap toRep $ shallowXS s
+padToRepValues (StdLogicVector s)       = S.toList $ fmap toRep $ shallowXS s
 padToRepValues other                    = error $ "can not find RepValue for " ++ show other
 
 repValuesToPad :: (Clock c) => Pad c -> [RepValue] -> Pad c
