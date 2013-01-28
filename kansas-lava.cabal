@@ -50,7 +50,7 @@ Library
         dotgen >= 0.4.1,
         containers,
         array,
-        sized-types >= 0.4.1,
+        sized-types >= 0.4.1.1,
         mtl >= 2.0,
         data-default,
         random,
@@ -115,7 +115,7 @@ Executable kansas-lava-unittest
       buildable: True
       Build-Depends:
         base >= 4 && < 5,
-        sized-types >= 0.4.1,
+        sized-types >= 0.4.1.1,
         array,
         data-default,
         kansas-lava

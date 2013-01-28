@@ -18,7 +18,7 @@ import Language.KansasLava.Signal
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Types
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Matrix	as M
 import Data.Sized.Signed	as SI
 import Data.Sized.TypeNatInstances()
@@ -109,7 +109,7 @@ bitNot s1 = primS1 not "not"  s1
 -- | Extract the n'th bit of a signal that can be represented as Bits.
 -- testABit :: forall a i w sig . (SingI w, Bits a, Rep a, W (Vector w Bool) ~ (W a), sig ~ Signal i)
 testABit :: forall a i w sig . (SingI w, Bits a, Rep a, w ~ (W a), sig ~ Signal i)
-          => sig a -> sig (Sized w) -> sig Bool
+          => sig a -> sig (Fin w) -> sig Bool
 testABit sig0 ix = sig1 .!. ix
   where
           sig1 :: sig (Vector w Bool)
@@ -129,7 +129,7 @@ isPositive :: forall sig i ix . (SingI ix, sig ~ Signal i)
               => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a (pureS asSized)
     where msb = toInteger $ typeWidth (typeOfS a) - 1
-          asSized :: Sized (W (Signed ix))
+          asSized :: Fin (W (Signed ix))
           asSized = fromInteger msb
 
 infixr 3 .&&.
@@ -153,7 +153,7 @@ infixr 2 .^.
 -----------------------------------------------------------------------------------------------
 -- Map Ops
 
-rom2 :: forall a d clk sig . (SingI a, Rep d, sig ~ Signal clk) => ((Sized a) -> X d) -> sig ((Sized a -> d))
+rom2 :: forall a d clk sig . (SingI a, Rep d, sig ~ Signal clk) => ((Fin a) -> X d) -> sig ((Fin a -> d))
 rom2 fn  = mustAssignSLV
       $ Signal (pure (XFunction fn))
                (D $ rom)
@@ -166,7 +166,7 @@ rom2 fn  = mustAssignSLV
               undefB = unknownRepValue (Witness :: Witness d)
 
 	      all_a_bitRep :: [RepValue]
-	      all_a_bitRep = allReps (Witness :: Witness (Sized a))
+	      all_a_bitRep = allReps (Witness :: Witness (Fin a))
 
               rom = Port "o0" $ E $ Entity (Prim "rom")
                                            [("o0",tMB)]
@@ -269,16 +269,16 @@ evalX a = count $ unRepValue $ toRep a
 muxMatrix
 	:: forall sig x a i
 	 . (SingI x,  sig ~ Signal i, Rep a)
-	=> sig (Matrix (Sized x) a)
-	-> sig (Sized x)
+	=> sig (Matrix (Fin x) a)
+	-> sig (Fin x)
 	-> sig a
 muxMatrix = (.!.)
 
 -- | Extract the n'th element of a vector.
 (.!.)	:: forall sig x a i
 	 . (SingI x, sig ~ Signal i, Rep a)
-	=> sig (Matrix (Sized x) a)
-	-> sig (Sized x)
+	=> sig (Matrix (Fin x) a)
+	-> sig (Fin x)
 	-> sig a
 (.!.) mSig xSig = primS2 (flip (!)) "index" xSig mSig
         -- order reversed on purpose

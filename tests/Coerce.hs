@@ -5,7 +5,7 @@ module Coerce where
 import Language.KansasLava
 import Language.KansasLava.Test
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Unsigned
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed
@@ -48,25 +48,25 @@ tests test = do
         t1 "U3_S3" (Witness :: Witness U3) ((allCases :: List S3))
         t1 "U8_S4" (Witness :: Witness U8) ((allCases :: List S4))
 
-        t1 "X2_X2" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 2)))
-        t1 "X2_X3" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 3)))
-        t1 "X2_X4" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 4)))
-        t1 "X2_X5" (Witness :: Witness (Sized 2)) ((allCases :: List (Sized 5)))
+        t1 "X2_X2" (Witness :: Witness (Fin 2)) ((allCases :: List (Fin 2)))
+        t1 "X2_X3" (Witness :: Witness (Fin 2)) ((allCases :: List (Fin 3)))
+        t1 "X2_X4" (Witness :: Witness (Fin 2)) ((allCases :: List (Fin 4)))
+        t1 "X2_X5" (Witness :: Witness (Fin 2)) ((allCases :: List (Fin 5)))
 
-        t1 "X3_X2" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 2)))
-        t1 "X3_X3" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 3)))
-        t1 "X3_X4" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 4)))
-        t1 "X3_X5" (Witness :: Witness (Sized 3)) ((allCases :: List (Sized 5)))
+        t1 "X3_X2" (Witness :: Witness (Fin 3)) ((allCases :: List (Fin 2)))
+        t1 "X3_X3" (Witness :: Witness (Fin 3)) ((allCases :: List (Fin 3)))
+        t1 "X3_X4" (Witness :: Witness (Fin 3)) ((allCases :: List (Fin 4)))
+        t1 "X3_X5" (Witness :: Witness (Fin 3)) ((allCases :: List (Fin 5)))
 
-        t1 "X4_X2" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 2)))
-        t1 "X4_X3" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 3)))
-        t1 "X4_X4" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 4)))
-        t1 "X4_X5" (Witness :: Witness (Sized 4)) ((allCases :: List (Sized 5)))
+        t1 "X4_X2" (Witness :: Witness (Fin 4)) ((allCases :: List (Fin 2)))
+        t1 "X4_X3" (Witness :: Witness (Fin 4)) ((allCases :: List (Fin 3)))
+        t1 "X4_X4" (Witness :: Witness (Fin 4)) ((allCases :: List (Fin 4)))
+        t1 "X4_X5" (Witness :: Witness (Fin 4)) ((allCases :: List (Fin 5)))
 
-        t1 "X5_X2" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 2)))
-        t1 "X5_X3" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 3)))
-        t1 "X5_X4" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 4)))
-        t1 "X5_X5" (Witness :: Witness (Sized 5)) ((allCases :: List (Sized 5)))
+        t1 "X5_X2" (Witness :: Witness (Fin 5)) ((allCases :: List (Fin 2)))
+        t1 "X5_X3" (Witness :: Witness (Fin 5)) ((allCases :: List (Fin 3)))
+        t1 "X5_X4" (Witness :: Witness (Fin 5)) ((allCases :: List (Fin 4)))
+        t1 "X5_X5" (Witness :: Witness (Fin 5)) ((allCases :: List (Fin 5)))
 
         let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Show w2, Rep w2, Rep w1, SingI (W w1), SingI (W w2)) =>
                   String -> Witness w2 -> List w1 -> IO ()
@@ -92,17 +92,17 @@ tests test = do
                  String -> Witness w2 -> List w1 -> IO ()
             t3 str witness arb = testBitwise test str witness arb
 
-        t3 "S16_M_X4_S4"    (Witness :: Witness S16) ((allCases :: List (Matrix (Sized 4) S4)))
-        t3 "U15_M_X3_S5"    (Witness :: Witness U15) ((allCases :: List (Matrix (Sized 3) S5)))
-        t3 "U3_M_X3_Bool"   (Witness :: Witness U3) ((allCases :: List (Matrix (Sized 3) Bool)))
-        t3 "U1_M_X1_Bool"   (Witness :: Witness U1) ((allCases :: List (Matrix (Sized 1) Bool)))
-        t3 "Bool_M_X1_Bool" (Witness :: Witness Bool) ((allCases :: List (Matrix (Sized 1) Bool)))
+        t3 "S16_M_X4_S4"    (Witness :: Witness S16) ((allCases :: List (Matrix (Fin 4) S4)))
+        t3 "U15_M_X3_S5"    (Witness :: Witness U15) ((allCases :: List (Matrix (Fin 3) S5)))
+        t3 "U3_M_X3_Bool"   (Witness :: Witness U3) ((allCases :: List (Matrix (Fin 3) Bool)))
+        t3 "U1_M_X1_Bool"   (Witness :: Witness U1) ((allCases :: List (Matrix (Fin 1) Bool)))
+        t3 "Bool_M_X1_Bool" (Witness :: Witness Bool) ((allCases :: List (Matrix (Fin 1) Bool)))
 
-        t3 "M_X4_S4_S16"    (Witness :: Witness (Matrix (Sized 4) S4)) ((allCases :: List S16))
-        t3 "M_X3_S5_U15"    (Witness :: Witness (Matrix (Sized 3) S5)) ((allCases :: List U15))
-        t3 "M_X3_Bool_U3"   (Witness :: Witness (Matrix (Sized 3) Bool)) ((allCases :: List U3))
-        t3 "M_X1_Bool_U1"   (Witness :: Witness (Matrix (Sized 1) Bool)) ((allCases :: List U1))
-        t3 "M_X1_Bool_Bool" (Witness :: Witness (Matrix (Sized 1) Bool)) ((allCases :: List Bool))
+        t3 "M_X4_S4_S16"    (Witness :: Witness (Matrix (Fin 4) S4)) ((allCases :: List S16))
+        t3 "M_X3_S5_U15"    (Witness :: Witness (Matrix (Fin 3) S5)) ((allCases :: List U15))
+        t3 "M_X3_Bool_U3"   (Witness :: Witness (Matrix (Fin 3) Bool)) ((allCases :: List U3))
+        t3 "M_X1_Bool_U1"   (Witness :: Witness (Matrix (Fin 1) Bool)) ((allCases :: List U1))
+        t3 "M_X1_Bool_Bool" (Witness :: Witness (Matrix (Fin 1) Bool)) ((allCases :: List Bool))
 
         t3 "U3_x_U2_U5"     (Witness :: Witness (U3,U2)) ((allCases :: List U5))
         t3 "U5_U3_x_U2"     (Witness :: Witness U5) ((allCases :: List (U3,U2)))

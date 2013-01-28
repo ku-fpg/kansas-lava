@@ -18,7 +18,7 @@ import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Control.Monad.ST hiding (unsafeInterleaveST)
 import Control.Monad.ST.Unsafe
 import Data.STRef
@@ -163,7 +163,7 @@ newReg def = RTL $ \ _ u -> do
 	return (Reg regRes variable varSt debugSt uq,[])
 
 -- | Declare an array. Arrays support partual updates.
-newArr :: forall a c ix s . (SingI ix, Clock c, Rep a) => Witness (Sized ix) -> RTL s c (Signal c (Sized ix) -> Reg s c a)
+newArr :: forall a c ix s . (SingI ix, Clock c, Rep a) => Witness (Fin ix) -> RTL s c (Signal c (Fin ix) -> Reg s c a)
 newArr Witness = RTL $ \ _ u -> do
 	uq <- readSTRef u
 	writeSTRef u (uq + 1)
@@ -171,7 +171,7 @@ newArr Witness = RTL $ \ _ u -> do
 	proj <- unsafeInterleaveST $ do
 		assigns <- readSTRef varSt
 		let ass = foldr (.) id (reverse assigns) (pureS Nothing)
-		let look ix = writeMemory (ass :: Signal c (Enabled ((Sized ix),a)))
+		let look ix = writeMemory (ass :: Signal c (Enabled ((Fin ix),a)))
 					`asyncRead` ix
 		return look
 	return (\ ix -> Arr (proj ix) ix varSt uq, [])

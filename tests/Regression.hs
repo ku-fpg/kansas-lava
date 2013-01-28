@@ -6,7 +6,7 @@ import Language.KansasLava hiding ((:=))
 import Language.KansasLava.Test
 import Language.KansasLava.RTL
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Unsigned
 import Data.Sized.Matrix
 
@@ -16,7 +16,7 @@ tests :: TestSeq -> IO ()
 tests (TestSeq test _) = do
         let driver1 = outStdLogicVector "i0" res1
 
-	    res1 = undefinedS :: Seq (Sized 1)
+	    res1 = undefinedS :: Seq (Fin 1)
 
         test "regression/1/funMap/Matrix" 1000 fab1 (driver1 >> matchExpected "o0" res1)
 
@@ -24,7 +24,7 @@ tests (TestSeq test _) = do
 
         test "regression/2/RTL" 1000 fab2 (return () >> matchExpected "o0" res2)
 
-cir1 :: Signal CLK (Sized 1) -> Signal CLK (Matrix (Sized 16) U8)
+cir1 :: Signal CLK (Fin 1) -> Signal CLK (Matrix (Fin 16) U8)
 cir1 = funMap fn
   where fn _ = return $ matrix [0..15]
 

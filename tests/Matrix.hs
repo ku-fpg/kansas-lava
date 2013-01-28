@@ -7,7 +7,7 @@ import Language.KansasLava.Test
 
 import Data.Sized.Unsigned
 import qualified Data.Sized.Matrix as M hiding (length)
-import Data.Sized.Sized
+import Data.Sized.Fin
 
 import Data.Array.IArray
 
@@ -121,7 +121,7 @@ testMatrix3 :: forall w1 .
 testMatrix3 (TestSeq test _) tyName ws = do
         let ms = ws
 	    cir :: Seq (Enabled w1) -> Seq (Enabled w1)
-            cir = mapEnabled (\ m -> unpackMatrix m ! (0 :: (Sized 2)))
+            cir = mapEnabled (\ m -> unpackMatrix m ! (0 :: (Fin 2)))
 		. mapEnabled (\ x -> packMatrix (M.matrix [ x, x ]))
             driver = do
 		return ()

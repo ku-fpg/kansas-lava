@@ -162,15 +162,15 @@ data MEM c a d = MEM (Signal c d) (REG c a) (REG c (a,d))
 {-
 -- Not compilent with protocol
 memory :: forall a d
-        .  (SingI a, Rep d, SingI (W (Enabled ((Sized a),d))), SingI (W (Enabled (Sized a)))) => Fabric (MEM (Sized a) d)
+        .  (SingI a, Rep d, SingI (W (Enabled ((Fin a),d))), SingI (W (Enabled (Fin a)))) => Fabric (MEM (Fin a) d)
 memory = do
-        CHAN addr_out addr_in :: CHAN (Sized a)     <- channel
-        CHAN wt_out   wt_in   :: CHAN (Sized a,d) <- channel
+        CHAN addr_out addr_in :: CHAN (Fin a)     <- channel
+        CHAN wt_out   wt_in   :: CHAN (Fin a,d) <- channel
 
-        let mem :: Signal CLK ((Sized a) -> d)
+        let mem :: Signal CLK ((Fin a) -> d)
             mem = writeMemory wt_out
 
-            addr_out' :: Signal CLK (Sized a)
+            addr_out' :: Signal CLK (Fin a)
             addr_out' = mux (isEnabled addr_out) (delay addr_out',enabledVal addr_out)
 
         return $ MEM (syncRead mem addr_out') addr_in wt_in

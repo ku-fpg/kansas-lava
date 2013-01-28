@@ -5,7 +5,7 @@ module Memory where
 import Language.KansasLava
 import Language.KansasLava.Test
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Matrix as M hiding (length)
 import Data.Sized.Signed
 import Data.Sized.Unsigned
@@ -46,53 +46,53 @@ tests :: TestSeq -> IO ()
 tests test = do
         --  Memories
         let t1 :: (SingI a, Eq b, Show b, Rep b,
-                   SingI (W (Maybe (Sized a,b))), SingI (a * (W b))
+                   SingI (W (Maybe (Fin a,b))), SingI (a * (W b))
                    ) =>
-                 String -> List (Maybe (Sized a,b)) -> IO ()
+                 String -> List (Maybe (Fin a,b)) -> IO ()
             t1 str arb = testMatrixMemory test str arb
 
-        t1 "X1xBool" ((finiteCases 1000 :: List (Maybe (Sized 1,Bool))))
-        t1 "X1xU4" ((finiteCases 1000 :: List (Maybe (Sized 1,U4))))
-        t1 "X2xU4" ((finiteCases 1000 :: List (Maybe (Sized 2,U4))))
-        t1 "X4xU4" ((finiteCases 1000 :: List (Maybe (Sized 4,U4))))
-        t1 "X16xS10" ((finiteCases 1000 :: List (Maybe (Sized 256,S10))))
+        t1 "X1xBool" ((finiteCases 1000 :: List (Maybe (Fin 1,Bool))))
+        t1 "X1xU4" ((finiteCases 1000 :: List (Maybe (Fin 1,U4))))
+        t1 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4))))
+        t1 "X4xU4" ((finiteCases 1000 :: List (Maybe (Fin 4,U4))))
+        t1 "X16xS10" ((finiteCases 1000 :: List (Maybe (Fin 256,S10))))
 
         let t2 :: (Show b, Rep b, Eq b,
-                   SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Sized a,b)))
+                   SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Fin a,b)))
                   ) =>
-                  String -> List (Maybe (Sized a,b), Sized a) -> IO ()
+                  String -> List (Maybe (Fin a,b), Sized a) -> IO ()
             t2 str arb = testSyncMemory test str arb
-        t2 "X1xBool" (finiteCases 1000 :: List (Maybe (Sized 1,Bool), Sized 1))
-        t2 "X2xU4" ((finiteCases 1000 :: List (Maybe (Sized 2,U4), Sized 2)))
-        t2 "X4xU5" ((finiteCases 1000 :: List (Maybe (Sized 4,U5), Sized 4)))
+        t2 "X1xBool" (finiteCases 1000 :: List (Maybe (Fin 1,Bool), Sized 1))
+        t2 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Sized 2)))
+        t2 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Sized 4)))
 
         let t3 :: (Show b, Rep b, Eq b,
-                  SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Sized a,b)))
+                  SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Fin a,b)))
                   ) =>
-                  String -> List (Maybe (Sized a,b),Sized a) -> IO ()
+                  String -> List (Maybe (Fin a,b),Sized a) -> IO ()
             t3 str arb = testAsyncMemory test str arb
-        t3 "X1xBool" ((finiteCases 1000 :: List (Maybe (Sized 1,Bool), Sized 1)))
-        t3 "X2xU4" ((finiteCases 1000 :: List (Maybe (Sized 2,U4), Sized 2)))
-        t3 "X4xU5" ((finiteCases 1000 :: List (Maybe (Sized 4,U5), Sized 4)))
+        t3 "X1xBool" ((finiteCases 1000 :: List (Maybe (Fin 1,Bool), Sized 1)))
+        t3 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Sized 2)))
+        t3 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Sized 4)))
 
         -- test ROM
         let t4 :: (SingI a, Eq b, Show b, Rep b, SingI (W b)) =>
-                  String -> List (Sized a,b) -> IO ()
+                  String -> List (Fin a,b) -> IO ()
             t4 str arb = testRomMemory test str arb
 
-        t4 "X4xU5" ((finiteCases 1000 :: List (Sized 4,U5)))
-        t4 "X4xU8" ((finiteCases 1000 :: List (Sized 4,U8)))
-        t4 "X8xB"  ((finiteCases 1000 :: List (Sized 8,Bool)))
+        t4 "X4xU5" ((finiteCases 1000 :: List (Fin 4,U5)))
+        t4 "X4xU8" ((finiteCases 1000 :: List (Fin 4,U8)))
+        t4 "X8xB"  ((finiteCases 1000 :: List (Fin 8,Bool)))
 
 
 testAsyncMemory :: forall w1 w2 .
                    ( SingI w1,
                      Eq w2, Show w2, Rep w2 , SingI (W w2),
-                     SingI (W (Maybe (Sized w1,w2)))
-                   ) => TestSeq -> String -> List (Maybe (Sized w1,w2), Sized w1) -> IO ()
+                     SingI (W (Maybe (Fin w1,w2)))
+                   ) => TestSeq -> String -> List (Maybe (Fin w1,w2), Sized w1) -> IO ()
 testAsyncMemory (TestSeq test _) tyName ws = do
     let (writes,rds) = unzip $ ws
-        mem = asyncRead . writeMemory :: Seq (Maybe (Sized w1,w2)) -> Seq (Sized w1) -> Seq w2
+        mem = asyncRead . writeMemory :: Seq (Maybe (Fin w1,w2)) -> Seq (Fin w1) -> Seq w2
 
         driver = do
                 outStdLogicVector "writes" (toS writes)
@@ -127,11 +127,11 @@ testAsyncMemory (TestSeq test _) tyName ws = do
 testSyncMemory :: forall w1 w2 .
                   ( SingI w1,
                     Eq w2, Show w2, Rep w2, SingI (W w2),
-                    SingI (W (Maybe (Sized w1,w2))))
-                  => TestSeq -> String -> List (Maybe (Sized w1,w2), Sized w1) -> IO ()
+                    SingI (W (Maybe (Fin w1,w2))))
+                  => TestSeq -> String -> List (Maybe (Fin w1,w2), Sized w1) -> IO ()
 testSyncMemory (TestSeq test _) tyName ws = do
     let (writes,rds) = unzip $  ws
-        mem = syncRead . writeMemory :: Seq (Maybe (Sized w1,w2)) -> Seq (Sized w1) -> Seq w2
+        mem = syncRead . writeMemory :: Seq (Maybe (Fin w1,w2)) -> Seq (Fin w1) -> Seq w2
 
         driver = do
                 outStdLogicVector "writes" (toS writes)
@@ -162,11 +162,11 @@ testSyncMemory (TestSeq test _) tyName ws = do
 
 testMatrixMemory :: forall w1 w2 .
                     (SingI w1, Eq w2, Show w2, Rep w2,
-                     SingI (W (Maybe (Sized w1,w2))), SingI (w1 * (W w2)))
-                   => TestSeq -> String -> List (Maybe (Sized w1,w2)) -> IO ()
+                     SingI (W (Maybe (Fin w1,w2))), SingI (w1 * (W w2)))
+                   => TestSeq -> String -> List (Maybe (Fin w1,w2)) -> IO ()
 testMatrixMemory (TestSeq test _) tyName ws = do
     let writes = ws
-        mem = memoryToMatrix . writeMemory :: Seq (Maybe (Sized w1,w2)) -> Seq (M.Vector w1 w2)
+        mem = memoryToMatrix . writeMemory :: Seq (Maybe (Fin w1,w2)) -> Seq (M.Vector w1 w2)
 
         driver = do
                 outStdLogicVector "i0" (toS writes)
@@ -191,7 +191,7 @@ testMatrixMemory (TestSeq test _) tyName ws = do
                      ]
                     | i <- [1..(length writes-1)]
                     ]
-                  | x <- [0..(size (error "witness" :: (Sized w1)) - 1 )]
+                  | x <- [0..(size (error "witness" :: (Fin w1)) - 1 )]
                   ]
 
     test ("memory/matrix/" ++ tyName) (length writes) dut (driver >> matchExpected "o0" res)
@@ -201,13 +201,13 @@ testRomMemory :: forall w1 w2 .
                  (SingI w1, Eq w2, Show w2, Rep w2, SingI (W w2))
                  => TestSeq
               -> String
-              -> List (Sized w1, w2)
+              -> List (Fin w1, w2)
               -> IO ()
 testRomMemory (TestSeq test _) tyName ws = do
     let (addr,vals) = unzip $ ws
 
         m :: Vector w1 w2
-        m = matrix $ take (size (error "" :: (Sized w1))) (cycle $ List.nub vals)
+        m = matrix $ take (size (error "" :: (Fin w1))) (cycle $ List.nub vals)
         driver = do
                 outStdLogicVector "i0" (toS addr)
         dut = do
@@ -217,7 +217,7 @@ testRomMemory (TestSeq test _) tyName ws = do
         res = toS [ m ! a | a <- addr ] :: Seq w2
 
 
-        mem = funMap (\ a -> return (m ! a)) :: Seq (Sized w1) -> Seq w2
+        mem = funMap (\ a -> return (m ! a)) :: Seq (Fin w1) -> Seq w2
 
     test ("memory/async/rom/" ++ tyName) (length addr) dut (driver >> matchExpected "o0" res)
     return ()

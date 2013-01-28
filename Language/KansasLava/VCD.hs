@@ -40,7 +40,7 @@ import System.FilePath as FP
 
 -- for testing
 -- import Data.Sized.Unsigned
--- import Data.Sized.Sized
+-- import Data.Sized.Fin
 
 
 scope :: String -> VCD -> [(String,VC)]
@@ -328,7 +328,7 @@ recordVCDFabric i fab = do
 testVC1 :: VC
 testVC1 = VC (V 4)
               (toRep (unknownX :: X U4))
-              [(i,toRep (pureX (fromIntegral i) :: (X (Sized 4)))) | i <- reverse [0..10], i < 4 || i > 7]
+              [(i,toRep (pureX (fromIntegral i) :: (X (Fin 4)))) | i <- reverse [0..10], i < 4 || i > 7]
               10
 
 testVC2 :: VC

@@ -4,7 +4,7 @@ module Language.KansasLava.Universal where
 
 import GHC.TypeLits
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal

@@ -8,7 +8,7 @@ import Language.KansasLava.Test
 import qualified Language.KansasLava.Stream as S
 
 import Data.Bits
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Sampled
 import Data.Sized.Signed
 import Data.Sized.Unsigned

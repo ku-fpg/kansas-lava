@@ -15,7 +15,7 @@ module Language.KansasLava.Rep
 
 import Language.KansasLava.Types
 import Control.Monad (liftM)
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Matrix hiding (S)
 import qualified Data.Sized.Matrix as M
 import Data.Sized.Unsigned as U
@@ -236,10 +236,10 @@ instance (Rep a) => Rep (Maybe a) where
     showRep (XMaybe (XBool (Just False),_)) = "Nothing"
 
 
-instance (SingI x) => Rep (Sized x) where
-    -- TODO.  FIXME:  W (Sized x) should be LOG (SUB x 1)
-    type W (Sized x) = x  -- LOG (SUB x 1)
-    data X (Sized x)  = XSized (Maybe (Sized x))
+instance (SingI x) => Rep (Fin x) where
+    -- TODO.  FIXME:  W (Fin x) should be LOG (SUB x 1)
+    type W (Fin x) = x  -- LOG (SUB x 1)
+    data X (Fin x)  = XSized (Maybe (Fin x))
     optX (Just x)   = XSized $ return x
     optX Nothing    = XSized $ fail "Sized"
     unX (XSized (Just a)) = return a
@@ -255,7 +255,7 @@ instance (SingI ix, Rep a) => Rep (Vector ix a) where
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
     unX (XMatrix m) = liftM matrix $ mapM (\ i -> unX (m ! i)) (indices m)
-    repType Witness = MatrixTy (size (error "witness" :: (Sized ix))) (repType (Witness :: Witness a))
+    repType Witness = MatrixTy (size (error "witness" :: (Fin ix))) (repType (Witness :: Witness a))
     toRep (XMatrix m) = RepValue (concatMap (unRepValue . toRep) $ elems m)
     fromRep (RepValue xs) = XMatrix $ M.matrix $ fmap (fromRep . RepValue) $ unconcat xs
 	    where unconcat [] = []
@@ -292,16 +292,16 @@ instance (SingI ix) => Rep (Signed ix) where
 -----------------------------------------------------------------------------
 -- The grandfather of them all, functions.
 
-instance (SingI ix, Rep a) => Rep ((Sized ix) -> a) where
-    type W ((Sized ix) -> a) =  (ix * (W a))
-    data X ((Sized ix) -> a) = XFunction ((Sized ix) -> X a)
+instance (SingI ix, Rep a) => Rep ((Fin ix) -> a) where
+    type W ((Fin ix) -> a) =  (ix * (W a))
+    data X ((Fin ix) -> a) = XFunction ((Fin ix) -> X a)
 
     optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
     optX Nothing  = XFunction $ const $ unknownX
 
     unX (XFunction f) = return (\ a ->
         let fromJust' (Just x) = x
-            fromJust' _ = error $ show ("X",repType (Witness :: Witness ((Sized ix) -> a)), showRep (optX (Just a) :: X (Sized ix)))
+            fromJust' _ = error $ show ("X",repType (Witness :: Witness ((Fin ix) -> a)), showRep (optX (Just a) :: X (Fin ix)))
         in (fromJust' . unX . f) a)
 
     repType Witness = MatrixTy (fromInteger (fromNat (sing :: Sing ix))) (repType (Witness :: Witness a))

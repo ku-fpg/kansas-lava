@@ -15,7 +15,7 @@ import Language.KansasLava
 -- import Data.Maybe
 
 -- import Data.Word
--- import Data.Sized.Sized
+-- import Data.Sized.Fin
 -- import Data.Sized.Unsigned
 -- import Control.Concurrent.STM
 -- import Control.Concurrent

@@ -68,7 +68,7 @@ import Data.Monoid hiding (Dual)
 import Data.Reify
 import Data.Ratio
 import qualified Data.Traversable as T
-import Data.Sized.Sized
+import Data.Sized.Fin
 import GHC.Exts( IsString(..) )
 import GHC.TypeLits
 

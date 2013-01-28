@@ -5,7 +5,7 @@ module Protocols where
 import Language.KansasLava
 import Language.KansasLava.Test
 
-import Data.Sized.Sized
+import Data.Sized.Fin
 import Data.Sized.Unsigned
 import Data.Sized.Matrix (matrix, Matrix)
 
@@ -80,7 +80,7 @@ tests test = do
 
 	-- This tests matrixDupP and matrixZipP
         let patchTest2 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w)
-		      => StreamTest w (Matrix (Sized 3) w)
+		      => StreamTest w (Matrix (Fin 3) w)
             patchTest2 = StreamTest
                         { theStream = matrixDupP $$ matrixStackP (matrix [
 								forwardP $ mapEnabled (+0),
@@ -103,7 +103,7 @@ tests test = do
 	   	where
 			count = 100
 
-	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix (Sized 3) U5))
+	testStream test "U5" (patchTest2 :: StreamTest U5 (Matrix (Fin 3) U5))
 
 	-- This tests muxP (and matrixMuxP)
         let patchTest3 :: forall w . (Rep w,Eq w, Show w, SingI (W w), Num w, w ~ U5)
@@ -115,7 +115,7 @@ tests test = do
 				stackP (forwardP (mapEnabled (*2)) $$ fifo1)
 				      (forwardP (mapEnabled (*3)) $$ fifo1) $$
 				openP $$
-				fstP (cycleP (matrix [True,False] :: Matrix (Sized 2) Bool) $$ fifo1) $$
+				fstP (cycleP (matrix [True,False] :: Matrix (Fin 2) Bool) $$ fifo1) $$
 				muxP
 
 
@@ -142,7 +142,7 @@ tests test = do
             patchTest4 = StreamTest
                         { theStream =
 				openP $$
-				fstP (cycleP (matrix [True,False] :: Matrix (Sized 2) Bool) $$ fifo1) $$
+				fstP (cycleP (matrix [True,False] :: Matrix (Fin 2) Bool) $$ fifo1) $$
 				deMuxP $$
 				stackP (fifo1) (fifo1) $$
 				zipP
