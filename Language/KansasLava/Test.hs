@@ -14,8 +14,8 @@ module Language.KansasLava.Test
         , generateReport
         , Options(..)
         , matchExpected
-        , StreamTest(..)
-        , testStream
+--       , StreamTest(..)
+--        , testStream
         ) where
 
 import Language.KansasLava.Fabric
@@ -693,7 +693,7 @@ matchExpected out_name ref = do
 
 
 ----------------------------------------------------------------------------
-
+{-
 data StreamTest w1 w2 = StreamTest
             { theStream            :: Patch (Seq (Enabled w1))          (Seq (Enabled w2))
                                             (Seq Ack)                   (Seq Ack)
@@ -792,7 +792,7 @@ let ans = [ a | Just a <- take n opt_as ]
 
         test ("stream/" ++ theStreamName streamTest ++ "/" ++ tyName) (length vals) dut driver
 
-
+-}
 -- | Get a file from the prelude. First, check the KANSAS_LAVA_ROOT system
 -- environment variable. If it exists, use that. If not, try to get it from the
 -- installed cabal package.

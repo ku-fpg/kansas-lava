@@ -20,7 +20,7 @@ import Language.KansasLava.Utils
 
 ------------------------------------------------------------------------------------
 
-
+{-
 {- The convention with ReadyBoxn signals is
   ...
  -> (lhs_inp, rhs_inp)
@@ -105,7 +105,7 @@ shallowReadyBoxBridge (lhsF,rhsF) = patch
 	patch = fromReadyBox' lhsF $$ toReadyBox' rhsF
 
 -- | 'probeReadyBoxPatch' creates a patch with a named probe, probing the data and ready
--- signals in a Ready interface.  
+-- signals in a Ready interface.
 probeReadyBoxP :: forall sig a c . ( Rep a, Clock c, sig ~ Signal c)
     => String
     -> Patch (sig (Enabled a))   (sig (Enabled a))
@@ -153,3 +153,4 @@ neverReadyP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
     => Patch    ()           (sig (Enabled a))
                 ()           (sig Ready)
 neverReadyP (_,_) = ((),disabledS)
+-}

@@ -25,7 +25,7 @@ import Data.Maybe  as Maybe
 import qualified Prelude
 import Prelude hiding (tail, lookup)
 
-
+{-
 ------------------------------------------------------------------------------------
 
 
@@ -201,3 +201,4 @@ neverAckP :: forall a c sig . (Rep a, Clock c, sig ~ Signal c)
                 ()           (sig Ack)
 neverAckP (_,_) = ((),disabledS)
 
+-}

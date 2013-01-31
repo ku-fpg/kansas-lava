@@ -2,7 +2,8 @@
   ScopedTypeVariables, TypeFamilies, TypeSynonymInstances, DataKinds #-}
 
 -- | The RTL module provides a small DSL that's useful for control-oriented -- stateful -- computations.
-module Language.KansasLava.RTL (
+module Language.KansasLava.RTL where
+{-
         RTL(..),    -- not abstract
         Reg,        -- abstract
         Cond(..),   -- not abstract
@@ -189,3 +190,4 @@ match inp fn = IF (isEnabled inp) (fn (enabledVal inp))
 
 
 -- debug :: (Rep a,Clock c) => String -> Reg s c a -> RTL
+-}
