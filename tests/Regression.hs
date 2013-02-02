@@ -20,10 +20,6 @@ tests (TestSeq test _) = do
 
         test "regression/1/funMap/Matrix" 1000 fab1 (driver1 >> matchExpected "o0" res1)
 
-        let res2 = toS $ cycle (True : replicate 15 False)
-
-        test "regression/2/RTL" 1000 fab2 (return () >> matchExpected "o0" res2)
-
 cir1 :: Signal CLK (Fin 1) -> Signal CLK (Matrix (Fin 16) U8)
 cir1 = funMap fn
   where fn _ = return $ matrix [0..15]
@@ -36,12 +32,3 @@ fab1 = do
     let b = cir1 a
     outStdLogicVector "o0" b
 
-cir2 :: Seq Bool
-cir2 = runRTL $ do
-	count <- newReg (0 :: (Unsigned 4))
---        CASE [ OTHERWISE $ do count := reg count + 1 ]  -- TODO: fix this
-	count := reg count + 1
-	return  (reg count .==. 0)
-
-fab2 :: Fabric ()
-fab2 = outStdLogicVector "o0" cir2

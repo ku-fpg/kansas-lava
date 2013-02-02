@@ -60,20 +60,20 @@ tests test = do
         let t2 :: (Show b, Rep b, Eq b,
                    SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Fin a,b)))
                   ) =>
-                  String -> List (Maybe (Fin a,b), Sized a) -> IO ()
+                  String -> List (Maybe (Fin a,b), Fin a) -> IO ()
             t2 str arb = testSyncMemory test str arb
-        t2 "X1xBool" (finiteCases 1000 :: List (Maybe (Fin 1,Bool), Sized 1))
-        t2 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Sized 2)))
-        t2 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Sized 4)))
+        t2 "X1xBool" (finiteCases 1000 :: List (Maybe (Fin 1,Bool), Fin 1))
+        t2 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Fin 2)))
+        t2 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Fin 4)))
 
         let t3 :: (Show b, Rep b, Eq b,
                   SingI a, SingI (W b), SingI (a * (W b)), SingI (W (Maybe (Fin a,b)))
                   ) =>
-                  String -> List (Maybe (Fin a,b),Sized a) -> IO ()
+                  String -> List (Maybe (Fin a,b),Fin a) -> IO ()
             t3 str arb = testAsyncMemory test str arb
-        t3 "X1xBool" ((finiteCases 1000 :: List (Maybe (Fin 1,Bool), Sized 1)))
-        t3 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Sized 2)))
-        t3 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Sized 4)))
+        t3 "X1xBool" ((finiteCases 1000 :: List (Maybe (Fin 1,Bool), Fin 1)))
+        t3 "X2xU4" ((finiteCases 1000 :: List (Maybe (Fin 2,U4), Fin 2)))
+        t3 "X4xU5" ((finiteCases 1000 :: List (Maybe (Fin 4,U5), Fin 4)))
 
         -- test ROM
         let t4 :: (SingI a, Eq b, Show b, Rep b, SingI (W b)) =>
@@ -89,7 +89,7 @@ testAsyncMemory :: forall w1 w2 .
                    ( SingI w1,
                      Eq w2, Show w2, Rep w2 , SingI (W w2),
                      SingI (W (Maybe (Fin w1,w2)))
-                   ) => TestSeq -> String -> List (Maybe (Fin w1,w2), Sized w1) -> IO ()
+                   ) => TestSeq -> String -> List (Maybe (Fin w1,w2), Fin w1) -> IO ()
 testAsyncMemory (TestSeq test _) tyName ws = do
     let (writes,rds) = unzip $ ws
         mem = asyncRead . writeMemory :: Seq (Maybe (Fin w1,w2)) -> Seq (Fin w1) -> Seq w2
@@ -128,7 +128,7 @@ testSyncMemory :: forall w1 w2 .
                   ( SingI w1,
                     Eq w2, Show w2, Rep w2, SingI (W w2),
                     SingI (W (Maybe (Fin w1,w2))))
-                  => TestSeq -> String -> List (Maybe (Fin w1,w2), Sized w1) -> IO ()
+                  => TestSeq -> String -> List (Maybe (Fin w1,w2), Fin w1) -> IO ()
 testSyncMemory (TestSeq test _) tyName ws = do
     let (writes,rds) = unzip $  ws
         mem = syncRead . writeMemory :: Seq (Maybe (Fin w1,w2)) -> Seq (Fin w1) -> Seq w2

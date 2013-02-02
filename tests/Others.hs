@@ -2,7 +2,7 @@
 module Others (tests) where
 
 import Language.KansasLava
-import Language.KansasLava.Signal(mkShallowS)
+import Language.KansasLava.Signal(mkShallowXS)
 import Language.KansasLava.Test
 
 import qualified Language.KansasLava.Stream as S
@@ -347,7 +347,7 @@ testOpsBits2 test tyName ws = do
                 ] else []
           ]
 
-        let ws2 :: List (w,Sized (W w))
+        let ws2 :: List (w,Fin (W w))
             ws2 = zip ws (cycle [0..maxBound])
 
         sequence_
