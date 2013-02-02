@@ -81,21 +81,6 @@ instance Rep () where
     fromRep (RepValue []) = XUnit $ return ()
     showRep _ = "()"
 
--- | Integers are unbounded in size. We use the type 'IntegerWidth' as the
--- associated type representing this size in the instance of Rep for Integers.
-data IntegerWidth = IntegerWidth
-
-instance Rep Integer where
-    type W Integer  = 64 -- IntegerWidth
-    data X Integer  = XInteger Integer   -- No fail/unknown value
-    optX (Just b)   = XInteger b
-    optX Nothing    = XInteger $ error "Generic failed in optX"
-    unX (XInteger a)       = return a
-    repType _  = GenericTy
-    toRep = error "can not turn a Generic to a Rep"
-    fromRep = error "can not turn a Rep to a Generic"
-    showRep (XInteger v) = show v
-
 newtype Message (ix :: Nat) = Message String
 
 instance (SingI ix) => Rep (Message ix) where
