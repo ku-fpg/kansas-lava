@@ -14,10 +14,13 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Andy Gill
 Maintainer:          Andy Gill <andygill@ku.edu>
-Copyright:           (c) 2009-2011 The University of Kansas
-Homepage:            http://ittc.ku.edu/csdl/fpg/Tools/KansasLava
+Copyright:           (c) 2009-2013 The University of Kansas
+Homepage:            http://www.ittc.ku.edu/csdl/fpg/software/kansas-lava.html
 Stability:           alpha
 build-type:          Simple
+
+
+-- (We actually require >= ghc 7.6, because we the kind Nat.)
 --
 -- should be >= 1.12, but that will force
 -- people to ghc 7.4. Don't try to run
@@ -71,7 +74,6 @@ Library
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.DOT
-       Language.KansasLava.Entity
        Language.KansasLava.Fabric
        Language.KansasLava.Optimization
        Language.KansasLava.Probes
