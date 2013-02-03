@@ -39,17 +39,6 @@ tests test = do
                    Rep w2, Eq w2, Num w2, Show w2,
                    SingI (w1 * (W w2))
                   ) => String -> List (M.Vector w1 w2) -> IO ()
-	    t2 str arb = testMatrix1 test str arb
-
-        t1 "X1xU4" (allCases :: List (M.Vector 1 U4))
-        t1 "X2xU4" (allCases :: List (M.Vector 2 U4))
-        t1 "X3xU4" (allCases :: List (M.Vector 3 U4))
-
-        let t2 :: (SingI w1,
-                   SingI (W w2),
-                   Rep w2, Eq w2, Num w2, Show w2,
-                   SingI (w1 * (W w2))
-                  ) => String -> List (M.Vector w1 w2) -> IO ()
 	    t2 str arb = testMatrix2 test str arb
 
         t2 "X1xU4" (allCases :: List (M.Vector 1 U4))
