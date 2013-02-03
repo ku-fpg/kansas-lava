@@ -4,7 +4,7 @@ module Regression where
 
 import Language.KansasLava hiding ((:=))
 import Language.KansasLava.Test
-import Language.KansasLava.RTL
+
 
 import Data.Sized.Fin
 import Data.Sized.Unsigned

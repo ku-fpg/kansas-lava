@@ -38,8 +38,8 @@ module Language.KansasLava (
     writeVhdlCircuit,
     writeVhdlPrelude,
 
---    -- * RTL sub-DSL
---    module Language.KansasLava.RTL,
+    -- * RTL sub-DSL
+    module Language.KansasLava.Spark,
 
     -- * Probes
     module Language.KansasLava.Probes,
@@ -68,7 +68,6 @@ import Language.KansasLava.Optimization
 import Language.KansasLava.Probes
 import Language.KansasLava.Protocols
 import Language.KansasLava.Rep
---import Language.KansasLava.RTL
 import Language.KansasLava.Signal
 import Language.KansasLava.Types
 import Language.KansasLava.Utils
