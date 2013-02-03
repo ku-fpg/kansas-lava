@@ -111,13 +111,13 @@ type SimMods = [(String,KLEG -> IO KLEG)]
 
 testFabrics
         :: Options                  -- Options
-        -> SimMods                  -- ^ [(String,KLEG -> IO KLEG)]
+        -> (KLEG -> IO KLEG)        -- possible KLEG optimizations
         -> String                   -- Test Name
         -> Int                      -- Number of Cycles
         -> Fabric ()                         -- DUT
         -> (Fabric (Int -> Maybe String))    -- Driver
         -> IO ()
-testFabrics opts simMods name count f_dut f_expected
+testFabrics opts optimizations name count f_dut f_expected
    | testMe name (testOnly opts) && not (neverTestMe name (testNever opts)) = (do
 
 
@@ -141,39 +141,25 @@ testFabrics opts simMods name count f_dut f_expected
                     then do createDirectoryIfMissing True path
 
                             -- get permuted/unpermuted list of sims for which we generate testbenches
-                            let sims = [ (modname, (mkTestbench' (path </> modname) count (snd cmod) f_dut f_expected))
-                                       | cmod <- if permuteMods opts
-                                                    then map (foldr (\(nm,m) (nms,ms) -> (nm </> nms, m >=> ms)) ("unmodified", (return)))
-                                                           $ concatMap permutations
-                                                           $ subsequences
-                                                           $ simMods
-                                                    else simMods
-                                       , let modname = fst cmod
-                                       ]
+                            let modname = "dut"
+                                action  = mkTestbench' path count optimizations f_dut f_expected
+
+                                rep = report (name </> modname)
+                                vrb = verbose (verboseOpt opts) (name </> modname)
 
                             -- generate each testbench, report any failures
-                            ts <- sequence [ do vrb 2 $ "generating simulation"
-                                                E.catch (Just <$> action)
-                                                        (\e -> do vrb 3 "vhdl generation failed"
-                                                                  vrb 4 $ show (e :: E.SomeException)
-                                                                  rep $ CodeGenFail -- (show (e :: E.SomeException))
-                                                                  return Nothing)
-                                           | (modname, action) <- sims
-                                           , let rep = report (name </> modname)
-                                           , let vrb = verbose (verboseOpt opts) (name </> modname)
-                                           ]
+                            vrb 2 $ "generating simulation"
 
-                            -- for successfully generated testbenches, add some files
-                            sequence_ [ do writeFile (path </> modname </> "Makefile") $ localMake (name </> modname)
-                                           copyLavaPrelude (path </> modname)
-                                           writeFile (path </> modname </> "options") $ show opts
-                                           rep $ SimGenerated
---                                           vrb 9 $ show ("trace",fromJust t)
-                                      | (modname, t) <- zip (map fst sims) ts
-                                      , isJust t
-                                      , let _vrb = verbose (verboseOpt opts) (name </> modname)
-                                      , let rep = report (name </> modname)
-                                      ]
+                            E.catch (do t <- action
+                                        writeFile (path </> "Makefile") $ localMake (name </> modname)
+                                        copyLavaPrelude path
+                                        writeFile (path </> "options") $ show opts
+                                        rep $ SimGenerated
+                                        return ())
+                                    (\e -> do vrb 3 "vhdl generation failed"
+                                              vrb 4 $ show (e :: E.SomeException)
+                                              rep $ CodeGenFail -- (show (e :: E.SomeException))
+                                              return ())
 
                             return ()
                     else report name ShallowPass
@@ -565,7 +551,7 @@ testDriver dopt tests = do
 
         let test :: TestSeq
             test = TestSeq (\ nm sz fab fn ->
-                              let work_to_do = testFabrics opt [] nm sz fab fn
+                              let work_to_do = testFabrics opt (return) nm sz fab fn
                               in
                                 putMVar work (Right $ work_to_do)
 --                              work_to_do
@@ -818,7 +804,7 @@ mkTestbench' :: FilePath                -- ^ Directory where we should place tes
             -> Fabric a                 -- ^ TB fabric (generates stimuli)palate
             -> IO (a,VCD)
 mkTestbench' path cycles circuitMod fabric fabric_tb = do
-    let name = last $ splitPath path
+    let name = "dut"
 
     createDirectoryIfMissing True path
 
