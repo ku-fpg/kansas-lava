@@ -1,7 +1,7 @@
 DIR := sims
 KANSAS_LAVA_ROOT := ..
 RUN := env KANSAS_LAVA_ROOT=$(KANSAS_LAVA_ROOT)
-N:=1
+N:=4
 ARGS:=
 
 runall:
@@ -11,8 +11,8 @@ runall:
 	make report
 
 test:
-#	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest +RTS -N$(N) -RTS $(ARGS)
-	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest $(ARGS)
+	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest +RTS -N$(N) -RTS $(ARGS)
+
 
 simulate:
 	$(DIR)/runsims
