@@ -18,6 +18,7 @@ type instance (4 * 4) = 16
 type instance (3 * 5) = 15
 type instance (3 + 2) = 5
 type instance (3 + 1) = 4
+type instance (Log 5) = 3
 
 
 tests :: TestSeq -> IO ()

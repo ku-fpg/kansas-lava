@@ -37,6 +37,12 @@ data Radix a
   | Choose !(Radix a) !(Radix a)
 	deriving Show
 
+instance Functor Radix where
+        fmap f (Res a) = Res (f a)
+        fmap f NoRes   = NoRes
+        fmap f (Choose t1 t2) = Choose (fmap f t1) (fmap f t2)
+
+
 -- | The empty tree
 empty :: Radix a
 empty = NoRes
@@ -48,8 +54,8 @@ insert []    y NoRes   = Res $! y
 insert []    _ (Choose _ _) = error "inserting with short key"
 insert xs     y NoRes   = insert xs y (Choose NoRes NoRes)
 insert _  _ (Res _) = error "inserting with too long a key"
-insert (True:a) y (Choose l r) = Choose (insert a y l) r
-insert (False:a) y (Choose l r) = Choose l (insert a y r)
+insert (False:a) y (Choose l r) = Choose (insert a y l) r
+insert (True:a) y (Choose l r) = Choose l (insert a y r)
 
 
 -- | Find a value in a radix tree
@@ -59,7 +65,13 @@ find [] NoRes   = Nothing
 find [] _       = error "find error with short key"
 find (_:_) (Res _) = error "find error with long key"
 find (_:_) NoRes   = Nothing
-find (True:a) (Choose l _) = find a l
-find (False:a) (Choose _ r) = find a r
+find (False:a) (Choose l _) = find a l
+find (True:a) (Choose _ r) = find a r
 
+assocs :: Radix a -> [([Bool],a)]
+assocs (Res a) = [([],a)]
+assocs (NoRes) = []
+assocs (Choose t1 t2) =
+        [ (False:bs,a) | (bs,a) <- assocs t1 ] ++
+        [ (True:bs,a) | (bs,a) <- assocs t2 ]
 

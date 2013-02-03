@@ -39,7 +39,7 @@ tests test = do
 
 	-- tests Bits, inc the shifts
 --        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), Integral (W a), Rep (W a), SingI (W (W a))) => String -> List a -> IO ()
-        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a)) => String -> List a -> IO ()
+        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), SingI (Log (W a))) => String -> List a -> IO ()
             t2' str arb = testOpsBits2 test str arb
 
         t2' "U1" (allCases :: List U1)
@@ -320,7 +320,7 @@ testOpsBits test tyName ws = do
 
 
 --testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), Integral (W w), Rep (W w), SingI (W (W w))) => TestSeq -> String -> List w -> IO ()
-testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w)) => TestSeq -> String -> List w -> IO ()
+testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), SingI (Log (W w))) => TestSeq -> String -> List w -> IO ()
 testOpsBits2 test tyName ws = do
 	testOpsBits test tyName ws
 
