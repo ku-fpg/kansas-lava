@@ -165,10 +165,17 @@ instance (Rep a) => Rep (Maybe a) where
     showRep (XMaybe (XBool (Just True),a))   = "Just " ++ showRep a
     showRep (XMaybe (XBool (Just False),_)) = "Nothing"
 
+type family Log (n :: Nat) :: Nat
+
+type instance (Log 0) = 0
+type instance (Log 1) = 0
+type instance (Log 2) = 1
+type instance (Log 3) = 2
+type instance (Log 4) = 2
 
 instance (SingI x) => Rep (Fin x) where
     -- TODO.  FIXME:  W (Fin x) should be LOG (SUB x 1)
-    type W (Fin x) = x  -- LOG (SUB x 1)
+    type W (Fin x) = Log x
     data X (Fin x)  = XSized (Maybe (Fin x))
     optX (Just x)   = XSized $ return x
     optX Nothing    = XSized $ fail "Sized"
