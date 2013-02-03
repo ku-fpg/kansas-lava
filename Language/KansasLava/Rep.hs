@@ -81,39 +81,6 @@ instance Rep () where
     fromRep (RepValue []) = XUnit $ return ()
     showRep _ = "()"
 
-newtype Message (ix :: Nat) = Message String
-
-instance (SingI ix) => Rep (Message ix) where
-    type W (Message ix)            = ix * 8
-    data X (Message ix)            = XMessage !(Maybe String)
-    optX b                         = XMessage $ fmap (\ (Message m) -> m) b
-    unX (XMessage v)               = fmap Message v
-    repType _                      = MatrixTy (fromInteger(fromNat (sing :: Sing ix))) (U 8)
-    toRep (XMessage Nothing)       = toRep $ XMatrix (forAll (\ _ -> optX Nothing) :: Vector ix (X U8))
-    toRep (XMessage (Just m))      = toRep $ XMatrix (forAll (\ i ->
-                                                if fromIntegral i < Prelude.length m
-                                                then optX (Just $ fromIntegral $ ord $ (m !! (fromIntegral i)))
-                                                else optX (Just 0)) :: Vector ix (X U8))
-    fromRep rep
-        | okay      = XMessage $ return $ msg
-        | otherwise = XMessage Nothing
-      where XMatrix (m :: Vector ix (X U8)) = fromRep rep
-            RepValue xs = rep
-            vals :: [U8]
-            vals = [ x | Just x <- map unX (elems m) ]
-            len = foldr min (Prelude.length vals) [ i | (0,i) <- zip vals [0..]]
-            msg = take len
-                [ chr (fromIntegral val)
-                | val <- vals
-                ]
-            okay = Prelude.all
-                      (\ a -> case a of
-                                Nothing -> False
-                                Just {} -> True) xs
-
-    showRep (XMessage Nothing)     = "-"
-    showRep (XMessage (Just txt))  = show txt
-
 -------------------------------------------------------------------------------------
 -- Now the containers
 

@@ -98,8 +98,6 @@ data Type
                         -- ^ Our "floating" values.
                         --   The first number is the precision/scale (+/- N)
                         --   The second number is the bits used to represent this number
-        | MessageTy
-                        -- ^ A message (only in shallow)
         deriving (Eq, Ord)
 
 -- | 'typeWidth' returns the width of a type when represented in VHDL.
@@ -112,7 +110,6 @@ typeWidth (V x) = x
 typeWidth (TupleTy tys) = sum (map typeWidth tys)
 typeWidth (MatrixTy i ty) = i * typeWidth ty
 typeWidth (SampledTy _ i) = i
-typeWidth (MessageTy)     = 0
 typeWidth other = error $ show ("typeWidth",other)
 
 -- | 'isTypeSigned' determines if a type has a signed representation. This is
@@ -128,7 +125,6 @@ isTypeSigned GenericTy = False
 isTypeSigned (RomTy _) = False
 isTypeSigned (TupleTy _) = False
 isTypeSigned (MatrixTy _ _) = False
-isTypeSigned (MessageTy) = False
 
 instance Show Type where
         show B          = "B"
@@ -141,7 +137,6 @@ instance Show Type where
         show (TupleTy tys) = show tys
         show (MatrixTy i ty) = show i ++ "[" ++ show ty ++ "]"
         show (SampledTy m n) = "Sampled " ++ show m ++ " " ++ show n
-        show (MessageTy)     = "T"      -- T for text
 
 -- This is required for the deserialization of Trace objects.
 instance Read Type where
