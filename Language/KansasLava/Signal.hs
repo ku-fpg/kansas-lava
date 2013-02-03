@@ -274,9 +274,6 @@ cmpSignalRep depth s1 s2 = and $ take depth $ S.toList $ S.zipWith cmpRep
 
 -----------------------------------------------------------------------------------
 
-instance Dual (Signal c a) where
-    dual c d = Signal (shallowXS c) (deepS d)
-
 -- | Return the Lava type of a representable signal.
 typeOfS :: forall w clk sig . (Rep w, sig ~ Signal clk) => sig w -> Type
 typeOfS _ = repType (Witness :: Witness w)
