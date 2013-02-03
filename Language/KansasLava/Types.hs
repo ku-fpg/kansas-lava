@@ -52,8 +52,6 @@ module Language.KansasLava.Types (
         , Witness(..)
         -- * Dual shallow/deep
         , Dual(..)
-	-- * Our version of tuples
-	, (:>)(..)
 	-- * Synthesis control
 	, Synthesis(..)
         ) where
@@ -698,10 +696,6 @@ instance (Dual b) => Dual (a -> b) where
 
 
 ----------------------------------------------------------------------------
--- Our version of tuples, with a right leaning (aka lists).
-infixr 5 :>
--- | Alternative definition for (,). Constructor is right-associative.
-data a :> b = a :> b deriving (Eq, Ord, Show, Read)
 
 
 ----------------------------------------------------------------------------
