@@ -3,7 +3,7 @@
 module Matrix where
 
 import Language.KansasLava
-import Language.KansasLava.Test
+import Test
 
 import Data.Sized.Unsigned
 import qualified Data.Sized.Matrix as M hiding (length)

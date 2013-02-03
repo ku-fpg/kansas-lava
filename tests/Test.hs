@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable, DataKinds #-}
-module Language.KansasLava.Test
+module Test
         ( testMe
         , neverTestMe
         , verbose

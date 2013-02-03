@@ -3,7 +3,7 @@
 module Wakarusa where
 
 import Language.KansasLava
-import Language.KansasLava.Test
+import Test
 import Language.KansasLava.Fabric
 import Language.KansasLava.Wakarusa
 

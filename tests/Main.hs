@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies, FlexibleContexts, ExistentialQuantification #-}
 module Main where
 
-import Language.KansasLava.Test
+import Test
 
 import Data.Default
 

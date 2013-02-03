@@ -3,7 +3,7 @@ module Others (tests) where
 
 import Language.KansasLava
 import Language.KansasLava.Signal(mkShallowXS)
-import Language.KansasLava.Test
+import Test
 
 import qualified Language.KansasLava.Stream as S
 

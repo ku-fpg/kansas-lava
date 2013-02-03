@@ -3,7 +3,7 @@
 module Coerce where
 
 import Language.KansasLava
-import Language.KansasLava.Test
+import Test
 
 import Data.Sized.Fin
 import Data.Sized.Unsigned

@@ -3,7 +3,7 @@
 module Regression where
 
 import Language.KansasLava hiding ((:=))
-import Language.KansasLava.Test
+import Test
 
 
 import Data.Sized.Fin

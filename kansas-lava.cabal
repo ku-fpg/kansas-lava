@@ -62,7 +62,6 @@ Library
         transformers >= 0.2.2,
         filepath,
         directory,
-        cmdargs >= 0.8,
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
@@ -81,7 +80,6 @@ Library
        Language.KansasLava.Rep
        Language.KansasLava.Signal
        Language.KansasLava.Spark
-       Language.KansasLava.Test
        Language.KansasLava.Types
        Language.KansasLava.Utils
        Language.KansasLava.Universal
@@ -119,9 +117,16 @@ Executable kansas-lava-unittest
         sized-types >= 0.4.1.1,
         array,
         data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs >= 0.8,
+        process,
         kansas-lava
+
       Other-modules:
-         Coerce Matrix Memory Others Protocols Regression
+         Test Coerce Matrix Memory Others Protocols Regression
     else
       Build-depends: base
       buildable: False
@@ -138,6 +143,13 @@ Executable kansas-lava-testreport
       Build-Depends:
         base >= 4 && < 5,
         array,
+        data-default,
+        random,
+        strict,
+        filepath,
+        directory,
+        cmdargs >= 0.8,
+        process,
         kansas-lava
       Other-modules:
     else

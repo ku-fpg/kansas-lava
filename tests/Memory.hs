@@ -3,7 +3,7 @@
 module Memory where
 
 import Language.KansasLava
-import Language.KansasLava.Test
+import Test
 
 import Data.Sized.Fin
 import Data.Sized.Matrix as M hiding (length)
