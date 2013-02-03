@@ -394,7 +394,7 @@ instance (Rep a, SingI ix) => Pack clk (M.Vector ix a) where
         unpack ms = M.forAll $ \ i -> Signal (shallow i) (deep i)
 
 	   where mx :: M.Vector ix Integer
-		 mx = matrix (Prelude.zipWith (\ _ b -> b) (indices mx) [0..])
+		 mx = forAll $ \ ix -> fromIntegral ix
 
                  deep i = D
                         $ Port "o0"
