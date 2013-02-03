@@ -25,7 +25,6 @@ module Language.KansasLava.Fabric
         , hWriteFabric
         , readFabric
         , hReadFabric
-        , fabricAPI
         , traceFabric
         , ioFabric
         , Reify(..)
@@ -276,13 +275,14 @@ recordFabric (Fabric f) = Fabric $ \ inps st0 -> do
         rec (a,f_result,st1) <- f inps st0
         return ((a,in_inPorts inps,out_vars f_result,out_outPorts f_result),f_result,st1)
 
--- TODO: only used in Wakarusa Monad?
+{-- TODO: only used in Wakarusa Monad?
 -- 'fabricAPI' explains what the API is for a specific fabric.
 -- The input Pad's are connected to a (deep) Pad nm.
 fabricAPI :: (MonadFix m) => SuperFabric c m a -> m (a,[(String,Pad c)],[(String,Pad c)])
 fabricAPI (Fabric f) = do
         rec (a,result,_) <- f (initFabricInput { in_inPorts = out_inPorts result }) (initFabricState)
         return (a,out_inPorts result,out_outPorts result)
+-}
 
 -- 'traceFabric' returns the actual inputs and outputs, inside the monad.
 -- TODO: This is broken!!
