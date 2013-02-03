@@ -181,7 +181,7 @@ instance (SingI x) => Rep (Fin x) where
     optX Nothing    = XSized $ fail "Sized"
     unX (XSized (Just a)) = return a
     unX (XSized Nothing) = fail "Sized"
-    repType _  = U (fromInteger(fromNat (sing :: Sing x)))
+    repType _  = U (log2 (fromInteger(fromNat (sing :: Sing x)) - 1))
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
@@ -268,7 +268,7 @@ unapX f = XFunction f
 
 -- | Calculate the base-2 logrithim of a integral value.
 log2 :: (Integral a) => a -> a
-log2 0 = 0
+log2 n | n <= 0 = 0
 log2 1 = 1
 log2 n = log2 (n `div` 2) + 1
 
