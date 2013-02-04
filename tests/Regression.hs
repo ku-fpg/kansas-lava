@@ -24,7 +24,7 @@ cir1 :: Signal CLK (Fin 1) -> Signal CLK (Matrix (Fin 16) U8)
 cir1 = funMap fn
   where fn _ = return $ matrix [0..15]
 
-type instance (16 * 8) = 144
+type instance (16 * 8) = 128
 
 fab1 :: Fabric ()
 fab1 = do
