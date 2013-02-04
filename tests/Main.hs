@@ -17,6 +17,7 @@ main :: IO ()
 main = do
         let opt = def { verboseOpt = 4  -- 4 == show cases that failed
                       , testNever = ["max","min","abs","signum"] -- for now
+--		      , testOnly = return ["regression/1/funMap/Matrix"]
                       }
         testDriver opt $ take 7 $ drop 0
                 [ Matrix.tests
