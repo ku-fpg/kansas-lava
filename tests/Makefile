@@ -11,14 +11,13 @@ runall:
 	make report
 
 test:
-	$(RUN) ../dist/build/kansas-lava-unittest/kansas-lava-unittest +RTS -N$(N) -RTS $(ARGS)
-
+	$(RUN) ../dist/build/kansas-lava-test/kansas-lava-test +RTS -N$(N) -RTS $(ARGS)
 
 simulate:
 	$(DIR)/runsims
 
 report:
-	$(RUN) ../dist/build/kansas-lava-testreport/kansas-lava-testreport $(DIR)
+	$(RUN) ../dist/build/kansas-lava-test/kansas-lava-test --genreport 
 
 clean:
 	mv $(DIR) XX.$(DIR)

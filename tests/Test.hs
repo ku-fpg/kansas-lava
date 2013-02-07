@@ -565,6 +565,13 @@ testDriver dopt tests = do
         putStrLn "Running with the following options:"
         putStrLn $ show opt
 
+        if genReport opt
+           then generateReport (simPath opt)
+           else testDriver2 opt tests
+
+testDriver2 :: Options -> [TestSeq -> IO ()] -> IO ()
+testDriver2 opt tests = do
+
         prepareSimDirectory opt
 
         work <- newEmptyMVar :: IO (MVar (Either (MVar ()) (IO ())))
@@ -642,10 +649,11 @@ data Options = Options
         , testNever   :: [String]                    -- ^ List of tests to never execute. Can match either end.
         , testData    :: Int                         -- ^ cut off for random testing
         , parTest     :: Int                         -- ^ how may tests to run in parallel
+        , genReport   :: Bool                        -- ^ run report (and nothing else)
         } deriving (Data, Typeable)
 
 instance Show Options where
-    show (Options gs rs sc sp pm vo to tn td pt) =
+    show (Options gs rs sc sp pm vo to tn td pt gr) =
         unlines [ "genSim: " ++ show gs
                 , "runSim: " ++ show rs
                 , "simCmd: " ++ show sc
@@ -655,7 +663,9 @@ instance Show Options where
                 , "testOnly: " ++ show to
                 , "testNever: " ++ show tn
                 , "testData: " ++ show td
-                , "parTest: " ++ show pt ]
+                , "parTest: " ++ show pt
+                , "genReport: " ++ show gr
+                ]
 
 
 
@@ -683,6 +693,7 @@ instance Default Options where
                                 -- everyone has multicore now.
                                 -- This is the number of *threads*,
                                 -- so we cope with upto 4 cores.
+                , genReport = False &= help "generate final report (and nothing else)"
                 }
 
 type TestCase = (String, Result)
