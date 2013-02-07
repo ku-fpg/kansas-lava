@@ -16,9 +16,6 @@ import Language.KansasLava.Utils
 
 import Control.Monad
 
--- It is preferable to be sending a message that expects an Ack,
--- but to recieve a message based on your Ready signal.
-
 ------------------------------------------------------------------------------------
 -- | An Ack is always in response to an incoming packet or message.
 newtype Ack = Ack { unAck :: Bool }
