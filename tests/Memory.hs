@@ -224,7 +224,7 @@ testRomMemory (TestSeq test _) tyName ws = do
                 outStdLogicVector "o0" (o0)
         res = toS' [ lookup a ws | a <- addr ] :: Seq w2
 
-        mem = funMap (\ a -> lookup a ws) :: Seq w1 -> Seq w2
+        mem = (\ ss -> rom ss (\ a -> lookup a ws)) :: Seq w1 -> Seq w2
 
     test ("memory/async/rom/" ++ tyName) (length addr) dut (driver >> matchExpected "o0" res)
     return ()

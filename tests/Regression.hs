@@ -18,10 +18,10 @@ tests (TestSeq test _) = do
 
 	    res1 = undefinedS :: Seq (Fin 1)
 
-        test "regression/1/funMap/Matrix" 1000 fab1 (driver1 >> matchExpected "o0" res1)
+        test "regression/1/rom/Matrix" 1000 fab1 (driver1 >> matchExpected "o0" res1)
 
 cir1 :: Signal CLK (Fin 1) -> Signal CLK (Matrix (Fin 16) U8)
-cir1 = funMap fn
+cir1 ss = rom ss fn
   where fn _ = return $ matrix [0..15]
 
 type instance (16 * 8) = 128

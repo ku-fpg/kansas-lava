@@ -178,13 +178,11 @@ enabledToPipe f se = pack (en, f x)
 --
 -- | Generate a read-only memory.
 rom :: (Rep a, Rep b, Clock clk) => Signal clk a -> (a -> Maybe b) -> Signal clk b
-rom inp fn = delay $ funMap fn inp
-
----------------------------------
+rom inp fn = funMapXXX fn inp
 
 -----------------------------------------------------------------------------------------------
 -- Map Ops
-
+{-
 rom2 :: forall a d clk sig . (SingI a, Rep d, sig ~ Signal clk) => ((Fin a) -> X d) -> sig ((Fin a -> d))
 rom2 fn  = mustAssignSLV
       $ Signal (pure (XFunction fn))
@@ -211,7 +209,7 @@ rom2 fn  = mustAssignSLV
 				 Just a' -> toRep (fn a')
 		    | w_a <- all_a_bitRep
 		    ]
-
+-}
 
 
 
@@ -221,8 +219,8 @@ rom2 fn  = mustAssignSLV
 -- | Given a function over a finite domain, generate a ROM representing the
 -- function. To make this feasible to implement, we assume that the domain is
 -- small (< 2^8 values).
-funMap :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
-funMap fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a)
+funMapXXX :: forall sig a b i . (sig ~ Signal i, Rep a, Rep b) => (a -> Maybe b) -> sig a -> sig b
+funMapXXX fn (Signal a ae) = mustAssignSLV $ Signal (fmap fn' a)
                             (D $ Port ("o0")
 			       $ E
 			       $ Entity (Prim "asyncRead")
