@@ -9,8 +9,8 @@ module Language.KansasLava.VCD
     , writeVCD
 
      -- * Test bench format
-    , cmpTBF
-    , writeTBF
+    , writeSIG
+    , tbfVCD
 
     -- * Capture a VCD from a fabric
     , recordVCDFabric
@@ -42,16 +42,6 @@ import System.FilePath as FP
 -- import Data.Sized.Unsigned
 -- import Data.Sized.Fin
 
-
-scope :: String -> VCD -> [(String,VC)]
-scope s (VCD _ m) = [ (nm,ts) | (nm,ts) <- M.assocs m, s `isPrefixOf` nm ]
-
-inputs :: VCD -> [(String,VC)]
-inputs = scope "inputs/"
-
-outputs :: VCD -> [(String,VC)]
-outputs = scope "outputs/"
-
 type VCDID = String
 -- VCD uses a compressed identifier naming scheme. This CAF generates the identifiers.
 vcdIds :: [VCDID]
@@ -66,65 +56,11 @@ dumpVars vals = "$dumpvars\n" ++ unlines (map (uncurry vcdVal) vals) ++ "$end\n"
 
 
 vcdVal :: VCDID -> RepValue -> String
-vcdVal i r@(RepValue bs) | length bs == 1 = rep2tbw r ++ i
-                         | otherwise      = "b" ++ rep2tbw r ++ " " ++ i
+vcdVal i r@(RepValue bs) | length bs == 1 = showPackedRepValue r ++ i
+                         | otherwise      = "b" ++ showPackedRepValue r ++ " " ++ i
 
 ----------------------------------------------------------------------------------------
 
--- | Convert the inputs and outputs of a VCD to the textual format expected
--- by a testbench. Also write a .sig file, which summarizes the shape of the data.
-writeTBF :: String -> VCD -> IO ()
-writeTBF filename vcd = do
-        writeFile filename $ unlines $ mergeWith (++) $ asciiStrings vcd
-        writeFile (filename <.> "sig") $ unlines
-                [ k ++ " :: " ++ show ty ++ " [" ++ show (length cs) ++ " event(s)]"
-                | (k,VC ty _ cs _) <- inputs vcd ++ outputs vcd
-                ]
-
-cmpTBF :: [String] -> [String] -> Maybe Int
-cmpTBF master slave = head $
-        [ Just i
-        | (i,m,s) <- zip3 [0..] master' slave'
-        , not (cmpRepValue m s)
-        ] ++ [Nothing]
-  where
-          master' = map tbw2rep master
-          slave'  = map tbw2rep slave
-
--- | Convert a VCD into a list of lists of Strings, each String is a value,
--- each list of Strings is a signal.
-asciiStrings :: VCD -> [[String]]
-asciiStrings vcd@(VCD 0 m) =
-                             [ map rep2tbw (vcSplice vc 0 j)
-                             | (_,vc) <- inputs vcd ++ outputs vcd
-                             ]
-  where
-         -- last value to print
-         j = maximum [ e | VC _ _ _ e <- M.elems m ]
-
-
-
--- [ E.toList $ fmap rep2tbw s | VC _ s <- M.assoc insOuts ]
---    where insOuts = [ ts | (_,ts) <- inputs vcd ++ outputs vcd ]
-
--- | Convert string representation used in testbench files to a RepValue
--- Note the reverse here is crucial due to way vhdl indexes stuff
-tbw2rep :: String -> RepValue
-tbw2rep vals = RepValue [ case v of
-                            'X' -> Nothing
-                            '1' -> Just True
-                            '0' -> Just False
-                            'U' -> Nothing
-                            other -> error $ "tbw2rep: bad character! " ++ [other]
-                        | v <- reverse vals ]
-
--- | Convert a RepValue to the string representation used in testbench files
-rep2tbw :: RepValue -> String
-rep2tbw (RepValue vals) = [ case v of
-                              Nothing   -> 'X'
-                              Just True  -> '1'
-                              Just False -> '0'
-                          | v <- reverse vals ]
 
 ----------------------------------------------------------------------------
 
@@ -315,6 +251,17 @@ writeVCD h (VCD i m) = do
 
          vcs = vcdIds `zip` M.assocs m
 
+-- | Convert a VCD into a list of lists of Strings, each String is a value,
+-- each list of Strings is a signal.
+tbfVCD :: VCD -> [[String]]
+tbfVCD vcd@(VCD 0 m) = [ map showPackedRepValue (vcSplice vc 0 j)
+                      | (_,vc) <- sortBy (\ a b -> fst a `compare` fst b) $ M.assocs m
+                      ]
+  where
+         -- last value to print
+         j = maximum [ e | VC _ _ _ e <- M.elems m ]
+
+
 recordVCDFabric :: (MonadFix m, Clock c) => Int -> SuperFabric c m a -> SuperFabric c m (a,VCD)
 recordVCDFabric i fab = do
         (a,ins,vars,outs) <- recordFabric fab
@@ -323,6 +270,15 @@ recordVCDFabric i fab = do
                          $ [ ("inputs/" ++ nm,val) | (nm,val) <- ins ] ++
                            [ ("vars/v" ++ show n,val) | (n,val) <- vars ] ++
                            [ ("outputs/" ++ nm,val) | (nm,val) <- outs ])
+
+
+writeSIG :: String -> VCD -> IO ()
+writeSIG filename (VCD _ m) = do
+        writeFile filename $ unlines
+                [ k ++ " :: " ++ show ty ++ " [" ++ show (length cs) ++ " event(s)]"
+                | (k,VC ty _ cs _) <- sortBy (\ a b -> fst a `compare` fst b) $ M.assocs m
+                ]
+
 {-
 
 testVC1 :: VC

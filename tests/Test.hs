@@ -26,6 +26,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.VCD
 import Language.KansasLava.VHDL
+
 import Control.Concurrent.MVar
 import Control.Concurrent (forkIO)
 import Control.Exception
@@ -206,6 +207,50 @@ simCompare path report verb = do
                             report $ CompileFail -- transcript
         else verb 1 "Simulation hasn't been run, transcript file missing."
 
+
+cmpTBF :: [String] -> [String] -> Maybe Int
+cmpTBF master slave = head $
+        [ Just i
+        | (i,m,s) <- zip3 [0..] master' slave'
+        , not (cmpRepValue m s)
+        ] ++ [Nothing]
+  where
+          master' = map (maybe (error "bad master value") id . readPackedRepValue) master
+          slave'  = map (maybe (error "bad slave value") id . readPackedRepValue) slave
+
+-- | Convert the inputs and outputs of a VCD to the textual format expected
+-- by a testbench. Also write a .sig file, which summarizes the shape of the data.
+writeTBF :: String -> VCD -> IO ()
+writeTBF filename vcd = do
+        writeSIG (filename <.> "sig") vcd
+        writeFile filename
+                $ unlines
+                $ (\ xs -> if null xs then [] else foldr1 (Prelude.zipWith (++)) xs)
+                $ tbfVCD vcd
+
+-- [ E.toList $ fmap showPackedRepValue s | VC _ s <- M.assoc insOuts ]
+--    where insOuts = [ ts | (_,ts) <- inputs vcd ++ outputs vcd ]
+
+{-
+-- | Convert string representation used in testbench files to a RepValue
+-- Note the reverse here is crucial due to way vhdl indexes stuff
+tbw2rep :: String -> RepValue
+tbw2rep vals = RepValue [ case v of
+                            'X' -> Nothing
+                            '1' -> Just True
+                            '0' -> Just False
+                            'U' -> Nothing
+                            other -> error $ "tbw2rep: bad character! " ++ [other]
+                        | v <- reverse vals ]
+
+--- | Convert a RepValue to the string representation used in testbench files
+showPackedRepValue :: RepValue -> String
+showPackedRepValue (RepValue vals) = [ case v of
+                              Nothing   -> 'X'
+                              Just True  -> '1'
+                              Just False -> '0'
+                          | v <- reverse vals ]
+-}
 postSimulation :: FilePath -> IO ()
 postSimulation spath = go "" spath
     where go :: String -> FilePath -> IO ()

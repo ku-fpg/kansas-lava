@@ -83,12 +83,12 @@ Library
        Language.KansasLava.Types
        Language.KansasLava.Utils
        Language.KansasLava.Universal
+       Language.KansasLava.Internal
        Language.KansasLava.VHDL
        Language.KansasLava.Stream
        Language.KansasLava.VCD
        FED
   Other-modules:
-       Language.KansasLava.Internal
        Language.KansasLava.Rep.TH
        Language.KansasLava.Rep.Class
        Language.KansasLava.Netlist.Decl
