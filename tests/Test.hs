@@ -137,7 +137,7 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         copyLavaPrelude ("sims" </> name)
 
         -- Finally, write the VHDL file.
-        writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
+        writeVhdlCircuit "dut" ("sims" </> name </> "dut.vhd") rc
         return ()
 
 testFabrics
