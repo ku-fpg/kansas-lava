@@ -28,20 +28,11 @@ import Data.Array.IArray
 
 import GHC.TypeLits
 
---import qualified Data.Maybe as Maybe
-import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
 
 import Language.KansasLava.Rep.TH
 import Language.KansasLava.Rep.Class
 
-
--- | Check to see if all bits in a bitvector (represented as a Matrix) are
--- valid. Returns Nothing if any of the bits are unknown.
-allOkayRep :: (SingI w) => Vector w (X Bool) -> Maybe (Vector w Bool)
-allOkayRep m = sequenceA $ fmap prj m
-  where prj (XBool Nothing) = Nothing
-        prj (XBool (Just v)) = Just v
 
 
 ------------------------------------------------------------------------------------
@@ -227,88 +218,12 @@ instance (SingI ix) => Rep (Signed ix) where
     showRep = showRepDefault
 
 -----------------------------------------------------------------------------
--- The grandfather of them all, functions.
-
-instance (SingI ix, Rep a) => Rep ((Fin ix) -> a) where
-    type W ((Fin ix) -> a) =  (ix * (W a))
-    data X ((Fin ix) -> a) = XFunction ((Fin ix) -> X a)
-
-    optX (Just f) = XFunction $ \ ix -> optX (Just (f ix))
-    optX Nothing  = XFunction $ const $ unknownX
-
-    unX (XFunction f) = return (\ a ->
-        let fromJust' (Just x) = x
-            fromJust' _ = error $ show ("X",repType (Witness :: Witness ((Fin ix) -> a)), showRep (optX (Just a) :: X (Fin ix)))
-        in (fromJust' . unX . f) a)
-
-    repType Witness = MatrixTy (fromInteger (fromNat (sing :: Sing ix))) (repType (Witness :: Witness a))
-
-    -- reuse the matrix encodings here
-    -- TODO: work out how to remove the Size ix constraint,
-    -- and use Rep ix somehow instead.
-    toRep (XFunction f) = toRep (XMatrix $ M.forAll f)
-    fromRep (RepValue xs) = XFunction $ \ ix ->
-        case fromRep (RepValue xs) of
-           XMatrix m -> m ! ix
-
-{-
-infixl 4 `apX`
-
--- The applicative functor style 'ap'.
-apX :: (Rep a, Rep b) => X (a -> b) -> X a -> X b
-apX (XFunction f) a = f a
-
--- The apX-1 function. Useful when building applicative functor style things
--- on top of 'X'.
-unapX :: (Rep a, Rep b) => (X a -> X b) -> X (a -> b)
-unapX f = XFunction f
--}
-
------------------------------------------------------------------------------
 
 -- | Calculate the base-2 logrithim of a integral value.
 log2 :: (Integral a) => a -> a
 log2 n | n <= 0 = 0
 log2 1 = 1
 log2 n = log2 (n `div` 2) + 1
-
--- TODO.  Remove.
-{-
--- Perhaps not, because what does X0 really mean over a wire, vs X1.
-instance Rep X0 where
-    type W X0 = X0
-    data X X0 = X0'
-    optX _ = X0'
-    unX X0' = return X0
-    reptype _  = V 0
-    toRep = toRepFromIntegral
-    fromRep = fromRepToIntegral
-    showRep = showRepDefault
-
-instance (Integral x, Size x) => Rep (X0_ x) where
-    type W (X0_ x) = LOG (SUB (X0_ x) X1)
-    data X (X0_ x)  = XX0 (Maybe (X0_ x))
-    optX (Just x)   = XX0 $ return x
-    optX Nothing    = XX0 $ fail "X0_"
-    unX (XX0 (Just a)) = return a
-    unX (XX0 Nothing) = fail "X0_"
-    repType _  = U (log2 (size (error "repType" :: X0_ x) - 1))
-    toRep = toRepFromIntegral
-    fromRep = sizedFromRepToIntegral
-    showRep = showRepDefault
-
-instance (Integral x, Size x) => Rep (X1_ x) where
-    type W (X1_ x)  = LOG (SUB (X1_ x) X1)
-    data X (X1_ x)  = XX1 (Maybe (X1_ x))
-    optX (Just x)   = XX1 $ return x
-    optX Nothing    = XX1 $ fail "X1_"
-    unX (XX1 (Just a)) = return a
-    unX (XX1 Nothing) = fail "X1_"
-    repType _  = U (log2 (size (error "repType" :: X1_ x) - 1))
-    toRep = toRepFromIntegral
-    fromRep = sizedFromRepToIntegral
-    showRep = showRepDefault
--}
 
 -- | This is a version of fromRepToIntegral that
 -- check to see if the result is inside the size bounds.
