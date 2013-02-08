@@ -136,6 +136,8 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         mkTestbench "dut" ("sims" </> name) rc
         copyLavaPrelude ("sims" </> name)
 
+        writeFile ("sims" </> name </> "dut.kleg") $ show rc
+
         -- Finally, write the VHDL file.
         writeVhdlCircuit "dut" ("sims" </> name </> "dut.vhd") rc
         return ()
