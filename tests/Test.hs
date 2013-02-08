@@ -134,6 +134,8 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
         mkTestbench "dut" ("sims" </> name) rc
 
+        copyLavaPrelude name
+
         return ()
 
 testFabrics
