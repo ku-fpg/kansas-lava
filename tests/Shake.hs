@@ -36,6 +36,7 @@ data What
         | Clean
         | BuildShallow
         | CompileVHDL
+        | ExecuteVHDL
         deriving (Eq,Ord)
 
 instance Show What where
@@ -49,6 +50,7 @@ whatDB =
         , ("clean",         Clean)
         , ("build-shallow", BuildShallow)
         , ("compile-vhdl",  CompileVHDL)
+        , ("execute-vhdl",  ExecuteVHDL)
         ]
 
 what :: String -> IO What
@@ -69,14 +71,18 @@ main = do
           [doWhat]        -> do
                   w <- what doWhat
                   db <- allTests
-                  doAllBuild w db
+                  doAllBuild w db (M.keys db)
           [doWhat,toWhom] -> do
                   w <- what doWhat
                   db <- allTests
                   case M.lookup toWhom db of
                     Nothing -> do putStrLn $ "can not find test: " ++ show toWhom
                                   usage
-                    Just st -> doSpecificBuild w st
+                    Just st -> case w of
+                                 ShowTests    -> putStrLn $ show st ++ " is a valid test"
+                                 BuildShallow -> runShallowTest st
+                                 CompileVHDL  -> runVHDLGeneratorTest st
+                                 ExecuteVHDL  -> doAllBuild w db [toWhom]
           _              -> usage
 
 allTests :: IO (M.Map String SingleTest)
@@ -104,32 +110,24 @@ allTests = do
                                       , not ("signum" `isPrefixOf` str)
 --                                      , ("matrix" `isPrefixOf` str)
                             ]
-
-doSpecificBuild ShowTests st = do
-        putStrLn $ show st ++ " is a valid test"
-doSpecificBuild BuildShallow st = do
-        runShallowTest st
-doSpecificBuild CompileVHDL st = do
-        runVHDLGeneratorTest st
-doSpecificBuild w st = do
-        print ("SpecificBuild",w,st)
-        return ()
-
-doAllBuild ShowTests db = do
+doAllBuild ShowTests db _ = do
         putStrLn $ show (M.keys db)
-doAllBuild Clean db = do
+doAllBuild Clean db _ = do
         rawSystem "rm" ["-Rf","sims"]
         return ()
-doAllBuild w db = do
+doAllBuild w db to_test = do
         let targets =
                 [ "sims" </> t </> case w of
                                      BuildShallow -> "dut.in.tbf"
                                      CompileVHDL  -> "dut.vhd"
-                | t <- M.keys db
+                                     ExecuteVHDL  -> "dut.out.tbf"
+                | t <- to_test
                 ]
 
         print targets
         me <- getExecutablePath
+
+        vsim <- newResource "vsim" 48
 
         shake shakeOptions { shakeReport = return "report.html"
                            , shakeThreads = 4
@@ -142,4 +140,15 @@ doAllBuild w db = do
                 "*//dut.vhd" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
                         system' me [show CompileVHDL,tst]
+
+                "*//dut.out.tbf" *> \ out -> do
+                        let tst = dropDirectory1 $ takeDirectory out
+                        need [ "sims" </> tst </> "dut.vhd"
+                             , "sims" </> tst </> "dut.in.tbf"
+                             ]
+                        withResource vsim 1 $ systemCwd
+                                ("sims" </> tst)
+                                "vsim"
+                                ["-c","-do","dut.do"]
+
 
