@@ -119,6 +119,8 @@ Executable kansas-lava-test
         filepath,
         directory,
         cmdargs >= 0.8,
+        shake >= 0.8,
+        containers >= 0.5,
         process,
         kansas-lava
 
@@ -127,7 +129,7 @@ Executable kansas-lava-test
     else
       Build-depends: base
       buildable: False
-    Main-Is:        Main.hs
+    Main-Is:        Shake.hs
     Hs-Source-Dirs: tests
     Ghc-Options: -Wall
                  -fno-warn-orphans -fcontext-stack=256
