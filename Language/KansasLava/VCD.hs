@@ -6,6 +6,7 @@ module Language.KansasLava.VCD
       VCD
       -- * Writing VCD to file
     , openVCD
+    , appendVCD
     , writeVCD
 
      -- * Test bench format
@@ -74,10 +75,17 @@ probesToVCD _size speed filename todo = do
         todo
         vcd <- takeMVar v
         h <- openVCD speed filename vcd
-        writeVCD h vcd
+        appendVCD h vcd
         hClose h
         putStrLn $ "[Written probe values to " ++ show filename ++ "]"
         return ()
+
+
+writeVCD :: String -> Integer -> VCD -> IO ()
+writeVCD filename speed vcd = do
+        h <- openVCD speed filename vcd
+        appendVCD h vcd
+        hClose h
 
 
 data VCD = VCD Int (M.Map String VC)
@@ -225,8 +233,8 @@ openVCD ts fileName (VCD start m)
 mkComment :: String -> String
 mkComment comm = unlines ["$comment",comm,"$end"]
 
-writeVCD :: Handle -> VCD -> IO ()
-writeVCD h (VCD i m) = do
+appendVCD :: Handle -> VCD -> IO ()
+appendVCD h (VCD i m) = do
         hPutStr h $ if M.null m
                     then mkComment $ "clock = " ++ show i
                     else comment ++ unlines changes
