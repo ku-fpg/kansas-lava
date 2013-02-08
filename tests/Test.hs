@@ -100,6 +100,7 @@ instance Show SingleTest where
 
 runShallowTest :: SingleTest -> IO ()
 runShallowTest st@(SingleTest name count f_dut f_expected) = do
+        createDirectoryIfMissing True ("sims" </> name)
 
         print ("runShallowTest",st)
 {-
@@ -127,6 +128,7 @@ runShallowTest st@(SingleTest name count f_dut f_expected) = do
 
 runVHDLGeneratorTest :: SingleTest -> IO ()
 runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
+        createDirectoryIfMissing True ("sims" </> name)
         print ("runVHDLGeneratorTest",st)
 
         rc <- reifyFabric f_dut
@@ -134,7 +136,7 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
         mkTestbench "dut" ("sims" </> name) rc
 
-        copyLavaPrelude name
+        copyLavaPrelude ("sims" </> name)
 
         return ()
 
