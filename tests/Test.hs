@@ -122,9 +122,9 @@ runShallowTest st@(SingleTest name count f_dut f_expected) = do
                   -- do not write the file
           Nothing -> do
                   putStrLn $ name ++ " passed shallow build"
-                  writeTBF ("sims" </> name </> "dut.in.tbf") vcd       -- also writes <...>.sig file
+                  writeSIG ("sims" </> name <.> "dut.sig") vcd
                   writeVCD ("sims" </> name </> "dut.in.vcd") 10 vcd    -- 100MHz
-
+                  writeTBF ("sims" </> name </> "dut.in.tbf") vcd       -- also writes <...>.sig file
 
 runVHDLGeneratorTest :: SingleTest -> IO ()
 runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
@@ -133,11 +133,11 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
 
         rc <- reifyFabric f_dut
 
-        writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
         mkTestbench "dut" ("sims" </> name) rc
-
         copyLavaPrelude ("sims" </> name)
 
+        -- Finally, write the VHDL file.
+        writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
         return ()
 
 testFabrics
@@ -252,7 +252,6 @@ cmpTBF master slave = head $
 -- by a testbench. Also write a .sig file, which summarizes the shape of the data.
 writeTBF :: String -> VCD -> IO ()
 writeTBF filename vcd = do
-        writeSIG (filename <.> "sig") vcd       -- lift this into the call to writeTBF
         writeFile filename
                 $ unlines
                 $ (\ xs -> if null xs then [] else foldr1 (Prelude.zipWith (++)) xs)
