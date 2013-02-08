@@ -107,10 +107,10 @@ allTests = do
 
 doSpecificBuild ShowTests st = do
         putStrLn $ show st ++ " is a valid test"
-
-
 doSpecificBuild BuildShallow st = do
         runShallowTest st
+doSpecificBuild CompileVHDL st = do
+        runVHDLGeneratorTest st
 doSpecificBuild w st = do
         print ("SpecificBuild",w,st)
         return ()
@@ -121,7 +121,7 @@ doAllBuild Clean db = do
         rawSystem "rm" ["-Rf","sims"]
         return ()
 doAllBuild w db = do
-        let targets = take 1 $
+        let targets =
                 [ "sims" </> t </> case w of
                                      BuildShallow -> "dut.in.tbf"
                                      CompileVHDL  -> "dut.vhd"
@@ -131,57 +131,15 @@ doAllBuild w db = do
         print targets
         me <- getExecutablePath
 
-        shake shakeOptions { shakeReport = Nothing -- return "report.html"
-                           , shakeThreads = 1
+        shake shakeOptions { shakeReport = return "report.html"
+                           , shakeThreads = 4
                            } $ do
                 want targets
 
                 "*//dut.in.tbf" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
-                        system' me [show w,tst]
-{-
+                        system' me [show BuildShallow,tst]
                 "*//dut.vhd" *> \ out -> do
-                        -- Generate the vhd
                         let tst = dropDirectory1 $ takeDirectory out
-                        case M.lookup tst db of
-                          Nothing -> error $ "can not find " ++ tst
-                          Just st -> liftIO $ runVHDLGeneratorTest st
--}
+                        system' me [show CompileVHDL,tst]
 
---        doSpecificBuild w db (M.keys db)
-{-
-        -- This decides what we need to find
-
-        print $ targets
-
-        shake shakeOptions { shakeReport = Nothing -- return "report.html"
-                           , shakeThreads = 1
-                           } $ do
-                want targets
-
-                "*//dut.in.tbf" *> \ out -> do
-                        -- The shallow
-                        let tst = dropDirectory1 $ takeDirectory out
-                        case M.lookup tst db of
-                          Nothing -> error $ "can not find " ++ tst
-                          Just st -> liftIO $ runShallowTest st
-
-                "*//dut.vhd" *> \ out -> do
-                        -- Generate the vhd
-                        let tst = dropDirectory1 $ takeDirectory out
-                        case M.lookup tst db of
-                          Nothing -> error $ "can not find " ++ tst
-                          Just st -> liftIO $ runVHDLGeneratorTest st
-
-
-
-{-
- Test.TestSeq (String
-                  -> Int
-                  -> Language.KansasLava.Fabric.Fabric ()
-                  -> Language.KansasLava.Fabric.Fabric (Int -> Maybe String)
-                  -> IO ())
-                 ()
--}
-
--}
