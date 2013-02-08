@@ -70,7 +70,7 @@ instance (Rep a, Rep d) => Rep (Memory a d) where
 
     unX (XMemory f) = return f
 
-    repType Witness = MatrixTy (repWidth (Witness :: Witness a)) (repType (Witness ::Witness d))
+    repType Witness = MatrixTy (2^repWidth (Witness :: Witness a)) (repType (Witness ::Witness d))
 
     toRep (XMemory m) = RepValue
                       $ concatMap (unRepValue . toRep)
