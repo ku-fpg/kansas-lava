@@ -1,22 +1,5 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables, FlexibleContexts, DeriveDataTypeable, DataKinds #-}
-module Test
-        ( testMe
-        , neverTestMe
-        , verbose
-        , fileReporter
-        , TestSeq(..)
-        , testFabrics
-        , Gen(..)
-        , arbitrary
-        , allCases
-        , finiteCases
-        , testDriver
-        , generateReport
-        , Options(..)
-        , matchExpected
---       , StreamTest(..)
---        , testStream
-        ) where
+module Test where
 
 import Language.KansasLava.Fabric
 import Language.KansasLava.Protocols
@@ -55,7 +38,6 @@ import qualified System.Random as R
 
 import qualified Language.KansasLava.Stream as S
 import Language.KansasLava.Universal
-
 
 -------------------------------------------------------------------------------------
 
@@ -109,6 +91,50 @@ cmpFabricOutputs count expected shallow =
 -}
 
 type SimMods = [(String,KLEG -> IO KLEG)]
+
+data SingleTest = SingleTest String Int (Fabric ()) (Fabric (Int -> Maybe String))
+
+instance Show SingleTest where
+        show (SingleTest str i _ _) = str ++ "(" ++ show i ++ ")"
+
+
+runShallowTest :: SingleTest -> IO ()
+runShallowTest st@(SingleTest name count f_dut f_expected) = do
+
+        print ("runShallowTest",st)
+{-
+        let inp :: [(String,Pad CLK)]
+            Pure (expected_fn,inp) = runFabric f_expected shallow
+
+            shallow :: [(String,Pad CLK)]
+            Pure (_,shallow) = runFabric f_dut inp
+
+-}
+        let Pure (((),vcd),expected_fn) = runFabricWithDriver (recordVCDFabric count f_dut) f_expected
+
+            expected = expected_fn count
+
+        case expected of
+          Just msg -> do
+                  putStrLn $ name ++ " failed shallow build"
+                  putStrLn $ msg
+                  -- do not write the file
+          Nothing -> do
+                  putStrLn $ name ++ " passed shallow build"
+                  writeTBF ("sims" </> name </> "dut.in.tbf") vcd       -- also writes <...>.sig file
+                  writeVCD ("sims" </> name </> "dut.in.vcd") 10 vcd    -- 100MHz
+
+
+runVHDLGeneratorTest :: SingleTest -> IO ()
+runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
+        print ("runVHDLGeneratorTest",st)
+
+        rc <- reifyFabric f_dut
+
+        writeVhdlCircuit name ("sims" </> name </> "dut.vhd") rc
+        mkTestbench "dut" ("sims" </> name) rc
+
+        return ()
 
 testFabrics
         :: Options                  -- Options
@@ -222,7 +248,7 @@ cmpTBF master slave = head $
 -- by a testbench. Also write a .sig file, which summarizes the shape of the data.
 writeTBF :: String -> VCD -> IO ()
 writeTBF filename vcd = do
-        writeSIG (filename <.> "sig") vcd
+        writeSIG (filename <.> "sig") vcd       -- lift this into the call to writeTBF
         writeFile filename
                 $ unlines
                 $ (\ xs -> if null xs then [] else foldr1 (Prelude.zipWith (++)) xs)
