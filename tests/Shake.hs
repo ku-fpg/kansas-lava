@@ -24,7 +24,11 @@ import Development.Shake.FilePath
 import Control.Concurrent
 import System.Exit
 
-
+data TestOpt = TestOpt
+        { shakeOpts    :: ShakeOptions
+        , vsimResource :: Int
+        , runAllTests  :: Bool          -- try run *all* tests
+        }
 
 data What
         = ShowTests
@@ -32,6 +36,8 @@ data What
         | BuildShallow
         | CompileVHDL
         | ExecuteVHDL
+        | VerifyVHDL
+        | TestAll
         deriving (Eq,Ord)
 
 instance Show What where
@@ -46,6 +52,8 @@ whatDB =
         , ("build-shallow", BuildShallow)
         , ("compile-vhdl",  CompileVHDL)
         , ("execute-vhdl",  ExecuteVHDL)
+        , ("verify-vhdl",   VerifyVHDL)
+        , ("test-all",      TestAll)
         ]
 
 what :: String -> IO What
@@ -62,15 +70,20 @@ usage = do
 
 main = do
         args <- getArgs
-        main2 (shakeOptions { shakeReport = return "report.html"
-                            , shakeThreads = 4
-                            , shakeVerbosity = Quiet
+        main2 (TestOpt
+                { shakeOpts = shakeOptions
+                            { shakeReport = return "report.html"
+                            , shakeThreads = 1
+                            , shakeVerbosity = Quiet -- Diagnostic -- Quiet
                             , shakeProgress = progressDisplay 1 (\ str -> putStr ("\r" ++ init str) >> hFlush stdout)
-                            })
+                            }
+                , vsimResource = 48
+                , runAllTests  = True -- False
+                })
               args
 
 
-main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeThreads = read n }) rest
+main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeOpts = (shakeOpts opts) { shakeThreads = read n }  }) rest
 main2 opts [doWhat] = do
                   w <- what doWhat
                   let db = allTests
@@ -86,6 +99,7 @@ main2 opts [doWhat,toWhom] = do
                                  BuildShallow -> runShallowTest st
                                  CompileVHDL  -> runVHDLGeneratorTest st
                                  ExecuteVHDL  -> doAllBuild opts w db [toWhom]
+                                 VerifyVHDL   -> doAllBuild opts w db [toWhom]
 main2 _ _ = usage
 
 allTests :: M.Map String SingleTest
@@ -98,12 +112,13 @@ allTests = M.fromList [ (str,s) | s@(SingleTest str _ _ _) <- f []
                      ]
     where (Tests _ f) = do
                     Matrix.tests
+{-
                     Memory.tests
                     Coerce.tests
                     Others.tests
                     Protocols.tests
                     Regression.tests
-
+-}
 
 doAllBuild _ ShowTests db _ = do
         putStrLn $ show (M.keys db)
@@ -116,23 +131,36 @@ doAllBuild opts w db to_test = do
                                      BuildShallow -> "dut.in.tbf"
                                      CompileVHDL  -> "dut.vhd"
                                      ExecuteVHDL  -> "dut.out.tbf"
+                                     VerifyVHDL   -> "dut.result"
                 | t <- to_test
-                ]
+                , w /= TestAll
+                ] ++ [ "kansas-lava.report"
+                     | TestAll <- [w]
+                     ]
 
---        print targets
         me <- getExecutablePath
 
-        vsim <- newResource "vsim" 48
+        vsim <- newResource "vsim" (vsimResource opts)
 
-        shake opts $ do
+        shake (shakeOpts opts) $ do
                 want targets
 
                 "*//dut.in.tbf" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
-                        system' me [show BuildShallow,tst]
+                        liftIO $ do
+                          e <- rawSystem me [show BuildShallow,tst]
+                          case e of
+                            ExitSuccess -> return ()
+                            _ | runAllTests opts -> writeFile out ""
+                            _ -> return ()
                 "*//dut.vhd" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
-                        system' me [show CompileVHDL,tst]
+                        liftIO $ do
+                          e <- rawSystem me [show CompileVHDL,tst]
+                          case e of
+                            ExitSuccess -> return ()
+                            _ | runAllTests opts -> writeFile out ""
+                            _ -> return ()
 
                 "*//dut.out.tbf" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
@@ -160,7 +188,37 @@ doAllBuild opts w db to_test = do
                                 ex <- waitForProcess pid
 
                                 case ex of
-                                  ExitSuccess   -> return ()
-                                  ExitFailure r -> ioError (userError $ "failed to run vsim")
+                                  ExitSuccess -> return ()
+                                  _ | runAllTests opts
+                                        -> writeFile ("sims" </> tst </> "dut.out.tbf") ""
+                                  _     -> ioError (userError $ "failed to run vsim")
+
+                "*//dut.result" *> \ out -> do
+                        let tst = dropDirectory1 $ takeDirectory out
+                        need [ "sims" </> tst </> "dut.in.tbf"
+                             , "sims" </> tst </> "dut.out.tbf"
+                             ]
+                        shallow <- readFile' $ "sims" </> tst </> "dut.in.tbf"
+                        deep    <- readFile' $ "sims" </> tst </> "dut.out.tbf"
+                        writeFile' ("sims" </> tst </> "dut.result")
+                                $  compareLines 1 (lines shallow) (lines deep)
+
+                "kansas-lava.report" *> \ out -> do
+                        let files = [ "sims" </> t </> "dut.result"
+                                    | t <- to_test
+                                    ]
+                        need files
+                        xs <- liftIO
+                            $ sequence [ do txt <- readFile file
+                                            if "success:" `isPrefixOf` txt
+                                              then return []
+                                              else return (file ++ ":\n" ++ unlines (map ("  " ++) $ lines txt))
+                                       | file <- files
+                                       ]
+                        writeFile' out $ concat xs
+                                ++ "[" ++ show (length files) ++ " tests checked]\n"
+
+
+
 
 
