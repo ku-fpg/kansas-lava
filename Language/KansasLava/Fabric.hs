@@ -612,8 +612,7 @@ end entity main;
 
 joinStdLogicVector :: KLEG -> KLEG
 joinStdLogicVector kleg =
-                  trace (show ("newOutputNames",newOutputNames))
-                $ kleg { theCircuit = fmap fixSrcs (theCircuit kleg) ++ newInputs ++ newOutputs
+                  kleg { theCircuit = fmap fixSrcs (theCircuit kleg) ++ newInputs ++ newOutputs
                        , theSinks   = [ (nm,ty,src)
                                       | (nm,ty,src) <- theSinks kleg
                                       , not ('>' `elem` nm)     -- remove the partuals

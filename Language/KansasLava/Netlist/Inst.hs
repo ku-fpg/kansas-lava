@@ -775,7 +775,7 @@ genInst _ i (Entity (Prim "rom") [("o0",MatrixTy {})] [(_,RomTy {},_)]) =
 -- has in and outs of type std_logic[_vector].
 
 genInst _ i (Entity name@(External nm) outputs inputs) =
-	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ]))
+--	trace (show ("mkInst",name,[ t | (_,t) <- outputs ],[ t | (_,t,_) <- inputs ]))
           [ InstDecl nm ("inst" ++ show i)
 		[ (n,case x of
 			Generic v -> ExprLit Nothing (ExprNum v)
