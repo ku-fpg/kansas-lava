@@ -113,13 +113,11 @@ allTests = M.fromList [ (str,s) | s@(SingleTest str _ _ _) <- f []
                      ]
     where (Tests _ f) = do
                     Matrix.tests
-{-
                     Memory.tests
                     Coerce.tests
                     Others.tests
                     Protocols.tests
                     Regression.tests
--}
 
 doAllBuild _ ShowTests db _ = do
         putStrLn $ show (M.keys db)
