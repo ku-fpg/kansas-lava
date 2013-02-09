@@ -1,4 +1,5 @@
-import Development.Shake
+{-# LANGUAGE DeriveDataTypeable #-}
+import Development.Shake as Shake
 
 import Test
 import qualified Data.Map as M
@@ -22,23 +23,33 @@ import System.Environment
 import Development.Shake.FilePath
 
 import Control.Concurrent
+import Data.Default
 import System.Exit
+import System.Console.CmdArgs hiding (Default,def,name,summary,opt,Quiet, Loud)
 
 data TestOpt = TestOpt
-        { shakeOpts    :: ShakeOptions
-        , vsimResource :: Int
-        , runAllTests  :: Bool          -- try run *all* tests
-        }
+        { cores         :: Int
+        , sims          :: Int
+        , testArgs      :: [String]
+        } deriving (Show,Data,Typeable)
+
+instance Default TestOpt where
+        def = TestOpt
+                { cores       = 1      &= help "number of cores to use"
+                , sims        = 1      &= help "number of simulator licenses to use"
+                , testArgs    = []     &= args
+                } &= details ["usage: kansas-lava-test <what> [to-whom] where what = " ++ show (map fst whatDB)]
+                  &= program "kansas-lava-test"
 
 data What
         = ShowTests
         | Clean
-        | BuildShallow
-        | CompileVHDL
+        | TestShallow
+        | GenerateVHDL
         | ExecuteVHDL
         | VerifyVHDL
         | TestAll
-        deriving (Eq,Ord)
+        deriving (Eq,Ord,Enum,Data,Typeable)
 
 instance Show What where
         show str = case lookup str $ map (\(a,b) -> (b,a)) whatDB of
@@ -49,8 +60,8 @@ whatDB :: [(String,What)]
 whatDB =
         [ ("show-tests",    ShowTests)
         , ("clean",         Clean)
-        , ("build-shallow", BuildShallow)
-        , ("compile-vhdl",  CompileVHDL)
+        , ("test-shallow", TestShallow)
+        , ("generate-vhdl",  GenerateVHDL)
         , ("execute-vhdl",  ExecuteVHDL)
         , ("verify-vhdl",   VerifyVHDL)
         , ("test-all",      TestAll)
@@ -69,21 +80,11 @@ usage = do
         exitFailure
 
 main = do
-        args <- getArgs
-        main2 (TestOpt
-                { shakeOpts = shakeOptions
-                            { shakeReport = return "report.html"
-                            , shakeThreads = 1
-                            , shakeVerbosity = Quiet -- Diagnostic -- Quiet
-                            , shakeProgress = progressDisplay 1 (\ str -> putStr ("\r" ++ init str) >> hFlush stdout)
-                            }
-                , vsimResource = 48
-                , runAllTests  = True -- False
-                })
-              args
+        opt <- cmdArgs (def :: TestOpt)
+        main2 opt
+              (testArgs opt)
 
-
-main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeOpts = (shakeOpts opts) { shakeThreads = read n }  }) rest
+--main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeOpts = (shakeOpts opts) { shakeThreads = read n }  }) rest
 main2 opts [doWhat] = do
                   w <- what doWhat
                   let db = allTests
@@ -96,8 +97,8 @@ main2 opts [doWhat,toWhom] = do
                                   usage
                     Just st -> case w of
                                  ShowTests    -> putStrLn $ show st ++ " is a valid test"
-                                 BuildShallow -> runShallowTest st
-                                 CompileVHDL  -> runVHDLGeneratorTest st
+                                 TestShallow -> runShallowTest st
+                                 GenerateVHDL  -> runVHDLGeneratorTest st
                                  ExecuteVHDL  -> doAllBuild opts w db [toWhom]
                                  VerifyVHDL   -> doAllBuild opts w db [toWhom]
 main2 _ _ = usage
@@ -128,8 +129,8 @@ doAllBuild _ Clean db _ = do
 doAllBuild opts w db to_test = do
         let targets =
                 [ "sims" </> t </> case w of
-                                     BuildShallow -> "dut.in.tbf"
-                                     CompileVHDL  -> "dut.vhd"
+                                     TestShallow -> "dut.in.tbf"
+                                     GenerateVHDL  -> "dut.vhd"
                                      ExecuteVHDL  -> "dut.out.tbf"
                                      VerifyVHDL   -> "dut.result"
                 | t <- to_test
@@ -140,26 +141,31 @@ doAllBuild opts w db to_test = do
 
         me <- getExecutablePath
 
-        vsim <- newResource "vsim" (vsimResource opts)
+        vsim <- newResource "vsim" (sims opts)
 
-        shake (shakeOpts opts) $ do
+        shake (shakeOptions
+                            { shakeReport = return "report.html"
+                            , shakeThreads = cores opts
+                            , shakeVerbosity = Loud -- Diagnostic -- Quiet
+--                            , shakeProgress = progressDisplay 1 (\ str -> putStr ("\r" ++ init str) >> hFlush stdout)
+                            }) $ do
                 want targets
 
                 "*//dut.in.tbf" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
                         liftIO $ do
-                          e <- rawSystem me [show BuildShallow,tst]
+                          e <- rawSystem me [show TestShallow,tst]
                           case e of
                             ExitSuccess -> return ()
-                            _ | runAllTests opts -> writeFile out ""
+--                            _ | runAllTests opts -> writeFile out ""
                             _ -> return ()
                 "*//dut.vhd" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
                         liftIO $ do
-                          e <- rawSystem me [show CompileVHDL,tst]
+                          e <- rawSystem me [show GenerateVHDL,tst]
                           case e of
                             ExitSuccess -> return ()
-                            _ | runAllTests opts -> writeFile out ""
+--                            _ | runAllTests opts -> writeFile out ""
                             _ -> return ()
 
                 "*//dut.out.tbf" *> \ out -> do
@@ -189,8 +195,8 @@ doAllBuild opts w db to_test = do
 
                                 case ex of
                                   ExitSuccess -> return ()
-                                  _ | runAllTests opts
-                                        -> writeFile ("sims" </> tst </> "dut.out.tbf") ""
+--                                  _ | runAllTests opts
+--                                        -> writeFile ("sims" </> tst </> "dut.out.tbf") ""
                                   _     -> ioError (userError $ "failed to run vsim")
 
                 "*//dut.result" *> \ out -> do
@@ -217,8 +223,3 @@ doAllBuild opts w db to_test = do
                                        ]
                         writeFile' out $ concat xs
                                 ++ "[" ++ show (length files) ++ " tests checked]\n"
-
-
-
-
-
