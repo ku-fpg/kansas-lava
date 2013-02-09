@@ -101,8 +101,6 @@ instance Show SingleTest where
 runShallowTest :: SingleTest -> IO ()
 runShallowTest st@(SingleTest name count f_dut f_expected) = do
         createDirectoryIfMissing True ("sims" </> name)
-
-        print ("runShallowTest",st)
 {-
         let inp :: [(String,Pad CLK)]
             Pure (expected_fn,inp) = runFabric f_expected shallow
@@ -121,7 +119,6 @@ runShallowTest st@(SingleTest name count f_dut f_expected) = do
                   putStrLn $ msg
                   -- do not write the file
           Nothing -> do
-                  putStrLn $ name ++ " passed shallow build"
                   writeSIG ("sims" </> name <.> "dut.sig") vcd
                   writeVCD ("sims" </> name </> "dut.in.vcd") 10 vcd    -- 100MHz
                   writeTBF ("sims" </> name </> "dut.in.tbf") vcd       -- also writes <...>.sig file
@@ -129,7 +126,6 @@ runShallowTest st@(SingleTest name count f_dut f_expected) = do
 runVHDLGeneratorTest :: SingleTest -> IO ()
 runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         createDirectoryIfMissing True ("sims" </> name)
-        print ("runVHDLGeneratorTest",st)
 
         rc <- reifyFabric f_dut
 
