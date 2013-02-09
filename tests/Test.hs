@@ -131,7 +131,7 @@ runShallowTest st@(SingleTest name count f_dut f_expected) = do
                   putStrLn $ msg
                   -- do not write the file
           Nothing -> do
-                  writeSIG ("sims" </> name <.> "dut.sig") vcd
+                  writeSIG ("sims" </> name </> "dut.sig") vcd
                   writeVCD ("sims" </> name </> "dut.in.vcd") 10 vcd    -- 100MHz
                   writeTBF ("sims" </> name </> "dut.in.tbf") vcd       -- also writes <...>.sig file
 
@@ -149,6 +149,32 @@ runVHDLGeneratorTest st@(SingleTest name count f_dut _) = do
         -- Finally, write the VHDL file.
         writeVhdlCircuit "dut" ("sims" </> name </> "dut.vhd") rc
         return ()
+
+compareLines :: Int -> [String] -> [String] -> String
+compareLines 1 [] []         = "fail: both shallow and deep are empty"
+compareLines n [] []         = "success: " ++ show (n - 1) ++ " cycles match"
+compareLines n (xs:xss) (ys:yss)
+        | length xs /= length ys = "fail: line " ++ show n ++ " are different widths"
+        | all okay (zip xs ys)   = compareLines (succ n) xss yss
+        | otherwise              = unlines
+                [ "fail: at line " ++ show n
+                , "  " ++ xs
+                , "  " ++ ys
+                , "  " ++ [ case (x,y) of
+                              ('0','0') -> ' '
+                              ('1','1') -> ' '
+                              ('X',_)   -> '-'
+                              (_,_)     -> '^'
+                          | (x,y) <- zip xs ys
+                          ]
+                ]
+ where
+         okay (x,y) | x == y    = True             -- good
+                    | x == 'X'  = True             -- fine (model has no expectations)
+                    | otherwise = False
+
+compareLines n []     (_:_)  = "fail: shallow finished early"
+compareLines n (_:_) []      = "fail: deep finished early (perhaps failed to compile?)"
 
 testFabrics
         :: Options                  -- Options
