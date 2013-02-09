@@ -72,6 +72,8 @@ main = do
         args <- getArgs
         main2 (shakeOptions { shakeReport = return "report.html"
                             , shakeThreads = 4
+                            , shakeVerbosity = Quiet
+                            , shakeProgress = progressDisplay 1 (\ str -> putStr ("\r" ++ init str) >> hFlush stdout)
                             })
               args
 
@@ -133,7 +135,7 @@ doAllBuild opts w db to_test = do
                 | t <- to_test
                 ]
 
-        print targets
+--        print targets
         me <- getExecutablePath
 
         vsim <- newResource "vsim" 48
