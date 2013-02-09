@@ -9,6 +9,7 @@ import qualified Others
 import qualified Protocols
 import qualified Regression
 
+import Data.Char
 import System.IO
 import System.IO.Error
 import qualified Control.Exception as C
@@ -69,12 +70,18 @@ usage = do
 
 main = do
         args <- getArgs
-        case args of
-          [doWhat]        -> do
+        main2 (shakeOptions { shakeReport = return "report.html"
+                            , shakeThreads = 4
+                            })
+              args
+
+
+main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeThreads = read n }) rest
+main2 opts [doWhat] = do
                   w <- what doWhat
                   db <- allTests
-                  doAllBuild w db (M.keys db)
-          [doWhat,toWhom] -> do
+                  doAllBuild opts w db (M.keys db)
+main2 opts [doWhat,toWhom] = do
                   w <- what doWhat
                   db <- allTests
                   case M.lookup toWhom db of
@@ -84,8 +91,8 @@ main = do
                                  ShowTests    -> putStrLn $ show st ++ " is a valid test"
                                  BuildShallow -> runShallowTest st
                                  CompileVHDL  -> runVHDLGeneratorTest st
-                                 ExecuteVHDL  -> doAllBuild w db [toWhom]
-          _              -> usage
+                                 ExecuteVHDL  -> doAllBuild opts w db [toWhom]
+main2 _ _ = usage
 
 allTests :: IO (M.Map String SingleTest)
 allTests = do
@@ -112,12 +119,12 @@ allTests = do
                                       , not ("signum" `isPrefixOf` str)
 --                                      , ("matrix" `isPrefixOf` str)
                             ]
-doAllBuild ShowTests db _ = do
+doAllBuild _ ShowTests db _ = do
         putStrLn $ show (M.keys db)
-doAllBuild Clean db _ = do
+doAllBuild _ Clean db _ = do
         rawSystem "rm" ["-Rf","sims"]
         return ()
-doAllBuild w db to_test = do
+doAllBuild opts w db to_test = do
         let targets =
                 [ "sims" </> t </> case w of
                                      BuildShallow -> "dut.in.tbf"
@@ -131,9 +138,7 @@ doAllBuild w db to_test = do
 
         vsim <- newResource "vsim" 48
 
-        shake shakeOptions { shakeReport = return "report.html"
-                           , shakeThreads = 4
-                           } $ do
+        shake opts $ do
                 want targets
 
                 "*//dut.in.tbf" *> \ out -> do
@@ -148,7 +153,8 @@ doAllBuild w db to_test = do
                         need [ "sims" </> tst </> "dut.vhd"
                              , "sims" </> tst </> "dut.in.tbf"
                              ]
-                        withResource vsim 1 $ liftIO $ do
+                        putLoud $ "vsim for " ++ tst
+                        withResource vsim 1 $ traced "vsim" $ liftIO $ do
                                 (_,Just outh,_,pid) <- createProcess $
                                         (proc "vsim" -- vsim
                                               ["-c","-do","dut.do"])
