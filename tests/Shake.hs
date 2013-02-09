@@ -9,7 +9,9 @@ import qualified Others
 import qualified Protocols
 import qualified Regression
 
-
+import System.IO
+import System.IO.Error
+import qualified Control.Exception as C
 import Data.List
 import Language.KansasLava.Fabric
 import System.Directory
@@ -146,9 +148,27 @@ doAllBuild w db to_test = do
                         need [ "sims" </> tst </> "dut.vhd"
                              , "sims" </> tst </> "dut.in.tbf"
                              ]
-                        withResource vsim 1 $ systemCwd
-                                ("sims" </> tst)
-                                "vsim"
-                                ["-c","-do","dut.do"]
+                        withResource vsim 1 $ liftIO $ do
+                                (_,Just outh,_,pid) <- createProcess $
+                                        (proc "vsim" -- vsim
+                                              ["-c","-do","dut.do"])
+                                        { cwd = return $ "sims" </> tst
+                                        , std_in = Inherit
+                                        , std_out = CreatePipe
+                                        , std_err = Inherit
+                                        }
+                                -- now write and flush any input
+                                output  <- hGetContents outh
+                                outMVar <- newEmptyMVar
+                                _ <- forkIO $ C.evaluate (length output) >> putMVar outMVar ()
+                                -- wait on the output
+                                takeMVar outMVar
+                                hClose outh
+
+                                ex <- waitForProcess pid
+
+                                case ex of
+                                  ExitSuccess   -> return ()
+                                  ExitFailure r -> ioError (userError $ "failed to run vsim")
 
 
