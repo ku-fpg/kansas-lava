@@ -12,8 +12,8 @@ import Data.Sized.Matrix
 
 import GHC.TypeLits
 
-tests :: TestSeq -> IO ()
-tests (TestSeq test _) = do
+tests :: Tests ()
+tests = do
         let driver1 = outStdLogicVector "i0" res1
 
 	    res1 = undefinedS :: Seq (Fin 1)

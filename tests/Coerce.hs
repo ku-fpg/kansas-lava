@@ -21,13 +21,13 @@ type instance (3 + 1) = 4
 type instance (Log 5) = 3
 
 
-tests :: TestSeq -> IO ()
-tests test = do
+tests :: Tests ()
+tests = do
 
         let t1 :: (Bounded w2, Integral w2, Integral w1, Rep w2, Show w2, Rep w1, SingI (W w1), SingI (W w2)) =>
-                  String -> Witness w2 -> List w1 -> IO ()
+                  String -> Witness w2 -> List w1 -> Tests ()
 
-            t1 str witness arb = testUnsigned test str witness arb
+            t1 str witness arb = testUnsigned str witness arb
 
         t1 "U1_U1" (Witness :: Witness U1) ((allCases :: List U1))
         t1 "U2_U1" (Witness :: Witness U2) ((allCases :: List U1))
@@ -70,8 +70,8 @@ tests test = do
         t1 "X5_X5" (Witness :: Witness (Fin 5)) ((allCases :: List (Fin 5)))
 
         let t2 :: (Bounded w1, Bounded w2, Integral w2, Integral w1, Show w2, Rep w2, Rep w1, SingI (W w1), SingI (W w2)) =>
-                  String -> Witness w2 -> List w1 -> IO ()
-            t2 str witness arb = testSigned test str witness arb
+                  String -> Witness w2 -> List w1 -> Tests ()
+            t2 str witness arb = testSigned str witness arb
 
         t2 "S2_U1" (Witness :: Witness S2) ((allCases :: List U1))
         t2 "S3_U1" (Witness :: Witness S3) ((allCases :: List U1))
@@ -90,8 +90,8 @@ tests test = do
         t2 "S8_S4" (Witness :: Witness S8) ((allCases :: List S4))
 
         let t3 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, SingI (W w1)) =>
-                 String -> Witness w2 -> List w1 -> IO ()
-            t3 str witness arb = testBitwise test str witness arb
+                 String -> Witness w2 -> List w1 -> Tests ()
+            t3 str witness arb = testBitwise str witness arb
 
         t3 "S16_M_X4_S4"    (Witness :: Witness S16) ((allCases :: List (Matrix (Fin 4) S4)))
         t3 "U15_M_X3_S5"    (Witness :: Witness U15) ((allCases :: List (Matrix (Fin 3) S5)))
@@ -116,8 +116,8 @@ tests test = do
         t3 "U8_U8"          (Witness :: Witness U8)   ((allCases :: List U8))
 
         let t4 :: (Eq w2, Eq w1, Show w1, Show w2, Rep w2, Rep w1, W w2 ~ W w1, SingI (W w1)) =>
-                 String -> Witness w2 -> List w1 -> (w1 -> w2) -> IO ()
-            t4 str witness arb f = testCoerce test str witness arb f
+                 String -> Witness w2 -> List w1 -> (w1 -> w2) -> Tests ()
+            t4 str witness arb f = testCoerce str witness arb f
 
         t4 "Bool_U1"        (Witness :: Witness Bool) ((allCases :: List U1))
 			$ \ u1 -> u1 == 1
@@ -130,8 +130,8 @@ tests test = do
 
 
 testUnsigned :: forall w1 w2 . (Num w2, Integral w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, SingI (W w1), SingI (W w2))
-            => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
-testUnsigned (TestSeq test _) tyName Witness ws = do
+            => String -> Witness w2 -> List w1 -> Tests ()
+testUnsigned tyName Witness ws = do
         let ms = ws
             cir = unsigned :: Seq w1 -> Seq w2
             driver = do
@@ -153,8 +153,8 @@ testUnsigned (TestSeq test _) tyName Witness ws = do
         return ()
 
 testSigned :: forall w1 w2 . (Num w2, Integral w1, Bounded w1, Integral w2, Bounded w2, Eq w1, Rep w1, Eq w2, Show w2, Rep w2, SingI (W w1), SingI (W w2))
-            => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
-testSigned (TestSeq test _) tyName Witness ws = do
+            => String -> Witness w2 -> List w1 -> Tests ()
+testSigned tyName Witness ws = do
         let ms = ws
             cir = signed :: Seq w1 -> Seq w2
             driver = do
@@ -176,8 +176,8 @@ testSigned (TestSeq test _) tyName Witness ws = do
         return ()
 
 testBitwise :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, SingI (W w2))
-            => TestSeq -> String -> Witness w2 -> List w1 -> IO ()
-testBitwise (TestSeq test _) tyName Witness ws = do
+            => String -> Witness w2 -> List w1 -> Tests ()
+testBitwise tyName Witness ws = do
         let ms = ws
             cir = bitwise :: Seq w1 -> Seq w2
             driver = do
@@ -193,8 +193,8 @@ testBitwise (TestSeq test _) tyName Witness ws = do
         return ()
 
 testCoerce :: forall w1 w2 . (Eq w1, Rep w1, Eq w2, Show w1, Show w2, Rep w2, W w1 ~ W w2, SingI (W w2))
-            => TestSeq -> String -> Witness w2 -> List w1 -> (w1 -> w2) -> IO ()
-testCoerce (TestSeq test _) tyName Witness ws f = do
+            => String -> Witness w2 -> List w1 -> (w1 -> w2) -> Tests ()
+testCoerce tyName Witness ws f = do
         let ms =  ws
             cir = coerce f :: Seq w1 -> Seq w2
             driver = do

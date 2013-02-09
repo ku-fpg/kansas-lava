@@ -20,15 +20,15 @@ type instance (1 + 3) = 4
 type instance (2 * 4) = 8
 type instance (3 * 4) = 12
 
-tests :: TestSeq -> IO ()
-tests test = do
+tests :: Tests ()
+tests = do
 
         let t1 :: (SingI w1,
                    SingI (W w2),
                    Rep w2, Eq w2, Num w2, Show w2,
                    SingI (w1 * (W w2))
-                  ) => String -> List (M.Vector w1 w2) -> IO ()
-	    t1 str arb = testMatrix1 test str arb
+                  ) => String -> List (M.Vector w1 w2) -> Tests ()
+	    t1 str arb = testMatrix1 str arb
 
         t1 "X1xU4" (allCases :: List (M.Vector 1 U4))
         t1 "X2xU4" (allCases :: List (M.Vector 2 U4))
@@ -38,15 +38,15 @@ tests test = do
                    SingI (W w2),
                    Rep w2, Eq w2, Num w2, Show w2,
                    SingI (w1 * (W w2))
-                  ) => String -> List (M.Vector w1 w2) -> IO ()
-	    t2 str arb = testMatrix2 test str arb
+                  ) => String -> List (M.Vector w1 w2) -> Tests ()
+	    t2 str arb = testMatrix2 str arb
 
         t2 "X1xU4" (allCases :: List (M.Vector 1 U4))
         t2 "X2xU4" (allCases :: List (M.Vector 2 U4))
         t2 "X3xU4" (allCases :: List (M.Vector 3 U4))
 
-        let t3 :: (Rep w, Show w, SingI (1 + W w)) => String -> List (Maybe w) -> IO ()
-	    t3 str arb = testMatrix3 test str arb
+        let t3 :: (Rep w, Show w, SingI (1 + W w)) => String -> List (Maybe w) -> Tests ()
+	    t3 str arb = testMatrix3 str arb
 
         t3 "U3" (allCases :: List (Maybe U3))
         t3 "Bool" (allCases :: List (Maybe Bool))
@@ -59,11 +59,10 @@ testMatrix1 :: forall w1 w2 .
                  Num w2, Eq w2, Show w2, Rep w2,
                  SingI (W w2),
                  SingI (w1 * (W w2)))
-            => TestSeq
-            -> String
+            => String
             -> List (M.Vector w1 w2)
-            -> IO ()
-testMatrix1 (TestSeq test _) tyName ws = do
+            -> Tests ()
+testMatrix1 tyName ws = do
         let ms = ws
             cir = sum . elems . unpack :: Seq (M.Vector w1 w2) -> Seq w2
             driver = do
@@ -81,11 +80,10 @@ testMatrix2 :: forall w1 w2 .
                  Eq w2, Show w2, Rep w2, Num w2,
                SingI (w1 * (W w2))
                )
-            => TestSeq
-            -> String
+            => String
             -> List (M.Vector w1 w2)
-            -> IO ()
-testMatrix2 (TestSeq test _) tyName ws = do
+            -> Tests ()
+testMatrix2 tyName ws = do
         let ms = ws
             cir = pack . (\ m -> M.forAll $ \ i -> m ! i) . unpack :: Seq (M.Vector w1 w2) -> Seq (M.Vector w1 w2)
             driver = do
@@ -103,11 +101,10 @@ testMatrix2 (TestSeq test _) tyName ws = do
 
 testMatrix3 :: forall w1 .
 	(Rep w1, Show w1, SingI (1 + (W w1)))
-            => TestSeq
-            -> String
+            => String
             -> List (Maybe w1)
-            -> IO ()
-testMatrix3 (TestSeq test _) tyName ws = do
+            -> Tests ()
+testMatrix3 tyName ws = do
         let ms = ws
 	    cir :: Seq (Enabled w1) -> Seq (Enabled w1)
             cir = mapEnabled (\ m -> unpackMatrix m ! (0 :: (Fin 2)))

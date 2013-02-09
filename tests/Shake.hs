@@ -24,14 +24,6 @@ import Development.Shake.FilePath
 import Control.Concurrent
 import System.Exit
 
-tests seq = do
-        Matrix.tests seq
-        Matrix.tests seq
-        Memory.tests seq
-        Coerce.tests seq
-        Others.tests seq
-	Protocols.tests seq
-	Regression.tests seq
 
 
 data What
@@ -81,11 +73,11 @@ main = do
 main2 opts (('-':n):rest) | all isDigit n && length n > 0 = main2 (opts { shakeThreads = read n }) rest
 main2 opts [doWhat] = do
                   w <- what doWhat
-                  db <- allTests
+                  let db = allTests
                   doAllBuild opts w db (M.keys db)
 main2 opts [doWhat,toWhom] = do
                   w <- what doWhat
-                  db <- allTests
+                  let db = allTests
                   case M.lookup toWhom db of
                     Nothing -> do putStrLn $ "can not find test: " ++ show toWhom
                                   usage
@@ -96,31 +88,23 @@ main2 opts [doWhat,toWhom] = do
                                  ExecuteVHDL  -> doAllBuild opts w db [toWhom]
 main2 _ _ = usage
 
-allTests :: IO (M.Map String SingleTest)
-allTests = do
-        var <- newEmptyMVar
-        let sq = TestSeq (\ nm count fab tb_fab -> putMVar var $ Just $ SingleTest nm count fab tb_fab) ()
-
-        forkIO $ do
-                tests sq
-                putMVar var Nothing
-
-        let loop xs = do
-                v <- takeMVar var
-                case v of
-                  Nothing -> return xs
-                  Just x  -> loop (x : xs)
-        xs <- loop []
-
-        -- End of hack
-
-        return $ M.fromList [ (str,s) | s@(SingleTest str _ _ _) <- reverse xs
+allTests :: M.Map String SingleTest
+allTests = M.fromList [ (str,s) | s@(SingleTest str _ _ _) <- f []
                                       , not ("max" `isPrefixOf` str)
                                       , not ("abs" `isPrefixOf` str)
                                       , not ("min" `isPrefixOf` str)
                                       , not ("signum" `isPrefixOf` str)
---                                      , ("matrix" `isPrefixOf` str)
-                            ]
+--                                 , ("matrix" `isPrefixOf` str)
+                     ]
+    where (Tests _ f) = do
+                    Matrix.tests
+                    Memory.tests
+                    Coerce.tests
+                    Others.tests
+                    Protocols.tests
+                    Regression.tests
+
+
 doAllBuild _ ShowTests db _ = do
         putStrLn $ show (M.keys db)
 doAllBuild _ Clean db _ = do

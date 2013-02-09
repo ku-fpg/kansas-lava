@@ -94,6 +94,18 @@ type SimMods = [(String,KLEG -> IO KLEG)]
 
 data SingleTest = SingleTest String Int (Fabric ()) (Fabric (Int -> Maybe String))
 
+data Tests a = Tests a ([SingleTest] -> [SingleTest])
+
+instance Monad Tests where
+        return a = Tests a id
+        Tests a xs >>= k = let Tests b ys = k a
+                           in Tests b (xs . ys)
+
+
+test :: String -> Int  -> Fabric () -> (Fabric (Int -> Maybe String)) -> Tests ()
+test str i fab tb_fab = Tests () (SingleTest  str i fab tb_fab :)
+
+
 instance Show SingleTest where
         show (SingleTest str i _ _) = str ++ "(" ++ show i ++ ")"
 

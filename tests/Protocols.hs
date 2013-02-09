@@ -18,8 +18,8 @@ import GHC.TypeLits
 type instance (5 + 5) = 10
 type instance (3 * 5) = 15
 
-tests :: TestSeq -> IO ()
-tests test = do
+tests :: Tests ()
+tests = do
         return ()
 {-
   This needs re-written

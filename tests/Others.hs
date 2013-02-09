@@ -17,11 +17,11 @@ import GHC.TypeLits
 
 type List a = [a]
 
-tests :: TestSeq -> IO ()
-tests test = do
+tests :: Tests ()
+tests = do
         -- Just the Num Stuff
-        let t1 :: (Fractional a, Ord a, Show a, Rep a, SingI (W a)) => String -> [a] -> IO ()
-            t1 str arb = testOpsFractional test str arb
+        let t1 :: (Fractional a, Ord a, Show a, Rep a, SingI (W a)) => String -> [a] -> Tests ()
+            t1 str arb = testOpsFractional str arb
         -- With Sampled, use
         --  * powers of two scale, larger than 1
         --  * make sure there are enough bits to represent
@@ -33,14 +33,14 @@ tests test = do
         t1 "Sampled/X128xX16"(finiteCases 100 ::[Sampled 128 16])
 
         -- Just the Bits Stuff
-        let t2 :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a)) => String -> List a -> IO ()
-            t2 str arb = testOpsBits test str arb
+        let t2 :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a)) => String -> List a -> Tests ()
+            t2 str arb = testOpsBits str arb
 
 
 	-- tests Bits, inc the shifts
---        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), Integral (W a), Rep (W a), SingI (W (W a))) => String -> List a -> IO ()
-        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), SingI (Log (W a))) => String -> List a -> IO ()
-            t2' str arb = testOpsBits2 test str arb
+--        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), Integral (W a), Rep (W a), SingI (W (W a))) => String -> List a -> Tests ()
+        let t2' :: (Ord a, Bits a, Num a, Show a, Rep a, SingI (W a), SingI (Log (W a))) => String -> List a -> Tests ()
+            t2' str arb = testOpsBits2 str arb
 
         t2' "U1" (allCases :: List U1)
         t2' "U2" (allCases :: List U2)
@@ -72,8 +72,8 @@ tests test = do
         -- None
 
         --  Now registers
-        let t3 :: (Eq a, Show a, Rep a, SingI (W a)) => String -> List a -> IO ()
-            t3 str arb = testRegister test str arb
+        let t3 :: (Eq a, Show a, Rep a, SingI (W a)) => String -> List a -> Tests ()
+            t3 str arb = testRegister str arb
 
         t3 "U1" ( (finiteCases 1000 :: List U1))
         t3 "U2" ( (finiteCases 1000 :: List U2))
@@ -81,8 +81,8 @@ tests test = do
         t3 "Int" ( (finiteCases 1000 :: List Int))
         t3 "Bool" ( (finiteCases 1000 :: List Bool))
 
-        let t4 :: (Eq a, Show a, Rep a, SingI (W a)) => String -> List a -> IO ()
-            t4 str arb = testDelay test str arb
+        let t4 :: (Eq a, Show a, Rep a, SingI (W a)) => String -> List a -> Tests ()
+            t4 str arb = testDelay str arb
 
         t4 "U1" ( (finiteCases 1000 :: List U1))
         t4 "U2" ( (finiteCases 1000 :: List U2))
@@ -94,7 +94,7 @@ tests test = do
 {- We are not ready for this yet
 	-- Test the flux capacitor
         let t5 :: (Eq a, Show a, Rep a, Size (W a), Size (ADD (W a) X1))
-	       => String -> List (Maybe a) -> (forall c. (Clock c) => Signal c a -> Signal c a) -> IO ()
+	       => String -> List (Maybe a) -> (forall c. (Clock c) => Signal c a -> Signal c a) -> Tests ()
             t5 str arb op = testFluxCapacitor test str arb op
 
         t5 "U5/add" ( (take 1000 inifiniteCases :: List (Maybe U5)))
@@ -120,19 +120,17 @@ data TestUni a = TestUni String (a -> a) (forall clk . Signal clk a -> Signal cl
 data TestBin a = TestBin String (a -> a -> a) (forall clk . Signal clk a -> Signal clk a -> Signal clk a)
 data TestIx a b = TestIx String (a -> b -> Bool) (forall clk . Signal clk a -> Signal clk b -> Signal clk Bool)
 
-
 -- This only tests at the *value* level, and ignores testing unknowns.
 
 testUniOp :: forall a b .
              (Rep a, Show a, SingI (W a)
              ,Rep b, Show b, SingI (W b))
-          => TestSeq
-          -> String
+          => String
           -> (a -> b)
           -> (forall clk . Signal clk a -> Signal clk b)
           -> [a]
-          -> IO ()
-testUniOp (TestSeq test _) nm opr lavaOp us0 = do
+          -> Tests ()
+testUniOp nm opr lavaOp us0 = do
         let driver = do
                 outStdLogicVector "i0" (toS us0)
             dut = do
@@ -149,13 +147,12 @@ testBinOp :: forall a b c .
              (Rep a, Show a, SingI (W a)
              ,Rep b, Show b, SingI (W b)
              ,Rep c, Show c, SingI (W c))
-          => TestSeq
-          -> String
+          => String
           -> (a -> b -> c)
           -> (forall clk . Signal clk a -> Signal clk b -> Signal clk c)
           -> List (a,b)
-          -> IO ()
-testBinOp (TestSeq test _) nm opr lavaOp gen = do
+          -> Tests ()
+testBinOp nm opr lavaOp gen = do
         let (us0,us1) = unzip gen
             driver = do
                 outStdLogicVector "i0" (toS us0)
@@ -174,13 +171,12 @@ testTriOp :: forall a b c d .
              ,Rep b, Show b, SingI (W b)
              ,Rep c, Show c, SingI (W c)
              ,Rep d, Show d, SingI (W d))
-          => TestSeq
-          -> String
+          => String
           -> (a -> b -> c -> d)
           -> (forall clk . Signal clk a -> Signal clk b -> Signal clk c -> Signal clk d)
           -> List (a,b,c)
-          -> IO ()
-testTriOp (TestSeq test _) nm opr lavaOp gen = do
+          -> Tests ()
+testTriOp nm opr lavaOp gen = do
         let (us0,us1,us2) = unzip3 gen
             driver = do
                 outStdLogicVector "i0" (toS us0)
@@ -197,13 +193,13 @@ testTriOp (TestSeq test _) nm opr lavaOp gen = do
 
 ------------------------------------------------------------------------------------------------
 
-testOpsEq :: forall w . (Rep w, Eq w, Show w, SingI (W w)) => TestSeq -> String -> List w -> IO ()
-testOpsEq test tyName ws = do
+testOpsEq :: forall w . (Rep w, Eq w, Show w, SingI (W w)) => String -> List w -> Tests ()
+testOpsEq tyName ws = do
         let ws2 = pair ws
 	    bs = finiteCases (length ws2) :: [Bool]
 
         sequence_
-          [ testTriOp test (name ++ "/" ++ tyName) opr (lavaOp)
+          [ testTriOp (name ++ "/" ++ tyName) opr (lavaOp)
 	    	      	[ (b,w1,w2) | (b,(w1,w2)) <- zip bs ws2 ]
           | TestMux name opr lavaOp <-
                 [ TestMux "mux" (\ c a b -> if c then a else b) (\ c a b -> mux c (b,a))
@@ -211,7 +207,7 @@ testOpsEq test tyName ws = do
           ]
 
         sequence_
-          [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
+          [ testBinOp (name ++ "/" ++ tyName) opr lavaOp ws2
           | TestCmp name opr lavaOp <-
                 [ TestCmp "double-equal" (==) (.==.)
                 , TestCmp "not-equal"    (/=) (./=.)
@@ -222,14 +218,14 @@ testOpsEq test tyName ws = do
 
 ------------------------------------------------------------------------------------------------
 
-testOpsOrd :: (Rep w, Num w, Ord w, Show w, SingI (W w)) => TestSeq -> String -> List w -> IO ()
-testOpsOrd test tyName ws = do
+testOpsOrd :: (Rep w, Num w, Ord w, Show w, SingI (W w)) => String -> List w -> Tests ()
+testOpsOrd tyName ws = do
         let ws2 = pair ws
 
-        testOpsEq test tyName ws
+        testOpsEq tyName ws
 
         sequence_
-          [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
+          [ testBinOp (name ++ "/" ++ tyName) opr lavaOp ws2
           | TestCmp name opr lavaOp <-
                 [ TestCmp "greater-than" (>)  (.>.)
                 , TestCmp "less-than"    (<)  (.<.)
@@ -244,14 +240,14 @@ testOpsOrd test tyName ws = do
 
 
 testOpsNum :: forall w .
-        (Ord w, Rep w, Num w, Show w, SingI (W w)) => TestSeq -> String -> List w -> IO ()
-testOpsNum test tyName ws = do
-        testOpsOrd test tyName ws
+        (Ord w, Rep w, Num w, Show w, SingI (W w)) => String -> List w -> Tests ()
+testOpsNum tyName ws = do
+        testOpsOrd tyName ws
 
         let ws2 = pair ws
 
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
+          [ testUniOp (name ++ "/" ++ tyName) opr lavaOp ws
           | TestUni name opr lavaOp <-
                 [ TestUni "negate" negate negate
                 , TestUni "abs"    abs    abs
@@ -260,7 +256,7 @@ testOpsNum test tyName ws = do
           ]
 
         sequence_
-          [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
+          [ testBinOp (name ++ "/" ++ tyName) opr lavaOp ws2
           | TestBin name opr lavaOp <-
                 [ TestBin "add" (+) (+)
                 , TestBin "sub" (-) (-)
@@ -272,13 +268,13 @@ testOpsNum test tyName ws = do
 
         return ()
 testOpsFractional :: forall w .
-        (Ord w, Rep w, Show w, Fractional w, SingI (W w)) => TestSeq -> String -> [w] -> IO ()
-testOpsFractional test tyName ws = do
-        testOpsNum test tyName ws
+        (Ord w, Rep w, Show w, Fractional w, SingI (W w)) => String -> [w] -> Tests ()
+testOpsFractional tyName ws = do
+        testOpsNum tyName ws
 
         -- TODO: add in recip
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
+          [ testUniOp (name ++ "/" ++ tyName) opr lavaOp ws
           | TestUni name opr lavaOp <-
                 -- for now, we *only* divide by powers of two, that we *can* divide by (in range)
                 [ TestUni ("divide_by_" ++ show n) (/ (fromIntegral n)) (/ (fromIntegral n))
@@ -293,21 +289,21 @@ testOpsFractional test tyName ws = do
 ----------------------------------------------------------------------------------------
 
 testOpsBits :: forall w .
-        (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w)) => TestSeq -> String -> List w -> IO ()
-testOpsBits test tyName ws = do
-        testOpsNum test tyName ws
+        (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w)) => String -> List w -> Tests ()
+testOpsBits tyName ws = do
+        testOpsNum tyName ws
 
         let ws2 = pair ws
 
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName) opr lavaOp ws
+          [ testUniOp (name ++ "/" ++ tyName) opr lavaOp ws
           | TestUni name opr lavaOp <-
                 [ TestUni "complement" complement complement
                 ]
           ]
 
         sequence_
-          [ testBinOp test (name ++ "/" ++ tyName) opr lavaOp ws2
+          [ testBinOp (name ++ "/" ++ tyName) opr lavaOp ws2
           | TestBin name opr lavaOp <-
                 [ TestBin "bitwise-and" (.&.) (.&.)
                 , TestBin "bitwise-or"  (.|.) (.|.)
@@ -319,13 +315,13 @@ testOpsBits test tyName ws = do
         return ()
 
 
---testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), Integral (W w), Rep (W w), SingI (W (W w))) => TestSeq -> String -> List w -> IO ()
-testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), SingI (Log (W w))) => TestSeq -> String -> List w -> IO ()
-testOpsBits2 test tyName ws = do
-	testOpsBits test tyName ws
+--testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), Integral (W w), Rep (W w), SingI (W (W w))) => TestSeq -> String -> List w -> Tests ()
+testOpsBits2 :: forall w . (Ord w, Rep w, Num w, Show w, Bits w, SingI (W w), SingI (Log (W w))) => String -> List w -> Tests ()
+testOpsBits2 tyName ws = do
+	testOpsBits tyName ws
 
         sequence_
-          [ testUniOp test (name ++ "/" ++ tyName ++ "/" ++ show rot1)
+          [ testUniOp (name ++ "/" ++ tyName ++ "/" ++ show rot1)
 	    	      opr
 		      lavaOp
 		      ws
@@ -351,7 +347,7 @@ testOpsBits2 test tyName ws = do
             ws2 = zip ws (cycle [0..maxBound])
 
         sequence_
-          [ testBinOp test (name ++ "/" ++ tyName)
+          [ testBinOp (name ++ "/" ++ tyName)
 	    	      opr
 		      lavaOp
 		      ws2
@@ -367,8 +363,8 @@ pair ws = [ (a,b) | a <- ws, b <- ws ]
 
 --------------------------------------------------------------------------------------
 -- Testing register and memory
-testRegister :: forall a . (Show a, Eq a, Rep a, SingI (W a)) => TestSeq -> String -> List a -> IO ()
-testRegister  (TestSeq test _) tyName ~(u0:us0) = do
+testRegister :: forall a . (Show a, Eq a, Rep a, SingI (W a)) => String -> List a -> Tests ()
+testRegister  tyName ~(u0:us0) = do
         let r = register :: a -> Seq a -> Seq a
             driver = do
                 outStdLogicVector "i0" (toS us0)
@@ -380,8 +376,8 @@ testRegister  (TestSeq test _) tyName ~(u0:us0) = do
         test ("register/" ++ tyName) (length us0) dut (driver >> matchExpected "o0" res)
         return ()
 
-testDelay :: forall a . (Show a, Eq a, Rep a, SingI (W a)) => TestSeq -> String -> List a -> IO ()
-testDelay  (TestSeq test _) tyName (us0) = do
+testDelay :: forall a . (Show a, Eq a, Rep a, SingI (W a)) => String -> List a -> Tests ()
+testDelay  tyName (us0) = do
         let dlay = delay :: Seq a -> Seq a
             driver = do
                 outStdLogicVector "i0" (toS us0)
@@ -397,7 +393,7 @@ testDelay  (TestSeq test _) tyName (us0) = do
 
 {-
 testFluxCapacitor :: forall a . (Show a, Eq a, Rep a, Size (W a), Size (ADD (W a) X1))
-	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => Signal c a -> Signal c a) -> IO ()
+	  => TestSeq -> String -> List (Maybe a)  -> (forall c . (Clock c) => Signal c a -> Signal c a) -> Tests ()
 testFluxCapacitor (TestSeq test toL) tyName ws seqOp = do
       let xs = toL ws
 
