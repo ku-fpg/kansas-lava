@@ -31,12 +31,14 @@ data TestOpt = TestOpt
         { cores         :: Int
         , sims          :: Int
         , testArgs      :: [String]
+        , hpcHack       :: Bool
         } deriving (Show,Data,Typeable)
 
 instance Default TestOpt where
         def = TestOpt
                 { cores       = 1      &= help "number of cores to use"
                 , sims        = 1      &= help "number of simulator licenses to use"
+                , hpcHack     = False  &= help "appends '-rec' to recusive calls, allowing hpc to be used"
                 , testArgs    = []     &= args
                 } &= details ["usage: kansas-lava-test <what> [to-whom] where what = " ++ show (map fst whatDB)]
                   &= program "kansas-lava-test"
@@ -138,6 +140,9 @@ doAllBuild opts w db to_test = do
                      ]
 
         me <- getExecutablePath
+        let me2 = if hpcHack opts
+                  then me ++ "-2"
+                  else me
 
         vsim <- newResource "vsim" (sims opts)
 
@@ -152,7 +157,7 @@ doAllBuild opts w db to_test = do
                 "*//dut.in.tbf" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
                         liftIO $ do
-                          e <- rawSystem me [show TestShallow,tst]
+                          e <- rawSystem me2 [show TestShallow,tst]
                           case e of
                             ExitSuccess -> return ()
 --                            _ | runAllTests opts -> writeFile out ""
@@ -160,7 +165,7 @@ doAllBuild opts w db to_test = do
                 "*//dut.vhd" *> \ out -> do
                         let tst = dropDirectory1 $ takeDirectory out
                         liftIO $ do
-                          e <- rawSystem me [show GenerateVHDL,tst]
+                          e <- rawSystem me2 [show GenerateVHDL,tst]
                           case e of
                             ExitSuccess -> return ()
 --                            _ | runAllTests opts -> writeFile out ""
