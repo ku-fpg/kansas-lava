@@ -27,9 +27,6 @@ module Language.KansasLava (
     packMatrix, unpackMatrix,
     register, registers, delay, delays,
 
-    -- * Rendering KLEG as a Graph
-    writeDotCircuit,
-
     -- * Optimizing KLEG
     OptimizationOpts(..),
     optimizeCircuit,
@@ -62,7 +59,6 @@ module Language.KansasLava (
     module Language.KansasLava.Spark
      ) where
 
-import Language.KansasLava.DOT
 import Language.KansasLava.Fabric
 import Language.KansasLava.Optimization
 import Language.KansasLava.Probes

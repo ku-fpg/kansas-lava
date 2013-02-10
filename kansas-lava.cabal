@@ -50,7 +50,6 @@ Flag tools
 Library
   Build-Depends:
         base >= 4 && < 5,
-        dotgen >= 0.4.1,
         containers,
         array,
         sized-types >= 0.4.1.1,
@@ -72,7 +71,6 @@ Library
         Boolean >= 0.1
   Exposed-modules:
        Language.KansasLava
-       Language.KansasLava.DOT
        Language.KansasLava.Fabric
        Language.KansasLava.Optimization
        Language.KansasLava.Probes
