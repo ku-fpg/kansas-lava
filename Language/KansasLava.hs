@@ -53,10 +53,8 @@ module Language.KansasLava (
     -- * Version Change Dump
 --    VCD,
 --    writeVCDFile,
---    readVCDFile,
+--    readVCDFile
 
---    -- * Wakarusa Compiler
-    module Language.KansasLava.Spark
      ) where
 
 import Language.KansasLava.Fabric
