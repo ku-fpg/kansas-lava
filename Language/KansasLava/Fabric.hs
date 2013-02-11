@@ -375,7 +375,7 @@ class (Clock (LocalClock m), Monad m) => LocalM m where
         newSignalVar   :: (clk ~ LocalClock m) => m (SignalVar clk a)
         writeSignalVar :: (clk ~ LocalClock m, Rep a, SingI (W a))
                        => SignalVar clk a -> Signal clk a -> m ()
-        readSignalVar  :: (clk ~ LocalClock m, Rep a, SingI (W a))
+        readSignalVar  :: (clk ~ LocalClock m, Rep a)
                        => SignalVar clk a
                        -> ([Signal clk a] -> Signal clk b)
                        -> m (Signal clk b)
@@ -395,7 +395,7 @@ instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
 
 
         readSignalVar :: forall clk a b
-                       . (clk ~ LocalClock (SuperFabric c m), Rep a, SingI (W a))
+                       . (clk ~ LocalClock (SuperFabric c m), Rep a)
                       => SignalVar clk a
                       -> ([Signal clk a] -> Signal clk b)
                       -> SuperFabric c m (Signal clk b)
