@@ -62,6 +62,7 @@ type instance (1 + 8)  = 9
 type instance (1 + 0)  = 1
 
 initially :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => a -> m (VAR c a)
+--, SingI (W (Enabled a))) => a -> m (VAR c a)
 initially a = do
         var <- newSignalVar
         let f x rest = mux (isEnabled x) (rest,enabledVal x)
@@ -91,90 +92,6 @@ channel = do
         let f a rest = mux (isEnabled a) (rest,a)
         sig <- readSignalVar var $ \ xs -> Prelude.foldr f disabledS xs
         return $ CHAN sig (R var)
-
-
-
---------------------------------------------------------------------------
-
---  Reader?
-data Bus c a = Bus (Signal c (Enabled a)) (REG c ())
-
-data Writer c a = Writer (REG c a) (Signal c (Enabled ()))
-
-data BUS c a = BUS (Bus c a) (Writer c a)
-
-bus :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (BUS c a)
-bus = do CHAN rdr wtr   :: CHAN c a <- channel
-         CHAN rdr' wtr' :: CHAN c () <- channel
-         return (BUS (Bus rdr wtr') (Writer wtr rdr'))
-
--- Assumes signal input does not change when waiting for ack.--
-putBus :: (Rep a, SingI (W (Enabled a))) => Writer c a -> Signal c a -> STMT c b -> STMT c b
-putBus (Writer reg ack) sig k = do
-        startLoc <- LABEL
-        -- send data
-        reg := sig
-        -- wait for ack
-        notB (isEnabled ack) :? GOTO startLoc
-        k
-takeBus :: (Rep a, SingI (W (Enabled a))) => Bus c a -> REG c a -> STMT c b -> STMT c b
-takeBus (Bus inp ack) reg k = do
-        startLoc <- LABEL
-        (isEnabled inp) :? do
-                reg := enabledVal inp
-                ack := pureS ()
-        (notB (isEnabled inp)) :? do
-                GOTO startLoc
-        k
-
-
-fifo :: forall a c m . (Rep a, LocalM m, c ~ LocalClock m, SingI (W (Enabled a))) => Bus c a -> m (Bus c a)
-fifo lhs_bus = do
-    BUS rhs_bus rhs_bus_writer :: BUS c a <- bus
-    VAR reg                    :: VAR c a <- uninitialized
-
-    _pc <- spark $ do
-            lab <- LABEL
-            _ <- ($) takeBus lhs_bus reg   $ STEP
-            putBus rhs_bus_writer reg      $ GOTO lab
-            return ()
-
---    outStdLogicVector "fifo_pc" pc
-
-    return $ rhs_bus
-
-
-latchBus :: forall a m c
-          . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => Signal c (Enabled a) -> m (Bus c a)
-latchBus inp = do
-        BUS rhs_bus rhs_bus_writer :: BUS c a <- bus
-        VAR reg                    :: VAR c a <- uninitialized
-        _ <- ($) spark $ do
-                         lab <- STEP
-                         (isEnabled inp) :?              reg := enabledVal inp
-                         (notB (isEnabled inp)) :?       GOTO lab
-                         _ <- STEP
-                         putBus rhs_bus_writer reg $ GOTO lab
-        return rhs_bus
-
-data MEM c a d = MEM (Signal c d) (REG c a) (REG c (a,d))
-
-{-
--- Not compilent with protocol
-memory :: forall a d
-        .  (SingI a, Rep d, SingI (W (Enabled ((Fin a),d))), SingI (W (Enabled (Fin a)))) => Fabric (MEM (Fin a) d)
-memory = do
-        CHAN addr_out addr_in :: CHAN (Fin a)     <- channel
-        CHAN wt_out   wt_in   :: CHAN (Fin a,d) <- channel
-
-        let mem :: Signal CLK ((Fin a) -> d)
-            mem = writeMemory wt_out
-
-            addr_out' :: Signal CLK (Fin a)
-            addr_out' = mux (isEnabled addr_out) (delay addr_out',enabledVal addr_out)
-
-        return $ MEM (syncRead mem addr_out') addr_in wt_in
--}
 
 --------------------------------------------------------------------------------------
 
@@ -314,29 +231,3 @@ compile (BIND m k) = do
 compile (MFIX k) = mfix (compile . k)
 
 --------------------------------------------------
-
-{-
--- These are not right
-instance Boolean (STMT c (Signal c Bool)) where
-        true = return true
-        false = return false
-        notB = liftM notB
-        (&&*) = liftM2 (&&*)
-        (||*) = liftM2 (||*)
-
-type instance BooleanOf (STMT c s) = STMT c (Signal c Bool)
-
-instance IfB (STMT c ()) where
-        ifB i t f = do
-            rec b <- i
-                b :? GOTO t_lab
-                _ <- STEP
-                f
-                GOTO end_lab
-                t_lab <- STEP
-                t
-                end_lab <- STEP
-                return ()
-            return ()
-
--}

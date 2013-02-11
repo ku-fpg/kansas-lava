@@ -2,6 +2,7 @@
 module Language.KansasLava.Protocols (
 	module Language.KansasLava.Protocols.Enabled,
 	module Language.KansasLava.Protocols.Memory,
+	module Language.KansasLava.Protocols.Bus,
 	module Language.KansasLava.Protocols.Types,
 	Response(..)
 	) where
@@ -9,6 +10,7 @@ module Language.KansasLava.Protocols (
 import Language.KansasLava.Protocols.Enabled
 import Language.KansasLava.Protocols.Memory
 import Language.KansasLava.Protocols.Types
+import Language.KansasLava.Protocols.Bus
 
 ----
 import Language.KansasLava.Types
