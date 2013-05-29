@@ -68,7 +68,7 @@ Library
         bytestring,
         data-reify >= 0.6,
         deepseq >= 1.3,
-        Boolean >= 0.1
+        Boolean >= 0.2
   Exposed-modules:
        Language.KansasLava
        Language.KansasLava.Fabric
@@ -127,7 +127,7 @@ Executable kansas-lava-test
         bytestring,
         data-reify >= 0.6,
         deepseq >= 1.3,
-        Boolean >= 0.1,
+        Boolean >= 0.2,
         sized-types >= 0.4.1.1,
         array,
         data-default,
