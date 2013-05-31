@@ -84,14 +84,14 @@ uninitialized = do
 --------------------------------------------------------------------------
 -- CHAN rdr wtr :: CHAN c Int <- channel
 
-data CHAN c a = CHAN (Signal c (Enabled a)) (REG c a)
+data PORT c a = PORT (REG c a) (Signal c (Enabled a))
 
-channel :: forall a c m . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (CHAN c a)
-channel = do
+port :: forall a c m . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (PORT c a)
+port = do
         var :: SignalVar c (Enabled a) <- newSignalVar
         let f a rest = mux (isEnabled a) (rest,a)
         sig <- readSignalVar var $ \ xs -> Prelude.foldr f disabledS xs
-        return $ CHAN sig (R var)
+        return $ PORT (R var) sig
 
 --------------------------------------------------------------------------------------
 

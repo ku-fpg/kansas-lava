@@ -29,8 +29,8 @@ data Writer c a = Writer (REG c a) (Signal c (Enabled ()))
 data BUS c a = BUS (Bus c a) (Writer c a)
 
 bus :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => m (BUS c a)
-bus = do CHAN rdr wtr   :: CHAN c a <- channel
-         CHAN rdr' wtr' :: CHAN c () <- channel
+bus = do PORT wtr rdr     :: PORT c a <- port
+         PORT wtr' rdr'   :: PORT c () <- port
          return (BUS (Bus rdr wtr') (Writer wtr rdr'))
 
 -- Assumes signal input does not change when waiting for ack.--
