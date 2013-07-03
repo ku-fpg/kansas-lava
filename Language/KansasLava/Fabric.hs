@@ -19,8 +19,8 @@ module Language.KansasLava.Fabric
         , theRst
         , theClkEn
         , reifyFabric
-        , runFabricWithResult
-        , runFabricWithDriver
+--        , runFabricWithResult
+--        , runFabricWithDriver
         , writeFabric
         , hWriteFabric
         , readFabric
@@ -77,32 +77,39 @@ import Debug.Trace
 
 -}
 
-data FabricInput c = FabricInput
-        { in_inPorts :: [(String,Pad c)]
-        , in_vars :: [(Int,Pad c)]                -- can be many Int -> Pad
-        }
+newtype VarId = VarId Int                               -- Var # for output ports
+        deriving (Eq,Ord)
+newtype RuleId = RuleId Int                             -- Rule # unique
+        deriving (Eq,Ord)
 
+data Rule c = Rule Int                                  -- phantom version of RuleId
+
+data FabricInput c = FabricInput
+        { in_inPorts    :: [(String,Pad c)]
+        , in_vars       :: [(VarId,Pad c)]                -- OLD: can be many Int -> Pad, new VarId -> Pad is a true function
+        }
 
 initFabricInput :: FabricInput c
 initFabricInput = FabricInput [] []
 
 data FabricState = FabricState
-        { st_uniq :: Int                -- a unique number for gensym
+        { st_uniq       :: Int                -- a unique number for gensym
         }
 
 initFabricState :: FabricState
 initFabricState = FabricState 0 -- Hmm
 
 data FabricOutput c = FabricOutput
-        { out_inPorts :: [(String,Pad c)]
-        , out_outPorts :: [(String,Pad c)]
-        , out_vars     :: [(Int,Pad c)]
+        { out_inPorts   :: [(String,Pad c)]
+        , out_outPorts  :: [(String,Pad c)]
+        , out_vars      :: [(VarId,Rule c,Pad c)]              -- TODO: add ruleId
+        , out_rules     :: [(Rule c,Signal c Bool)]     -- conditions under which a rule *can* fire
         }
 
 instance Monoid (FabricOutput c) where
-        mempty = FabricOutput [] [] []
-        mappend (FabricOutput i1 o1 v1) (FabricOutput i2 o2 v2) =
-                FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2)
+        mempty = FabricOutput [] [] [] []
+        mappend (FabricOutput i1 o1 v1 r1) (FabricOutput i2 o2 v2 r2) =
+                FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2) (r1 <> r2)
 
 data SuperFabric c m a = Fabric
         { unFabric :: FabricInput c -> FabricState -> m (a,FabricOutput c,FabricState) }
@@ -249,12 +256,17 @@ outStdLogicVector nm sq =
 
 -------------------------------------------------------------------------------
 
+data RuleCompiler c = RuleCompiler { ruleCompiler :: [(Rule c,Signal c Bool)] -> [(VarId, Rule c, Pad c)] -> [(VarId, Pad c)] }
+
+-------------------------------------------------------------------------------
+
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
-runFabric :: (MonadFix m) => SuperFabric c m a -> [(String,Pad c)] -> m (a,[(String,Pad c)])
-runFabric (Fabric f) args = do
-        rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = out_vars out }) (initFabricState)
+runFabric :: (MonadFix m) => RuleCompiler c -> SuperFabric c m a -> [(String,Pad c)] -> m (a,[(String,Pad c)])
+runFabric (RuleCompiler comp) (Fabric f) args = do
+        rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = comp (out_rules out) (out_vars out) }) (initFabricState)
         return (a,out_outPorts out)
 
+{-
 -- | 'runFabric'  runs a Fabric a with arguments, and gives a value result.
 -- must have no (monadic) outputs. (TODO: err, this should be checked)
 runFabricWithResult :: (MonadFix m) => SuperFabric c m a -> [(String,Pad c)] -> m a
@@ -270,10 +282,11 @@ runFabricWithDriver (Fabric f) (Fabric g) = do
             (b,g_result,_st2)  <- g (initFabricInput { in_inPorts = out_outPorts f_result, in_vars = out_vars g_result }) (st1)
         return (a,b)
 
-recordFabric :: (MonadFix m) => SuperFabric c m a -> SuperFabric c m (a,[(String,Pad c)],[(Int,Pad c)],[(String,Pad c)])
+recordFabric :: (MonadFix m) => SuperFabric c m a -> SuperFabric c m (a,[(String,Pad c)],[(VarId,Pad c)],[(String,Pad c)])
 recordFabric (Fabric f) = Fabric $ \ inps st0 -> do
         rec (a,f_result,st1) <- f inps st0
         return ((a,in_inPorts inps,out_vars f_result,out_outPorts f_result),f_result,st1)
+-}
 
 {-- TODO: only used in Wakarusa Monad?
 -- 'fabricAPI' explains what the API is for a specific fabric.
@@ -365,13 +378,20 @@ observeFabric (Fabric f) = Fabric $ \ inps st0 -> do
 -------------------------------------------------------------------------------
 
 
-data SignalVar clk a = SignalVar Int
-        deriving Show
+data SignalVar clk a = SignalVar VarId
+
+instance Show (SignalVar clk a) where
+  show (SignalVar (VarId n)) = "v" ++ show n
 
 -- What do we call SparkM?
 -- TODO: BlockM?
 class (Clock (LocalClock m), Monad m) => LocalM m where
         type LocalClock m :: *
+
+        newRule :: (clk ~ LocalClock m) => m (Rule clk)
+
+        addRuleGuard :: (clk ~ LocalClock m) => Rule clk -> Signal clk Bool -> m ()
+
         newSignalVar   :: (clk ~ LocalClock m) => m (SignalVar clk a)
         writeSignalVar :: (clk ~ LocalClock m, Rep a, SingI (W a))
                        => SignalVar clk a -> Signal clk a -> m ()
@@ -380,24 +400,29 @@ class (Clock (LocalClock m), Monad m) => LocalM m where
                        -> ([Signal clk a] -> Signal clk b)
                        -> m (Signal clk b)
 
+
 instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
         type LocalClock (SuperFabric c m) = c
-        newSignalVar = Fabric $ \ _ st -> return (SignalVar $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
---        writeSignalVar = write
+
+        newRule = Fabric $ \ _ st -> return (Rule $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
+
+        addRuleGuard ruleId cond = Fabric $ \ _ st -> return ((),mempty { out_rules = [(ruleId,cond)] },st)
+
+        newSignalVar = Fabric $ \ _ st -> return (SignalVar $ VarId $ st_uniq st, mempty,st { st_uniq = st_uniq st + 1 })
 
         writeSignalVar :: forall clk a
                         . (clk ~ LocalClock (SuperFabric c m), Rep a, SingI (W a))
                        => SignalVar clk a
                        -> Signal clk a
                        -> SuperFabric c m ()
-        writeSignalVar (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,pad)] },st)
+        writeSignalVar (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,Rule 0,pad)] },st) -- TODO
                 where pad = StdLogicVector $ (bitwise sig :: Signal c (ExternalStdLogicVector (W a)))
 
 
         readSignalVar :: forall clk a b
                        . (clk ~ LocalClock (SuperFabric c m), Rep a)
                       => SignalVar clk a
-                      -> ([Signal clk a] -> Signal clk b)
+                      -> ([Signal clk a] -> Signal clk b)       -- This could be supplied by the rule mechanism????
                       -> SuperFabric c m (Signal clk b)
         readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
                 return (f
@@ -406,19 +431,23 @@ instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
                         , uq' == uq
                         ], mempty,st)
 
+--        addRule :: forall clk . (clk ~ LocalClock (SuperFabric c m)) => Rule clk -> SuperFabric c m ()
+--        addRule = undefined
+
 
 -------------------------------------------------------------------------------
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
-reifyFabric :: forall c m . (Reify m) => SuperFabric c m () -> IO KLEG
-reifyFabric (Fabric circuit) = do
+reifyFabric :: forall c m . (Reify m) => RuleCompiler c -> SuperFabric c m () -> IO KLEG
+reifyFabric (RuleCompiler comp) (Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
+        -- TODO: use runFabric
         let Pure (_,out,_) = purify
                            $ circuit (initFabricInput { in_inPorts = ins0, in_vars = vars0 })
                                      initFabricState
             ins0 =  out_inPorts out
             outs0 = out_outPorts out
-            vars0 = out_vars out
+            vars0 = comp (out_rules out) (out_vars out)
 
         let mkU :: forall a . (Rep a) => Signal c a -> Type
             mkU _ = case toStdLogicType ty of
