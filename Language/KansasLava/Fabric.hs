@@ -83,11 +83,14 @@ newtype RuleId = RuleId Int                             -- Rule # unique
         deriving (Eq,Ord)
 
 data Rule c = Rule Int                                  -- phantom version of RuleId
+        deriving (Eq,Ord)
 
 data FabricInput c = FabricInput
         { in_inPorts    :: [(String,Pad c)]
-        , in_vars       :: [(VarId,Pad c)]                -- OLD: can be many Int -> Pad, new VarId -> Pad is a true function
+        , in_vars       :: [(VarId,Assign c)]                -- OLD: can be many Int -> Pad, new VarId -> Pad is a true function
         }
+
+data Assign c = VarAssign [(Signal c Bool,Pad c)]
 
 initFabricInput :: FabricInput c
 initFabricInput = FabricInput [] []
@@ -256,14 +259,32 @@ outStdLogicVector nm sq =
 
 -------------------------------------------------------------------------------
 
-data RuleCompiler c = RuleCompiler { ruleCompiler :: [(Rule c,Signal c Bool)] -> [(VarId, Rule c, Pad c)] -> [(VarId, Pad c)] }
+-- Move to its own module?
+ruleCompiler :: forall c . [(Rule c,Signal c Bool)] -> [(VarId, Rule c, Pad c)] -> [(VarId, Assign c)]
+-- ruleCompiler [] [] =
+ruleCompiler guards assignments =
+        [ (v,error "PAD")
+        | v <- all_vars
+        ]
+  where
+        -- get all rules
+        all_rules :: [Rule c]
+        all_rules = nub [ r | (_,r,_) <- assignments ]
+        all_vars  = nub [ v | (v,_,_) <- assignments ]
+
+        rule_fires :: [(Rule c,Signal c Bool)]
+        rule_fires = [ (ru,error "SIG") | ru <- all_rules ]
+
+
+--         error $ show ("ruleCompiler",length guards, length assignments)
+
 
 -------------------------------------------------------------------------------
 
 -- | Reify a fabric, returning the output ports and the result of the Fabric monad.
-runFabric :: (MonadFix m) => RuleCompiler c -> SuperFabric c m a -> [(String,Pad c)] -> m (a,[(String,Pad c)])
-runFabric (RuleCompiler comp) (Fabric f) args = do
-        rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = comp (out_rules out) (out_vars out) }) (initFabricState)
+runFabric :: (MonadFix m) => SuperFabric c m a -> [(String,Pad c)] -> m (a,[(String,Pad c)])
+runFabric (Fabric f) args = do
+        rec (a,out,_) <- f (initFabricInput { in_inPorts = args,  in_vars = ruleCompiler (out_rules out) (out_vars out) }) (initFabricState)
         return (a,out_outPorts out)
 
 {-
@@ -394,7 +415,7 @@ class (Clock (LocalClock m), Monad m) => LocalM m where
 
         newSignalVar   :: (clk ~ LocalClock m) => m (SignalVar clk a)
         writeSignalVar :: (clk ~ LocalClock m, Rep a, SingI (W a))
-                       => SignalVar clk a -> Signal clk a -> m ()
+                       => Rule clk -> SignalVar clk a -> Signal clk a -> m ()
         readSignalVar  :: (clk ~ LocalClock m, Rep a)
                        => SignalVar clk a
                        -> ([Signal clk a] -> Signal clk b)
@@ -412,10 +433,11 @@ instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
 
         writeSignalVar :: forall clk a
                         . (clk ~ LocalClock (SuperFabric c m), Rep a, SingI (W a))
-                       => SignalVar clk a
+                       => Rule clk
+                       -> SignalVar clk a
                        -> Signal clk a
                        -> SuperFabric c m ()
-        writeSignalVar (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,Rule 0,pad)] },st) -- TODO
+        writeSignalVar ru (SignalVar uq) sig = Fabric $ \ _inps st -> return ((),mempty { out_vars = [(uq,ru,pad)] },st) -- TODO
                 where pad = StdLogicVector $ (bitwise sig :: Signal c (ExternalStdLogicVector (W a)))
 
 
@@ -424,13 +446,14 @@ instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
                       => SignalVar clk a
                       -> ([Signal clk a] -> Signal clk b)       -- This could be supplied by the rule mechanism????
                       -> SuperFabric c m (Signal clk b)
-        readSignalVar (SignalVar uq) f = Fabric $ \ inps st ->
+        readSignalVar (SignalVar uq) f = Fabric $ \ inps st -> error "X"
+{-
                 return (f
                         $ [ unsafeId s
                         | (uq',StdLogicVector s) <- in_vars inps
                         , uq' == uq
                         ], mempty,st)
-
+-}
 --        addRule :: forall clk . (clk ~ LocalClock (SuperFabric c m)) => Rule clk -> SuperFabric c m ()
 --        addRule = undefined
 
@@ -438,8 +461,8 @@ instance forall c m . (Clock c, MonadFix m) => LocalM (SuperFabric c m) where
 -------------------------------------------------------------------------------
 
 -- | 'reifyFabric' does reification of a 'Fabric ()' into a 'KLEG'.
-reifyFabric :: forall c m . (Reify m) => RuleCompiler c -> SuperFabric c m () -> IO KLEG
-reifyFabric (RuleCompiler comp) (Fabric circuit) = do
+reifyFabric :: forall c m . (Reify m) => SuperFabric c m () -> IO KLEG
+reifyFabric (Fabric circuit) = do
         -- This is knot-tied with the output from the circuit execution
         -- TODO: use runFabric
         let Pure (_,out,_) = purify
@@ -447,7 +470,7 @@ reifyFabric (RuleCompiler comp) (Fabric circuit) = do
                                      initFabricState
             ins0 =  out_inPorts out
             outs0 = out_outPorts out
-            vars0 = comp (out_rules out) (out_vars out)
+            vars0 = ruleCompiler (out_rules out) (out_vars out)
 
         let mkU :: forall a . (Rep a) => Signal c a -> Type
             mkU _ = case toStdLogicType ty of

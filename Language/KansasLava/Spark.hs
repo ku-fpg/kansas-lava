@@ -20,7 +20,7 @@ import GHC.TypeLits
 import Debug.Trace
 
 infixr 1 :=
-infixr 1 :?
+--infixr 1 :?
 
 -------------------------------------------------------------------------------
 
@@ -38,8 +38,8 @@ start = L 0
 data REG c a where
     R :: (SingI (W (Enabled a))) => SignalVar c (Enabled a) -> REG c a
 
-assign :: (c ~ LocalClock m, LocalM m, Rep a) => REG c a -> Signal c a -> m ()
-assign (R v) e = writeSignalVar v (enabledS e)
+assign :: (c ~ LocalClock m, LocalM m, Rep a) => Rule c -> REG c a -> Signal c a -> m ()
+assign ru (R v) e = writeSignalVar ru v (enabledS e)
 
 -------------------------------------------------------------------------------
 
@@ -99,6 +99,7 @@ data STMT :: * -> * -> * where
         -- Assignment
         (:=)   :: (Rep a) => REG c a -> Signal c a          -> STMT c ()
 
+{-
         -- Predicate
         (:?)   :: Signal c Bool  -> STMT c ()                   -> STMT c ()
 
@@ -108,8 +109,8 @@ data STMT :: * -> * -> * where
         LABEL  :: STMT c LABEL    -- give a intra-clock cycle label
 
         GOTO   :: LABEL                                         -> STMT c ()    --  GOTO the label *on the next cycle*
-
-        NOP   ::                                                   STMT c ()
+-}
+--        NOP   ::                                                   STMT c ()
 
         -- Monad stuff
         RETURN :: a -> STMT c a
@@ -179,6 +180,7 @@ compilePred pc (PredNot p1)      = bitNot (compilePred pc p1)
 compilePred _pc (PredFalse)      = low
 compilePred pc (PredPC pc')      = pc .==. pureS pc'
 
+{-
 spark :: forall m c . (LocalM m, c ~ LocalClock m) => STMT c () -> m (Signal c U8)
 spark stmt = do
 --        () <- trace (show ("spark")) $ return ()
@@ -205,8 +207,10 @@ spark stmt = do
 
 
         return pc
+-}
 
 compile :: (LocalM m, c ~ LocalClock m) => STMT (LocalClock m) a -> SparkMonad m a
+{-
 compile ((R v) := expr) = issueFab $ \ predArg ->
         writeSignalVar v (packEnabled predArg expr)
 compile (p :? stmt) = withPred p (compile stmt)
@@ -223,11 +227,71 @@ compile (GOTO ~(L n)) = do      -- the ~ allows for forward jumping
         issueFab $ \ predArg -> writeSignalVar pc (packEnabled predArg (pureS n))
         falsifyPred
 compile NOP = return ()                 -- is this needed?
-
+-}
 compile (RETURN a) = return a
+{-
 compile (BIND m k) = do
         a <- compile m
         compile (k a)
 compile (MFIX k) = mfix (compile . k)
-
+-}
 --------------------------------------------------
+
+data RMState m = RMState
+        {
+        }
+
+data RuleMonad m a = RuleMonad { runRuleMonad :: RMState m -> (a,RMState m) }
+
+instance Monad (RuleMonad m) where
+        return a = RuleMonad $ \ st -> (a,st)
+        (RuleMonad m) >>= k = RuleMonad $ \ st -> case m st of
+                                                       (a,st') -> runRuleMonad (k a) st'
+
+instance MonadFix (RuleMonad m) where
+        mfix k = RuleMonad $ \ st -> let (a,st') = runRuleMonad (k a) st
+                                      in (a,st')
+
+
+-- TODO: later, return some predicate that can be used for chaining
+-- Issue: how does the rule schedule happen?
+--  Model 1 - new primitive in the instructions, compiled out later
+--  Model 2 - gathered at rule time, and somehow used.
+-- We could use a mfix trick.
+
+-- rule is not a "keyword", but generated from the monad itself, and this has the plumbing.
+
+--rule :: forall m c . (LocalM m, c ~ LocalClock m) => STMT c () -> m ()
+
+rule :: forall c m a . (LocalM m, c ~ LocalClock m) => STMT (LocalClock m) () -> m (Signal c Bool)
+rule stmt = do
+        ru <- newRule
+        let interp :: forall a . STMT c a -> m a
+            interp (v := e)   = do
+                    assign ru v e
+            interp (BIND m k) = do v <- interp m
+                                   interp (k v)
+            interp (RETURN a) = return a
+--            interp (NOP)      = return ()
+
+        interp stmt
+        return false
+
+--        BIND   :: STMT c a -> (a -> STMT c b) -> STMT c b
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

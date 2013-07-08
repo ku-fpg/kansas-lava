@@ -14,7 +14,7 @@ module Language.KansasLava (
     theClk, theRst, theClkEn,
     hWriterFabric, IN(..),
     hReaderFabric, OUT(..),
-    runFabricWithDriver,
+--    runFabricWithDriver,
 
     -- * The CSeq and Seq types
     Signal, Seq,

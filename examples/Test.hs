@@ -7,12 +7,29 @@ import Control.Monad
 import System.IO
 
 import Data.Word
-import Data.Sized.Ix
+import Data.Sized.Fin
 import Data.Sized.Unsigned
 import Control.Concurrent.STM
 import Control.Concurrent
 
+example1 :: Fabric ()
+example1 = do
+        let o0 = 99 :: Seq U8
+        VAR x :: VAR CLK U8 <- initially 0
 
+        outStdLogicVector "o0" x
+
+        rule $ do
+                x := 9
+
+        return ()
+
+
+main = do
+        kleg <- reifyFabric example1
+        print kleg
+
+{-
 dut :: (MonadFix m) => SuperFabric m ()
 dut = do
         i0 :: Seq U4 <- inStdLogicVector "i0"
@@ -85,4 +102,4 @@ tester = do
         threadDelay $ 1000 * 1000 * 1000
 
 
-
+-}

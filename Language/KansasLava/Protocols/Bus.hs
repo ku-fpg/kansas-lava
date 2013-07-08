@@ -20,6 +20,7 @@ import GHC.TypeLits
 
 import Debug.Trace
 
+{-
 -- BusOutput
 data Bus c a = Bus (Signal c (Enabled a)) (REG c ())
 
@@ -81,3 +82,4 @@ latchBus inp = do
                          _ <- STEP
                          putBus rhs_bus_writer reg $ GOTO lab
         return rhs_bus
+-}
