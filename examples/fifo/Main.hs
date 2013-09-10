@@ -208,7 +208,7 @@ recv n = do
 
 
 -----------------------------------------------------------------------------
--- This is the key concept, correctnes of the FIFO.
+-- This is the key concept, correctness of the FIFO.
 
 prop_fifo :: [FifoCmd Ret] -> Bool
 prop_fifo cmds = and $ zipWith (==) xs ys
