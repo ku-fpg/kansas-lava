@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 -- | This module contains a number of utility functions useful for converting
 -- Lava circuits to the Netlist AST.
 module Language.KansasLava.Netlist.Utils
