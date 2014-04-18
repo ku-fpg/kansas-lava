@@ -1,4 +1,8 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, RankNTypes, ExistentialQuantification, ScopedTypeVariables, UndecidableInstances, TypeSynonymInstances, TypeFamilies, GADTs #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, ImpredicativeTypes #-}
+{-# LANGUAGE ScopedTypeVariables, AllowAmbiguousTypes #-}
+{-# LANGUAGE UndecidableInstances, TypeSynonymInstances #-}
+{-# LANGUAGE ExistentialQuantification, TypeFamilies, GADTs #-}
 -- | Probes log the shallow-embedding signals of a Lava circuit in the
 -- | deep embedding, so that the results can be observed post-mortem.
 module Language.KansasLava.Probes (

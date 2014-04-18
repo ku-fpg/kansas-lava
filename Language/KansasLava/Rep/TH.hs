@@ -17,7 +17,7 @@ repIntegral tyName tyType = do
    sequence [ instanceD 
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (mkName xSize))
+		[ tySynInstD ''W (tySynEqn [conT tyName] (conT (mkName xSize)))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName
@@ -66,7 +66,7 @@ repBitRep tyName width = do -- tyType = do
    sequence [ instanceD 
 		(return [])
 		(appT (conT ''Rep) (conT tyName))
-		[ tySynInstD ''W [conT tyName] (conT (mkName xSize))
+		[ tySynInstD ''W (tySynEqn [conT tyName] (conT (mkName xSize)))
 		, dataInstD  (return [])
 		 	     ''X [conT tyName]
 				[ normalC xConsName

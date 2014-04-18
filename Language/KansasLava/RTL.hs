@@ -1,6 +1,7 @@
-{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification,
-  ScopedTypeVariables, TypeFamilies, TypeSynonymInstances #-}
-
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeFamilies, ExistentialQuantification, GADTs #-}
 -- | The RTL module provides a small DSL that's useful for control-oriented -- stateful -- computations.
 module Language.KansasLava.RTL (
         RTL(..),    -- not abstract
@@ -23,6 +24,7 @@ import Control.Applicative
 import Control.Monad.ST
 import Data.STRef
 import Data.List as L
+import Control.Monad.ST.Unsafe (unsafeInterleaveST)
 
 --import Debug.Trace
 
