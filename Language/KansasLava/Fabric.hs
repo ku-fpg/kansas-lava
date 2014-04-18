@@ -23,6 +23,7 @@ module Language.KansasLava.Fabric
         , runFabricWithDriver
         ) where
 
+import Control.Applicative
 import Control.Monad.Fix
 import Control.Monad hiding (join)
 import Data.Sized.Ix
@@ -94,8 +95,15 @@ data Fabric a = Fabric { unFabric :: [(String,Pad)] -> (a,[(String,Pad)],[(Strin
 instance Functor Fabric where
         fmap f fab = fab >>= \ a -> return (f a)
 
+instance Applicative Fabric where
+        pure x = Fabric $ \ _ -> (x, [], [])
+        (Fabric ff) <*> (Fabric fx) = Fabric $ \ ins ->
+          let (f, in_names, outs) = ff ins
+              (x, in_names', outs') = fx ins
+          in (f x, in_names ++ in_names', outs ++ outs')
+
 instance Monad Fabric where
-        return a = Fabric $ \ _ -> (a,[],[])
+        return = pure
         (Fabric f) >>= k = Fabric $ \ ins -> let
                           (a,in_names,outs) = f ins
                           (r,in_names',outs') = unFabric (k a) ins
@@ -400,12 +408,12 @@ instance (Size ix) => Rep (ExternalStdLogicVector ix) where
     data X (ExternalStdLogicVector ix) = XExternalStdLogicVector (ExternalStdLogicVector ix)
 
     optX (Just b)       = XExternalStdLogicVector $ b
-    optX Nothing        = XExternalStdLogicVector 
+    optX Nothing        = XExternalStdLogicVector
                         $ ExternalStdLogicVector
                         $ RepValue
                         $ replicate (size (error "Rep/ExternalStdLogicVector" :: ix)) Nothing
     unX (XExternalStdLogicVector a) = return a
-    
+
     repType _          = V (size (error "Rep/ExternalStdLogicVector" :: ix))
     toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
     fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
