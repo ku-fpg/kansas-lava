@@ -19,6 +19,7 @@ import Language.KansasLava.Types
 import Language.KansasLava.Utils
 import Language.KansasLava.Probes
 import Data.Sized.Matrix
+import Control.Applicative
 import Control.Monad.ST
 import Data.STRef
 import Data.List as L
@@ -84,8 +85,20 @@ data RTL s c a where
 -- everything except ($) bids tighter
 infixr 0 :=
 
+instance Functor (RTL s c) where
+        fmap f m = RTL $ \ c u -> do
+            (x, us) <- unRTL m c u
+            return (f x, us)
+
+instance Applicative (RTL s c) where
+        pure x = RTL $ \ _ _ -> return (x, [])
+        mf <*> mx = RTL $ \ c u -> do
+            (f, us1) <- unRTL mf c u
+            (x, us2) <- unRTL mx c u
+            return (f x, us1 ++ us2)
+
 instance Monad (RTL s c) where
-	return a = RTL $ \ _ _ -> return (a,[])
+	return = pure
 	m >>= k = RTL $ \ c u -> do (r1,f1) <- unRTL m c u
 			  	    (r2,f2) <- unRTL (k r1) c u
 				    return (r2,f1 ++ f2)
