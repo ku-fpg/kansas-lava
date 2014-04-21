@@ -138,7 +138,8 @@ writeMemory pipe = res
 			, ("wData",typeOfS dat,unD $ deepS dat)
                         , ("element_count"
                           , GenericTy
-                          , Generic (2 ^ fromIntegral (repWidth (Witness :: Witness a)))
+                          --, --Generic (2 ^ fromIntegral ((repWidth (Witness :: Witness a)) :: Int))
+                          , Generic (2 ^ ((repWidth (Witness :: Witness a)) :: Int))
                           )
 			]
 

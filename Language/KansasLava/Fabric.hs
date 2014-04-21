@@ -45,7 +45,8 @@ import Data.Ord(comparing)
 import System.IO
 import Control.Concurrent
 
-import GHC.TypeLits
+import Data.Singletons
+--import GHC.TypeLits
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal
