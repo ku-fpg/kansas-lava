@@ -15,7 +15,8 @@ import Data.Sized.Unsigned
 
 import Control.Monad.Fix
 
-import GHC.TypeLits
+import Data.Singletons
+--import GHC.TypeLits
 
 import Debug.Trace
 
@@ -57,9 +58,9 @@ instance Variable Signal where
 
 data VAR c a = VAR (forall (var :: * -> * -> *) . (Variable var) => var c a)
 
-type instance (1 + 64) = 65
+{-type instance (1 + 64) = 65
 type instance (1 + 8)  = 9
-type instance (1 + 0)  = 1
+type instance (1 + 0)  = 1-}
 
 initially :: forall a m c . (LocalM m, c ~ LocalClock m, Rep a, SingI (W (Enabled a))) => a -> m (VAR c a)
 --, SingI (W (Enabled a))) => a -> m (VAR c a)

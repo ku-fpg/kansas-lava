@@ -14,6 +14,7 @@ import Control.Monad (liftM)
 import qualified Data.Map as Map
 
 import GHC.TypeLits
+import Data.Singletons
 
 -- | A 'Rep a' is an 'a' value that we 'Rep'resent, aka we can push it over a
 -- wire. The general idea is that instances of Rep should have a width (for the

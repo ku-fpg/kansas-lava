@@ -14,9 +14,10 @@ import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
 import Data.Bits
 import Data.Array.IArray
-import GHC.TypeLits
+--import GHC.TypeLits
 
 import Data.Sized.Matrix as M
+import Data.Singletons
 
 import Language.KansasLava.Stream (Stream(Cons))
 import Language.KansasLava.Rep

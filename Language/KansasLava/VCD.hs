@@ -14,7 +14,7 @@ module Language.KansasLava.VCD
     , tbfVCD
 
     -- * Capture a VCD from a fabric
-    , recordVCDFabric
+    --, recordVCDFabric
 
     -- * set up probes
     , probesToVCD
@@ -270,7 +270,7 @@ tbfVCD vcd@(VCD 0 m) = [ map showPackedRepValue (vcSplice vc 0 j)
          j = maximum [ e | VC _ _ _ e <- M.elems m ]
 
 
-recordVCDFabric :: (MonadFix m, Clock c) => Int -> SuperFabric c m a -> SuperFabric c m (a,VCD)
+{-recordVCDFabric :: (MonadFix m, Clock c) => Int -> SuperFabric c m a -> SuperFabric c m (a,VCD)
 recordVCDFabric i fab = do
         (a,ins,vars,outs) <- recordFabric fab
         return (a,VCD 0 $ foldr (\ (nm,val) -> M.insert nm (padToVC i val))
@@ -278,6 +278,7 @@ recordVCDFabric i fab = do
                          $ [ ("inputs/" ++ nm,val) | (nm,val) <- ins ] ++
                            [ ("vars/v" ++ show n,val) | (n,val) <- vars ] ++
                            [ ("outputs/" ++ nm,val) | (nm,val) <- outs ])
+-}
 
 
 writeSIG :: String -> VCD -> IO ()

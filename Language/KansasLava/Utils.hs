@@ -21,7 +21,7 @@ import Language.KansasLava.Types
 import Data.Sized.Fin
 import Data.Sized.Matrix	as M
 import Data.Sized.Signed	as SI
-import Data.Sized.TypeNatInstances()
+--import Data.Sized.TypeNatInstances()
 
 -----------------------------------------------------------------------------------------------
 
