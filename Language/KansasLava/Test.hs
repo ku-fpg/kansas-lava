@@ -41,7 +41,7 @@ import Data.Maybe as Maybe
 import Data.Default
 --import Data.Sized.Unsigned
 
-import System.Cmd
+import System.Process
 import System.Console.CmdArgs hiding (Default,def,name,summary,opt)
 import System.Directory
 import System.Environment

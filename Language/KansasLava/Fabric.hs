@@ -43,7 +43,7 @@ import Language.KansasLava.Utils
 -- The '_' will disappear soon from these names.
 -- | A Pad represents the type of a top-level input/output port.
 data Pad = StdLogic (Seq Bool)
-         | forall a x . (Size (W a), Show a, Rep a)
+         | forall a . (Size (W a), Show a, Rep a)
                 => StdLogicVector (Seq a)
 --         | TypedPad (...)
          | GenericPad Integer

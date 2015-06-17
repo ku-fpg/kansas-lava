@@ -497,6 +497,7 @@ infixl 6 &
 instance (Size w) => Num (BitPat w) where
     (+) = error "(+) undefined for BitPat"
     (*) = error "(*) undefined for BitPat"
+    negate = error "negate undefined for BitPat"
     abs = error "abs undefined for BitPat"
     signum = error "signum undefined for BitPat"
     fromInteger n
