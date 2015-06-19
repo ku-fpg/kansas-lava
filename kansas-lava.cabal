@@ -1,5 +1,5 @@
 Name:               kansas-lava
-Version:            0.2.4.2
+Version:            0.2.4.3
 Synopsis:           Kansas Lava is a hardware simulator and VHDL generator.
 
 Description: 
@@ -194,4 +194,4 @@ source-repository this
   type:     git
   location: git://github.com/ku-fpg/kansas-lava.git
   branch:   kansas-lava-0.2.4
-  tag:	    0.2.4.2
+  tag:	    0.2.4.3
