@@ -28,6 +28,7 @@ import Data.Sized.Matrix as M
 import qualified Data.ByteString.Lazy as B
 import Control.Applicative
 import Control.Monad.Fix
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 ---------------------------------------------------------------------------
 -- The Patch.

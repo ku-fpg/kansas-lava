@@ -11,6 +11,7 @@ import Language.KansasLava.Types
 import Data.Reify
 import Control.Applicative
 import Control.Monad
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 import Data.List
 import Data.Default

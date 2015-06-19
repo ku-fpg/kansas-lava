@@ -13,6 +13,7 @@ import Control.Applicative
 import Control.Monad (liftM, liftM2, liftM3)
 import Data.List as List
 import Data.Bits
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 import Data.Sized.Ix
 import Data.Sized.Matrix as M

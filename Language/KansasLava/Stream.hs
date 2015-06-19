@@ -8,8 +8,8 @@ import Data.Traversable
 import qualified Data.Foldable as F
 import Control.Applicative
 import Control.Monad
-import Prelude hiding (zipWith,zipWith3, repeat)
 import Data.Monoid
+import Prelude hiding (zipWith,zipWith3, repeat)
 import qualified Data.List as List
 import Data.Dynamic
 import Debug.Trace

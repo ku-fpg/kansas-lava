@@ -67,7 +67,8 @@ import Data.Reify
 import Data.Ratio
 import qualified Data.Traversable as T
 import Data.Sized.Ix
-import GHC.Exts( IsString(..) )
+import Data.String ( IsString(..) )
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 -------------------------------------------------------------------------
 -- | Type captures HDL-representable types.

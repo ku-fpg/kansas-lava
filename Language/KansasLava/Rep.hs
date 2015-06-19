@@ -26,6 +26,7 @@ import Data.Bits
 --import qualified Data.Maybe as Maybe
 import Data.Traversable(sequenceA)
 import qualified Data.Sized.Sampled as Sampled
+import Prelude hiding (sequenceA) -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 import Language.KansasLava.Rep.TH
 import Language.KansasLava.Rep.Class
@@ -340,4 +341,3 @@ instance (Enum ix, Size m, Size ix) => Rep (Sampled.Sampled m ix) where
 	toRep (XSampled (Just a))   = RepValue $ fmap Just $ M.toList $ Sampled.toMatrix a
 	fromRep r = optX (liftM (Sampled.fromMatrix . M.fromList) $ getValidRepValue r)
 	showRep = showRepDefault
-

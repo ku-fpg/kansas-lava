@@ -34,6 +34,7 @@ import Data.Set(Set)
 import qualified Data.Map as Map
 import Data.Map(Map)
 import Data.Ord(comparing)
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 import Language.KansasLava.Rep
 import Language.KansasLava.Signal

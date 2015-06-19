@@ -25,6 +25,7 @@ import Control.Monad.ST
 import Data.STRef
 import Data.List as L
 import Control.Monad.ST.Unsafe (unsafeInterleaveST)
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 --import Debug.Trace
 

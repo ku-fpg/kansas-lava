@@ -40,6 +40,7 @@ import Data.List as List
 import Data.Maybe as Maybe
 import Data.Default
 --import Data.Sized.Unsigned
+import Prelude -- https://ghc.haskell.org/trac/ghc/wiki/Migration/7.10#GHCsaysTheimportof...isredundant
 
 import System.Process
 import System.Console.CmdArgs hiding (Default,def,name,summary,opt)
