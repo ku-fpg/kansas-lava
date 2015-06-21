@@ -49,7 +49,7 @@ Flag tools
 
 Library
   Build-Depends:
-        base >= 4 && < 5,
+        base >= 4.7 && < 5,
         containers,
         array,
         sized-types >= 0.4.1.1,
