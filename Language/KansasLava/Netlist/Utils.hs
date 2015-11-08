@@ -79,6 +79,12 @@ fromIntegerToExpr t i =
         b 1 = T
         b _ = error "fromIntegerExpr: bit not of a value 0 or 1"
 
+fromBoolToExpr :: Type -> Bool -> Expr
+fromBoolToExpr t b =
+	case toStdLogicTy t of
+	     B   -> ExprLit Nothing (ExprBit (if b then T else F))
+	     _ -> error "fromBoolToExpr: was expecting B from normalized number"
+
 instance ToTypedExpr RepValue where
 	-- From a literal into a typed Expr
 	-- NOTE: We use Integer here as a natural, and assume overflow
@@ -138,6 +144,9 @@ instance (Integral a, Show a) => ToStdLogicExpr (Driver a) where
 instance ToStdLogicExpr Integer where
 	-- From a literal into a StdLogic Expr
 	toStdLogicExpr = fromIntegerToExpr
+
+instance ToStdLogicExpr Bool where
+	toStdLogicExpr = fromBoolToExpr
 
 instance ToStdLogicExpr RepValue where
 	toStdLogicExpr t r = toTypedExpr t (fromRepToInteger r)
