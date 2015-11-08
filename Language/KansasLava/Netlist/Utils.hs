@@ -73,7 +73,7 @@ fromIntegerToExpr t i =
 	     B   -> ExprLit Nothing (ExprBit (b (fromInteger i)))
 	     V n -> ExprLit (Just n) (ExprNum i)
 	     GenericTy   -> ExprLit Nothing  (ExprNum i)
-	     _ -> error "fromIntegerToExpr: was expecting B or V from normalized number"
+	     ty -> error $ unwords ["fromIntegerToExpr: was expecting B or V from normalized number:", show ty, show i]
   where b :: Int -> Bit
         b 0 = F
         b 1 = T

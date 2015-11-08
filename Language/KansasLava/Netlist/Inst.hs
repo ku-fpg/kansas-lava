@@ -8,6 +8,7 @@ import Language.Netlist.AST hiding (U)
 import Language.Netlist.Util
 import Language.KansasLava.Rep
 import qualified Data.Map as M
+import Data.Bits
 
 import Data.List
 import Data.Reify.Graph (Unique)
@@ -847,7 +848,9 @@ mkSpecialBinary coerceR coerceF ops =
                   (GreaterThan,S x,S y) -> mkBool (resign x il > resign y ir)
                   (Minus,U x,U y)       | x == y && il >= ir
                                        -> toStdLogicExpr fTy (il - ir)
-                  other -> error $ show ("mkSpecialBinary (constant)",il,ir,other)
+                  (And,U x,U y)         | x == y
+                                       -> toStdLogicExpr fTy (il .&. ir)
+                  other -> error $ show ("mkSpecialBinary (constant)",op,il,ir,other)
         _ -> coerceR fTy (ExprBinary op (coerceF lty l)(coerceF rty r))
     binop op _ _ = error $ "Binary op " ++ show op ++ " must have exactly 2 arguments"
 
