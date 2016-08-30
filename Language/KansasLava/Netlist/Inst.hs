@@ -926,6 +926,7 @@ specials =
 	]
    ++   mkSpecialTestBit
 -- See: http://homepage.ntlworld.com/jonathan.deboynepollard/FGA/bit-shifts-in-vhdl.html
+-- Now: https://jdebp.eu./FGA/bit-shifts-in-vhdl.html
    ++   mkSpecialShifts
         [ ("shiftL", "shift_left")
         , ("shiftR", "shift_right")
