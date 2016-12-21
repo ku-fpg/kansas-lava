@@ -3,7 +3,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances, TypeSynonymInstances #-}
-{-# LANGUAGE RankNTypes, ImpredicativeTypes #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies, GADTs #-}
 {-# LANGUAGE ParallelListComp, TypeOperators #-}
 module Language.KansasLava.Protocols.Patch
@@ -180,7 +180,7 @@ mapP :: forall a b c sig ack . (Rep a, Rep b, Clock c, sig ~ Signal c)
 	 => (forall clk' . Signal clk' a -> Signal clk' b)
 	 -> Patch (sig (Enabled a)) (sig (Enabled b))
 	   	  (ack)		    (ack)
-mapP = forwardP . mapEnabled
+mapP f = forwardP (mapEnabled f)
 
 ------------------------------------------------
 -- Unit
