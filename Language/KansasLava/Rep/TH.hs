@@ -19,11 +19,11 @@ repIntegral tyName tyType = do
 		(appT (conT ''Rep) (conT tyName))
 		[ tySynInstD ''W (tySynEqn [conT tyName] (conT (mkName xSize)))
 		, dataInstD  (return [])
-		 	     ''X [conT tyName]
+		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
 					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
 				]
-				[]
+				(return [])
 		, funD 'optX
 		  	[clause [varP x] 
 				      (normalB
@@ -68,11 +68,11 @@ repBitRep tyName width = do -- tyType = do
 		(appT (conT ''Rep) (conT tyName))
 		[ tySynInstD ''W (tySynEqn [conT tyName] (conT (mkName xSize)))
 		, dataInstD  (return [])
-		 	     ''X [conT tyName]
+		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
 					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
 				]
-				[]
+				(return [])
 		, funD 'optX
 		  	[clause [varP x] 
 				      (normalB
