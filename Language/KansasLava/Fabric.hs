@@ -31,6 +31,7 @@ module Language.KansasLava.Fabric
         , observeFabric
         ) where -} where
 
+import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -137,6 +138,10 @@ data Pure a = Pure { runPure :: a }
 instance Functor Pure where
         fmap f (Pure a) = Pure (f a)
 
+instance Applicative Pure where
+        pure a = Pure a
+        (<*>)  = ap
+
 instance Monad Pure where
         return a = Pure a
         (Pure a) >>= k = k a
@@ -146,6 +151,10 @@ instance MonadFix Pure where
 
 instance MonadFix m => Functor (SuperFabric c m) where
         fmap f fab = fab >>= \ a -> return (f a)
+
+instance MonadFix m => Applicative (SuperFabric c m) where
+        pure a = Fabric $ \ _ st -> return (a,mempty,st)
+        (<*>)  = ap
 
 instance MonadFix m => Monad (SuperFabric c m) where
         return a = Fabric $ \ _ st -> return (a,mempty,st)
