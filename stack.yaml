@@ -1,0 +1,13 @@
+resolver: lts-6.18
+
+packages:
+- '.'
+
+extra-deps:
+- netlist-0.3.1
+- netlist-to-vhdl-0.3.2
+- sized-types-0.5.1
+
+flags: {}
+
+extra-package-dbs: []
