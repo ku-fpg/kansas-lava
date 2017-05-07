@@ -59,6 +59,13 @@ replaceWith o (i,t,other) = Entity (Prim "id") [(o,t)] [(i,t,other)]
 -- some metric based on the optimization...
 data Opt a = Opt a Int -- [String]
 
+instance Functor Opt where
+    fmap = liftM
+
+instance Applicative Opt where
+    pure a = Opt a 0
+    (<*>)  = ap
+
 instance Monad Opt where
     return a = Opt a 0
     (Opt a n) >>= k = case k a of
@@ -249,5 +256,3 @@ optimizeCircuit options rCir = do
 	       , ("copy",copyElimCircuit)
 	       , ("dce",dceCircuit)
 	       ]
-
-

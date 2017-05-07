@@ -13,6 +13,7 @@ import Data.Boolean
 
 import Data.Sized.Unsigned
 
+import Control.Monad
 import Control.Monad.Fix
 
 import Data.Singletons
@@ -118,6 +119,11 @@ data STMT :: * -> * -> * where
         BIND   :: STMT c a -> (a -> STMT c b) -> STMT c b
         MFIX   :: (a -> STMT c a) -> STMT c a
 
+instance Functor (STMT c) where
+        fmap = liftM
+instance Applicative (STMT c) where
+        pure = RETURN
+        (<*>) = ap
 instance Monad (STMT c) where
         return = RETURN
         (>>=) = BIND
@@ -133,6 +139,13 @@ data SMState m = SMState
         }
 
 data SparkMonad m a = SparkMonad { runSparkMonad :: SMState m -> (a,SMState m) }
+
+instance Functor (SparkMonad m) where
+        fmap = liftM
+
+instance Applicative (SparkMonad m) where
+        pure a = SparkMonad $ \ st -> (a,st)
+        (<*>)  = ap
 
 instance Monad (SparkMonad m) where
         return a = SparkMonad $ \ st -> (a,st)
@@ -244,6 +257,13 @@ data RMState m = RMState
 
 data RuleMonad m a = RuleMonad { runRuleMonad :: RMState m -> (a,RMState m) }
 
+instance Functor (RuleMonad a) where
+    fmap = liftM
+
+instance Applicative (RuleMonad a) where
+        pure a = RuleMonad $ \ st -> (a,st)
+        (<*>)  = ap
+
 instance Monad (RuleMonad m) where
         return a = RuleMonad $ \ st -> (a,st)
         (RuleMonad m) >>= k = RuleMonad $ \ st -> case m st of
@@ -279,20 +299,3 @@ rule stmt = do
         return false
 
 --        BIND   :: STMT c a -> (a -> STMT c b) -> STMT c b
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
