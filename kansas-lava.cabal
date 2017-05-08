@@ -20,14 +20,10 @@ Stability:           alpha
 build-type:          Simple
 
 
--- (We actually require >= ghc 7.6, because we the kind Nat.)
+-- (We actually require >= GHC 7.6, i.e. Cabal-1.16,
+--  because we use the kind Nat.)
 --
--- should be >= 1.12, but that will force
--- people to ghc 7.4. Don't try to run
--- 'cabal haddock' with 1.10.
--- TODO: change this when everyone on 7.4
---
-Cabal-Version:       >= 1.10
+Cabal-Version:       >= 1.14
 Data-files:
    Prelude/VHDL/*.vhd,
    Prelude/HTML/*.inc
