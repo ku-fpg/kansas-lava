@@ -53,7 +53,7 @@ Library
         process,
         netlist >= 0.3.1,
         netlist-to-vhdl >= 0.3.1,
-        template-haskell >= 2.11 && < 2.12,
+        template-haskell >= 2.11,
         bytestring,
         data-reify == 0.6
   Exposed-modules:

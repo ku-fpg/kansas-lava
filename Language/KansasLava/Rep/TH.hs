@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies, CPP #-}
 
 module Language.KansasLava.Rep.TH where
 
@@ -24,7 +24,11 @@ repIntegral tyName tyType = do
                                   [ bangType (bang noSourceUnpackedness noSourceStrictness)
                                     (appT (conT ''Maybe) (conT tyName)) ]
                                 ]
-				(return [])
+#if MIN_VERSION_template_haskell(2,12,0)
+                                []
+#else
+                                (return [])
+#endif
 		, funD 'optX
 		  	[clause [varP x] 
 				      (normalB
@@ -74,7 +78,11 @@ repBitRep tyName width = do -- tyType = do
                                   [ bangType (bang noSourceUnpackedness noSourceStrictness)
                                     (appT (conT ''Maybe) (conT tyName)) ]
                                 ]
-				(return [])
+#if MIN_VERSION_template_haskell(2,12,0)
+                                []
+#else
+                                (return [])
+#endif
 		, funD 'optX
 		  	[clause [varP x] 
 				      (normalB
