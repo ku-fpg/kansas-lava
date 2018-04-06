@@ -109,7 +109,7 @@ testABit (Signal a ae) i = Signal (fmap (liftX (flip testBit i)) a)
 -- | Predicate to see if a Signed value is positive.
 isPositive :: forall sig i ix . (sig ~ Signal i, Size ix, Integral ix, Rep ix) => sig (Signed ix) -> sig Bool
 isPositive a = bitNot $ testABit a (fromIntegral msb)
-    where msb = bitSize a - 1
+    where msb = finiteBitSize a - 1
 
 infixr 3 .&&.
 infixr 2 .||.

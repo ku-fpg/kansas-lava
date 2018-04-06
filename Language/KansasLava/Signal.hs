@@ -156,7 +156,11 @@ instance (Show a, Bits a, Rep a) => Bits (Signal i a) where
     s1 `rotateR` n = primS2 (rotateR) "rotateR" s1  (pureS n)
     complement s   = primS1 (complement) "complement"  s
     bitSize s      = typeWidth (typeOfS s)
+    bitSizeMaybe s = Just $ typeWidth (typeOfS s)
     isSigned s     = isTypeSigned (typeOfS s)
+
+instance (Show a, FiniteBits a, Rep a) => FiniteBits (Signal i a) where
+    finiteBitSize s = typeWidth (typeOfS s)
 
 instance (Eq a, Show a, Fractional a, Rep a) => Fractional (Signal i a) where
     s1 / s2 = primS2 (/) "/"  s1  s2
