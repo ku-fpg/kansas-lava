@@ -45,7 +45,7 @@ probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 -- with the given function.
 {-# NOINLINE setProbes #-}
 setProbes :: (forall a i . (Rep a) => String -> Signal i a -> Signal i a) -> IO ()
-setProbes = writeIORef probeFn . ProbeFn
+setProbes f = writeIORef probeFn (ProbeFn f)
 
 -- | The callback is called for every element of every probed value, in evaluation order.
 -- The arguments are fully evaluted (so printing them will not cause any side-effects of evaluation.
