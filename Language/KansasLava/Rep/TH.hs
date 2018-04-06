@@ -21,8 +21,9 @@ repIntegral tyName tyType = do
 		, dataInstD  (return [])
 		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
-					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
-				]
+                                  [ bangType (bang noSourceUnpackedness noSourceStrictness)
+                                    (appT (conT ''Maybe) (conT tyName)) ]
+                                ]
 				(return [])
 		, funD 'optX
 		  	[clause [varP x] 
@@ -70,8 +71,9 @@ repBitRep tyName width = do -- tyType = do
 		, dataInstD  (return [])
 		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
-					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
-				]
+                                  [ bangType (bang noSourceUnpackedness noSourceStrictness)
+                                    (appT (conT ''Maybe) (conT tyName)) ]
+                                ]
 				(return [])
 		, funD 'optX
 		  	[clause [varP x] 

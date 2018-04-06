@@ -57,7 +57,7 @@ instance Rep Bool where
     showRep (XBool (Just True))  = "high"
     showRep (XBool (Just False)) = "low"
 
-$(repIntegral ''Int     (S $ bitSize $ (error "witness" :: Int)))
+$(repIntegral ''Int     (S $ finiteBitSize $ (error "witness" :: Int)))
 
 $(repIntegral ''Word8   (U  8))
 $(repIntegral ''Word32  (U 32))
