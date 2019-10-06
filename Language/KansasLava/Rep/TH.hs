@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE CPP, TemplateHaskell, TypeFamilies #-}
 
 module Language.KansasLava.Rep.TH where
 
@@ -8,6 +8,11 @@ import Language.Haskell.TH.Syntax as S
 
 import Language.KansasLava.Types as KLT
 import Language.KansasLava.Rep.Class
+
+#if MIN_VERSION_template_haskell(2, 11, 0)
+notStrict' :: BangQ
+notStrict'  = bang noSourceUnpackedness noSourceStrictness
+#endif
 
 -- You would think that you could go from Name to Kansas Lava type,
 -- but this breaks the staging in Template Haskell.
@@ -19,9 +24,13 @@ repIntegral tyName tyType = do
 		(appT (conT ''Rep) (conT tyName))
 		[ tySynInstD ''W (tySynEqn [conT tyName] (litT (numTyLit xSize)))
 		, dataInstD  (return [])
-		 	     ''X [conT tyName]
+		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
+#if MIN_VERSION_template_haskell(2, 11, 0)
+                                          [ bangType  notStrict' (appT (conT ''Maybe) (conT tyName)) ]
+#else
 					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
+#endif
 				]
 				[]
 		, funD 'optX
@@ -68,11 +77,15 @@ repBitRep tyName width = do -- tyType = do
 		(appT (conT ''Rep) (conT tyName))
 		[ tySynInstD ''W (tySynEqn [conT tyName] (litT (numTyLit xSize)))
 		, dataInstD  (return [])
-		 	     ''X [conT tyName]
+		 	     ''X [conT tyName] Nothing
 				[ normalC xConsName
+#if MIN_VERSION_template_haskell(2, 11, 0)
+                                          [ bangType  notStrict' (appT (conT ''Maybe) (conT tyName)) ]
+#else
 					  [ strictType notStrict (appT (conT ''Maybe) (conT tyName)) ]
+#endif
 				]
-				[]
+                                []
 		, funD 'optX
 		  	[clause [varP x]
 				      (normalB

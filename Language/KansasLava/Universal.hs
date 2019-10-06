@@ -1,4 +1,5 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleContexts, ScopedTypeVariables, TypeFamilies, RankNTypes, DataKinds #-}
+{-# LANGUAGE CPP, ExistentialQuantification, FlexibleContexts, ScopedTypeVariables,
+             TypeFamilies, RankNTypes, DataKinds #-}
 
 module Language.KansasLava.Universal where
 
@@ -75,10 +76,17 @@ instance (SingI ix) => Rep (ExternalStdLogicVector ix) where
     optX Nothing        = XExternalStdLogicVector
                         $ ExternalStdLogicVector
                         $ RepValue
+#if MIN_VERSION_singletons(2, 4, 0)
+                        $ replicate (fromIntegral(fromSing (sing :: Sing ix))) Nothing
+#else
                         $ replicate (fromInteger(fromNat (sing :: Sing ix))) Nothing
+#endif
     unX (XExternalStdLogicVector a) = return a
-
+#if MIN_VERSION_singletons(2, 4, 0)
+    repType _          = V (fromIntegral(fromSing (sing :: Sing ix)))
+#else
     repType _          = V (fromInteger(fromNat (sing :: Sing ix)))
+#endif
     toRep (XExternalStdLogicVector (ExternalStdLogicVector a)) = a
     fromRep a = XExternalStdLogicVector (ExternalStdLogicVector a)
     showRep = showRepDefault

@@ -1,6 +1,11 @@
-{-# LANGUAGE TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
+{-# LANGUAGE CPP, TypeFamilies, ExistentialQuantification, FlexibleInstances, UndecidableInstances, FlexibleContexts, DeriveDataTypeable,
     ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies,ParallelListComp, EmptyDataDecls, TypeSynonymInstances, TypeOperators,
-    TemplateHaskell, DataKinds  #-}
+    TemplateHaskell, DataKinds #-}
+
+#if __GLASGOW_HASKELL__ >= 806
+{-# LANGUAGE NoStarIsType #-}
+#endif
+
 -- | KansasLava is designed for generating hardware circuits. This module
 -- provides a 'Rep' class that allows us to model, in the shallow embedding of
 -- KL, two important features of hardware signals. First, all signals must have
@@ -172,13 +177,17 @@ instance (SingI x) => Rep (Fin x) where
     optX Nothing    = XSized $ fail "Sized"
     unX (XSized (Just a)) = return a
     unX (XSized Nothing) = fail "Sized"
+#if MIN_VERSION_singletons(2, 4, 0)
+    repType _  = U (log2 (fromIntegral (fromSing (sing :: Sing x)) - 1))
+#else
     repType _  = U (log2 (fromInteger(fromNat (sing :: Sing x)) - 1))
+#endif
     toRep = toRepFromIntegral
     fromRep = sizedFromRepToIntegral
     showRep = showRepDefault
 
 instance (SingI ix, Rep a) => Rep (Vector ix a) where
-    type W (Vector ix a) = ix  * (W a)
+    type W (Vector ix a) = ix * (W a)
     data X (Vector ix a) = XMatrix (Vector ix (X a))
     optX (Just m)   = XMatrix $ fmap (optX . Just) m
     optX Nothing    = XMatrix $ forAll $ \ _ -> optX (Nothing :: Maybe a)
@@ -200,7 +209,11 @@ instance (SingI ix) => Rep (Unsigned ix) where
     optX Nothing        = XUnsigned $ fail "Wire Int"
     unX (XUnsigned (Just a))     = return a
     unX (XUnsigned Nothing)   = fail "Wire Int"
+#if MIN_VERSION_singletons(2, 4, 0)
+    repType _          = U (fromIntegral (fromSing (sing :: Sing ix)))
+#else
     repType _          = U (fromInteger(fromNat (sing :: Sing ix)))
+#endif
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -212,7 +225,11 @@ instance (SingI ix) => Rep (Signed ix) where
     optX Nothing        = XSigned $ fail "Wire Int"
     unX (XSigned (Just a))     = return a
     unX (XSigned Nothing)   = fail "Wire Int"
+#if MIN_VERSION_singletons(2, 4, 0)
+    repType _          = S (fromIntegral (fromSing (sing :: Sing ix)))
+#else
     repType _          = S (fromInteger (fromNat (sing :: Sing ix)))
+#endif
     toRep = toRepFromIntegral
     fromRep = fromRepToIntegral
     showRep = showRepDefault
@@ -247,8 +264,13 @@ instance (SingI m, SingI ix) => Rep (Sampled.Sampled m ix) where
 	optX Nothing	    = XSampled $ fail "Wire Sampled"
 	unX (XSampled (Just a))     = return a
 	unX (XSampled Nothing)   = fail "Wire Sampled"
+#if MIN_VERSION_singletons(2, 4, 0)
+        repType _           = SampledTy (fromIntegral (fromSing (sing :: Sing m)))
+                                        (fromIntegral (fromSing (sing :: Sing ix)))
+#else
 	repType _   	    = SampledTy (fromInteger (fromNat (sing :: Sing m)))
                                         (fromInteger (fromNat (sing :: Sing ix)))
+#endif
   	toRep (XSampled Nothing) = unknownRepValue (Witness :: Witness (Sampled.Sampled m ix))
 	toRep (XSampled (Just a))   = RepValue $ fmap Just $ elems $ Sampled.toVector a
 	fromRep r = optX (liftM (Sampled.fromVector . M.matrix) $ getValidRepValue r)

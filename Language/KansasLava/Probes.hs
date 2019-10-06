@@ -4,7 +4,6 @@
 module Language.KansasLava.Probes (
       -- * Probes
       probeS, unpackedProbe,
---      resetProbesForVCD, snapProbesAsVCD,
 
       -- * Setting up the debugging mode for probes
       setProbesAsTrace, setShallowProbes, setProbes
@@ -40,7 +39,8 @@ probeFn = unsafePerformIO $ newIORef $ ProbeFn $ \ _ s -> s
 -- with the given function.
 {-# NOINLINE setProbes #-}
 setProbes :: (forall a i . (Rep a) => String -> Signal i a -> Signal i a) -> IO ()
-setProbes = writeIORef probeFn . ProbeFn
+setProbes = undefined -- TODO: Don't forget to fix this!
+-- setProbes = writeIORef probeFn . ProbeFn
 
 -- | The callback is called for every element of every probed value, in evaluation order.
 -- The arguments are fully evaluted (so printing them will not cause any side-effects of evaluation.

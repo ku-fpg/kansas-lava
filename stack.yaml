@@ -1,12 +1,15 @@
-resolver: lts-6.18
+resolver: lts-14.7
 
 packages:
 - '.'
 
 extra-deps:
-- netlist-0.3.1
-- netlist-to-vhdl-0.3.2
-- sized-types-0.5.1
+- ../netlist/netlist
+# - netlist-0.4.0
+- ../netlist/netlist-to-vhdl
+# - netlist-to-vhdl-0.4.0
+- ../sized-types
+# - sized-types-0.5.1
 
 flags: {}
 
