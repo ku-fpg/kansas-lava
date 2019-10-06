@@ -1,4 +1,9 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts, TypeOperators, TypeFamilies, ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes, UndecidableInstances, DataKinds #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, FlexibleContexts, TypeOperators, TypeFamilies,
+    ParallelListComp, TypeSynonymInstances, FlexibleInstances, GADTs, RankNTypes,
+    UndecidableInstances, DataKinds #-}
+#if __GLASGOW_HASKELL__ >= 806
+{-# LANGUAGE NoStarIsType #-}
+#endif
 -- | This module provides abstractions for working with RAMs and ROMs.
 module Language.KansasLava.Protocols.Memory where
 

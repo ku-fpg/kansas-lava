@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TypeFamilies,
+{-# LANGUAGE CPP, ExistentialQuantification, TypeFamilies,
     ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances,
     FlexibleContexts, UndecidableInstances, GADTs, RecursiveDo, RankNTypes, DataKinds, InstanceSigs, MultiParamTypeClasses  #-}
 
@@ -113,8 +113,17 @@ data FabricOutput c = FabricOutput
 
 instance Monoid (FabricOutput c) where
         mempty = FabricOutput [] [] [] []
+#if   __GLASGOW_HASKELL__ < 800
         mappend (FabricOutput i1 o1 v1 r1) (FabricOutput i2 o2 v2 r2) =
                 FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2) (r1 <> r2)
+#elif __GLASGOW_HASKELL__ < 804
+        mappend = (<>)
+#else
+instance Semigroup (FabricOutput c) where
+        (FabricOutput i1 o1 v1 r1) <> (FabricOutput i2 o2 v2 r2) =
+                FabricOutput (i1 <> i2) (o1 <> o2) (v1 <> v2) (r1 <> r2)
+#endif
+
 
 data SuperFabric c m a = Fabric
         { unFabric :: FabricInput c -> FabricState -> m (a,FabricOutput c,FabricState) }
